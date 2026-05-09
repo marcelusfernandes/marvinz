@@ -1303,7 +1303,10 @@ button.prop-bool {
 }
 
 .live-md p {
-  margin: 0 0 0.85em;
+  /* Generous bottom space gives the cursor room when the next line is
+     transformed into a heading mid-typing, so the heading lands roughly
+     where the cursor already was. */
+  margin: 0 0 1.5em;
 }
 
 .live-md h1,
@@ -1313,15 +1316,11 @@ button.prop-bool {
 .live-md h5,
 .live-md h6 {
   font-weight: 600;
-  margin: 1.6em 0 0.6em;
+  /* Zero top margin: rely on the previous element's bottom margin for
+     separation. This keeps WYSIWYG transforms from "jumping" the line. */
+  margin: 0.4em 0 0.6em;
   line-height: 1.3;
   color: #f0f0f0;
-}
-
-.live-md h1:first-child,
-.live-md h2:first-child,
-.live-md h3:first-child {
-  margin-top: 0;
 }
 
 .live-md h1 {
