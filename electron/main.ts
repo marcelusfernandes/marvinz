@@ -1,0 +1,305 @@
+import { app, BrowserWindow, ipcMain, dialog, shell } from 'electron'
+import path from 'node:path'
+import fs from 'node:fs/promises'
+import { existsSync, statSync } from 'node:fs'
+import { execSync } from 'node:child_process'
+import chokidar, { type FSWatcher } from 'chokidar'
+import * as pty from 'node-pty'
+
+process.env.APP_ROOT = path.join(__dirname, '..')
+
+let cachedShellEnv: NodeJS.ProcessEnv | null = null
+
+function getShellEnv(): NodeJS.ProcessEnv {
+  if (cachedShellEnv) return cachedShellEnv
+  if (process.platform === 'win32') {
+    cachedShellEnv = { ...process.env }
+    return cachedShellEnv
+  }
+  const userShell = process.env.SHELL || '/bin/zsh'
+  try {
+    const out = execSync(`${userShell} -ilc 'env'`, {
+      encoding: 'utf8',
+      timeout: 4000,
+      env: { ...process.env, ELECTRON_RUN_AS_NODE: '' },
+    })
+    const parsed: NodeJS.ProcessEnv = {}
+    for (const line of out.split('\n')) {
+      const eq = line.indexOf('=')
+      if (eq <= 0) continue
+      parsed[line.slice(0, eq)] = line.slice(eq + 1)
+    }
+    cachedShellEnv = { ...process.env, ...parsed }
+  } catch {
+    cachedShellEnv = { ...process.env }
+  }
+  return cachedShellEnv
+}
+const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL']
+const RENDERER_DIST = path.join(process.env.APP_ROOT, 'dist')
+
+let win: BrowserWindow | null = null
+let vaultWatcher: FSWatcher | null = null
+const ptyProcesses = new Map<string, pty.IPty>()
+
+const SETTINGS_FILE = () => path.join(app.getPath('userData'), 'settings.json')
+
+type Settings = { vaultPath?: string }
+
+async function readSettings(): Promise<Settings> {
+  try {
+    const raw = await fs.readFile(SETTINGS_FILE(), 'utf8')
+    return JSON.parse(raw)
+  } catch {
+    return {}
+  }
+}
+
+async function writeSettings(s: Settings): Promise<void> {
+  await fs.mkdir(path.dirname(SETTINGS_FILE()), { recursive: true })
+  await fs.writeFile(SETTINGS_FILE(), JSON.stringify(s, null, 2))
+}
+
+function createWindow() {
+  win = new BrowserWindow({
+    width: 1400,
+    height: 900,
+    minWidth: 900,
+    minHeight: 600,
+    titleBarStyle: 'hiddenInset',
+    backgroundColor: '#1e1e1e',
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.mjs'),
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  })
+
+  if (VITE_DEV_SERVER_URL) {
+    win.loadURL(VITE_DEV_SERVER_URL)
+    win.webContents.openDevTools({ mode: 'detach' })
+  } else {
+    win.loadFile(path.join(RENDERER_DIST, 'index.html'))
+  }
+
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    shell.openExternal(url)
+    return { action: 'deny' }
+  })
+}
+
+app.whenReady().then(createWindow)
+
+app.on('window-all-closed', () => {
+  for (const p of ptyProcesses.values()) p.kill()
+  ptyProcesses.clear()
+  vaultWatcher?.close()
+  if (process.platform !== 'darwin') app.quit()
+})
+
+app.on('activate', () => {
+  if (BrowserWindow.getAllWindows().length === 0) createWindow()
+})
+
+ipcMain.handle('settings:get', () => readSettings())
+
+ipcMain.handle('shell:openExternal', async (_e, url: string) => {
+  if (!/^(https?|mailto):/i.test(url)) return
+  await shell.openExternal(url)
+})
+
+ipcMain.handle('vault:pick', async () => {
+  const result = await dialog.showOpenDialog({
+    properties: ['openDirectory', 'createDirectory'],
+    title: 'Select your vault folder',
+  })
+  if (result.canceled || result.filePaths.length === 0) return null
+  const vaultPath = result.filePaths[0]
+  const settings = await readSettings()
+  await writeSettings({ ...settings, vaultPath })
+  return vaultPath
+})
+
+type FileNode = {
+  name: string
+  path: string
+  isDir: boolean
+  children?: FileNode[]
+}
+
+const NOISY_DIRS = new Set(['.git', 'node_modules', '.DS_Store', '.svn', '.hg', '.idea'])
+const NOISY_FILES = new Set(['.DS_Store', 'Thumbs.db'])
+
+function isNoisy(name: string, isDir: boolean): boolean {
+  return isDir ? NOISY_DIRS.has(name) : NOISY_FILES.has(name)
+}
+
+async function readVaultTree(root: string, current = root): Promise<FileNode[]> {
+  const entries = await fs.readdir(current, { withFileTypes: true })
+  const nodes: FileNode[] = []
+  for (const entry of entries) {
+    if (isNoisy(entry.name, entry.isDirectory())) continue
+    const full = path.join(current, entry.name)
+    if (entry.isDirectory()) {
+      nodes.push({
+        name: entry.name,
+        path: full,
+        isDir: true,
+        children: await readVaultTree(root, full),
+      })
+    } else if (entry.isFile()) {
+      nodes.push({ name: entry.name, path: full, isDir: false })
+    }
+  }
+  nodes.sort((a, b) => {
+    if (a.isDir !== b.isDir) return a.isDir ? -1 : 1
+    return a.name.localeCompare(b.name)
+  })
+  return nodes
+}
+
+ipcMain.handle('vault:tree', async (_e, vaultPath: string) => {
+  if (!vaultPath || !existsSync(vaultPath)) return []
+  return readVaultTree(vaultPath)
+})
+
+ipcMain.handle('vault:watch', (_e, vaultPath: string) => {
+  vaultWatcher?.close()
+  if (!vaultPath) return
+  vaultWatcher = chokidar.watch(vaultPath, {
+    ignored: (p) => {
+      const base = path.basename(p)
+      return NOISY_DIRS.has(base) || NOISY_FILES.has(base)
+    },
+    ignoreInitial: true,
+    persistent: true,
+  })
+  const notifyTree = () => win?.webContents.send('vault:changed')
+  const notifyFile = (filePath: string) =>
+    win?.webContents.send('file:changed', filePath)
+  vaultWatcher
+    .on('add', (p) => {
+      notifyTree()
+      notifyFile(p)
+    })
+    .on('change', (p) => notifyFile(p))
+    .on('unlink', notifyTree)
+    .on('addDir', notifyTree)
+    .on('unlinkDir', notifyTree)
+})
+
+ipcMain.handle('file:read', async (_e, filePath: string) => {
+  return fs.readFile(filePath, 'utf8')
+})
+
+ipcMain.handle('file:write', async (_e, filePath: string, content: string) => {
+  await fs.writeFile(filePath, content, 'utf8')
+})
+
+ipcMain.handle('file:create', async (_e, parentDir: string, name: string) => {
+  const safeName = name.endsWith('.md') ? name : `${name}.md`
+  const full = path.join(parentDir, safeName)
+  if (existsSync(full)) throw new Error('File already exists')
+  await fs.mkdir(path.dirname(full), { recursive: true })
+  await fs.writeFile(full, '', 'utf8')
+  return full
+})
+
+ipcMain.handle('folder:create', async (_e, parentDir: string, name: string) => {
+  const full = path.join(parentDir, name)
+  if (existsSync(full)) throw new Error('Folder already exists')
+  await fs.mkdir(full, { recursive: false })
+  return full
+})
+
+ipcMain.handle('path:rename', async (_e, oldPath: string, newPath: string) => {
+  if (existsSync(newPath)) throw new Error('Target path already exists')
+  await fs.mkdir(path.dirname(newPath), { recursive: true })
+  await fs.rename(oldPath, newPath)
+  return newPath
+})
+
+ipcMain.handle('path:trash', async (_e, target: string) => {
+  await shell.trashItem(target)
+})
+
+ipcMain.handle('shell:reveal', async (_e, target: string) => {
+  shell.showItemInFolder(target)
+})
+
+ipcMain.handle('claude:detect', async () => {
+  const env = getShellEnv()
+  const pathDirs = (env.PATH || '').split(':').filter(Boolean)
+  const fallback = [
+    path.join(env.HOME || '', '.local/bin'),
+    '/usr/local/bin',
+    '/opt/homebrew/bin',
+  ]
+  for (const dir of [...pathDirs, ...fallback]) {
+    const candidate = path.join(dir, 'claude')
+    try {
+      const st = statSync(candidate)
+      if (st.isFile() || st.isSymbolicLink()) return candidate
+    } catch {
+      // ignore
+    }
+  }
+  return null
+})
+
+ipcMain.handle(
+  'pty:spawn',
+  (_e, opts: { id: string; shell: string; cwd: string; cols: number; rows: number; args?: string[] }) => {
+    const existing = ptyProcesses.get(opts.id)
+    if (existing) existing.kill()
+
+    const shellEnv = getShellEnv()
+    const env: Record<string, string> = {}
+    for (const [k, v] of Object.entries(shellEnv)) {
+      if (v != null) env[k] = v
+    }
+    delete env.ELECTRON_RUN_AS_NODE
+    env.TERM = 'xterm-256color'
+    env.COLORTERM = 'truecolor'
+    env.FORCE_COLOR = '1'
+
+    const cols = Math.max(opts.cols || 80, 20)
+    const rows = Math.max(opts.rows || 24, 5)
+
+    try {
+      const ptyProcess = pty.spawn(opts.shell, opts.args ?? [], {
+        name: 'xterm-256color',
+        cols,
+        rows,
+        cwd: opts.cwd,
+        env,
+      })
+      ptyProcesses.set(opts.id, ptyProcess)
+
+      ptyProcess.onData((data) => {
+        win?.webContents.send(`pty:data:${opts.id}`, data)
+      })
+      ptyProcess.onExit(({ exitCode }) => {
+        win?.webContents.send(`pty:exit:${opts.id}`, exitCode)
+        ptyProcesses.delete(opts.id)
+      })
+      return { pid: ptyProcess.pid }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      throw new Error(`Failed to spawn ${opts.shell}: ${message}`)
+    }
+  },
+)
+
+ipcMain.handle('pty:write', (_e, id: string, data: string) => {
+  ptyProcesses.get(id)?.write(data)
+})
+
+ipcMain.handle('pty:resize', (_e, id: string, cols: number, rows: number) => {
+  ptyProcesses.get(id)?.resize(cols, rows)
+})
+
+ipcMain.handle('pty:kill', (_e, id: string) => {
+  ptyProcesses.get(id)?.kill()
+  ptyProcesses.delete(id)
+})
