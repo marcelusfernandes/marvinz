@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { FileNode } from './types'
 import { FileTree } from './components/FileTree'
 import { Editor } from './components/Editor'
@@ -7,6 +7,8 @@ import { InputDialog } from './components/InputDialog'
 import { ContextMenu, type MenuItem } from './components/ContextMenu'
 import { SidebarMenu } from './components/SidebarMenu'
 import { TabBar } from './components/TabBar'
+import { TopBar } from './components/TopBar'
+import { CommandPalette, type PaletteItem } from './components/CommandPalette'
 import './App.css'
 
 type Tab = {
@@ -35,6 +37,27 @@ const newTabId = () => `tab-${++tabCounter}`
 
 function isMarkdownPath(p: string): boolean {
   return /\.(md|markdown)$/i.test(p)
+}
+
+function flattenTree(nodes: FileNode[], vaultPath: string): PaletteItem[] {
+  const out: PaletteItem[] = []
+  const walk = (n: FileNode) => {
+    if (n.isDir) {
+      n.children?.forEach(walk)
+      return
+    }
+    const rel = n.path.startsWith(vaultPath + '/')
+      ? n.path.slice(vaultPath.length + 1)
+      : n.path
+    out.push({
+      path: n.path,
+      rel,
+      name: n.name,
+      isMarkdown: isMarkdownPath(n.name),
+    })
+  }
+  nodes.forEach(walk)
+  return out
 }
 
 function dirOf(p: string): string {
@@ -68,6 +91,7 @@ export default function App() {
   const [dialog, setDialog] = useState<Dialog>(null)
   const [ctx, setCtx] = useState<ContextState>(null)
   const [error, setError] = useState<string | null>(null)
+  const [paletteOpen, setPaletteOpen] = useState(false)
 
   // Tracks last on-disk content per path that we have open. Lets us tell our
   // own saves apart from external writes (claude editing the note).
@@ -129,6 +153,25 @@ export default function App() {
     lastDiskContentRef.current.set(path, content)
     return content
   }, [])
+
+  const paletteItems = useMemo<PaletteItem[]>(
+    () => (vaultPath ? flattenTree(tree, vaultPath) : []),
+    [tree, vaultPath],
+  )
+
+  // Global Cmd+P to open the file palette.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const isCmd = e.metaKey || e.ctrlKey
+      if (isCmd && !e.shiftKey && (e.key === 'p' || e.key === 'P')) {
+        if (!vaultPath) return
+        e.preventDefault()
+        setPaletteOpen(true)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [vaultPath])
 
   const handlePickVault = async () => {
     const picked = await window.marvin.vault.pick()
@@ -267,6 +310,28 @@ export default function App() {
     if (node.isDir) return
     void openInTab(node.path)
   }
+
+  const handlePalettePick = useCallback(
+    async (item: PaletteItem, replaceCurrent: boolean) => {
+      setPaletteOpen(false)
+      if (item.isMarkdown) {
+        if (replaceCurrent && activeTab) {
+          await navigateInActiveTab(item.path)
+        } else {
+          await openInTab(item.path)
+        }
+      } else {
+        // Non-markdown files don't open inline; surface them in Finder so the
+        // user can hand them off to the system default app.
+        try {
+          await window.marvin.shell.reveal(item.path)
+        } catch (err) {
+          reportError(err)
+        }
+      }
+    },
+    [activeTab, navigateInActiveTab, openInTab],
+  )
 
   const handleSave = useCallback(
     async (content: string) => {
@@ -455,7 +520,9 @@ export default function App() {
   })()
 
   return (
-    <div className="app">
+    <div className="shell">
+      <TopBar onOpenPalette={() => setPaletteOpen(true)} />
+      <div className="app">
       <aside className="sidebar">
         <div className="sidebar-header">
           <span className="vault-name">{vaultPath.split('/').pop()}</span>
@@ -533,6 +600,15 @@ export default function App() {
           {error}
         </div>
       )}
+
+      {paletteOpen && (
+        <CommandPalette
+          items={paletteItems}
+          onPick={handlePalettePick}
+          onClose={() => setPaletteOpen(false)}
+        />
+      )}
+      </div>
     </div>
   )
 }
