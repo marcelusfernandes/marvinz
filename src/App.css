@@ -70,14 +70,166 @@ button {
   filter: brightness(1.1);
 }
 
-.app {
-  display: grid;
-  grid-template-columns: 240px 1fr 420px;
+.shell {
+  display: flex;
+  flex-direction: column;
   height: 100vh;
+  width: 100%;
   background: var(--bg);
 }
 
+.app {
+  display: grid;
+  grid-template-columns: 240px 1fr 588px;
+  grid-template-rows: 1fr;
+  grid-template-areas: 'sidebar editor claude';
+  flex: 1;
+  min-height: 0;
+  background: var(--bg);
+}
+
+.app[data-layout='claude-center'] {
+  grid-template-columns: 240px 588px 1fr;
+  grid-template-areas: 'sidebar claude editor';
+}
+
+/* Borders form the column separators. Defaults work for editor-center;
+   in claude-center we move claude's separator to its right side. */
+.app[data-layout='claude-center'] .claude-pane {
+  border-left: none;
+  border-right: 1px solid var(--border);
+}
+
+.topbar {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  height: 38px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-2);
+  -webkit-app-region: drag;
+  padding: 0 8px;
+}
+
+.topbar-left,
+.topbar-right {
+  height: 100%;
+}
+
+.topbar-search {
+  -webkit-app-region: no-drag;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 26px;
+  padding: 0 10px 0 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--fg-3);
+  font-size: 12px;
+  min-width: 360px;
+  max-width: 540px;
+  width: 40vw;
+  justify-content: space-between;
+  cursor: text;
+}
+
+.topbar-search:hover {
+  border-color: var(--fg-3);
+  color: var(--fg-2);
+}
+
+.topbar-search-icon {
+  font-size: 14px;
+  color: var(--fg-3);
+}
+
+.topbar-search-text {
+  flex: 1;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.topbar-search-shortcut {
+  display: inline-flex;
+  gap: 2px;
+}
+
+.topbar-left {
+  /* Reserved for the macOS traffic lights; no content yet. */
+  min-width: 78px;
+}
+
+.topbar-right {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: 8px;
+}
+
+.layout-toggle {
+  -webkit-app-region: no-drag;
+  display: inline-flex;
+  align-items: center;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 2px;
+  gap: 2px;
+  height: 26px;
+}
+
+.layout-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 3px;
+  color: var(--fg-3);
+  cursor: pointer;
+}
+
+.layout-btn:hover {
+  color: var(--fg-2);
+}
+
+.layout-btn.active {
+  background: var(--bg-3);
+  color: var(--fg);
+}
+
+.layout-icon-thin {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1;
+}
+
+.layout-icon-fill {
+  fill: currentColor;
+}
+
+.topbar-search-shortcut kbd,
+.palette-footer kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  font-size: 10px;
+  font-family: inherit;
+  background: var(--bg-2);
+  color: var(--fg-2);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+}
+
 .sidebar {
+  grid-area: sidebar;
   display: flex;
   flex-direction: column;
   border-right: 1px solid var(--border);
@@ -89,9 +241,8 @@ button {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 12px;
+  padding: 8px 12px;
   border-bottom: 1px solid var(--border);
-  -webkit-app-region: drag;
   height: 38px;
 }
 
@@ -102,8 +253,6 @@ button {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  padding-left: 60px;
-  -webkit-app-region: drag;
 }
 
 .icon-btn {
@@ -199,6 +348,7 @@ button {
 }
 
 .editor-pane {
+  grid-area: editor;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -405,6 +555,7 @@ button {
 }
 
 .claude-pane {
+  grid-area: claude;
   border-left: 1px solid var(--border);
   background: var(--bg-2);
   overflow: hidden;
@@ -802,4 +953,607 @@ button {
 
 .md-preview-inner del {
   color: var(--fg-3);
+}
+
+.props-panel {
+  margin: 0 0 1.5em;
+  padding: 4px 0;
+  font-size: 13px;
+  line-height: 1.5;
+  border-bottom: 1px solid var(--border);
+}
+
+.props-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.prop-row {
+  display: grid;
+  grid-template-columns: 18px 160px 1fr;
+  align-items: start;
+  gap: 10px;
+  padding: 5px 6px;
+  border-radius: 4px;
+  color: var(--fg);
+  min-height: 28px;
+}
+
+.prop-row:hover {
+  background: var(--bg-3);
+}
+
+.prop-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--fg-3);
+  height: 18px;
+}
+
+.prop-row:hover .prop-icon {
+  color: var(--fg-2);
+}
+
+.prop-key {
+  color: var(--fg-2);
+  font-size: 12px;
+  font-weight: 500;
+  padding-top: 1px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.prop-value {
+  color: var(--fg);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.prop-empty {
+  color: var(--fg-3);
+  font-style: italic;
+}
+
+.prop-string {
+  color: var(--fg);
+}
+
+.prop-number {
+  color: var(--fg);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum';
+}
+
+.prop-date {
+  color: var(--fg);
+}
+
+.prop-bool {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.prop-bool-box {
+  width: 14px;
+  height: 14px;
+  border: 1.5px solid var(--fg-3);
+  border-radius: 3px;
+  display: inline-block;
+  position: relative;
+}
+
+.prop-bool-box.checked {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.prop-bool-box.checked::after {
+  content: '';
+  position: absolute;
+  left: 3px;
+  top: 0px;
+  width: 4px;
+  height: 8px;
+  border: solid white;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.prop-pills {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.prop-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  background: var(--bg-3);
+  color: var(--fg);
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  border: 1px solid var(--border);
+}
+
+.prop-pill-tag {
+  background: rgba(196, 105, 31, 0.12);
+  border-color: rgba(196, 105, 31, 0.35);
+  color: #e6a06b;
+}
+
+.prop-pill-hash {
+  color: var(--accent);
+  font-weight: 600;
+  margin-right: 1px;
+}
+
+.prop-object {
+  color: var(--fg-3);
+  font-style: italic;
+  font-family: ui-monospace, SF Mono, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+}
+
+/* Inline-edit inputs */
+.prop-row {
+  position: relative;
+}
+
+.prop-row .prop-remove {
+  position: absolute;
+  right: 6px;
+  top: 4px;
+  opacity: 0;
+  width: 18px;
+  height: 18px;
+  border-radius: 3px;
+  color: var(--fg-3);
+  font-size: 14px;
+  line-height: 1;
+}
+
+.prop-row:hover .prop-remove {
+  opacity: 1;
+}
+
+.prop-row .prop-remove:hover {
+  background: var(--bg-3);
+  color: var(--fg);
+}
+
+.prop-display {
+  display: inline-flex;
+  align-items: center;
+  text-align: left;
+  width: 100%;
+  background: transparent;
+  color: inherit;
+  padding: 0;
+  font: inherit;
+  cursor: text;
+  border-radius: 3px;
+}
+
+.prop-display:hover {
+  background: rgba(255, 255, 255, 0.04);
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+
+.prop-input,
+.prop-key-input {
+  background: var(--bg);
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  padding: 3px 8px;
+  font: inherit;
+  color: var(--fg);
+  outline: none;
+  width: 100%;
+  min-width: 0;
+}
+
+.prop-key-input {
+  width: 100%;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+button.prop-bool {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+}
+
+.prop-pills.editable {
+  align-items: center;
+}
+
+.prop-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.prop-pill-remove {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  line-height: 1;
+  color: var(--fg-3);
+  margin-left: 2px;
+}
+
+.prop-pill-remove:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--fg);
+}
+
+.prop-pill-input {
+  background: transparent;
+  border: none;
+  color: var(--fg);
+  font: inherit;
+  font-size: 12px;
+  outline: none;
+  padding: 2px 4px;
+  min-width: 80px;
+  flex: 1;
+}
+
+.prop-pill-input::placeholder {
+  color: var(--fg-3);
+}
+
+.props-add {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--fg-3);
+  padding: 4px 6px;
+  border-radius: 4px;
+}
+
+.props-add:hover {
+  background: var(--bg-3);
+  color: var(--fg);
+}
+
+.props-add-row {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+  padding: 6px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  align-items: center;
+}
+
+.prop-type-select {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--fg);
+  font: inherit;
+  font-size: 12px;
+  padding: 3px 6px;
+  outline: none;
+}
+
+.props-add-btn {
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 4px;
+}
+
+.props-add-btn.primary {
+  background: var(--accent);
+  color: white;
+  font-weight: 500;
+}
+
+.props-add-btn.primary:hover {
+  filter: brightness(1.1);
+}
+
+.props-add-btn.ghost {
+  color: var(--fg-3);
+}
+
+.props-add-btn.ghost:hover {
+  color: var(--fg);
+  background: var(--bg-3);
+}
+
+/* === Milkdown live-preview surface === */
+
+.live-md {
+  font-size: 15px;
+  line-height: 1.7;
+  color: var(--fg);
+}
+
+.live-md .milkdown-host {
+  outline: none;
+  min-height: 200px;
+}
+
+.live-md .milkdown-host:focus {
+  outline: none;
+}
+
+.live-md .ProseMirror {
+  outline: none;
+}
+
+.live-md p {
+  /* Generous bottom space gives the cursor room when the next line is
+     transformed into a heading mid-typing, so the heading lands roughly
+     where the cursor already was. */
+  margin: 0 0 1.5em;
+}
+
+.live-md h1,
+.live-md h2,
+.live-md h3,
+.live-md h4,
+.live-md h5,
+.live-md h6 {
+  font-weight: 600;
+  /* Zero top margin: rely on the previous element's bottom margin for
+     separation. This keeps WYSIWYG transforms from "jumping" the line. */
+  margin: 0.4em 0 0.6em;
+  line-height: 1.3;
+  color: #f0f0f0;
+}
+
+.live-md h1 {
+  font-size: 1.9em;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0.3em;
+}
+.live-md h2 {
+  font-size: 1.5em;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0.25em;
+}
+.live-md h3 {
+  font-size: 1.25em;
+}
+.live-md h4 {
+  font-size: 1.1em;
+}
+
+.live-md a {
+  color: #7aa3ef;
+  text-decoration: none;
+  cursor: pointer;
+}
+.live-md a:hover {
+  text-decoration: underline;
+}
+
+.live-md code {
+  font-family: ui-monospace, SF Mono, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.9em;
+  background: #2a2a2a;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.live-md pre {
+  background: #181818;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px 14px;
+  overflow-x: auto;
+  margin: 0 0 1em;
+}
+
+.live-md pre code {
+  background: transparent;
+  padding: 0;
+  font-size: 0.85em;
+  line-height: 1.5;
+}
+
+.live-md blockquote {
+  margin: 0 0 1em;
+  padding: 4px 0 4px 16px;
+  border-left: 3px solid var(--accent);
+  color: var(--fg-2);
+}
+
+.live-md ul,
+.live-md ol {
+  margin: 0 0 1em;
+  padding-left: 1.6em;
+}
+
+.live-md li {
+  margin: 0.2em 0;
+}
+
+.live-md li > p {
+  margin: 0;
+}
+
+.live-md hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 2em 0;
+}
+
+.live-md table {
+  border-collapse: collapse;
+  margin: 0 0 1em;
+  width: 100%;
+  font-size: 0.95em;
+}
+
+.live-md th,
+.live-md td {
+  border: 1px solid var(--border);
+  padding: 8px 12px;
+  text-align: left;
+}
+
+.live-md th {
+  background: var(--bg-2);
+  font-weight: 600;
+}
+
+.live-md img {
+  max-width: 100%;
+  border-radius: 4px;
+}
+
+.live-md input[type='checkbox'] {
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
+.live-md del {
+  color: var(--fg-3);
+}
+
+.live-md .ProseMirror-selectednode {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.palette-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 14vh;
+  z-index: 250;
+}
+
+.palette {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  width: 560px;
+  max-width: 90vw;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.55);
+}
+
+.palette-input {
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  padding: 12px 16px;
+  font-size: 14px;
+  color: var(--fg);
+  font-family: inherit;
+  outline: none;
+}
+
+.palette-input::placeholder {
+  color: var(--fg-3);
+}
+
+.palette-results {
+  max-height: 56vh;
+  overflow-y: auto;
+  padding: 4px;
+}
+
+.palette-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  padding: 7px 12px;
+  border-radius: 4px;
+  font-size: 13px;
+  color: var(--fg);
+  cursor: pointer;
+}
+
+.palette-row.active {
+  background: var(--bg-3);
+}
+
+.palette-name {
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 0;
+  max-width: 60%;
+}
+
+.palette-rel {
+  color: var(--fg-3);
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+
+.palette-row mark {
+  background: transparent;
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.palette-ext-tag {
+  margin-left: 6px;
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--fg-3);
+  background: var(--bg-3);
+  padding: 1px 5px;
+  border-radius: 3px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.palette-empty {
+  padding: 20px 16px;
+  text-align: center;
+  color: var(--fg-3);
+  font-size: 13px;
+}
+
+.palette-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  padding: 8px 14px;
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--fg-3);
+}
+
+.palette-footer span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }

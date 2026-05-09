@@ -1,9 +1,15 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import CodeMirror from '@uiw/react-codemirror'
 import { markdown } from '@codemirror/lang-markdown'
 import { EditorView } from '@codemirror/view'
-import ReactMarkdown, { type Components } from 'react-markdown'
-import remarkGfm from 'remark-gfm'
+import {
+  replaceFrontmatter,
+  serializeFrontmatter,
+  splitFrontmatter,
+  type Frontmatter,
+} from '../lib/frontmatter'
+import { Properties } from './Properties'
+import { LiveMarkdown } from './LiveMarkdown'
 
 type Props = {
   filePath: string
@@ -67,49 +73,81 @@ export function Editor({
     }
   }, [])
 
-  const mdComponents = useMemo<Components>(
-    () => ({
-      a({ href, children, ...rest }) {
-        const handleClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
-          e.preventDefault()
-          if (!href) return
-          if (/^(https?|mailto):/i.test(href)) {
-            void window.marvin.shell.openExternal(href)
-            return
-          }
-          const cleanHref = href.split(/[?#]/)[0]
-          if (!cleanHref) return
-          const resolved = resolveLink(cleanHref, filePath, vaultPath)
-          if (resolved && resolved.endsWith('.md')) {
-            onOpenNote(resolved)
-          }
+  const scheduleSave = useCallback(
+    (next: string) => {
+      setValue(next)
+      latestValue.current = next
+      if (timer.current) window.clearTimeout(timer.current)
+      timer.current = window.setTimeout(async () => {
+        setSaving(true)
+        try {
+          await onSave(latestValue.current)
+          setSavedAt(Date.now())
+        } finally {
+          setSaving(false)
         }
-        return (
-          <a href={href} onClick={handleClick} {...rest}>
-            {children}
-          </a>
-        )
-      },
-    }),
+      }, SAVE_DEBOUNCE_MS)
+    },
+    [onSave],
+  )
+
+  const handleSourceChange = useCallback(
+    (next: string) => {
+      scheduleSave(next)
+    },
+    [scheduleSave],
+  )
+
+  // Live-preview body changes: keep the current frontmatter, replace the body.
+  const handleBodyChange = useCallback(
+    (newBody: string) => {
+      const { data } = splitFrontmatter(latestValue.current)
+      if (!data) {
+        scheduleSave(newBody)
+        return
+      }
+      const yaml = serializeFrontmatter(data)
+      scheduleSave(`---\n${yaml}\n---\n\n${newBody}`)
+    },
+    [scheduleSave],
+  )
+
+  // Properties changes: replace the frontmatter, keep the body untouched.
+  const handlePropertiesChange = useCallback(
+    (nextData: Frontmatter | null) => {
+      const next = replaceFrontmatter(latestValue.current, nextData)
+      scheduleSave(next)
+    },
+    [scheduleSave],
+  )
+
+  const handleLinkClick = useCallback(
+    (href: string, _modifier: 'replace' | 'newTab') => {
+      if (/^(https?|mailto):/i.test(href)) {
+        void window.marvin.shell.openExternal(href)
+        return
+      }
+      const cleanHref = href.split(/[?#]/)[0]
+      if (!cleanHref) return
+      const resolved = resolveLink(cleanHref, filePath, vaultPath)
+      if (resolved && /\.(md|markdown)$/i.test(resolved)) {
+        onOpenNote(resolved)
+      }
+    },
     [filePath, vaultPath, onOpenNote],
   )
 
-  const handleChange = (next: string) => {
-    setValue(next)
-    latestValue.current = next
-    if (timer.current) window.clearTimeout(timer.current)
-    timer.current = window.setTimeout(async () => {
-      setSaving(true)
-      try {
-        await onSave(latestValue.current)
-        setSavedAt(Date.now())
-      } finally {
-        setSaving(false)
-      }
-    }, SAVE_DEBOUNCE_MS)
-  }
-
   const fileName = filePath.split('/').pop()?.replace(/\.(md|markdown)$/i, '') ?? ''
+
+  const { data: frontmatter, body: previewBody } = useMemo(
+    () => (mode === 'preview' ? splitFrontmatter(value) : { data: null, body: value }),
+    [mode, value],
+  )
+
+  // Remount Milkdown only when the file changes (not on every keystroke);
+  // typing edits are propagated through onChange and re-applied via React
+  // state without forcing a re-init of the editor.
+  const liveKey = filePath
 
   return (
     <div className="editor">
@@ -167,7 +205,7 @@ export function Editor({
           height="100%"
           theme="dark"
           extensions={[markdown(), EditorView.lineWrapping]}
-          onChange={handleChange}
+          onChange={handleSourceChange}
           basicSetup={{
             lineNumbers: false,
             foldGutter: false,
@@ -179,9 +217,15 @@ export function Editor({
       ) : (
         <div className="md-preview">
           <div className="md-preview-inner">
-            <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>
-              {value}
-            </ReactMarkdown>
+            {frontmatter && (
+              <Properties data={frontmatter} onChange={handlePropertiesChange} />
+            )}
+            <LiveMarkdown
+              body={previewBody}
+              onChange={handleBodyChange}
+              onLinkClick={handleLinkClick}
+              remountKey={liveKey}
+            />
           </div>
         </div>
       )}
