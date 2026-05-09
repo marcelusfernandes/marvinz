@@ -1,4 +1,4 @@
-import { parse as parseYAML } from 'yaml'
+import { parse as parseYAML, stringify as stringifyYAML } from 'yaml'
 
 export type Frontmatter = Record<string, unknown>
 
@@ -84,6 +84,34 @@ export function normalizeTags(value: unknown): string[] {
       .filter(Boolean)
   }
   return []
+}
+
+export function serializeFrontmatter(data: Frontmatter): string {
+  // yaml's default stringify produces a trailing newline; we trim and rebuild
+  // so the result is just the YAML body without surrounding ---.
+  return stringifyYAML(data, { lineWidth: 0 }).trimEnd()
+}
+
+/**
+ * Returns the markdown content with the frontmatter block replaced by
+ * the serialized form of `newData`. Preserves the body verbatim.
+ *
+ * - If `newData` is empty (or null) the frontmatter block is removed.
+ * - If the original had no frontmatter and `newData` is non-empty, a new
+ *   block is prepended with one blank line separating it from the body.
+ */
+export function replaceFrontmatter(originalContent: string, newData: Frontmatter | null): string {
+  const { body } = splitFrontmatter(originalContent)
+  const hasData = newData != null && Object.keys(newData).length > 0
+
+  if (!hasData) {
+    // Body without frontmatter; ensure no leading blank lines.
+    return body.replace(/^\s*\n/, '')
+  }
+
+  const yaml = serializeFrontmatter(newData)
+  const trimmedBody = body.replace(/^\n+/, '')
+  return `---\n${yaml}\n---\n\n${trimmedBody}`
 }
 
 export function formatDate(value: unknown): string {
