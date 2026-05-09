@@ -46,6 +46,9 @@ const api = {
   claude: {
     detect: () => ipcRenderer.invoke('claude:detect') as Promise<string | null>,
   },
+  agent: {
+    detect: (name: string) => ipcRenderer.invoke('agent:detect', name) as Promise<string | null>,
+  },
   shell: {
     openExternal: (url: string) => ipcRenderer.invoke('shell:openExternal', url) as Promise<void>,
     reveal: (target: string) => ipcRenderer.invoke('shell:reveal', target) as Promise<void>,

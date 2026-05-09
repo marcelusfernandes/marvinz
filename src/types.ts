@@ -31,6 +31,9 @@ export type MarvinAPI = {
   claude: {
     detect: () => Promise<string | null>
   }
+  agent: {
+    detect: (name: string) => Promise<string | null>
+  }
   shell: {
     openExternal: (url: string) => Promise<void>
     reveal: (target: string) => Promise<void>
