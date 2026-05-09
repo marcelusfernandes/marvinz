@@ -1,8 +1,12 @@
+import { LayoutToggle, type LayoutMode } from './LayoutToggle'
+
 type Props = {
   onOpenPalette: () => void
+  layoutMode: LayoutMode
+  onLayoutChange: (mode: LayoutMode) => void
 }
 
-export function TopBar({ onOpenPalette }: Props) {
+export function TopBar({ onOpenPalette, layoutMode, onLayoutChange }: Props) {
   return (
     <div className="topbar">
       <div className="topbar-left" />
@@ -21,7 +25,9 @@ export function TopBar({ onOpenPalette }: Props) {
           <kbd>P</kbd>
         </span>
       </button>
-      <div className="topbar-right" />
+      <div className="topbar-right">
+        <LayoutToggle mode={layoutMode} onChange={onLayoutChange} />
+      </div>
     </div>
   )
 }
