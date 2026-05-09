@@ -80,10 +80,24 @@ button {
 
 .app {
   display: grid;
-  grid-template-columns: 240px 1fr 420px;
+  grid-template-columns: 240px 1fr 588px;
+  grid-template-rows: 1fr;
+  grid-template-areas: 'sidebar editor claude';
   flex: 1;
   min-height: 0;
   background: var(--bg);
+}
+
+.app[data-layout='claude-center'] {
+  grid-template-columns: 240px 588px 1fr;
+  grid-template-areas: 'sidebar claude editor';
+}
+
+/* Borders form the column separators. Defaults work for editor-center;
+   in claude-center we move claude's separator to its right side. */
+.app[data-layout='claude-center'] .claude-pane {
+  border-left: none;
+  border-right: 1px solid var(--border);
 }
 
 .topbar {
@@ -144,6 +158,55 @@ button {
   gap: 2px;
 }
 
+.topbar-left {
+  display: flex;
+  align-items: center;
+  padding-left: 78px; /* clear macOS traffic lights */
+  gap: 4px;
+}
+
+.layout-toggle {
+  -webkit-app-region: no-drag;
+  display: inline-flex;
+  align-items: center;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 2px;
+  gap: 2px;
+  height: 26px;
+}
+
+.layout-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 3px;
+  color: var(--fg-3);
+  cursor: pointer;
+}
+
+.layout-btn:hover {
+  color: var(--fg-2);
+}
+
+.layout-btn.active {
+  background: var(--bg-3);
+  color: var(--fg);
+}
+
+.layout-icon-thin {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1;
+}
+
+.layout-icon-fill {
+  fill: currentColor;
+}
+
 .topbar-search-shortcut kbd,
 .palette-footer kbd {
   display: inline-flex;
@@ -161,6 +224,7 @@ button {
 }
 
 .sidebar {
+  grid-area: sidebar;
   display: flex;
   flex-direction: column;
   border-right: 1px solid var(--border);
@@ -279,6 +343,7 @@ button {
 }
 
 .editor-pane {
+  grid-area: editor;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -485,6 +550,7 @@ button {
 }
 
 .claude-pane {
+  grid-area: claude;
   border-left: 1px solid var(--border);
   background: var(--bg-2);
   overflow: hidden;

@@ -9,7 +9,20 @@ import { SidebarMenu } from './components/SidebarMenu'
 import { TabBar } from './components/TabBar'
 import { TopBar } from './components/TopBar'
 import { CommandPalette, type PaletteItem } from './components/CommandPalette'
+import type { LayoutMode } from './components/LayoutToggle'
 import './App.css'
+
+const LAYOUT_STORAGE_KEY = 'marvin:layoutMode'
+
+function readStoredLayout(): LayoutMode {
+  try {
+    const v = window.localStorage.getItem(LAYOUT_STORAGE_KEY)
+    if (v === 'claude-center' || v === 'editor-center') return v
+  } catch {
+    // ignore
+  }
+  return 'editor-center'
+}
 
 type Tab = {
   id: string
@@ -92,6 +105,16 @@ export default function App() {
   const [ctx, setCtx] = useState<ContextState>(null)
   const [error, setError] = useState<string | null>(null)
   const [paletteOpen, setPaletteOpen] = useState(false)
+  const [layoutMode, setLayoutModeState] = useState<LayoutMode>(() => readStoredLayout())
+
+  const setLayoutMode = useCallback((mode: LayoutMode) => {
+    setLayoutModeState(mode)
+    try {
+      window.localStorage.setItem(LAYOUT_STORAGE_KEY, mode)
+    } catch {
+      // ignore quota / disabled storage
+    }
+  }, [])
 
   // Tracks last on-disk content per path that we have open. Lets us tell our
   // own saves apart from external writes (claude editing the note).
@@ -521,8 +544,12 @@ export default function App() {
 
   return (
     <div className="shell">
-      <TopBar onOpenPalette={() => setPaletteOpen(true)} />
-      <div className="app">
+      <TopBar
+        onOpenPalette={() => setPaletteOpen(true)}
+        layoutMode={layoutMode}
+        onLayoutChange={setLayoutMode}
+      />
+      <div className="app" data-layout={layoutMode}>
       <aside className="sidebar">
         <div className="sidebar-header">
           <span className="vault-name">{vaultPath.split('/').pop()}</span>

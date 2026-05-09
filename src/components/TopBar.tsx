@@ -1,11 +1,17 @@
+import { LayoutToggle, type LayoutMode } from './LayoutToggle'
+
 type Props = {
   onOpenPalette: () => void
+  layoutMode: LayoutMode
+  onLayoutChange: (mode: LayoutMode) => void
 }
 
-export function TopBar({ onOpenPalette }: Props) {
+export function TopBar({ onOpenPalette, layoutMode, onLayoutChange }: Props) {
   return (
     <div className="topbar">
-      <div className="topbar-left" />
+      <div className="topbar-left">
+        <LayoutToggle mode={layoutMode} onChange={onLayoutChange} />
+      </div>
       <button
         type="button"
         className="topbar-search"
