@@ -1,73 +1,81 @@
-# React + TypeScript + Vite
+# Marvin
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A minimal Obsidian-style Markdown editor with **Claude Code** running as a sidebar. Your vault is just a folder of `.md` files; an embedded terminal runs the `claude` CLI scoped to that folder, so you can ask Claude to read, edit, and create notes via natural language while you write.
 
-Currently, two official plugins are available:
+> Status: 0.2.0 — early but usable. Built on Electron + React + Vite + TypeScript.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Features
 
-## React Compiler
+- **Vault picker** — point Marvin at any folder; choice is persisted across launches.
+- **File tree** — shows hidden files by default, skips known noise (`.git`, `node_modules`, `.DS_Store`, …); right-click for rename / move-to-trash / reveal-in-Finder / new-note-here / new-folder-here.
+- **Drag & drop** — drag files or folders onto another folder to move them, or onto the empty tree area to move to vault root. Markdown links inside the moved item and references from other notes are auto-rewritten to keep working.
+- **Tabs** — clicking a note opens a new tab (or focuses the existing tab if the path is already open). Each tab has its own back/forward history; clicking a link inside a preview navigates within the same tab.
+- **CodeMirror 6 editor** with Markdown highlighting, line wrap, and debounced autosave.
+- **Live preview** rendered with `react-markdown` + GFM (tables, task lists, strikethrough). Internal `.md` links resolve relative to the note; external `https://` / `mailto:` links open in the system browser.
+- **External-edit hot reload** — `chokidar` watches the vault; when Claude (or anything else) edits a file open in a tab, the tab updates without losing your unrelated tabs. The watcher distinguishes our own saves from external writes by content equality.
+- **Claude Code sidebar** — `xterm.js` + `node-pty` running the `claude` CLI with `cwd = vault` and an inherited shell environment (so `git`, `node`, `ripgrep`, etc. are on `PATH`). The CLI's native `@`-mention completion sees every note in your vault.
+- **Restart button** when Claude exits (logout / crash) — re-spawns without reloading the window.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Requirements
 
-## Expanding the ESLint configuration
+- macOS (Linux/Windows untested but should mostly work)
+- Node.js 20+
+- [`claude`](https://docs.claude.com/en/docs/claude-code/quickstart) on `PATH`. Marvin detects it via `which claude` and falls back to `~/.local/bin`, `/usr/local/bin`, `/opt/homebrew/bin`. Install via `npm i -g @anthropic-ai/claude-code` or the install script.
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## Quickstart
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm install
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+The dev script launches Vite, then the vite-plugin-electron plugin spawns Electron pointing at the dev server. Hot reload covers both renderer (React) and main process (Electron) changes.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+> **Note:** if the launch terminal exports `ELECTRON_RUN_AS_NODE=1` (some agent runtimes do), the npm script clears it for the child process. If you launch Electron differently, make sure the var is unset.
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+## Build
+
+```bash
+npm run build
 ```
+
+Outputs the renderer to `dist/` and the bundled main/preload to `dist-electron/`. Packaging via `electron-builder` is configured but not yet wired into a script.
+
+## Project layout
+
+```
+electron/
+  main.ts           Main process: IPC, vault FS, chokidar watcher, pty spawn, link rewriter
+  preload.ts        contextBridge exposing window.marvin API
+src/
+  App.tsx           3-pane layout, tab/state orchestration
+  components/
+    FileTree.tsx        tree, drag-and-drop, right-click
+    Editor.tsx          CodeMirror + react-markdown preview, edit/preview toggle
+    ClaudeTerminal.tsx  xterm.js host + pty wiring
+    TabBar.tsx          tab bar with back/forward
+    ContextMenu.tsx     positioned right-click menu
+    InputDialog.tsx     custom modal (window.prompt is disabled in Electron)
+    SidebarMenu.tsx     "+" dropdown for new note / new folder
+scripts/
+  fix-node-pty.cjs  postinstall: chmod +x on node-pty's spawn-helper (npm strips bits)
+.claude/
+  rules/            project-local rules consumed by Claude Code agents
+```
+
+## Workflow
+
+See [`.claude/rules/git-workflow.md`](.claude/rules/git-workflow.md) for the branch model and PR workflow.
+
+- `main` — production
+- `develop` — active development
+- `<type>/<slug>` — feature branches from `develop`, opened as PRs into `develop`
+
+## What's not (yet) here
+
+- Wikilinks `[[name]]`
+- Full-text search
+- Backlinks panel / graph view
+- Plugin system
+- Mobile / Linux / Windows packaging
+- Sync (use `git`, iCloud, Syncthing, etc. on the vault folder)

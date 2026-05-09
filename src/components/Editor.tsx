@@ -74,7 +74,7 @@ export function Editor({
           e.preventDefault()
           if (!href) return
           if (/^(https?|mailto):/i.test(href)) {
-            void window.obsclone.shell.openExternal(href)
+            void window.marvin.shell.openExternal(href)
             return
           }
           const cleanHref = href.split(/[?#]/)[0]
