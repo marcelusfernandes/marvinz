@@ -4,6 +4,8 @@ import { markdown } from '@codemirror/lang-markdown'
 import { EditorView } from '@codemirror/view'
 import ReactMarkdown, { type Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { splitFrontmatter } from '../lib/frontmatter'
+import { Properties } from './Properties'
 
 type Props = {
   filePath: string
@@ -111,6 +113,11 @@ export function Editor({
 
   const fileName = filePath.split('/').pop()?.replace(/\.(md|markdown)$/i, '') ?? ''
 
+  const { data: frontmatter, body: previewBody } = useMemo(
+    () => (mode === 'preview' ? splitFrontmatter(value) : { data: null, body: value }),
+    [mode, value],
+  )
+
   return (
     <div className="editor">
       <div className="editor-header">
@@ -179,8 +186,9 @@ export function Editor({
       ) : (
         <div className="md-preview">
           <div className="md-preview-inner">
+            {frontmatter && <Properties data={frontmatter} />}
             <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>
-              {value}
+              {previewBody}
             </ReactMarkdown>
           </div>
         </div>
