@@ -6,9 +6,17 @@ import { ClaudeTerminal } from './components/ClaudeTerminal'
 import { InputDialog } from './components/InputDialog'
 import { ContextMenu, type MenuItem } from './components/ContextMenu'
 import { SidebarMenu } from './components/SidebarMenu'
+import { TabBar } from './components/TabBar'
 import './App.css'
 
-type LoadedFile = { path: string; content: string; version: number }
+type Tab = {
+  id: string
+  path: string
+  content: string
+  version: number
+  back: string[]
+  forward: string[]
+}
 
 type Dialog =
   | { kind: 'newNote'; parentDir: string }
@@ -22,17 +30,50 @@ type ContextState = {
   items: MenuItem[]
 } | null
 
+let tabCounter = 0
+const newTabId = () => `tab-${++tabCounter}`
+
+function isMarkdownPath(p: string): boolean {
+  return /\.(md|markdown)$/i.test(p)
+}
+
+function dirOf(p: string): string {
+  const idx = p.lastIndexOf('/')
+  return idx >= 0 ? p.slice(0, idx) : p
+}
+
+function humanizeError(err: unknown): string {
+  const raw = err instanceof Error ? err.message : String(err)
+  const enoent = raw.match(/ENOENT[^']*'([^']+)'/)
+  if (enoent) {
+    const base = enoent[1].split('/').pop() ?? enoent[1]
+    return `File not found: ${base}`
+  }
+  const eexist = raw.match(/EEXIST[^']*'([^']+)'/)
+  if (eexist) {
+    const base = eexist[1].split('/').pop() ?? eexist[1]
+    return `Already exists: ${base}`
+  }
+  // Strip the IPC noise prefix
+  return raw.replace(/^Error invoking remote method '[^']+':\s*Error:\s*/, '')
+}
+
 export default function App() {
   const [vaultPath, setVaultPath] = useState<string | null>(null)
   const [tree, setTree] = useState<FileNode[]>([])
-  const [active, setActive] = useState<LoadedFile | null>(null)
+  const [tabs, setTabs] = useState<Tab[]>([])
+  const [activeTabId, setActiveTabId] = useState<string | null>(null)
   const [claudePath, setClaudePath] = useState<string | null>(null)
   const [bootstrapped, setBootstrapped] = useState(false)
   const [dialog, setDialog] = useState<Dialog>(null)
   const [ctx, setCtx] = useState<ContextState>(null)
   const [error, setError] = useState<string | null>(null)
 
-  const knownDiskContentRef = useRef<{ path: string; content: string } | null>(null)
+  // Tracks last on-disk content per path that we have open. Lets us tell our
+  // own saves apart from external writes (claude editing the note).
+  const lastDiskContentRef = useRef<Map<string, string>>(new Map())
+
+  const activeTab = tabs.find((t) => t.id === activeTabId) ?? null
 
   const loadTree = useCallback(async (vp: string) => {
     const t = await window.obsclone.vault.tree(vp)
@@ -57,65 +98,236 @@ export default function App() {
     if (!vaultPath) return
     const off = window.obsclone.vault.onChanged(() => {
       loadTree(vaultPath)
-      setActive((curr) => {
-        if (!curr) return null
-        // active file may have been deleted/renamed externally; if so, drop it
-        // (we'll just check on next render via existsSync server-side if needed)
-        return curr
-      })
     })
     return off
   }, [vaultPath, loadTree])
 
   useEffect(() => {
     const off = window.obsclone.file.onChanged(async (filePath) => {
-      const known = knownDiskContentRef.current
-      if (!known || known.path !== filePath) return
-      const fresh = await window.obsclone.file.read(filePath)
-      if (fresh === known.content) return
-      knownDiskContentRef.current = { path: filePath, content: fresh }
-      setActive((curr) =>
-        curr && curr.path === filePath
-          ? { path: filePath, content: fresh, version: curr.version + 1 }
-          : curr,
+      const last = lastDiskContentRef.current.get(filePath)
+      if (last == null) return
+      let fresh: string
+      try {
+        fresh = await window.obsclone.file.read(filePath)
+      } catch {
+        // file may have been deleted concurrently; the unlink handler will close tabs
+        return
+      }
+      if (fresh === last) return
+      lastDiskContentRef.current.set(filePath, fresh)
+      setTabs((prev) =>
+        prev.map((t) =>
+          t.path === filePath ? { ...t, content: fresh, version: t.version + 1 } : t,
+        ),
       )
     })
     return off
+  }, [])
+
+  const readFreshContent = useCallback(async (path: string): Promise<string> => {
+    const content = await window.obsclone.file.read(path)
+    lastDiskContentRef.current.set(path, content)
+    return content
   }, [])
 
   const handlePickVault = async () => {
     const picked = await window.obsclone.vault.pick()
     if (!picked) return
     setVaultPath(picked)
-    setActive(null)
-    knownDiskContentRef.current = null
+    setTabs([])
+    setActiveTabId(null)
+    lastDiskContentRef.current.clear()
     await loadTree(picked)
     await window.obsclone.vault.watch(picked)
   }
 
-  const openNote = useCallback(async (notePath: string) => {
-    const content = await window.obsclone.file.read(notePath)
-    knownDiskContentRef.current = { path: notePath, content }
-    setActive({ path: notePath, content, version: 0 })
-  }, [])
+  // Open a path. If a tab already shows it, focus that tab. Otherwise create a new one.
+  const openInTab = useCallback(
+    async (path: string) => {
+      if (!isMarkdownPath(path)) return
+      const existing = tabs.find((t) => t.path === path)
+      if (existing) {
+        setActiveTabId(existing.id)
+        return
+      }
+      try {
+        const content = await readFreshContent(path)
+        const id = newTabId()
+        setTabs((prev) => [
+          ...prev,
+          { id, path, content, version: 0, back: [], forward: [] },
+        ])
+        setActiveTabId(id)
+      } catch (err) {
+        reportError(err)
+      }
+    },
+    [tabs, readFreshContent],
+  )
 
-  const handleSelectFile = async (node: FileNode) => {
+  // Navigate within the active tab (used by link clicks in markdown preview).
+  // Pushes current path onto back stack, clears forward.
+  const navigateInActiveTab = useCallback(
+    async (path: string) => {
+      if (!activeTab) {
+        await openInTab(path)
+        return
+      }
+      if (!isMarkdownPath(path)) return
+      if (path === activeTab.path) return
+      try {
+        const content = await readFreshContent(path)
+        setTabs((prev) =>
+          prev.map((t) =>
+            t.id === activeTab.id
+              ? {
+                  ...t,
+                  path,
+                  content,
+                  version: 0,
+                  back: [...t.back, t.path],
+                  forward: [],
+                }
+              : t,
+          ),
+        )
+      } catch (err) {
+        reportError(err)
+      }
+    },
+    [activeTab, openInTab, readFreshContent],
+  )
+
+  const goBack = useCallback(async () => {
+    if (!activeTab || activeTab.back.length === 0) return
+    const target = activeTab.back[activeTab.back.length - 1]
+    try {
+      const content = await readFreshContent(target)
+      setTabs((prev) =>
+        prev.map((t) =>
+          t.id === activeTab.id
+            ? {
+                ...t,
+                path: target,
+                content,
+                version: 0,
+                back: t.back.slice(0, -1),
+                forward: [...t.forward, t.path],
+              }
+            : t,
+        ),
+      )
+    } catch (err) {
+      reportError(err)
+    }
+  }, [activeTab, readFreshContent])
+
+  const goForward = useCallback(async () => {
+    if (!activeTab || activeTab.forward.length === 0) return
+    const target = activeTab.forward[activeTab.forward.length - 1]
+    try {
+      const content = await readFreshContent(target)
+      setTabs((prev) =>
+        prev.map((t) =>
+          t.id === activeTab.id
+            ? {
+                ...t,
+                path: target,
+                content,
+                version: 0,
+                back: [...t.back, t.path],
+                forward: t.forward.slice(0, -1),
+              }
+            : t,
+        ),
+      )
+    } catch (err) {
+      reportError(err)
+    }
+  }, [activeTab, readFreshContent])
+
+  const closeTab = useCallback(
+    (id: string) => {
+      setTabs((prev) => {
+        const idx = prev.findIndex((t) => t.id === id)
+        if (idx === -1) return prev
+        const next = prev.filter((t) => t.id !== id)
+        // pick neighbor as new active if we closed the active one
+        if (activeTabId === id) {
+          const neighbor = next[idx] ?? next[idx - 1] ?? null
+          setActiveTabId(neighbor ? neighbor.id : null)
+        }
+        return next
+      })
+    },
+    [activeTabId],
+  )
+
+  const handleSelectFile = (node: FileNode) => {
     if (node.isDir) return
-    if (!/\.(md|markdown)$/i.test(node.name)) return
-    await openNote(node.path)
+    void openInTab(node.path)
   }
 
   const handleSave = useCallback(
     async (content: string) => {
-      if (!active) return
-      await window.obsclone.file.write(active.path, content)
-      knownDiskContentRef.current = { path: active.path, content }
+      if (!activeTab) return
+      await window.obsclone.file.write(activeTab.path, content)
+      lastDiskContentRef.current.set(activeTab.path, content)
     },
-    [active],
+    [activeTab],
   )
 
   const reportError = (err: unknown) => {
-    setError(err instanceof Error ? err.message : String(err))
+    setError(humanizeError(err))
+  }
+
+  const renameInTabs = (oldPath: string, newPath: string) => {
+    setTabs((prev) =>
+      prev.map((t) => {
+        let path = t.path
+        if (path === oldPath) path = newPath
+        else if (path.startsWith(`${oldPath}/`)) path = newPath + path.slice(oldPath.length)
+        const back = t.back.map((p) =>
+          p === oldPath ? newPath : p.startsWith(`${oldPath}/`) ? newPath + p.slice(oldPath.length) : p,
+        )
+        const forward = t.forward.map((p) =>
+          p === oldPath ? newPath : p.startsWith(`${oldPath}/`) ? newPath + p.slice(oldPath.length) : p,
+        )
+        return path === t.path && back === t.back && forward === t.forward
+          ? t
+          : { ...t, path, back, forward }
+      }),
+    )
+    // remap tracked content
+    const tracked = lastDiskContentRef.current
+    for (const [k, v] of Array.from(tracked.entries())) {
+      if (k === oldPath) {
+        tracked.delete(k)
+        tracked.set(newPath, v)
+      } else if (k.startsWith(`${oldPath}/`)) {
+        tracked.delete(k)
+        tracked.set(newPath + k.slice(oldPath.length), v)
+      }
+    }
+  }
+
+  const closeTabsUnder = (root: string) => {
+    setTabs((prev) => {
+      const remaining = prev.filter(
+        (t) => t.path !== root && !t.path.startsWith(`${root}/`),
+      )
+      if (
+        activeTabId &&
+        !remaining.find((t) => t.id === activeTabId)
+      ) {
+        setActiveTabId(remaining[0]?.id ?? null)
+      }
+      return remaining
+    })
+    const tracked = lastDiskContentRef.current
+    for (const k of Array.from(tracked.keys())) {
+      if (k === root || k.startsWith(`${root}/`)) tracked.delete(k)
+    }
   }
 
   const handleCreate = async (name: string) => {
@@ -126,22 +338,15 @@ export default function App() {
       if (d.kind === 'newNote') {
         const newPath = await window.obsclone.file.create(d.parentDir, name)
         await loadTree(vaultPath)
-        await openNote(newPath)
+        await openInTab(newPath)
       } else if (d.kind === 'newFolder') {
         await window.obsclone.folder.create(d.parentDir, name)
         await loadTree(vaultPath)
       } else if (d.kind === 'rename') {
-        const dir = d.target.replace(/\/[^/]+$/, '')
-        const newPath = `${dir}/${name}`
+        const newPath = `${dirOf(d.target)}/${name}`
         await window.obsclone.path.rename(d.target, newPath)
+        renameInTabs(d.target, newPath)
         await loadTree(vaultPath)
-        if (active && active.path === d.target) {
-          await openNote(newPath)
-        } else if (active && active.path.startsWith(`${d.target}/`)) {
-          // active was inside a renamed folder
-          const next = newPath + active.path.slice(d.target.length)
-          await openNote(next)
-        }
       }
     } catch (err) {
       reportError(err)
@@ -152,11 +357,25 @@ export default function App() {
     if (!vaultPath) return
     try {
       await window.obsclone.path.trash(target)
+      closeTabsUnder(target)
       await loadTree(vaultPath)
-      if (active && (active.path === target || active.path.startsWith(`${target}/`))) {
-        setActive(null)
-        knownDiskContentRef.current = null
-      }
+    } catch (err) {
+      reportError(err)
+    }
+  }
+
+  // Drag-and-drop: move src into destDir via rename.
+  const handleDropMove = async (srcPath: string, destDir: string) => {
+    if (!vaultPath) return
+    if (srcPath === destDir) return
+    if (destDir.startsWith(`${srcPath}/`) || destDir === srcPath) return // dest is descendant of src
+    const baseName = srcPath.split('/').pop() ?? srcPath
+    const newPath = `${destDir}/${baseName}`
+    if (newPath === srcPath) return // same parent
+    try {
+      await window.obsclone.path.rename(srcPath, newPath)
+      renameInTabs(srcPath, newPath)
+      await loadTree(vaultPath)
     } catch (err) {
       reportError(err)
     }
@@ -247,9 +466,11 @@ export default function App() {
         </div>
         <FileTree
           nodes={tree}
-          selectedPath={active?.path ?? null}
+          vaultPath={vaultPath}
+          selectedPath={activeTab?.path ?? null}
           onSelect={handleSelectFile}
           onContextMenu={handleNodeContextMenu}
+          onMove={handleDropMove}
         />
         <div className="sidebar-footer">
           <button type="button" className="text-btn" onClick={handlePickVault}>
@@ -259,14 +480,24 @@ export default function App() {
       </aside>
 
       <main className="editor-pane">
-        {active ? (
+        <TabBar
+          tabs={tabs}
+          activeId={activeTabId}
+          onActivate={setActiveTabId}
+          onClose={closeTab}
+        />
+        {activeTab ? (
           <Editor
-            key={`${active.path}#${active.version}`}
-            filePath={active.path}
+            key={`${activeTab.id}#${activeTab.path}#${activeTab.version}`}
+            filePath={activeTab.path}
             vaultPath={vaultPath}
-            initialContent={active.content}
+            initialContent={activeTab.content}
             onSave={handleSave}
-            onOpenNote={openNote}
+            onOpenNote={navigateInActiveTab}
+            canBack={activeTab.back.length > 0}
+            canForward={activeTab.forward.length > 0}
+            onBack={goBack}
+            onForward={goForward}
           />
         ) : (
           <div className="empty-editor">Select a note or create a new one.</div>

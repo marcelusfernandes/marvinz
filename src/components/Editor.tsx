@@ -11,6 +11,10 @@ type Props = {
   initialContent: string
   onSave: (content: string) => Promise<void>
   onOpenNote: (path: string) => void
+  canBack: boolean
+  canForward: boolean
+  onBack: () => void
+  onForward: () => void
 }
 
 type Mode = 'edit' | 'preview'
@@ -20,10 +24,8 @@ const SAVE_DEBOUNCE_MS = 600
 function resolveLink(href: string, currentFile: string, vaultPath: string): string | null {
   if (!href) return null
   if (href.startsWith('/')) {
-    // absolute path — only allow if inside vault
     return href.startsWith(vaultPath) ? href : null
   }
-  // relative path
   const currentDir = currentFile.replace(/\/[^/]+$/, '')
   const segments = href.split('/')
   const stack = currentDir.split('/')
@@ -35,9 +37,19 @@ function resolveLink(href: string, currentFile: string, vaultPath: string): stri
   return resolved.startsWith(vaultPath) ? resolved : null
 }
 
-export function Editor({ filePath, vaultPath, initialContent, onSave, onOpenNote }: Props) {
+export function Editor({
+  filePath,
+  vaultPath,
+  initialContent,
+  onSave,
+  onOpenNote,
+  canBack,
+  canForward,
+  onBack,
+  onForward,
+}: Props) {
   const [value, setValue] = useState(initialContent)
-  const [mode, setMode] = useState<Mode>('edit')
+  const [mode, setMode] = useState<Mode>('preview')
   const [saving, setSaving] = useState(false)
   const [savedAt, setSavedAt] = useState<number | null>(null)
   const timer = useRef<number | null>(null)
@@ -65,7 +77,6 @@ export function Editor({ filePath, vaultPath, initialContent, onSave, onOpenNote
             void window.obsclone.shell.openExternal(href)
             return
           }
-          // strip fragment / query for path resolution
           const cleanHref = href.split(/[?#]/)[0]
           if (!cleanHref) return
           const resolved = resolveLink(cleanHref, filePath, vaultPath)
@@ -98,10 +109,34 @@ export function Editor({ filePath, vaultPath, initialContent, onSave, onOpenNote
     }, SAVE_DEBOUNCE_MS)
   }
 
+  const fileName = filePath.split('/').pop()?.replace(/\.(md|markdown)$/i, '') ?? ''
+
   return (
     <div className="editor">
       <div className="editor-header">
-        <span className="editor-title">{filePath.split('/').pop()?.replace(/\.md$/, '')}</span>
+        <div className="editor-header-left">
+          <button
+            type="button"
+            className="nav-btn"
+            disabled={!canBack}
+            onClick={onBack}
+            title="Back"
+            aria-label="Back"
+          >
+            ‹
+          </button>
+          <button
+            type="button"
+            className="nav-btn"
+            disabled={!canForward}
+            onClick={onForward}
+            title="Forward"
+            aria-label="Forward"
+          >
+            ›
+          </button>
+          <span className="editor-title">{fileName}</span>
+        </div>
         <div className="editor-header-right">
           <span className="editor-status">
             {saving ? 'Saving…' : savedAt ? 'Saved' : ''}

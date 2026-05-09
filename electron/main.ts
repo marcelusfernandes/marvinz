@@ -40,6 +40,7 @@ const RENDERER_DIST = path.join(process.env.APP_ROOT, 'dist')
 
 let win: BrowserWindow | null = null
 let vaultWatcher: FSWatcher | null = null
+let activeVaultPath: string | null = null
 const ptyProcesses = new Map<string, pty.IPty>()
 
 const SETTINGS_FILE = () => path.join(app.getPath('userData'), 'settings.json')
@@ -165,6 +166,7 @@ ipcMain.handle('vault:tree', async (_e, vaultPath: string) => {
 
 ipcMain.handle('vault:watch', (_e, vaultPath: string) => {
   vaultWatcher?.close()
+  activeVaultPath = vaultPath || null
   if (!vaultPath) return
   vaultWatcher = chokidar.watch(vaultPath, {
     ignored: (p) => {
@@ -212,10 +214,131 @@ ipcMain.handle('folder:create', async (_e, parentDir: string, name: string) => {
   return full
 })
 
+async function listAllMarkdown(root: string, current = root): Promise<string[]> {
+  const out: string[] = []
+  let entries: import('node:fs').Dirent[]
+  try {
+    entries = await fs.readdir(current, { withFileTypes: true })
+  } catch {
+    return out
+  }
+  for (const entry of entries) {
+    if (isNoisy(entry.name, entry.isDirectory())) continue
+    const full = path.join(current, entry.name)
+    if (entry.isDirectory()) {
+      out.push(...(await listAllMarkdown(root, full)))
+    } else if (entry.isFile() && /\.(md|markdown)$/i.test(entry.name)) {
+      out.push(full)
+    }
+  }
+  return out
+}
+
+// Markdown link patterns we touch:
+//   [text](href)         standard link
+//   ![alt](href)         image
+//   [text](href "title") with title (preserved)
+// We DON'T touch wikilinks ([[ ]]) — none in MVP.
+const MD_LINK_RE = /(!?)\[((?:\\.|[^\]\\])*)\]\(\s*([^\s)]+)(\s+"[^"]*")?\s*\)/g
+
+function rewriteOneFile(
+  fileAbsPath: string,
+  oldPath: string,
+  newPath: string,
+  content: string,
+): string {
+  // If THIS file IS the moved one (or lives inside a moved folder), its absolute
+  // location changed — but its outgoing links were authored relative to its OLD
+  // location. So compute "what did href point to before?" using oldDir; then
+  // rewrite the link relative to the file's NEW directory.
+  // remappedPath maps OLD → NEW; for the inverse (NEW current path → OLD origin)
+  // we swap the args.
+  const fileOldLocation = remappedPath(fileAbsPath, newPath, oldPath)
+  const oldFileDir = path.dirname(fileOldLocation ?? fileAbsPath)
+  const newFileDir = path.dirname(fileAbsPath)
+
+  return content.replace(MD_LINK_RE, (match, bang, label, href, title) => {
+    if (!href) return match
+    if (/^(https?|mailto|data):/i.test(href) || href.startsWith('#')) return match
+
+    const suffixIdx = href.search(/[?#]/)
+    const purePath = suffixIdx >= 0 ? href.slice(0, suffixIdx) : href
+    const suffix = suffixIdx >= 0 ? href.slice(suffixIdx) : ''
+    if (!purePath) return match
+
+    const decoded = safeDecode(purePath)
+    const oldAbsTarget = path.resolve(oldFileDir, decoded)
+
+    // Where does this absolute path live AFTER the rename?
+    const newAbsTarget = remappedPath(oldAbsTarget, oldPath, newPath) ?? oldAbsTarget
+
+    // If this file didn't move AND the target didn't move, nothing to do.
+    if (!fileOldLocation && newAbsTarget === oldAbsTarget) return match
+
+    const newRel = path.relative(newFileDir, newAbsTarget) || '.'
+    const newHref = encodePath(newRel) + suffix
+    if (newHref === purePath + suffix) return match
+
+    return `${bang}[${label}](${newHref}${title ?? ''})`
+  })
+}
+
+function safeDecode(s: string): string {
+  try {
+    return decodeURI(s)
+  } catch {
+    return s
+  }
+}
+
+function encodePath(s: string): string {
+  // Encode spaces and a few other chars markdown-safely; preserve / and .
+  return s
+    .split('/')
+    .map((seg) => encodeURIComponent(seg).replace(/%2F/g, '/'))
+    .join('/')
+}
+
+// If `target` equals `oldPath` or lives inside `oldPath` (treated as a directory),
+// returns the equivalent location after rename. Otherwise returns null.
+function remappedPath(target: string, oldPath: string, newPath: string): string | null {
+  if (target === oldPath) return newPath
+  if (target.startsWith(`${oldPath}/`)) return newPath + target.slice(oldPath.length)
+  return null
+}
+
+async function rewriteLinksAfterMove(
+  vaultRoot: string,
+  oldPath: string,
+  newPath: string,
+): Promise<void> {
+  const files = await listAllMarkdown(vaultRoot)
+  await Promise.all(
+    files.map(async (file) => {
+      try {
+        const content = await fs.readFile(file, 'utf8')
+        const next = rewriteOneFile(file, oldPath, newPath, content)
+        if (next !== content) {
+          await fs.writeFile(file, next, 'utf8')
+        }
+      } catch {
+        // best-effort; skip files that vanished mid-walk
+      }
+    }),
+  )
+}
+
 ipcMain.handle('path:rename', async (_e, oldPath: string, newPath: string) => {
   if (existsSync(newPath)) throw new Error('Target path already exists')
   await fs.mkdir(path.dirname(newPath), { recursive: true })
   await fs.rename(oldPath, newPath)
+  if (activeVaultPath && oldPath.startsWith(activeVaultPath)) {
+    try {
+      await rewriteLinksAfterMove(activeVaultPath, oldPath, newPath)
+    } catch (err) {
+      console.error('[rewriteLinksAfterMove] failed', err)
+    }
+  }
   return newPath
 })
 
@@ -276,11 +399,18 @@ ipcMain.handle(
       })
       ptyProcesses.set(opts.id, ptyProcess)
 
-      ptyProcess.onData((data) => {
-        win?.webContents.send(`pty:data:${opts.id}`, data)
-      })
+      const safeSend = (channel: string, payload: unknown) => {
+        try {
+          if (win && !win.isDestroyed()) {
+            win.webContents.send(channel, payload)
+          }
+        } catch {
+          // renderer being torn down (HMR) — ignore
+        }
+      }
+      ptyProcess.onData((data) => safeSend(`pty:data:${opts.id}`, data))
       ptyProcess.onExit(({ exitCode }) => {
-        win?.webContents.send(`pty:exit:${opts.id}`, exitCode)
+        safeSend(`pty:exit:${opts.id}`, exitCode)
         ptyProcesses.delete(opts.id)
       })
       return { pid: ptyProcess.pid }
