@@ -5,7 +5,7 @@ export type FileNode = {
   children?: FileNode[]
 }
 
-export type ObscloneAPI = {
+export type MarvinAPI = {
   settings: {
     get: () => Promise<{ vaultPath?: string }>
   }
@@ -54,6 +54,6 @@ export type ObscloneAPI = {
 
 declare global {
   interface Window {
-    obsclone: ObscloneAPI
+    marvin: MarvinAPI
   }
 }

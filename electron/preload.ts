@@ -78,6 +78,6 @@ const api = {
   },
 }
 
-contextBridge.exposeInMainWorld('obsclone', api)
+contextBridge.exposeInMainWorld('marvin', api)
 
-export type ObscloneAPI = typeof api
+export type MarvinAPI = typeof api
