@@ -9,9 +9,7 @@ type Props = {
 export function TopBar({ onOpenPalette, layoutMode, onLayoutChange }: Props) {
   return (
     <div className="topbar">
-      <div className="topbar-left">
-        <LayoutToggle mode={layoutMode} onChange={onLayoutChange} />
-      </div>
+      <div className="topbar-left" />
       <button
         type="button"
         className="topbar-search"
@@ -27,7 +25,9 @@ export function TopBar({ onOpenPalette, layoutMode, onLayoutChange }: Props) {
           <kbd>P</kbd>
         </span>
       </button>
-      <div className="topbar-right" />
+      <div className="topbar-right">
+        <LayoutToggle mode={layoutMode} onChange={onLayoutChange} />
+      </div>
     </div>
   )
 }

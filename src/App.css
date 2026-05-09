@@ -159,10 +159,15 @@ button {
 }
 
 .topbar-left {
+  /* Reserved for the macOS traffic lights; no content yet. */
+  min-width: 78px;
+}
+
+.topbar-right {
   display: flex;
   align-items: center;
-  padding-left: 78px; /* clear macOS traffic lights */
-  gap: 4px;
+  justify-content: flex-end;
+  padding-right: 8px;
 }
 
 .layout-toggle {
