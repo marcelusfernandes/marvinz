@@ -76,19 +76,19 @@ export default function App() {
   const activeTab = tabs.find((t) => t.id === activeTabId) ?? null
 
   const loadTree = useCallback(async (vp: string) => {
-    const t = await window.obsclone.vault.tree(vp)
+    const t = await window.marvin.vault.tree(vp)
     setTree(t)
   }, [])
 
   useEffect(() => {
     ;(async () => {
-      const settings = await window.obsclone.settings.get()
-      const detected = await window.obsclone.claude.detect()
+      const settings = await window.marvin.settings.get()
+      const detected = await window.marvin.claude.detect()
       setClaudePath(detected)
       if (settings.vaultPath) {
         setVaultPath(settings.vaultPath)
         await loadTree(settings.vaultPath)
-        await window.obsclone.vault.watch(settings.vaultPath)
+        await window.marvin.vault.watch(settings.vaultPath)
       }
       setBootstrapped(true)
     })()
@@ -96,19 +96,19 @@ export default function App() {
 
   useEffect(() => {
     if (!vaultPath) return
-    const off = window.obsclone.vault.onChanged(() => {
+    const off = window.marvin.vault.onChanged(() => {
       loadTree(vaultPath)
     })
     return off
   }, [vaultPath, loadTree])
 
   useEffect(() => {
-    const off = window.obsclone.file.onChanged(async (filePath) => {
+    const off = window.marvin.file.onChanged(async (filePath) => {
       const last = lastDiskContentRef.current.get(filePath)
       if (last == null) return
       let fresh: string
       try {
-        fresh = await window.obsclone.file.read(filePath)
+        fresh = await window.marvin.file.read(filePath)
       } catch {
         // file may have been deleted concurrently; the unlink handler will close tabs
         return
@@ -125,20 +125,20 @@ export default function App() {
   }, [])
 
   const readFreshContent = useCallback(async (path: string): Promise<string> => {
-    const content = await window.obsclone.file.read(path)
+    const content = await window.marvin.file.read(path)
     lastDiskContentRef.current.set(path, content)
     return content
   }, [])
 
   const handlePickVault = async () => {
-    const picked = await window.obsclone.vault.pick()
+    const picked = await window.marvin.vault.pick()
     if (!picked) return
     setVaultPath(picked)
     setTabs([])
     setActiveTabId(null)
     lastDiskContentRef.current.clear()
     await loadTree(picked)
-    await window.obsclone.vault.watch(picked)
+    await window.marvin.vault.watch(picked)
   }
 
   // Open a path. If a tab already shows it, focus that tab. Otherwise create a new one.
@@ -271,7 +271,7 @@ export default function App() {
   const handleSave = useCallback(
     async (content: string) => {
       if (!activeTab) return
-      await window.obsclone.file.write(activeTab.path, content)
+      await window.marvin.file.write(activeTab.path, content)
       lastDiskContentRef.current.set(activeTab.path, content)
     },
     [activeTab],
@@ -336,15 +336,15 @@ export default function App() {
     setDialog(null)
     try {
       if (d.kind === 'newNote') {
-        const newPath = await window.obsclone.file.create(d.parentDir, name)
+        const newPath = await window.marvin.file.create(d.parentDir, name)
         await loadTree(vaultPath)
         await openInTab(newPath)
       } else if (d.kind === 'newFolder') {
-        await window.obsclone.folder.create(d.parentDir, name)
+        await window.marvin.folder.create(d.parentDir, name)
         await loadTree(vaultPath)
       } else if (d.kind === 'rename') {
         const newPath = `${dirOf(d.target)}/${name}`
-        await window.obsclone.path.rename(d.target, newPath)
+        await window.marvin.path.rename(d.target, newPath)
         renameInTabs(d.target, newPath)
         await loadTree(vaultPath)
       }
@@ -356,7 +356,7 @@ export default function App() {
   const handleTrash = async (target: string) => {
     if (!vaultPath) return
     try {
-      await window.obsclone.path.trash(target)
+      await window.marvin.path.trash(target)
       closeTabsUnder(target)
       await loadTree(vaultPath)
     } catch (err) {
@@ -373,7 +373,7 @@ export default function App() {
     const newPath = `${destDir}/${baseName}`
     if (newPath === srcPath) return // same parent
     try {
-      await window.obsclone.path.rename(srcPath, newPath)
+      await window.marvin.path.rename(srcPath, newPath)
       renameInTabs(srcPath, newPath)
       await loadTree(vaultPath)
     } catch (err) {
@@ -409,7 +409,7 @@ export default function App() {
       {
         kind: 'item',
         label: 'Reveal in Finder',
-        onClick: () => void window.obsclone.shell.reveal(node.path),
+        onClick: () => void window.marvin.shell.reveal(node.path),
       },
       { kind: 'separator' },
       {
@@ -429,7 +429,7 @@ export default function App() {
   if (!vaultPath) {
     return (
       <div className="welcome">
-        <h1>obsclone</h1>
+        <h1>Marvin</h1>
         <p>Markdown notes with Claude Code in your sidebar.</p>
         <button type="button" onClick={handlePickVault}>
           Open vault folder

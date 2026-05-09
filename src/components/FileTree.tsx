@@ -10,7 +10,7 @@ type Props = {
   onMove: (srcPath: string, destDir: string) => void
 }
 
-const DRAG_MIME = 'application/x-obsclone-path'
+const DRAG_MIME = 'application/x-marvin-path'
 
 function isMarkdown(name: string): boolean {
   return name.endsWith('.md') || name.endsWith('.markdown')

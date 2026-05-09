@@ -1,4 +1,4 @@
-# obsclone
+# Marvin
 
 A minimal Obsidian-style Markdown editor with **Claude Code** running as a sidebar. Your vault is just a folder of `.md` files; an embedded terminal runs the `claude` CLI scoped to that folder, so you can ask Claude to read, edit, and create notes via natural language while you write.
 
@@ -6,7 +6,7 @@ A minimal Obsidian-style Markdown editor with **Claude Code** running as a sideb
 
 ## Features
 
-- **Vault picker** — point obsclone at any folder; choice is persisted across launches.
+- **Vault picker** — point Marvin at any folder; choice is persisted across launches.
 - **File tree** — shows hidden files by default, skips known noise (`.git`, `node_modules`, `.DS_Store`, …); right-click for rename / move-to-trash / reveal-in-Finder / new-note-here / new-folder-here.
 - **Drag & drop** — drag files or folders onto another folder to move them, or onto the empty tree area to move to vault root. Markdown links inside the moved item and references from other notes are auto-rewritten to keep working.
 - **Tabs** — clicking a note opens a new tab (or focuses the existing tab if the path is already open). Each tab has its own back/forward history; clicking a link inside a preview navigates within the same tab.
@@ -20,7 +20,7 @@ A minimal Obsidian-style Markdown editor with **Claude Code** running as a sideb
 
 - macOS (Linux/Windows untested but should mostly work)
 - Node.js 20+
-- [`claude`](https://docs.claude.com/en/docs/claude-code/quickstart) on `PATH`. obsclone detects it via `which claude` and falls back to `~/.local/bin`, `/usr/local/bin`, `/opt/homebrew/bin`. Install via `npm i -g @anthropic-ai/claude-code` or the install script.
+- [`claude`](https://docs.claude.com/en/docs/claude-code/quickstart) on `PATH`. Marvin detects it via `which claude` and falls back to `~/.local/bin`, `/usr/local/bin`, `/opt/homebrew/bin`. Install via `npm i -g @anthropic-ai/claude-code` or the install script.
 
 ## Quickstart
 
@@ -46,7 +46,7 @@ Outputs the renderer to `dist/` and the bundled main/preload to `dist-electron/`
 ```
 electron/
   main.ts           Main process: IPC, vault FS, chokidar watcher, pty spawn, link rewriter
-  preload.ts        contextBridge exposing window.obsclone API
+  preload.ts        contextBridge exposing window.marvin API
 src/
   App.tsx           3-pane layout, tab/state orchestration
   components/

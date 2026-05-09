@@ -73,10 +73,10 @@ export function ClaudeTerminal({ vaultPath, claudePath }: Props) {
       }
 
       // 2. Register listeners FIRST so we don't miss the first bytes.
-      const offData = window.obsclone.pty.onData(PTY_ID, (data) => {
+      const offData = window.marvin.pty.onData(PTY_ID, (data) => {
         term.write(data)
       })
-      const offExit = window.obsclone.pty.onExit(PTY_ID, (code) => {
+      const offExit = window.marvin.pty.onExit(PTY_ID, (code) => {
         term.writeln(`\r\n\x1b[33m[claude exited with code ${code}]\x1b[0m`)
         setStatus('exited')
         setExitCode(code)
@@ -86,7 +86,7 @@ export function ClaudeTerminal({ vaultPath, claudePath }: Props) {
       // 3. Spawn — only after listeners are armed.
       try {
         const { cols, rows } = term
-        await window.obsclone.pty.spawn({
+        await window.marvin.pty.spawn({
           id: PTY_ID,
           shell: claudePath,
           cwd: vaultPath,
@@ -105,10 +105,10 @@ export function ClaudeTerminal({ vaultPath, claudePath }: Props) {
 
       // 4. Pipe input & resize.
       const onTermData = term.onData((data) => {
-        window.obsclone.pty.write(PTY_ID, data)
+        window.marvin.pty.write(PTY_ID, data)
       })
       const onResize = term.onResize(({ cols, rows }) => {
-        window.obsclone.pty.resize(PTY_ID, cols, rows)
+        window.marvin.pty.resize(PTY_ID, cols, rows)
       })
       disposers.push(() => onTermData.dispose(), () => onResize.dispose())
     }
@@ -129,7 +129,7 @@ export function ClaudeTerminal({ vaultPath, claudePath }: Props) {
       killed = true
       observer.disconnect()
       for (const dispose of disposers) dispose()
-      window.obsclone.pty.kill(PTY_ID)
+      window.marvin.pty.kill(PTY_ID)
       term.dispose()
     }
   }, [vaultPath, claudePath, restartTick])
