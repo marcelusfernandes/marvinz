@@ -4,6 +4,7 @@ import { FileTree } from './components/FileTree'
 import { Editor } from './components/Editor'
 import { AgentsPane } from './components/AgentsPane'
 import type { AgentDef } from './components/AgentTerminal'
+import { BrowserPane } from './components/BrowserPane'
 import { InputDialog } from './components/InputDialog'
 import { ContextMenu, type MenuItem } from './components/ContextMenu'
 import { SidebarMenu } from './components/SidebarMenu'
@@ -25,7 +26,8 @@ function readStoredLayout(): LayoutMode {
   return 'editor-center'
 }
 
-type Tab = {
+type NoteTab = {
+  type: 'note'
   id: string
   path: string
   content: string
@@ -33,6 +35,25 @@ type Tab = {
   back: string[]
   forward: string[]
 }
+
+type BrowserTabState = {
+  type: 'browser'
+  id: string
+  url: string
+  /** What's typed in the URL bar (may differ from `url` while editing). */
+  draftUrl: string
+  title: string
+  canBack: boolean
+  canForward: boolean
+  loading: boolean
+  /** True after the WebContentsView is created in the main process. */
+  ready: boolean
+}
+
+type Tab = NoteTab | BrowserTabState
+
+const isNoteTab = (t: Tab): t is NoteTab => t.type === 'note'
+const isBrowserTab = (t: Tab): t is BrowserTabState => t.type === 'browser'
 
 type Dialog =
   | { kind: 'newNote'; parentDir: string }
@@ -51,6 +72,18 @@ const newTabId = () => `tab-${++tabCounter}`
 
 function isMarkdownPath(p: string): boolean {
   return /\.(md|markdown)$/i.test(p)
+}
+
+function normalizeUrl(input: string): string {
+  const trimmed = input.trim()
+  if (!trimmed) return 'about:blank'
+  // Already absolute (http, https, about, file, mailto, etc.)
+  if (/^[a-z][a-z0-9+.-]*:/i.test(trimmed)) return trimmed
+  // Heuristic: looks like a hostname (contains a dot, no spaces) → assume https
+  if (/^[^\s]+\.[^\s]+$/.test(trimmed)) return `https://${trimmed}`
+  // Otherwise treat as a search query against the default engine.
+  const q = encodeURIComponent(trimmed)
+  return `https://www.google.com/search?q=${q}`
 }
 
 function flattenTree(nodes: FileNode[], vaultPath: string): PaletteItem[] {
@@ -107,6 +140,7 @@ export default function App() {
   const [error, setError] = useState<string | null>(null)
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [layoutMode, setLayoutModeState] = useState<LayoutMode>(() => readStoredLayout())
+  const [urlBarFocusTick, setUrlBarFocusTick] = useState(0)
 
   const setLayoutMode = useCallback((mode: LayoutMode) => {
     setLayoutModeState(mode)
@@ -187,7 +221,9 @@ export default function App() {
       lastDiskContentRef.current.set(filePath, fresh)
       setTabs((prev) =>
         prev.map((t) =>
-          t.path === filePath ? { ...t, content: fresh, version: t.version + 1 } : t,
+          isNoteTab(t) && t.path === filePath
+            ? { ...t, content: fresh, version: t.version + 1 }
+            : t,
         ),
       )
     })
@@ -205,19 +241,8 @@ export default function App() {
     [tree, vaultPath],
   )
 
-  // Global Cmd+P to open the file palette.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      const isCmd = e.metaKey || e.ctrlKey
-      if (isCmd && !e.shiftKey && (e.key === 'p' || e.key === 'P')) {
-        if (!vaultPath) return
-        e.preventDefault()
-        setPaletteOpen(true)
-      }
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [vaultPath])
+  // (Global keyboard shortcuts effect is declared after openNewBrowserTab
+  // below so the TDZ for that callback is closed by then.)
 
   const handlePickVault = async () => {
     const picked = await window.marvin.vault.pick()
@@ -234,7 +259,7 @@ export default function App() {
   const openInTab = useCallback(
     async (path: string) => {
       if (!isMarkdownPath(path)) return
-      const existing = tabs.find((t) => t.path === path)
+      const existing = tabs.find((t) => isNoteTab(t) && t.path === path)
       if (existing) {
         setActiveTabId(existing.id)
         return
@@ -244,7 +269,7 @@ export default function App() {
         const id = newTabId()
         setTabs((prev) => [
           ...prev,
-          { id, path, content, version: 0, back: [], forward: [] },
+          { type: 'note', id, path, content, version: 0, back: [], forward: [] },
         ])
         setActiveTabId(id)
       } catch (err) {
@@ -258,17 +283,18 @@ export default function App() {
   // Pushes current path onto back stack, clears forward.
   const navigateInActiveTab = useCallback(
     async (path: string) => {
-      if (!activeTab) {
+      if (!activeTab || !isNoteTab(activeTab)) {
         await openInTab(path)
         return
       }
       if (!isMarkdownPath(path)) return
       if (path === activeTab.path) return
+      const noteTab = activeTab
       try {
         const content = await readFreshContent(path)
         setTabs((prev) =>
           prev.map((t) =>
-            t.id === activeTab.id
+            isNoteTab(t) && t.id === noteTab.id
               ? {
                   ...t,
                   path,
@@ -288,13 +314,14 @@ export default function App() {
   )
 
   const goBack = useCallback(async () => {
-    if (!activeTab || activeTab.back.length === 0) return
-    const target = activeTab.back[activeTab.back.length - 1]
+    if (!activeTab || !isNoteTab(activeTab) || activeTab.back.length === 0) return
+    const noteTab = activeTab
+    const target = noteTab.back[noteTab.back.length - 1]
     try {
       const content = await readFreshContent(target)
       setTabs((prev) =>
         prev.map((t) =>
-          t.id === activeTab.id
+          isNoteTab(t) && t.id === noteTab.id
             ? {
                 ...t,
                 path: target,
@@ -312,13 +339,14 @@ export default function App() {
   }, [activeTab, readFreshContent])
 
   const goForward = useCallback(async () => {
-    if (!activeTab || activeTab.forward.length === 0) return
-    const target = activeTab.forward[activeTab.forward.length - 1]
+    if (!activeTab || !isNoteTab(activeTab) || activeTab.forward.length === 0) return
+    const noteTab = activeTab
+    const target = noteTab.forward[noteTab.forward.length - 1]
     try {
       const content = await readFreshContent(target)
       setTabs((prev) =>
         prev.map((t) =>
-          t.id === activeTab.id
+          isNoteTab(t) && t.id === noteTab.id
             ? {
                 ...t,
                 path: target,
@@ -340,7 +368,11 @@ export default function App() {
       setTabs((prev) => {
         const idx = prev.findIndex((t) => t.id === id)
         if (idx === -1) return prev
+        const closing = prev[idx]
         const next = prev.filter((t) => t.id !== id)
+        if (closing && isBrowserTab(closing)) {
+          void window.marvin.browser.close(id)
+        }
         // pick neighbor as new active if we closed the active one
         if (activeTabId === id) {
           const neighbor = next[idx] ?? next[idx - 1] ?? null
@@ -356,6 +388,131 @@ export default function App() {
     if (node.isDir) return
     void openInTab(node.path)
   }
+
+  // --- Browser tabs ----------------------------------------------------
+
+  const openNewBrowserTab = useCallback(() => {
+    const id = newTabId()
+    const url = 'https://www.google.com'
+    setTabs((prev) => [
+      ...prev,
+      {
+        type: 'browser',
+        id,
+        url,
+        draftUrl: url,
+        title: 'New tab',
+        canBack: false,
+        canForward: false,
+        loading: true,
+        ready: false,
+      },
+    ])
+    setActiveTabId(id)
+    // Focus URL bar on open so the user can immediately type a different URL.
+    setUrlBarFocusTick((t) => t + 1)
+  }, [])
+
+  const handleBrowserDraftChange = useCallback((id: string, value: string) => {
+    setTabs((prev) =>
+      prev.map((t) => (isBrowserTab(t) && t.id === id ? { ...t, draftUrl: value } : t)),
+    )
+  }, [])
+
+  const handleBrowserNavigate = useCallback(async (id: string, url: string) => {
+    const normalized = normalizeUrl(url)
+    setTabs((prev) =>
+      prev.map((t) =>
+        isBrowserTab(t) && t.id === id
+          ? { ...t, draftUrl: normalized, loading: true }
+          : t,
+      ),
+    )
+    try {
+      await window.marvin.browser.navigate(id, normalized)
+    } catch {
+      // surfaced via load-error event
+    }
+  }, [])
+
+  const handleBrowserReady = useCallback((id: string) => {
+    setTabs((prev) =>
+      prev.map((t) => (isBrowserTab(t) && t.id === id ? { ...t, ready: true } : t)),
+    )
+  }, [])
+
+  // Subscribe to browser events from the main process and reflect them on
+  // the relevant tab's state.
+  useEffect(() => {
+    const off = window.marvin.browser.onEvent((event) => {
+      setTabs((prev) =>
+        prev.map((t) => {
+          if (!isBrowserTab(t) || t.id !== event.id) return t
+          switch (event.kind) {
+            case 'title':
+              return { ...t, title: event.title || t.title }
+            case 'url':
+              return { ...t, url: event.url, draftUrl: event.url }
+            case 'loading':
+              return { ...t, loading: event.loading }
+            case 'nav-state':
+              return { ...t, canBack: event.canBack, canForward: event.canForward }
+            case 'load-error':
+              return { ...t, loading: false }
+            default:
+              return t
+          }
+        }),
+      )
+    })
+    return off
+  }, [])
+
+  // Tell main which browser is currently the active visible one (or null).
+  useEffect(() => {
+    const activeBrowserId =
+      activeTab && isBrowserTab(activeTab) ? activeTab.id : null
+    void window.marvin.browser.setActive(activeBrowserId)
+  }, [activeTab])
+
+  // Hide all browser views while any React modal/popover is open, so they
+  // don't paint over the modal (WebContentsView is always above the renderer).
+  const modalOpen = paletteOpen || dialog != null || ctx != null || error != null
+  useEffect(() => {
+    void window.marvin.browser.setAllHidden(modalOpen)
+  }, [modalOpen])
+
+  // Global keyboard shortcuts. Declared after openNewBrowserTab so the
+  // dependency array can reference it without TDZ.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const isCmd = e.metaKey || e.ctrlKey
+      if (!isCmd) return
+      // Cmd+P → file palette
+      if (!e.shiftKey && (e.key === 'p' || e.key === 'P')) {
+        if (!vaultPath) return
+        e.preventDefault()
+        setPaletteOpen(true)
+        return
+      }
+      // Cmd+T → new browser tab (browser convention)
+      if (!e.shiftKey && (e.key === 't' || e.key === 'T')) {
+        if (!vaultPath) return
+        e.preventDefault()
+        openNewBrowserTab()
+        return
+      }
+      // Cmd+L → focus URL bar of the active browser tab
+      if (!e.shiftKey && (e.key === 'l' || e.key === 'L')) {
+        if (!vaultPath) return
+        e.preventDefault()
+        setUrlBarFocusTick((t) => t + 1)
+        return
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [vaultPath, openNewBrowserTab])
 
   const handlePalettePick = useCallback(
     async (item: PaletteItem, replaceCurrent: boolean) => {
@@ -381,7 +538,7 @@ export default function App() {
 
   const handleSave = useCallback(
     async (content: string) => {
-      if (!activeTab) return
+      if (!activeTab || !isNoteTab(activeTab)) return
       await window.marvin.file.write(activeTab.path, content)
       lastDiskContentRef.current.set(activeTab.path, content)
     },
@@ -395,6 +552,7 @@ export default function App() {
   const renameInTabs = (oldPath: string, newPath: string) => {
     setTabs((prev) =>
       prev.map((t) => {
+        if (!isNoteTab(t)) return t
         let path = t.path
         if (path === oldPath) path = newPath
         else if (path.startsWith(`${oldPath}/`)) path = newPath + path.slice(oldPath.length)
@@ -425,7 +583,7 @@ export default function App() {
   const closeTabsUnder = (root: string) => {
     setTabs((prev) => {
       const remaining = prev.filter(
-        (t) => t.path !== root && !t.path.startsWith(`${root}/`),
+        (t) => !isNoteTab(t) || (t.path !== root && !t.path.startsWith(`${root}/`)),
       )
       if (
         activeTabId &&
@@ -602,23 +760,42 @@ export default function App() {
           activeId={activeTabId}
           onActivate={setActiveTabId}
           onClose={closeTab}
+          onNewBrowserTab={openNewBrowserTab}
         />
-        {activeTab ? (
-          <Editor
-            key={`${activeTab.id}#${activeTab.path}#${activeTab.version}`}
-            filePath={activeTab.path}
-            vaultPath={vaultPath}
-            initialContent={activeTab.content}
-            onSave={handleSave}
-            onOpenNote={navigateInActiveTab}
-            canBack={activeTab.back.length > 0}
-            canForward={activeTab.forward.length > 0}
-            onBack={goBack}
-            onForward={goForward}
-          />
-        ) : (
-          <div className="empty-editor">Select a note or create a new one.</div>
-        )}
+        <div className="editor-stack">
+          {activeTab && isNoteTab(activeTab) && (
+            <Editor
+              key={`${activeTab.id}#${activeTab.path}#${activeTab.version}`}
+              filePath={activeTab.path}
+              vaultPath={vaultPath}
+              initialContent={activeTab.content}
+              onSave={handleSave}
+              onOpenNote={navigateInActiveTab}
+              canBack={activeTab.back.length > 0}
+              canForward={activeTab.forward.length > 0}
+              onBack={goBack}
+              onForward={goForward}
+            />
+          )}
+          {!activeTab && (
+            <div className="empty-editor">Select a note or create a new one.</div>
+          )}
+          {/* Browser tabs are rendered as a stack (lazy mount, hidden when
+              inactive) so each WebContentsView keeps its session alive across
+              switches. */}
+          {tabs.filter(isBrowserTab).map((bt) => (
+            <BrowserPane
+              key={bt.id}
+              tab={bt}
+              isActive={bt.id === activeTabId}
+              onUrlBarChange={handleBrowserDraftChange}
+              onNavigate={handleBrowserNavigate}
+              onReady={handleBrowserReady}
+              urlBarFocusTick={urlBarFocusTick}
+              geometryKey={layoutMode}
+            />
+          ))}
+        </div>
       </main>
 
       <aside className="claude-pane">

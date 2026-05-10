@@ -5,6 +5,13 @@ export type FileNode = {
   children?: FileNode[]
 }
 
+export type BrowserEvent =
+  | { id: string; kind: 'title'; title: string }
+  | { id: string; kind: 'url'; url: string }
+  | { id: string; kind: 'loading'; loading: boolean }
+  | { id: string; kind: 'nav-state'; canBack: boolean; canForward: boolean }
+  | { id: string; kind: 'load-error'; url: string; message: string }
+
 export type MarvinAPI = {
   settings: {
     get: () => Promise<{ vaultPath?: string }>
@@ -33,6 +40,23 @@ export type MarvinAPI = {
   }
   agent: {
     detect: (name: string) => Promise<string | null>
+  }
+  browser: {
+    create: (opts: {
+      id: string
+      url: string
+      bounds: { x: number; y: number; width: number; height: number }
+    }) => Promise<{ url: string; title: string; canBack: boolean; canForward: boolean }>
+    navigate: (id: string, url: string) => Promise<void>
+    back: (id: string) => Promise<void>
+    forward: (id: string) => Promise<void>
+    reload: (id: string) => Promise<void>
+    stop: (id: string) => Promise<void>
+    setBounds: (id: string, bounds: { x: number; y: number; width: number; height: number }) => Promise<void>
+    setActive: (id: string | null) => Promise<void>
+    setAllHidden: (hidden: boolean) => Promise<void>
+    close: (id: string) => Promise<void>
+    onEvent: (cb: (event: BrowserEvent) => void) => () => void
   }
   shell: {
     openExternal: (url: string) => Promise<void>
