@@ -4,22 +4,44 @@ import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import '@xterm/xterm/css/xterm.css'
 
-type Props = {
-  vaultPath: string
-  claudePath: string | null
+export type AgentDef = {
+  /** Stable identifier (`'claude'`, `'codex'`, …). */
+  id: string
+  /** Display name shown in the tab. */
+  name: string
+  /** Resolved binary path, or null when the CLI isn't installed. */
+  binaryPath: string | null
+  /** Optional install hints printed when binaryPath is null. */
+  installInstructions?: string[]
 }
-
-const PTY_ID = 'claude-main'
 
 type Status = 'starting' | 'running' | 'exited' | 'error'
 
-export function ClaudeTerminal({ vaultPath, claudePath }: Props) {
+type Props = {
+  agent: AgentDef
+  vaultPath: string
+  /** Whether this terminal is currently visible. Hidden terminals keep
+   * their PTY and xterm instance alive in the background. */
+  isActive: boolean
+  /** Notifies the parent when this terminal's status changes (used to
+   * paint the tab dot). */
+  onStatusChange?: (id: string, status: Status, exitCode: number | null) => void
+}
+
+export function AgentTerminal({ agent, vaultPath, isActive, onStatusChange }: Props) {
   const hostRef = useRef<HTMLDivElement>(null)
   const termRef = useRef<Terminal | null>(null)
   const fitRef = useRef<FitAddon | null>(null)
   const [status, setStatus] = useState<Status>('starting')
   const [exitCode, setExitCode] = useState<number | null>(null)
   const [restartTick, setRestartTick] = useState(0)
+
+  const ptyId = `${agent.id}-main`
+
+  // Notify parent whenever status changes.
+  useEffect(() => {
+    onStatusChange?.(agent.id, status, exitCode)
+  }, [status, exitCode, agent.id, onStatusChange])
 
   useEffect(() => {
     if (!hostRef.current) return
@@ -51,16 +73,17 @@ export function ClaudeTerminal({ vaultPath, claudePath }: Props) {
     let killed = false
 
     const start = async () => {
-      if (!claudePath) {
-        term.writeln('\x1b[31mClaude CLI not found.\x1b[0m')
-        term.writeln('Install with one of:')
-        term.writeln('  npm i -g @anthropic-ai/claude-code')
-        term.writeln('  curl -fsSL https://claude.ai/install.sh | bash')
+      if (!agent.binaryPath) {
+        term.writeln(`\x1b[31m${agent.name} CLI not found.\x1b[0m`)
+        if (agent.installInstructions?.length) {
+          term.writeln('Install with one of:')
+          for (const line of agent.installInstructions) term.writeln(`  ${line}`)
+        }
         setStatus('error')
         return
       }
 
-      // 1. Wait two frames so the layout settles and FitAddon can read real dims.
+      // Wait two frames so layout settles and FitAddon can read real dims.
       await new Promise<void>((resolve) =>
         requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
       )
@@ -72,23 +95,21 @@ export function ClaudeTerminal({ vaultPath, claudePath }: Props) {
         // ignore — may not have dims yet
       }
 
-      // 2. Register listeners FIRST so we don't miss the first bytes.
-      const offData = window.marvin.pty.onData(PTY_ID, (data) => {
+      const offData = window.marvin.pty.onData(ptyId, (data) => {
         term.write(data)
       })
-      const offExit = window.marvin.pty.onExit(PTY_ID, (code) => {
-        term.writeln(`\r\n\x1b[33m[claude exited with code ${code}]\x1b[0m`)
+      const offExit = window.marvin.pty.onExit(ptyId, (code) => {
+        term.writeln(`\r\n\x1b[33m[${agent.name} exited with code ${code}]\x1b[0m`)
         setStatus('exited')
         setExitCode(code)
       })
       disposers.push(offData, offExit)
 
-      // 3. Spawn — only after listeners are armed.
       try {
         const { cols, rows } = term
         await window.marvin.pty.spawn({
-          id: PTY_ID,
-          shell: claudePath,
+          id: ptyId,
+          shell: agent.binaryPath,
           cwd: vaultPath,
           cols,
           rows,
@@ -97,18 +118,17 @@ export function ClaudeTerminal({ vaultPath, claudePath }: Props) {
         setStatus('running')
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err)
-        term.writeln(`\r\n\x1b[31mFailed to start Claude: ${msg}\x1b[0m`)
+        term.writeln(`\r\n\x1b[31mFailed to start ${agent.name}: ${msg}\x1b[0m`)
         term.writeln('Press the Restart button above to try again.')
         setStatus('error')
         return
       }
 
-      // 4. Pipe input & resize.
       const onTermData = term.onData((data) => {
-        window.marvin.pty.write(PTY_ID, data)
+        window.marvin.pty.write(ptyId, data)
       })
       const onResize = term.onResize(({ cols, rows }) => {
-        window.marvin.pty.resize(PTY_ID, cols, rows)
+        window.marvin.pty.resize(ptyId, cols, rows)
       })
       disposers.push(() => onTermData.dispose(), () => onResize.dispose())
     }
@@ -129,10 +149,23 @@ export function ClaudeTerminal({ vaultPath, claudePath }: Props) {
       killed = true
       observer.disconnect()
       for (const dispose of disposers) dispose()
-      window.marvin.pty.kill(PTY_ID)
+      window.marvin.pty.kill(ptyId)
       term.dispose()
     }
-  }, [vaultPath, claudePath, restartTick])
+  }, [vaultPath, agent.binaryPath, agent.name, agent.installInstructions, ptyId, restartTick])
+
+  // Refit when becoming active again — the terminal's container may have
+  // had display:none and reported zero dimensions.
+  useEffect(() => {
+    if (!isActive) return
+    requestAnimationFrame(() => {
+      try {
+        fitRef.current?.fit()
+      } catch {
+        // ignore
+      }
+    })
+  }, [isActive])
 
   const handleRestart = useCallback(() => {
     setStatus('starting')
@@ -143,21 +176,17 @@ export function ClaudeTerminal({ vaultPath, claudePath }: Props) {
   const showRestart = status === 'exited' || status === 'error'
 
   return (
-    <div className="claude-terminal">
-      <div className="claude-header">
-        <span className={`dot ${status}`} />
-        <span className="claude-title">Claude Code</span>
-        {status === 'exited' && (
-          <span className="claude-status-text">exited ({exitCode})</span>
-        )}
-        {status === 'error' && <span className="claude-status-text">error</span>}
-        {showRestart && (
+    <div className={`agent-terminal${isActive ? ' active' : ''}`}>
+      {showRestart && (
+        <div className="agent-restart-bar">
           <button type="button" className="claude-restart" onClick={handleRestart}>
-            Restart
+            Restart {agent.name}
           </button>
-        )}
-      </div>
+        </div>
+      )}
       <div ref={hostRef} className="claude-host" />
     </div>
   )
 }
+
+export type { Status as AgentStatus }

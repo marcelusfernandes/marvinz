@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { FileNode } from './types'
 import { FileTree } from './components/FileTree'
 import { Editor } from './components/Editor'
-import { ClaudeTerminal } from './components/ClaudeTerminal'
+import { AgentsPane } from './components/AgentsPane'
+import type { AgentDef } from './components/AgentTerminal'
 import { InputDialog } from './components/InputDialog'
 import { ContextMenu, type MenuItem } from './components/ContextMenu'
 import { SidebarMenu } from './components/SidebarMenu'
@@ -99,7 +100,7 @@ export default function App() {
   const [tree, setTree] = useState<FileNode[]>([])
   const [tabs, setTabs] = useState<Tab[]>([])
   const [activeTabId, setActiveTabId] = useState<string | null>(null)
-  const [claudePath, setClaudePath] = useState<string | null>(null)
+  const [agents, setAgents] = useState<AgentDef[]>([])
   const [bootstrapped, setBootstrapped] = useState(false)
   const [dialog, setDialog] = useState<Dialog>(null)
   const [ctx, setCtx] = useState<ContextState>(null)
@@ -130,8 +131,30 @@ export default function App() {
   useEffect(() => {
     ;(async () => {
       const settings = await window.marvin.settings.get()
-      const detected = await window.marvin.claude.detect()
-      setClaudePath(detected)
+      const [claudePath, codexPath] = await Promise.all([
+        window.marvin.agent.detect('claude'),
+        window.marvin.agent.detect('codex'),
+      ])
+      setAgents([
+        {
+          id: 'claude',
+          name: 'Claude Code',
+          binaryPath: claudePath,
+          installInstructions: [
+            'npm i -g @anthropic-ai/claude-code',
+            'curl -fsSL https://claude.ai/install.sh | bash',
+          ],
+        },
+        {
+          id: 'codex',
+          name: 'Codex',
+          binaryPath: codexPath,
+          installInstructions: [
+            'npm i -g @openai/codex',
+            'brew install codex',
+          ],
+        },
+      ])
       if (settings.vaultPath) {
         setVaultPath(settings.vaultPath)
         await loadTree(settings.vaultPath)
@@ -599,7 +622,7 @@ export default function App() {
       </main>
 
       <aside className="claude-pane">
-        <ClaudeTerminal vaultPath={vaultPath} claudePath={claudePath} />
+        <AgentsPane agents={agents} vaultPath={vaultPath} />
       </aside>
 
       {dialog && dialogConfig && (

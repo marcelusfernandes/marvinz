@@ -351,7 +351,9 @@ ipcMain.handle('shell:reveal', async (_e, target: string) => {
   shell.showItemInFolder(target)
 })
 
-ipcMain.handle('claude:detect', async () => {
+function detectBinary(name: string): string | null {
+  // Defensive: only allow simple binary names — no path traversal or shell.
+  if (!/^[a-zA-Z0-9_-]+$/.test(name)) return null
   const env = getShellEnv()
   const pathDirs = (env.PATH || '').split(':').filter(Boolean)
   const fallback = [
@@ -360,7 +362,7 @@ ipcMain.handle('claude:detect', async () => {
     '/opt/homebrew/bin',
   ]
   for (const dir of [...pathDirs, ...fallback]) {
-    const candidate = path.join(dir, 'claude')
+    const candidate = path.join(dir, name)
     try {
       const st = statSync(candidate)
       if (st.isFile() || st.isSymbolicLink()) return candidate
@@ -369,7 +371,12 @@ ipcMain.handle('claude:detect', async () => {
     }
   }
   return null
-})
+}
+
+ipcMain.handle('agent:detect', async (_e, name: string) => detectBinary(name))
+
+// Back-compat shim for the previous renderer API.
+ipcMain.handle('claude:detect', async () => detectBinary('claude'))
 
 ipcMain.handle(
   'pty:spawn',
