@@ -568,6 +568,76 @@ button {
   color: var(--fg);
 }
 
+/* === Image viewer (image tabs) === */
+
+.image-viewer {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--bg);
+}
+
+.image-viewer-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--border);
+  height: 38px;
+  flex-shrink: 0;
+  font-size: 13px;
+  color: var(--fg-2);
+}
+
+.image-viewer-name {
+  font-weight: 500;
+  color: var(--fg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.image-viewer-action {
+  font-size: 12px;
+  color: var(--fg-3);
+  padding: 3px 10px;
+  border-radius: 4px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.image-viewer-action:hover {
+  color: var(--fg);
+  background: var(--bg-3);
+}
+
+.image-viewer-host {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: auto;
+  padding: 24px;
+  /* Subtle checker pattern so transparent PNGs are obviously transparent. */
+  background-color: #1e1e1e;
+  background-image:
+    linear-gradient(45deg, #232323 25%, transparent 25%),
+    linear-gradient(-45deg, #232323 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #232323 75%),
+    linear-gradient(-45deg, transparent 75%, #232323 75%);
+  background-size: 16px 16px;
+  background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+}
+
+.image-viewer-host img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
 /* === Editor / browser stack (everything below the tab bar) === */
 
 .editor-stack {

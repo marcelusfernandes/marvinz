@@ -6,6 +6,7 @@ import { AgentsPane } from './components/AgentsPane'
 import type { AgentDef } from './components/AgentTerminal'
 import { BrowserPane } from './components/BrowserPane'
 import { Splitter } from './components/Splitter'
+import { ImageViewer } from './components/ImageViewer'
 import { InputDialog } from './components/InputDialog'
 import { ContextMenu, type MenuItem } from './components/ContextMenu'
 import { SidebarMenu } from './components/SidebarMenu'
@@ -77,10 +78,17 @@ type BrowserTabState = {
   ready: boolean
 }
 
-type Tab = NoteTab | BrowserTabState
+type ImageTab = {
+  type: 'image'
+  id: string
+  path: string
+}
+
+type Tab = NoteTab | BrowserTabState | ImageTab
 
 const isNoteTab = (t: Tab): t is NoteTab => t.type === 'note'
 const isBrowserTab = (t: Tab): t is BrowserTabState => t.type === 'browser'
+const isImageTab = (t: Tab): t is ImageTab => t.type === 'image'
 
 type Dialog =
   | { kind: 'newNote'; parentDir: string }
@@ -99,6 +107,36 @@ const newTabId = () => `tab-${++tabCounter}`
 
 function isMarkdownPath(p: string): boolean {
   return /\.(md|markdown)$/i.test(p)
+}
+
+const IMAGE_EXTS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg', 'ico', 'avif'])
+function isImagePath(p: string): boolean {
+  const ext = p.toLowerCase().split('.').pop() ?? ''
+  return IMAGE_EXTS.has(ext)
+}
+
+function isPdfPath(p: string): boolean {
+  return /\.pdf$/i.test(p)
+}
+
+/** Build a marvin:// URL for a vault-local absolute path. The
+ * `localhost` host is a placeholder so the standard URL parser doesn't
+ * eat the first path segment as the hostname. */
+function marvinFileUrl(absPath: string): string {
+  const encoded = absPath.split('/').map(encodeURIComponent).join('/')
+  return `marvin://localhost${encoded}`
+}
+
+function basenameOf(p: string): string {
+  return p.split('/').pop() ?? p
+}
+
+function isBinaryReadError(err: unknown): boolean {
+  return err instanceof Error && /MARVIN_BINARY/.test(err.message)
+}
+
+function isTooLargeReadError(err: unknown): boolean {
+  return err instanceof Error && /MARVIN_TOO_LARGE/.test(err.message)
 }
 
 function normalizeUrl(input: string): string {
@@ -150,6 +188,12 @@ function humanizeError(err: unknown): string {
   if (eexist) {
     const base = eexist[1].split('/').pop() ?? eexist[1]
     return `Already exists: ${base}`
+  }
+  if (/MARVIN_BINARY/.test(raw)) return 'Binary file — opened externally instead.'
+  const tooLarge = raw.match(/MARVIN_TOO_LARGE: (\d+)/)
+  if (tooLarge) {
+    const mb = (Number(tooLarge[1]) / (1024 * 1024)).toFixed(1)
+    return `File too large to open inline (${mb} MB).`
   }
   // Strip the IPC noise prefix
   return raw.replace(/^Error invoking remote method '[^']+':\s*Error:\s*/, '')
@@ -332,10 +376,43 @@ export default function App() {
   // Open a path. If a tab already shows it, focus that tab. Otherwise create a new one.
   const openInTab = useCallback(
     async (path: string) => {
-      if (!isMarkdownPath(path)) return
-      const existing = tabs.find((t) => isNoteTab(t) && t.path === path)
+      const existing = tabs.find(
+        (t) =>
+          (isNoteTab(t) && t.path === path) ||
+          (isImageTab(t) && t.path === path),
+      )
       if (existing) {
         setActiveTabId(existing.id)
+        return
+      }
+      // Images: don't try to read as text — just open a viewer tab that
+      // points at the file via the marvin:// custom protocol.
+      if (isImagePath(path)) {
+        const id = newTabId()
+        setTabs((prev) => [...prev, { type: 'image', id, path }])
+        setActiveTabId(id)
+        return
+      }
+      // PDFs: open in a browser tab pointing at the marvin:// URL so
+      // Chromium's built-in PDF viewer (zoom, search, download) handles it.
+      if (isPdfPath(path)) {
+        const url = marvinFileUrl(path)
+        const id = newTabId()
+        setTabs((prev) => [
+          ...prev,
+          {
+            type: 'browser',
+            id,
+            url,
+            draftUrl: url,
+            title: basenameOf(path),
+            canBack: false,
+            canForward: false,
+            loading: true,
+            ready: false,
+          },
+        ])
+        setActiveTabId(id)
         return
       }
       try {
@@ -347,6 +424,20 @@ export default function App() {
         ])
         setActiveTabId(id)
       } catch (err) {
+        if (isBinaryReadError(err)) {
+          // Hand binary files off to the OS so the right app handles them.
+          setError(`Binary file: ${basenameOf(path)} — opened in Finder`)
+          try {
+            await window.marvin.shell.reveal(path)
+          } catch {
+            // ignore secondary failure
+          }
+          return
+        }
+        if (isTooLargeReadError(err)) {
+          setError(humanizeError(err))
+          return
+        }
         reportError(err)
       }
     },
@@ -591,20 +682,14 @@ export default function App() {
   const handlePalettePick = useCallback(
     async (item: PaletteItem, replaceCurrent: boolean) => {
       setPaletteOpen(false)
-      if (item.isMarkdown) {
-        if (replaceCurrent && activeTab) {
-          await navigateInActiveTab(item.path)
-        } else {
-          await openInTab(item.path)
-        }
+      // Try to open any file in a tab; openInTab gracefully reveals binaries
+      // in Finder. Markdown link semantics (replace current tab) only apply
+      // when the picked item is markdown — for other text files we always
+      // open in a new tab.
+      if (item.isMarkdown && replaceCurrent && activeTab) {
+        await navigateInActiveTab(item.path)
       } else {
-        // Non-markdown files don't open inline; surface them in Finder so the
-        // user can hand them off to the system default app.
-        try {
-          await window.marvin.shell.reveal(item.path)
-        } catch (err) {
-          reportError(err)
-        }
+        await openInTab(item.path)
       }
     },
     [activeTab, navigateInActiveTab, openInTab],
@@ -860,6 +945,13 @@ export default function App() {
               canForward={activeTab.forward.length > 0}
               onBack={goBack}
               onForward={goForward}
+            />
+          )}
+          {activeTab && isImageTab(activeTab) && (
+            <ImageViewer
+              key={activeTab.id}
+              path={activeTab.path}
+              onRevealInFinder={(p) => void window.marvin.shell.reveal(p)}
             />
           )}
           {!activeTab && (
