@@ -19,16 +19,19 @@ type Status = 'starting' | 'running' | 'exited' | 'error'
 
 type Props = {
   agent: AgentDef
+  /** Unique PTY identifier for this terminal instance. Distinct per tab so
+   * multiple tabs of the same agent each get their own backing process. */
+  ptyId: string
   vaultPath: string
   /** Whether this terminal is currently visible. Hidden terminals keep
    * their PTY and xterm instance alive in the background. */
   isActive: boolean
   /** Notifies the parent when this terminal's status changes (used to
    * paint the tab dot). */
-  onStatusChange?: (id: string, status: Status, exitCode: number | null) => void
+  onStatusChange?: (ptyId: string, status: Status, exitCode: number | null) => void
 }
 
-export function AgentTerminal({ agent, vaultPath, isActive, onStatusChange }: Props) {
+export function AgentTerminal({ agent, ptyId, vaultPath, isActive, onStatusChange }: Props) {
   const hostRef = useRef<HTMLDivElement>(null)
   const termRef = useRef<Terminal | null>(null)
   const fitRef = useRef<FitAddon | null>(null)
@@ -36,12 +39,10 @@ export function AgentTerminal({ agent, vaultPath, isActive, onStatusChange }: Pr
   const [exitCode, setExitCode] = useState<number | null>(null)
   const [restartTick, setRestartTick] = useState(0)
 
-  const ptyId = `${agent.id}-main`
-
   // Notify parent whenever status changes.
   useEffect(() => {
-    onStatusChange?.(agent.id, status, exitCode)
-  }, [status, exitCode, agent.id, onStatusChange])
+    onStatusChange?.(ptyId, status, exitCode)
+  }, [status, exitCode, ptyId, onStatusChange])
 
   useEffect(() => {
     if (!hostRef.current) return

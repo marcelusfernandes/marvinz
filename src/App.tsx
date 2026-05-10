@@ -213,6 +213,7 @@ export default function App() {
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [layoutMode, setLayoutModeState] = useState<LayoutMode>(() => readStoredLayout())
   const [urlBarFocusTick, setUrlBarFocusTick] = useState(0)
+  const [newAgentTabTick, setNewAgentTabTick] = useState(0)
   const [sidebarWidth, setSidebarWidthState] = useState<number>(() =>
     readStoredWidth(SIDEBAR_WIDTH_KEY, DEFAULT_SIDEBAR_WIDTH, MIN_SIDEBAR, MAX_SIDEBAR),
   )
@@ -713,6 +714,13 @@ export default function App() {
         openNewBrowserTab()
         return
       }
+      // Cmd+Shift+T → new agent terminal in the agents column
+      if (e.shiftKey && (e.key === 't' || e.key === 'T')) {
+        if (!vaultPath) return
+        e.preventDefault()
+        setNewAgentTabTick((t) => t + 1)
+        return
+      }
       // Cmd+L → focus URL bar of the active browser tab
       if (!e.shiftKey && (e.key === 'l' || e.key === 'L')) {
         if (!vaultPath) return
@@ -1026,7 +1034,11 @@ export default function App() {
       <Splitter onDelta={handleAgentsDelta} ariaLabel="Resize agents pane" />
 
       <aside className="claude-pane">
-        <AgentsPane agents={agents} vaultPath={vaultPath} />
+        <AgentsPane
+          agents={agents}
+          vaultPath={vaultPath}
+          newTabTick={newAgentTabTick}
+        />
       </aside>
 
       {dialog && dialogConfig && (

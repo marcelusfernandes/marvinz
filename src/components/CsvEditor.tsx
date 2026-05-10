@@ -174,11 +174,11 @@ export function CsvEditor({ filePath, initialContent, onChange }: Props) {
 
   const buildColumnMenu = useCallback(
     (key: string): MenuItem[] => [
-      { kind: 'item', label: 'Insert Left  ←', onClick: () => insertColumn(key, 'before') },
-      { kind: 'item', label: 'Insert Right →', onClick: () => insertColumn(key, 'after') },
+      { kind: 'item', label: '← Insert Left', onClick: () => insertColumn(key, 'before') },
+      { kind: 'item', label: '→ Insert Right', onClick: () => insertColumn(key, 'after') },
       { kind: 'separator' },
-      { kind: 'item', label: 'Order Ascending (A–Z)', onClick: () => sortByColumn(key, 'ASC') },
-      { kind: 'item', label: 'Order Descending (Z–A)', onClick: () => sortByColumn(key, 'DESC') },
+      { kind: 'item', label: 'Order Ascending (A–z)', onClick: () => sortByColumn(key, 'ASC') },
+      { kind: 'item', label: 'Order Descending (Z–a)', onClick: () => sortByColumn(key, 'DESC') },
       { kind: 'separator' },
       { kind: 'item', label: 'Delete Column', danger: true, onClick: () => removeColumn(key) },
     ],
