@@ -290,7 +290,7 @@ function NewTabButton({
           title="Choose agent"
           aria-label="Choose agent"
         >
-          <span className="agent-new-chevron-icon">‹</span>
+          <span className="agent-new-chevron-icon">⌄</span>
         </button>
       )}
     </div>

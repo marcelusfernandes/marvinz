@@ -1228,16 +1228,14 @@ button {
   border-left: 1px solid var(--border);
 }
 
-/* Same chevron character used by the nav-btn back/forward, rotated so it
-   points down. Matches their visual weight without bringing an SVG.
-   Rotating an inner span (not the button) keeps the border + hit box
-   axis-aligned. line-height:0 collapses the line-box around the glyph so
-   the rotated bounding box centers on the same point as the "+" sibling. */
+/* `⌄` (U+2304 DOWN ARROWHEAD) renders as a thin chevron-down. Bump the
+   font-size to match the visual height of the "+" sibling at 14px, and
+   translateY pulls the glyph up since it hugs the bottom of its em-box. */
 .agent-new-chevron-icon {
   display: inline-block;
-  font-size: 18px;
-  line-height: 0;
-  transform: rotate(-90deg);
+  font-size: 22px;
+  line-height: 1;
+  transform: translateY(-3px);
 }
 
 .agent-new:hover .agent-new-plus,
