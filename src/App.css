@@ -1223,7 +1223,7 @@ button {
 }
 
 .agent-new-chevron {
-  width: 18px;
+  width: 26px;
   border-radius: 0 4px 4px 0;
   border-left: 1px solid var(--border);
 }
@@ -1231,11 +1231,12 @@ button {
 /* Same chevron character used by the nav-btn back/forward, rotated so it
    points down. Matches their visual weight without bringing an SVG.
    Rotating an inner span (not the button) keeps the border + hit box
-   axis-aligned. */
+   axis-aligned. line-height:0 collapses the line-box around the glyph so
+   the rotated bounding box centers on the same point as the "+" sibling. */
 .agent-new-chevron-icon {
   display: inline-block;
   font-size: 18px;
-  line-height: 1;
+  line-height: 0;
   transform: rotate(-90deg);
 }
 
