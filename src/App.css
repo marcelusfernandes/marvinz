@@ -1198,7 +1198,6 @@ button {
 .agent-new {
   display: inline-flex;
   align-items: stretch;
-  margin-left: 4px;
   flex-shrink: 0;
 }
 
@@ -1219,12 +1218,12 @@ button {
 }
 
 .agent-new-plus {
-  width: 26px;
+  width: 38px;
   border-radius: 4px 0 0 4px;
 }
 
 .agent-new-chevron {
-  width: 26px;
+  width: 38px;
   border-radius: 0 4px 4px 0;
   border-left: 1px solid var(--border);
 }
