@@ -498,7 +498,7 @@ button {
   padding: 0 4px;
   overflow-x: auto;
   flex-shrink: 0;
-  height: 34px;
+  height: 38px;
 }
 
 .tab-bar::-webkit-scrollbar {
@@ -1233,7 +1233,7 @@ button {
    translateY pulls the glyph up since it hugs the bottom of its em-box. */
 .agent-new-chevron-icon {
   display: inline-block;
-  font-size: 22px;
+  font-size: 14px;
   line-height: 1;
   transform: translateY(-3px);
 }
