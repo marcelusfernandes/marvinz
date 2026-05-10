@@ -10,13 +10,18 @@ import {
 } from '../lib/frontmatter'
 import { Properties } from './Properties'
 import { LiveMarkdown } from './LiveMarkdown'
+import { CsvEditor } from './CsvEditor'
+import { PathSuggest } from './PathSuggest'
+import type { PaletteItem } from '../lib/paletteRanker'
 
 type Props = {
   filePath: string
   vaultPath: string
   initialContent: string
+  paletteItems: PaletteItem[]
   onSave: (content: string) => Promise<void>
   onOpenNote: (path: string) => void
+  onNavigate: (path: string, replaceCurrent: boolean) => void
   canBack: boolean
   canForward: boolean
   onBack: () => void
@@ -47,8 +52,10 @@ export function Editor({
   filePath,
   vaultPath,
   initialContent,
+  paletteItems,
   onSave,
   onOpenNote,
+  onNavigate,
   canBack,
   canForward,
   onBack,
@@ -137,12 +144,14 @@ export function Editor({
     [filePath, vaultPath, onOpenNote],
   )
 
-  // Markdown surface only applies to .md/.markdown. Other text files open
-  // in a plain CodeMirror with no Preview affordance.
   const isMd = /\.(md|markdown)$/i.test(filePath)
-  const effectiveMode: Mode = isMd ? mode : 'edit'
+  const isCsv = /\.(csv|tsv)$/i.test(filePath)
+  const hasPreview = isMd || isCsv
+  const effectiveMode: Mode = hasPreview ? mode : 'edit'
 
-  const fileName = filePath.split('/').pop()?.replace(/\.(md|markdown)$/i, '') ?? ''
+  const relativePath = filePath.startsWith(vaultPath + '/')
+    ? filePath.slice(vaultPath.length + 1)
+    : filePath
 
   const { data: frontmatter, body: previewBody } = useMemo(
     () =>
@@ -181,13 +190,17 @@ export function Editor({
           >
             ›
           </button>
-          <span className="editor-title">{fileName}</span>
+          <PathSuggest
+            value={relativePath}
+            items={paletteItems}
+            onCommit={onNavigate}
+          />
         </div>
         <div className="editor-header-right">
           <span className="editor-status">
             {saving ? 'Saving…' : savedAt ? 'Saved' : ''}
           </span>
-          {isMd && (
+          {hasPreview && (
             <div className="mode-toggle" role="tablist">
               <button
                 type="button"
@@ -223,6 +236,12 @@ export function Editor({
             highlightActiveLineGutter: false,
           }}
           className="cm-host"
+        />
+      ) : isCsv ? (
+        <CsvEditor
+          filePath={filePath}
+          initialContent={value}
+          onChange={scheduleSave}
         />
       ) : (
         <div className="md-preview">
