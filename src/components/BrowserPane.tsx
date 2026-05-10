@@ -48,16 +48,24 @@ export function BrowserPane({
     urlInputRef.current?.select()
   }, [isActive, urlBarFocusTick])
 
-  // Compute device-pixel bounds for the embedded view from the placeholder.
+  // Compute bounds for the embedded WebContentsView from the placeholder.
+  // `getBoundingClientRect` is in the renderer's CSS-pixel viewport, but
+  // `view.setBounds` in the main process expects DIPs of the window's
+  // contentView. The two diverge whenever the renderer's zoomFactor is not
+  // 1 (Cmd+/-) or the display uses fractional scaling. The ratio of
+  // `outerWidth/innerWidth` is the per-axis scale that maps one to the
+  // other; multiplying by it makes bounds correct regardless of zoom.
   const computeBounds = () => {
     const el = hostRef.current
     if (!el) return null
     const r = el.getBoundingClientRect()
+    const sx = window.innerWidth > 0 ? window.outerWidth / window.innerWidth : 1
+    const sy = window.innerHeight > 0 ? window.outerHeight / window.innerHeight : 1
     return {
-      x: Math.round(r.left),
-      y: Math.round(r.top),
-      width: Math.max(0, Math.round(r.width)),
-      height: Math.max(0, Math.round(r.height)),
+      x: Math.round(r.left * sx),
+      y: Math.round(r.top * sy),
+      width: Math.max(0, Math.round(r.width * sx)),
+      height: Math.max(0, Math.round(r.height * sy)),
     }
   }
 
