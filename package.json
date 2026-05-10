@@ -31,7 +31,9 @@
     "@xterm/xterm": "^6.0.0",
     "chokidar": "^3.6.0",
     "node-pty": "^1.1.0",
+    "papaparse": "^5.5.3",
     "react": "^19.2.5",
+    "react-data-grid": "^7.0.0-beta.59",
     "react-dom": "^19.2.5",
     "react-markdown": "^10.1.0",
     "remark-gfm": "^4.0.1",
@@ -40,6 +42,7 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/node": "^24.12.2",
+    "@types/papaparse": "^5.5.2",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
