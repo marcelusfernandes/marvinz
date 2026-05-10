@@ -80,24 +80,55 @@ button {
 
 .app {
   display: grid;
-  grid-template-columns: 240px 1fr 588px;
+  /* 5 tracks: sidebar | split | editor | split | claude. Sidebar and claude
+     widths are driven by --sidebar-w / --agents-w state vars; each splitter
+     reserves a 1px-wide track that the .splitter element decorates and
+     extends a wider invisible hit zone via ::before. */
+  grid-template-columns: var(--sidebar-w, 240px) 1px 1fr 1px var(--agents-w, 588px);
   grid-template-rows: 1fr;
-  grid-template-areas: 'sidebar editor claude';
+  grid-template-areas: 'sidebar split-sidebar editor split-agents claude';
   flex: 1;
   min-height: 0;
   background: var(--bg);
 }
 
 .app[data-layout='claude-center'] {
-  grid-template-columns: 240px 588px 1fr;
-  grid-template-areas: 'sidebar claude editor';
+  /* Same fixed widths swap to 'sidebar | split | claude | split | editor'.
+     The agents pane (.claude-pane) is now in the middle column. */
+  grid-template-columns: var(--sidebar-w, 240px) 1px var(--agents-w, 588px) 1px 1fr;
+  grid-template-areas: 'sidebar split-sidebar claude split-agents editor';
 }
 
-/* Borders form the column separators. Defaults work for editor-center;
-   in claude-center we move claude's separator to its right side. */
-.app[data-layout='claude-center'] .claude-pane {
-  border-left: none;
-  border-right: 1px solid var(--border);
+.splitter {
+  grid-row: 1;
+  background: var(--border);
+  cursor: col-resize;
+  position: relative;
+  transition: background 0.12s;
+}
+
+/* Wider invisible hit zone so users don't have to land on the 1px line. */
+.splitter::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -3px;
+  right: -3px;
+  z-index: 1;
+}
+
+.splitter:hover,
+.splitter.dragging {
+  background: var(--accent);
+}
+
+.app > .splitter:nth-of-type(1) {
+  grid-area: split-sidebar;
+}
+
+.app > .splitter:nth-of-type(2) {
+  grid-area: split-agents;
 }
 
 .topbar {
@@ -232,7 +263,7 @@ button {
   grid-area: sidebar;
   display: flex;
   flex-direction: column;
-  border-right: 1px solid var(--border);
+  /* No border-right: the .splitter on our right provides the visual line. */
   background: var(--bg-2);
   overflow: hidden;
 }
@@ -670,7 +701,8 @@ button {
 
 .claude-pane {
   grid-area: claude;
-  border-left: 1px solid var(--border);
+  /* No border: the .splitter adjacent provides the visual separator
+     regardless of which side claude lands on. */
   background: var(--bg-2);
   overflow: hidden;
 }

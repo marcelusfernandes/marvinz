@@ -5,6 +5,7 @@ import { Editor } from './components/Editor'
 import { AgentsPane } from './components/AgentsPane'
 import type { AgentDef } from './components/AgentTerminal'
 import { BrowserPane } from './components/BrowserPane'
+import { Splitter } from './components/Splitter'
 import { InputDialog } from './components/InputDialog'
 import { ContextMenu, type MenuItem } from './components/ContextMenu'
 import { SidebarMenu } from './components/SidebarMenu'
@@ -15,6 +16,16 @@ import type { LayoutMode } from './components/LayoutToggle'
 import './App.css'
 
 const LAYOUT_STORAGE_KEY = 'marvin:layoutMode'
+const SIDEBAR_WIDTH_KEY = 'marvin:sidebarWidth'
+const AGENTS_WIDTH_KEY = 'marvin:agentsWidth'
+
+const DEFAULT_SIDEBAR_WIDTH = 240
+const DEFAULT_AGENTS_WIDTH = 588
+const MIN_SIDEBAR = 160
+const MAX_SIDEBAR = 480
+const MIN_AGENTS = 320
+const MAX_AGENTS = 900
+const MIN_EDITOR = 360 // never let the editor track shrink past this
 
 function readStoredLayout(): LayoutMode {
   try {
@@ -24,6 +35,22 @@ function readStoredLayout(): LayoutMode {
     // ignore
   }
   return 'editor-center'
+}
+
+function readStoredWidth(key: string, fallback: number, min: number, max: number): number {
+  try {
+    const raw = window.localStorage.getItem(key)
+    if (!raw) return fallback
+    const n = Number(raw)
+    if (!Number.isFinite(n)) return fallback
+    return Math.max(min, Math.min(max, Math.round(n)))
+  } catch {
+    return fallback
+  }
+}
+
+function clamp(n: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, n))
 }
 
 type NoteTab = {
@@ -141,6 +168,53 @@ export default function App() {
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [layoutMode, setLayoutModeState] = useState<LayoutMode>(() => readStoredLayout())
   const [urlBarFocusTick, setUrlBarFocusTick] = useState(0)
+  const [sidebarWidth, setSidebarWidthState] = useState<number>(() =>
+    readStoredWidth(SIDEBAR_WIDTH_KEY, DEFAULT_SIDEBAR_WIDTH, MIN_SIDEBAR, MAX_SIDEBAR),
+  )
+  const [agentsWidth, setAgentsWidthState] = useState<number>(() =>
+    readStoredWidth(AGENTS_WIDTH_KEY, DEFAULT_AGENTS_WIDTH, MIN_AGENTS, MAX_AGENTS),
+  )
+
+  const persistWidth = useCallback((key: string, value: number) => {
+    try {
+      window.localStorage.setItem(key, String(value))
+    } catch {
+      // ignore
+    }
+  }, [])
+
+  const handleSidebarDelta = useCallback(
+    (dx: number) => {
+      // Clamp using the current viewport so the editor track never collapses.
+      const maxBySpace = window.innerWidth - MIN_EDITOR - agentsWidth - 10
+      const max = Math.min(MAX_SIDEBAR, Math.max(MIN_SIDEBAR, maxBySpace))
+      setSidebarWidthState((w) => {
+        const next = clamp(w + dx, MIN_SIDEBAR, max)
+        persistWidth(SIDEBAR_WIDTH_KEY, next)
+        return next
+      })
+    },
+    [agentsWidth, persistWidth],
+  )
+
+  const handleAgentsDelta = useCallback(
+    (dx: number) => {
+      // In editor-center the agents pane sits on the right of the editor,
+      // so dragging the splitter right grows the editor and shrinks agents.
+      // In claude-center the agents pane is in the middle, so the same
+      // splitter (between the agents pane and the editor on the right)
+      // grows agents.
+      const sign = layoutMode === 'editor-center' ? -1 : 1
+      const maxBySpace = window.innerWidth - MIN_EDITOR - sidebarWidth - 10
+      const max = Math.min(MAX_AGENTS, Math.max(MIN_AGENTS, maxBySpace))
+      setAgentsWidthState((w) => {
+        const next = clamp(w + dx * sign, MIN_AGENTS, max)
+        persistWidth(AGENTS_WIDTH_KEY, next)
+        return next
+      })
+    },
+    [layoutMode, sidebarWidth, persistWidth],
+  )
 
   const setLayoutMode = useCallback((mode: LayoutMode) => {
     setLayoutModeState(mode)
@@ -730,7 +804,16 @@ export default function App() {
         layoutMode={layoutMode}
         onLayoutChange={setLayoutMode}
       />
-      <div className="app" data-layout={layoutMode}>
+      <div
+        className="app"
+        data-layout={layoutMode}
+        style={
+          {
+            ['--sidebar-w' as string]: `${sidebarWidth}px`,
+            ['--agents-w' as string]: `${agentsWidth}px`,
+          } as React.CSSProperties
+        }
+      >
       <aside className="sidebar">
         <div className="sidebar-header">
           <span className="vault-name">{vaultPath.split('/').pop()}</span>
@@ -742,7 +825,7 @@ export default function App() {
         <FileTree
           nodes={tree}
           vaultPath={vaultPath}
-          selectedPath={activeTab?.path ?? null}
+          selectedPath={activeTab && isNoteTab(activeTab) ? activeTab.path : null}
           onSelect={handleSelectFile}
           onContextMenu={handleNodeContextMenu}
           onMove={handleDropMove}
@@ -753,6 +836,8 @@ export default function App() {
           </button>
         </div>
       </aside>
+
+      <Splitter onDelta={handleSidebarDelta} ariaLabel="Resize sidebar" />
 
       <main className="editor-pane">
         <TabBar
@@ -792,11 +877,13 @@ export default function App() {
               onNavigate={handleBrowserNavigate}
               onReady={handleBrowserReady}
               urlBarFocusTick={urlBarFocusTick}
-              geometryKey={layoutMode}
+              geometryKey={`${layoutMode}#${sidebarWidth}#${agentsWidth}`}
             />
           ))}
         </div>
       </main>
+
+      <Splitter onDelta={handleAgentsDelta} ariaLabel="Resize agents pane" />
 
       <aside className="claude-pane">
         <AgentsPane agents={agents} vaultPath={vaultPath} />
