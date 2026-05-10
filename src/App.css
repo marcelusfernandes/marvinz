@@ -794,6 +794,91 @@ button {
   font: inherit;
 }
 
+.csv-header-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+}
+
+.csv-header-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.csv-header-menu {
+  display: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 3px;
+  font-size: 16px;
+  line-height: 1;
+  color: var(--fg-3);
+  background: transparent;
+  flex-shrink: 0;
+}
+
+.csv-header-cell:hover .csv-header-menu {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.csv-header-menu:hover {
+  background: var(--bg-3);
+  color: var(--fg);
+}
+
+.csv-row-gutter {
+  padding: 0 !important;
+  background: var(--bg-2);
+  color: var(--fg-3);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.csv-row-gutter-header {
+  background: var(--bg-2);
+}
+
+.csv-row-gutter-inner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.csv-row-menu {
+  display: none;
+  position: absolute;
+  inset: 0;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  line-height: 1;
+  color: var(--fg-2);
+  background: var(--bg-3);
+}
+
+.csv-row-gutter:hover .csv-row-num {
+  visibility: hidden;
+}
+
+.csv-row-gutter:hover .csv-row-menu {
+  display: flex;
+}
+
+.csv-row-menu:hover {
+  background: var(--border);
+  color: var(--fg);
+}
+
 .csv-grid-footer {
   display: flex;
   align-items: center;
