@@ -555,6 +555,51 @@ export default function App() {
     void openInTab(node.path)
   }
 
+  // Path-field navigation. `replaceCurrent` swaps the active note tab's
+  // content (preserving its history); falls back to opening a new tab when
+  // the target can't live in a note tab (image/pdf) or the active tab isn't
+  // a note.
+  const navigateOrOpen = useCallback(
+    async (path: string, replaceCurrent: boolean) => {
+      if (
+        replaceCurrent &&
+        activeTab &&
+        isNoteTab(activeTab) &&
+        !isImagePath(path) &&
+        !isPdfPath(path) &&
+        path !== activeTab.path
+      ) {
+        const noteTab = activeTab
+        try {
+          const content = await readFreshContent(path)
+          setTabs((prev) =>
+            prev.map((t) =>
+              isNoteTab(t) && t.id === noteTab.id
+                ? {
+                    ...t,
+                    path,
+                    content,
+                    version: 0,
+                    back: [...t.back, t.path],
+                    forward: [],
+                  }
+                : t,
+            ),
+          )
+          return
+        } catch (err) {
+          if (!isBinaryReadError(err) && !isTooLargeReadError(err)) {
+            reportError(err)
+            return
+          }
+          // Binary/too-large — fall through to openInTab which handles them.
+        }
+      }
+      await openInTab(path)
+    },
+    [activeTab, readFreshContent, openInTab],
+  )
+
   // --- Browser tabs ----------------------------------------------------
 
   const openNewBrowserTab = useCallback(() => {
@@ -940,8 +985,10 @@ export default function App() {
               filePath={activeTab.path}
               vaultPath={vaultPath}
               initialContent={activeTab.content}
+              paletteItems={paletteItems}
               onSave={handleSave}
               onOpenNote={navigateInActiveTab}
+              onNavigate={navigateOrOpen}
               canBack={activeTab.back.length > 0}
               canForward={activeTab.forward.length > 0}
               onBack={goBack}
