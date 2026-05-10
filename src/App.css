@@ -1197,14 +1197,14 @@ button {
 
 .agent-new {
   display: inline-flex;
-  align-items: center;
+  align-items: stretch;
   margin-left: 4px;
   flex-shrink: 0;
 }
 
 .agent-new-plus,
 .agent-new-chevron {
-  height: 26px;
+  height: 100%;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1216,7 +1216,6 @@ button {
   cursor: pointer;
   font-size: 18px;
   line-height: 1;
-  align-self: center;
 }
 
 .agent-new-plus {
