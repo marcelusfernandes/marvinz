@@ -498,7 +498,7 @@ button {
   padding: 0 4px;
   overflow-x: auto;
   flex-shrink: 0;
-  height: 34px;
+  height: 38px;
 }
 
 .tab-bar::-webkit-scrollbar {
@@ -1197,35 +1197,45 @@ button {
 
 .agent-new {
   display: inline-flex;
-  align-items: center;
-  margin-left: 4px;
+  align-items: stretch;
   flex-shrink: 0;
 }
 
 .agent-new-plus,
 .agent-new-chevron {
-  height: 26px;
+  height: 100%;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   background: transparent;
   border: 1px solid transparent;
-  color: var(--fg-2);
+  /* Match the editor's `.tab-new` style: dim color, larger glyph. The
+     chevron's inner icon span overrides font-size for its own glyph. */
+  color: var(--fg-3);
   cursor: pointer;
-  font-size: 14px;
+  font-size: 18px;
   line-height: 1;
-  align-self: center;
 }
 
 .agent-new-plus {
-  width: 26px;
+  width: 38px;
   border-radius: 4px 0 0 4px;
 }
 
 .agent-new-chevron {
-  width: 18px;
+  width: 38px;
   border-radius: 0 4px 4px 0;
   border-left: 1px solid var(--border);
+}
+
+/* `⌄` (U+2304 DOWN ARROWHEAD) renders as a thin chevron-down. Bump the
+   font-size to match the visual height of the "+" sibling at 14px, and
+   translateY pulls the glyph up since it hugs the bottom of its em-box. */
+.agent-new-chevron-icon {
+  display: inline-block;
+  font-size: 14px;
+  line-height: 1;
+  transform: translateY(-3px);
 }
 
 .agent-new:hover .agent-new-plus,
