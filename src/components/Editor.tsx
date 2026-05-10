@@ -10,6 +10,7 @@ import {
 } from '../lib/frontmatter'
 import { Properties } from './Properties'
 import { LiveMarkdown } from './LiveMarkdown'
+import { CsvEditor } from './CsvEditor'
 
 type Props = {
   filePath: string
@@ -137,12 +138,13 @@ export function Editor({
     [filePath, vaultPath, onOpenNote],
   )
 
-  // Markdown surface only applies to .md/.markdown. Other text files open
-  // in a plain CodeMirror with no Preview affordance.
   const isMd = /\.(md|markdown)$/i.test(filePath)
-  const effectiveMode: Mode = isMd ? mode : 'edit'
+  const isCsv = /\.(csv|tsv)$/i.test(filePath)
+  const hasPreview = isMd || isCsv
+  const effectiveMode: Mode = hasPreview ? mode : 'edit'
 
-  const fileName = filePath.split('/').pop()?.replace(/\.(md|markdown)$/i, '') ?? ''
+  const fileName =
+    filePath.split('/').pop()?.replace(/\.(md|markdown|csv|tsv)$/i, '') ?? ''
 
   const { data: frontmatter, body: previewBody } = useMemo(
     () =>
@@ -187,7 +189,7 @@ export function Editor({
           <span className="editor-status">
             {saving ? 'Saving…' : savedAt ? 'Saved' : ''}
           </span>
-          {isMd && (
+          {hasPreview && (
             <div className="mode-toggle" role="tablist">
               <button
                 type="button"
@@ -223,6 +225,12 @@ export function Editor({
             highlightActiveLineGutter: false,
           }}
           className="cm-host"
+        />
+      ) : isCsv ? (
+        <CsvEditor
+          filePath={filePath}
+          initialContent={value}
+          onChange={scheduleSave}
         />
       ) : (
         <div className="md-preview">
