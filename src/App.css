@@ -1228,6 +1228,17 @@ button {
   border-left: 1px solid var(--border);
 }
 
+/* Same chevron character used by the nav-btn back/forward, rotated so it
+   points down. Matches their visual weight without bringing an SVG.
+   Rotating an inner span (not the button) keeps the border + hit box
+   axis-aligned. */
+.agent-new-chevron-icon {
+  display: inline-block;
+  font-size: 18px;
+  line-height: 1;
+  transform: rotate(-90deg);
+}
+
 .agent-new:hover .agent-new-plus,
 .agent-new:hover .agent-new-chevron {
   background: var(--bg-3);
