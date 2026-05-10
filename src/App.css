@@ -443,13 +443,51 @@ button {
   cursor: not-allowed;
 }
 
-.editor-title {
-  font-weight: 500;
-  font-size: 13px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.path-input {
+  flex: 1;
+  min-width: 0;
   margin-left: 4px;
+  padding: 4px 8px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: var(--fg);
+  font-size: 13px;
+  font-weight: 500;
+  font-family: inherit;
+  outline: none;
+}
+
+.path-input::placeholder {
+  color: var(--fg-3);
+}
+
+.path-input:hover {
+  background: var(--bg-3);
+}
+
+.path-input:focus {
+  background: var(--bg-3);
+  border-color: var(--border);
+}
+
+.path-input.error,
+.path-input.error:focus {
+  border-color: #e07b6e;
+  background: #4a1f1a33;
+}
+
+.path-suggest-dropdown {
+  position: fixed;
+  z-index: 250;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px;
+  overflow-y: auto;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
 }
 
 .tab-bar {

@@ -11,13 +11,17 @@ import {
 import { Properties } from './Properties'
 import { LiveMarkdown } from './LiveMarkdown'
 import { CsvEditor } from './CsvEditor'
+import { PathSuggest } from './PathSuggest'
+import type { PaletteItem } from '../lib/paletteRanker'
 
 type Props = {
   filePath: string
   vaultPath: string
   initialContent: string
+  paletteItems: PaletteItem[]
   onSave: (content: string) => Promise<void>
   onOpenNote: (path: string) => void
+  onNavigate: (path: string, replaceCurrent: boolean) => void
   canBack: boolean
   canForward: boolean
   onBack: () => void
@@ -48,8 +52,10 @@ export function Editor({
   filePath,
   vaultPath,
   initialContent,
+  paletteItems,
   onSave,
   onOpenNote,
+  onNavigate,
   canBack,
   canForward,
   onBack,
@@ -143,8 +149,9 @@ export function Editor({
   const hasPreview = isMd || isCsv
   const effectiveMode: Mode = hasPreview ? mode : 'edit'
 
-  const fileName =
-    filePath.split('/').pop()?.replace(/\.(md|markdown|csv|tsv)$/i, '') ?? ''
+  const relativePath = filePath.startsWith(vaultPath + '/')
+    ? filePath.slice(vaultPath.length + 1)
+    : filePath
 
   const { data: frontmatter, body: previewBody } = useMemo(
     () =>
@@ -183,7 +190,11 @@ export function Editor({
           >
             ›
           </button>
-          <span className="editor-title">{fileName}</span>
+          <PathSuggest
+            value={relativePath}
+            items={paletteItems}
+            onCommit={onNavigate}
+          />
         </div>
         <div className="editor-header-right">
           <span className="editor-status">

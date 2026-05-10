@@ -1,58 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { fuzzyMatch } from '../lib/fuzzy'
+import {
+  type PaletteItem,
+  rankPaletteItems,
+  stripBasename,
+} from '../lib/paletteRanker'
+import { HighlightedMatch } from './HighlightedMatch'
 
-export type PaletteItem = {
-  /** Absolute path on disk */
-  path: string
-  /** Vault-relative path, used for display + matching */
-  rel: string
-  /** Just the filename */
-  name: string
-  /** Whether this is a markdown note (opens in tab) or other (reveal in Finder) */
-  isMarkdown: boolean
-}
+export type { PaletteItem }
 
 type Props = {
   items: PaletteItem[]
   onPick: (item: PaletteItem, replaceCurrent: boolean) => void
   onClose: () => void
-}
-
-const MAX_RESULTS = 60
-
-type Scored = {
-  item: PaletteItem
-  score: number
-  nameMatches: number[]
-  relMatches: number[]
-}
-
-function rankItems(items: PaletteItem[], query: string): Scored[] {
-  if (!query.trim()) {
-    return items.slice(0, MAX_RESULTS).map((item) => ({
-      item,
-      score: 0,
-      nameMatches: [],
-      relMatches: [],
-    }))
-  }
-  const out: Scored[] = []
-  for (const item of items) {
-    const nameHit = fuzzyMatch(item.name, query)
-    const relHit = fuzzyMatch(item.rel, query)
-    if (!nameHit && !relHit) continue
-    // Filename matches weigh ~2x more than full-path matches.
-    const nameScore = nameHit ? nameHit.score * 2 : 0
-    const relScore = relHit ? relHit.score : 0
-    out.push({
-      item,
-      score: nameScore + relScore,
-      nameMatches: nameHit?.matches ?? [],
-      relMatches: relHit?.matches ?? [],
-    })
-  }
-  out.sort((a, b) => b.score - a.score)
-  return out.slice(0, MAX_RESULTS)
 }
 
 export function CommandPalette({ items, onPick, onClose }: Props) {
@@ -61,7 +20,7 @@ export function CommandPalette({ items, onPick, onClose }: Props) {
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
 
-  const results = useMemo(() => rankItems(items, query), [items, query])
+  const results = useMemo(() => rankPaletteItems(items, query), [items, query])
 
   useEffect(() => {
     inputRef.current?.focus()
@@ -122,11 +81,15 @@ export function CommandPalette({ items, onPick, onClose }: Props) {
                 onClick={(e) => onPick(r.item, e.metaKey || e.ctrlKey)}
               >
                 <span className="palette-name">
-                  {highlight(r.item.name, r.nameMatches)}
+                  <HighlightedMatch text={r.item.name} matches={r.nameMatches} />
                   {!r.item.isMarkdown && <span className="palette-ext-tag">file</span>}
                 </span>
                 <span className="palette-rel">
-                  {highlight(stripBasename(r.item.rel, r.item.name), r.relMatches, r.item.rel.length - r.item.name.length)}
+                  <HighlightedMatch
+                    text={stripBasename(r.item.rel, r.item.name)}
+                    matches={r.relMatches}
+                    bound={r.item.rel.length - r.item.name.length}
+                  />
                 </span>
               </button>
             ))
@@ -141,31 +104,4 @@ export function CommandPalette({ items, onPick, onClose }: Props) {
       </div>
     </div>
   )
-}
-
-function stripBasename(rel: string, name: string): string {
-  // The "directory part" of rel; if rel === name, we're at vault root.
-  if (rel === name) return ''
-  const cut = rel.length - name.length
-  return rel.slice(0, Math.max(0, cut - 1)) // strip trailing slash
-}
-
-/**
- * Render a string with bold spans on the matched indices.
- * If `bound` is supplied, only highlight indices < bound (used to ignore matches
- * that fell on the basename portion when we already highlight that separately).
- */
-function highlight(text: string, indices: number[], bound?: number) {
-  if (indices.length === 0) return text
-  const filtered = bound != null ? indices.filter((i) => i < bound) : indices
-  if (filtered.length === 0) return text
-  const parts: Array<string | React.ReactElement> = []
-  let cursor = 0
-  for (const i of filtered) {
-    if (i > cursor) parts.push(text.slice(cursor, i))
-    parts.push(<mark key={i}>{text[i]}</mark>)
-    cursor = i + 1
-  }
-  if (cursor < text.length) parts.push(text.slice(cursor))
-  return parts
 }
