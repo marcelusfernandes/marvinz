@@ -1210,9 +1210,11 @@ button {
   justify-content: center;
   background: transparent;
   border: 1px solid transparent;
-  color: var(--fg-2);
+  /* Match the editor's `.tab-new` style: dim color, larger glyph. The
+     chevron's inner icon span overrides font-size for its own glyph. */
+  color: var(--fg-3);
   cursor: pointer;
-  font-size: 14px;
+  font-size: 18px;
   line-height: 1;
   align-self: center;
 }
