@@ -12,7 +12,13 @@ type BrowserTab = {
   loading: boolean
 }
 
-type Tab = NoteTab | BrowserTab
+type ImageTab = {
+  type: 'image'
+  id: string
+  path: string
+}
+
+type Tab = NoteTab | BrowserTab | ImageTab
 
 type Props = {
   tabs: Tab[]
@@ -39,18 +45,27 @@ function browserLabel(t: BrowserTab): string {
   return 'New tab'
 }
 
+function basename(p: string): string {
+  return p.split('/').pop() ?? p
+}
+
 export function TabBar({ tabs, activeId, onActivate, onClose, onNewBrowserTab }: Props) {
   return (
     <div className="tab-bar">
       {tabs.map((t) => {
         const active = t.id === activeId
-        const isBrowser = t.type === 'browser'
-        const label = isBrowser ? browserLabel(t) : noteLabel(t.path)
-        const tooltip = isBrowser ? t.url : t.path
+        const kind: 'note' | 'browser' | 'image' = t.type
+        const label =
+          t.type === 'browser'
+            ? browserLabel(t)
+            : t.type === 'image'
+              ? basename(t.path)
+              : noteLabel(t.path)
+        const tooltip = t.type === 'browser' ? t.url : t.path
         return (
           <div
             key={t.id}
-            className={`tab${active ? ' active' : ''}${isBrowser ? ' browser' : ''}`}
+            className={`tab${active ? ' active' : ''} tab-${kind}`}
             onMouseDown={(e) => {
               if (e.button === 1) {
                 e.preventDefault()
@@ -62,8 +77,8 @@ export function TabBar({ tabs, activeId, onActivate, onClose, onNewBrowserTab }:
             title={tooltip}
           >
             <TabIcon
-              kind={isBrowser ? 'browser' : 'note'}
-              loading={isBrowser ? t.loading : false}
+              kind={kind}
+              loading={t.type === 'browser' ? t.loading : false}
             />
             <span className="tab-title">{label}</span>
             <button
@@ -94,7 +109,16 @@ export function TabBar({ tabs, activeId, onActivate, onClose, onNewBrowserTab }:
   )
 }
 
-function TabIcon({ kind, loading }: { kind: 'note' | 'browser'; loading: boolean }) {
+function TabIcon({ kind, loading }: { kind: 'note' | 'browser' | 'image'; loading: boolean }) {
+  if (kind === 'image') {
+    return (
+      <svg className="tab-icon" viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" aria-hidden>
+        <rect x="1.5" y="2.5" width="13" height="11" rx="1.5" />
+        <circle cx="5.5" cy="6" r="1.2" fill="currentColor" stroke="none" />
+        <path d="M2 12 L6 8 L9 11 L11 9 L14 12" />
+      </svg>
+    )
+  }
   if (kind === 'browser') {
     if (loading) {
       return <span className="tab-icon spinner" aria-hidden />

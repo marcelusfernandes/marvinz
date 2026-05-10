@@ -1,4 +1,4 @@
-import { app, BrowserWindow, WebContentsView, ipcMain, dialog, shell } from 'electron'
+import { app, BrowserWindow, WebContentsView, ipcMain, dialog, net, protocol, shell } from 'electron'
 import path from 'node:path'
 import fs from 'node:fs/promises'
 import { existsSync, statSync } from 'node:fs'
@@ -112,7 +112,62 @@ function createWindow() {
   })
 }
 
-app.whenReady().then(createWindow)
+// Custom protocol for serving vault-local resources (images, etc.) into
+// renderer-loaded HTML. Lets <img src="marvin:///abs/path"> work even
+// though the renderer is loaded over http://localhost (which would normally
+// block file:// for cross-origin reasons). Restricted to paths inside the
+// active vault to prevent path traversal.
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: 'marvin',
+    privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true },
+  },
+])
+
+const MIME_BY_EXT: Record<string, string> = {
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  gif: 'image/gif',
+  webp: 'image/webp',
+  bmp: 'image/bmp',
+  svg: 'image/svg+xml',
+  ico: 'image/x-icon',
+  avif: 'image/avif',
+  pdf: 'application/pdf',
+}
+
+function mimeFor(filePath: string): string {
+  const ext = filePath.toLowerCase().split('.').pop() ?? ''
+  return MIME_BY_EXT[ext] ?? 'application/octet-stream'
+}
+
+app.whenReady().then(() => {
+  protocol.handle('marvin', async (request) => {
+    try {
+      const u = new URL(request.url)
+      const filePath = decodeURIComponent(u.pathname)
+      if (!activeVaultPath) {
+        console.warn('[marvin] no active vault, rejecting', request.url)
+        return new Response('No vault', { status: 403 })
+      }
+      if (!filePath.startsWith(activeVaultPath)) {
+        console.warn('[marvin] outside vault, rejecting', filePath, 'vault=', activeVaultPath)
+        return new Response('Forbidden', { status: 403 })
+      }
+      const data = await fs.readFile(filePath)
+      // Buffer is a Uint8Array subclass; Response accepts BodyInit which
+      // includes ArrayBuffer / Uint8Array — cast to satisfy TS.
+      return new Response(data as unknown as BodyInit, {
+        headers: { 'Content-Type': mimeFor(filePath) },
+      })
+    } catch (err) {
+      console.error('[marvin] handler failed', request.url, err)
+      return new Response('Error', { status: 500 })
+    }
+  })
+  createWindow()
+})
 
 app.on('window-all-closed', () => {
   for (const p of ptyProcesses.values()) p.kill()
@@ -213,7 +268,29 @@ ipcMain.handle('vault:watch', (_e, vaultPath: string) => {
     .on('unlinkDir', notifyTree)
 })
 
+const FILE_SIZE_LIMIT = 5 * 1024 * 1024 // 5 MB — guard against pathologically large files
+const BINARY_PROBE_BYTES = 8192 // any null byte in the first 8 KB → treat as binary
+
 ipcMain.handle('file:read', async (_e, filePath: string) => {
+  const stats = await fs.stat(filePath)
+  if (stats.size > FILE_SIZE_LIMIT) {
+    throw new Error(`MARVIN_TOO_LARGE: ${stats.size}`)
+  }
+  // Sniff the head for null bytes — the standard binary heuristic. Most
+  // text formats (utf-8) don't contain literal NUL; most binary files do.
+  if (stats.size > 0) {
+    const fd = await fs.open(filePath, 'r')
+    try {
+      const probeLen = Math.min(BINARY_PROBE_BYTES, stats.size)
+      const probe = Buffer.alloc(probeLen)
+      await fd.read(probe, 0, probeLen, 0)
+      if (probe.includes(0)) {
+        throw new Error('MARVIN_BINARY')
+      }
+    } finally {
+      await fd.close()
+    }
+  }
   return fs.readFile(filePath, 'utf8')
 })
 

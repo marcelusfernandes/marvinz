@@ -137,11 +137,19 @@ export function Editor({
     [filePath, vaultPath, onOpenNote],
   )
 
+  // Markdown surface only applies to .md/.markdown. Other text files open
+  // in a plain CodeMirror with no Preview affordance.
+  const isMd = /\.(md|markdown)$/i.test(filePath)
+  const effectiveMode: Mode = isMd ? mode : 'edit'
+
   const fileName = filePath.split('/').pop()?.replace(/\.(md|markdown)$/i, '') ?? ''
 
   const { data: frontmatter, body: previewBody } = useMemo(
-    () => (mode === 'preview' ? splitFrontmatter(value) : { data: null, body: value }),
-    [mode, value],
+    () =>
+      isMd && effectiveMode === 'preview'
+        ? splitFrontmatter(value)
+        : { data: null, body: value },
+    [isMd, effectiveMode, value],
   )
 
   // Remount Milkdown only when the file changes (not on every keystroke);
@@ -179,32 +187,34 @@ export function Editor({
           <span className="editor-status">
             {saving ? 'Saving…' : savedAt ? 'Saved' : ''}
           </span>
-          <div className="mode-toggle" role="tablist">
-            <button
-              type="button"
-              className={`mode-btn${mode === 'edit' ? ' active' : ''}`}
-              onClick={() => setMode('edit')}
-              title="Edit (raw)"
-            >
-              Edit
-            </button>
-            <button
-              type="button"
-              className={`mode-btn${mode === 'preview' ? ' active' : ''}`}
-              onClick={() => setMode('preview')}
-              title="Preview (rendered)"
-            >
-              Preview
-            </button>
-          </div>
+          {isMd && (
+            <div className="mode-toggle" role="tablist">
+              <button
+                type="button"
+                className={`mode-btn${mode === 'edit' ? ' active' : ''}`}
+                onClick={() => setMode('edit')}
+                title="Edit (raw)"
+              >
+                Edit
+              </button>
+              <button
+                type="button"
+                className={`mode-btn${mode === 'preview' ? ' active' : ''}`}
+                onClick={() => setMode('preview')}
+                title="Preview (rendered)"
+              >
+                Preview
+              </button>
+            </div>
+          )}
         </div>
       </div>
-      {mode === 'edit' ? (
+      {effectiveMode === 'edit' ? (
         <CodeMirror
           value={value}
           height="100%"
           theme="dark"
-          extensions={[markdown(), EditorView.lineWrapping]}
+          extensions={isMd ? [markdown(), EditorView.lineWrapping] : [EditorView.lineWrapping]}
           onChange={handleSourceChange}
           basicSetup={{
             lineNumbers: true,
