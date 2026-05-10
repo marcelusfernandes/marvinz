@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog, shell } from 'electron'
+import { app, BrowserWindow, WebContentsView, ipcMain, dialog, net, protocol, shell } from 'electron'
 import path from 'node:path'
 import fs from 'node:fs/promises'
 import { existsSync, statSync } from 'node:fs'
@@ -42,6 +42,28 @@ let win: BrowserWindow | null = null
 let vaultWatcher: FSWatcher | null = null
 let activeVaultPath: string | null = null
 const ptyProcesses = new Map<string, pty.IPty>()
+
+type BrowserEntry = {
+  view: WebContentsView
+  /** Last known bounds set from the renderer; we reapply them when un-hiding. */
+  lastBounds: { x: number; y: number; width: number; height: number }
+  /** Whether this view is currently the active browser tab. */
+  active: boolean
+  /** When true, all browsers are temporarily hidden (e.g. a React modal is open). */
+  globallyHidden: boolean
+}
+const browserViews = new Map<string, BrowserEntry>()
+let browsersGloballyHidden = false
+
+const HIDDEN_BOUNDS = { x: 0, y: 0, width: 0, height: 0 }
+
+function applyBounds(entry: BrowserEntry) {
+  if (!entry.active || entry.globallyHidden) {
+    entry.view.setBounds(HIDDEN_BOUNDS)
+    return
+  }
+  entry.view.setBounds(entry.lastBounds)
+}
 
 const SETTINGS_FILE = () => path.join(app.getPath('userData'), 'settings.json')
 
@@ -90,7 +112,62 @@ function createWindow() {
   })
 }
 
-app.whenReady().then(createWindow)
+// Custom protocol for serving vault-local resources (images, etc.) into
+// renderer-loaded HTML. Lets <img src="marvin:///abs/path"> work even
+// though the renderer is loaded over http://localhost (which would normally
+// block file:// for cross-origin reasons). Restricted to paths inside the
+// active vault to prevent path traversal.
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: 'marvin',
+    privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true },
+  },
+])
+
+const MIME_BY_EXT: Record<string, string> = {
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  gif: 'image/gif',
+  webp: 'image/webp',
+  bmp: 'image/bmp',
+  svg: 'image/svg+xml',
+  ico: 'image/x-icon',
+  avif: 'image/avif',
+  pdf: 'application/pdf',
+}
+
+function mimeFor(filePath: string): string {
+  const ext = filePath.toLowerCase().split('.').pop() ?? ''
+  return MIME_BY_EXT[ext] ?? 'application/octet-stream'
+}
+
+app.whenReady().then(() => {
+  protocol.handle('marvin', async (request) => {
+    try {
+      const u = new URL(request.url)
+      const filePath = decodeURIComponent(u.pathname)
+      if (!activeVaultPath) {
+        console.warn('[marvin] no active vault, rejecting', request.url)
+        return new Response('No vault', { status: 403 })
+      }
+      if (!filePath.startsWith(activeVaultPath)) {
+        console.warn('[marvin] outside vault, rejecting', filePath, 'vault=', activeVaultPath)
+        return new Response('Forbidden', { status: 403 })
+      }
+      const data = await fs.readFile(filePath)
+      // Buffer is a Uint8Array subclass; Response accepts BodyInit which
+      // includes ArrayBuffer / Uint8Array — cast to satisfy TS.
+      return new Response(data as unknown as BodyInit, {
+        headers: { 'Content-Type': mimeFor(filePath) },
+      })
+    } catch (err) {
+      console.error('[marvin] handler failed', request.url, err)
+      return new Response('Error', { status: 500 })
+    }
+  })
+  createWindow()
+})
 
 app.on('window-all-closed', () => {
   for (const p of ptyProcesses.values()) p.kill()
@@ -191,7 +268,29 @@ ipcMain.handle('vault:watch', (_e, vaultPath: string) => {
     .on('unlinkDir', notifyTree)
 })
 
+const FILE_SIZE_LIMIT = 5 * 1024 * 1024 // 5 MB — guard against pathologically large files
+const BINARY_PROBE_BYTES = 8192 // any null byte in the first 8 KB → treat as binary
+
 ipcMain.handle('file:read', async (_e, filePath: string) => {
+  const stats = await fs.stat(filePath)
+  if (stats.size > FILE_SIZE_LIMIT) {
+    throw new Error(`MARVIN_TOO_LARGE: ${stats.size}`)
+  }
+  // Sniff the head for null bytes — the standard binary heuristic. Most
+  // text formats (utf-8) don't contain literal NUL; most binary files do.
+  if (stats.size > 0) {
+    const fd = await fs.open(filePath, 'r')
+    try {
+      const probeLen = Math.min(BINARY_PROBE_BYTES, stats.size)
+      const probe = Buffer.alloc(probeLen)
+      await fd.read(probe, 0, probeLen, 0)
+      if (probe.includes(0)) {
+        throw new Error('MARVIN_BINARY')
+      }
+    } finally {
+      await fd.close()
+    }
+  }
   return fs.readFile(filePath, 'utf8')
 })
 
@@ -440,4 +539,203 @@ ipcMain.handle('pty:resize', (_e, id: string, cols: number, rows: number) => {
 ipcMain.handle('pty:kill', (_e, id: string) => {
   ptyProcesses.get(id)?.kill()
   ptyProcesses.delete(id)
+})
+
+// --- In-app browser (WebContentsView) -----------------------------------
+
+function safeBrowserSend(channel: string, payload: unknown) {
+  try {
+    if (win && !win.isDestroyed()) win.webContents.send(channel, payload)
+  } catch {
+    // renderer being torn down — ignore
+  }
+}
+
+type BrowserBounds = { x: number; y: number; width: number; height: number }
+
+ipcMain.handle(
+  'browser:create',
+  async (_e, opts: { id: string; url: string; bounds: BrowserBounds }) => {
+    if (!win) throw new Error('No window available')
+    // Idempotent: if a view with this id already exists (e.g. HMR remount of
+    // the React component), return its current state instead of recreating.
+    const existing = browserViews.get(opts.id)
+    if (existing) {
+      existing.lastBounds = opts.bounds
+      applyBounds(existing)
+      const wc = existing.view.webContents
+      return {
+        url: wc.getURL(),
+        title: wc.getTitle(),
+        canBack: wc.navigationHistory.canGoBack(),
+        canForward: wc.navigationHistory.canGoForward(),
+      }
+    }
+
+    const view = new WebContentsView({
+      webPreferences: {
+        sandbox: true,
+        contextIsolation: true,
+        nodeIntegration: false,
+        // No preload — the embedded page must not see Marvin's API.
+      },
+    })
+    view.setBackgroundColor('#1e1e1e')
+
+    const entry: BrowserEntry = {
+      view,
+      lastBounds: opts.bounds,
+      active: true,
+      globallyHidden: browsersGloballyHidden,
+    }
+    browserViews.set(opts.id, entry)
+
+    win.contentView.addChildView(view)
+    applyBounds(entry)
+
+    const { webContents } = view
+
+    webContents.setWindowOpenHandler(({ url }) => {
+      shell.openExternal(url)
+      return { action: 'deny' }
+    })
+
+    // Block file:// navigations to avoid local file disclosure inside the
+    // sandboxed browser. Allow http(s)/about:blank.
+    webContents.on('will-navigate', (event, url) => {
+      try {
+        const u = new URL(url)
+        if (u.protocol !== 'http:' && u.protocol !== 'https:' && u.protocol !== 'about:') {
+          event.preventDefault()
+        }
+      } catch {
+        event.preventDefault()
+      }
+    })
+
+    const sendNavState = () => {
+      safeBrowserSend('browser:event', {
+        id: opts.id,
+        kind: 'nav-state',
+        canBack: webContents.navigationHistory.canGoBack(),
+        canForward: webContents.navigationHistory.canGoForward(),
+      })
+    }
+
+    webContents.on('page-title-updated', (_evt, title) => {
+      safeBrowserSend('browser:event', { id: opts.id, kind: 'title', title })
+    })
+    webContents.on('did-navigate', (_evt, url) => {
+      safeBrowserSend('browser:event', { id: opts.id, kind: 'url', url })
+      sendNavState()
+    })
+    webContents.on('did-navigate-in-page', (_evt, url) => {
+      safeBrowserSend('browser:event', { id: opts.id, kind: 'url', url })
+      sendNavState()
+    })
+    webContents.on('did-start-loading', () => {
+      safeBrowserSend('browser:event', { id: opts.id, kind: 'loading', loading: true })
+    })
+    webContents.on('did-stop-loading', () => {
+      safeBrowserSend('browser:event', { id: opts.id, kind: 'loading', loading: false })
+      sendNavState()
+    })
+    webContents.on('did-fail-load', (_evt, errorCode, errorDesc, validatedURL) => {
+      // Sub-frame failures emit too; only surface main-frame failures.
+      if (_evt && (_evt as unknown as { isMainFrame?: boolean }).isMainFrame === false) return
+      safeBrowserSend('browser:event', {
+        id: opts.id,
+        kind: 'load-error',
+        url: validatedURL,
+        message: `${errorDesc} (${errorCode})`,
+      })
+    })
+
+    try {
+      await webContents.loadURL(opts.url)
+    } catch {
+      // The error event already fired; swallow the rejection so create still
+      // resolves and the renderer can show the URL bar with the broken URL.
+    }
+
+    return {
+      url: webContents.getURL(),
+      title: webContents.getTitle(),
+      canBack: webContents.navigationHistory.canGoBack(),
+      canForward: webContents.navigationHistory.canGoForward(),
+    }
+  },
+)
+
+ipcMain.handle('browser:navigate', async (_e, id: string, url: string) => {
+  const entry = browserViews.get(id)
+  if (!entry) return
+  try {
+    await entry.view.webContents.loadURL(url)
+  } catch {
+    // surfaced via did-fail-load
+  }
+})
+
+ipcMain.handle('browser:back', (_e, id: string) => {
+  const entry = browserViews.get(id)
+  if (entry?.view.webContents.navigationHistory.canGoBack()) {
+    entry.view.webContents.navigationHistory.goBack()
+  }
+})
+
+ipcMain.handle('browser:forward', (_e, id: string) => {
+  const entry = browserViews.get(id)
+  if (entry?.view.webContents.navigationHistory.canGoForward()) {
+    entry.view.webContents.navigationHistory.goForward()
+  }
+})
+
+ipcMain.handle('browser:reload', (_e, id: string) => {
+  browserViews.get(id)?.view.webContents.reload()
+})
+
+ipcMain.handle('browser:stop', (_e, id: string) => {
+  browserViews.get(id)?.view.webContents.stop()
+})
+
+ipcMain.handle('browser:setBounds', (_e, id: string, bounds: BrowserBounds) => {
+  const entry = browserViews.get(id)
+  if (!entry) return
+  entry.lastBounds = bounds
+  applyBounds(entry)
+})
+
+ipcMain.handle('browser:setActive', (_e, activeId: string | null) => {
+  for (const [id, entry] of browserViews.entries()) {
+    entry.active = id === activeId
+    applyBounds(entry)
+  }
+})
+
+ipcMain.handle('browser:setAllHidden', (_e, hidden: boolean) => {
+  browsersGloballyHidden = hidden
+  for (const entry of browserViews.values()) {
+    entry.globallyHidden = hidden
+    applyBounds(entry)
+  }
+})
+
+ipcMain.handle('browser:close', (_e, id: string) => {
+  const entry = browserViews.get(id)
+  if (!entry) return
+  try {
+    win?.contentView.removeChildView(entry.view)
+  } catch {
+    // ignore
+  }
+  // Close the underlying webContents to release Chromium resources.
+  // Newer Electron exposes destroy() via close(); fall back to setting
+  // bounds to zero and dropping references.
+  try {
+    ;(entry.view.webContents as unknown as { close?: () => void }).close?.()
+  } catch {
+    // ignore
+  }
+  browserViews.delete(id)
 })

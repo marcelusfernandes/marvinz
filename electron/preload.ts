@@ -7,6 +7,13 @@ type FileNode = {
   children?: FileNode[]
 }
 
+type BrowserEvent =
+  | { id: string; kind: 'title'; title: string }
+  | { id: string; kind: 'url'; url: string }
+  | { id: string; kind: 'loading'; loading: boolean }
+  | { id: string; kind: 'nav-state'; canBack: boolean; canForward: boolean }
+  | { id: string; kind: 'load-error'; url: string; message: string }
+
 const api = {
   settings: {
     get: () => ipcRenderer.invoke('settings:get') as Promise<{ vaultPath?: string }>,
@@ -48,6 +55,37 @@ const api = {
   },
   agent: {
     detect: (name: string) => ipcRenderer.invoke('agent:detect', name) as Promise<string | null>,
+  },
+  browser: {
+    create: (opts: {
+      id: string
+      url: string
+      bounds: { x: number; y: number; width: number; height: number }
+    }) =>
+      ipcRenderer.invoke('browser:create', opts) as Promise<{
+        url: string
+        title: string
+        canBack: boolean
+        canForward: boolean
+      }>,
+    navigate: (id: string, url: string) =>
+      ipcRenderer.invoke('browser:navigate', id, url) as Promise<void>,
+    back: (id: string) => ipcRenderer.invoke('browser:back', id) as Promise<void>,
+    forward: (id: string) => ipcRenderer.invoke('browser:forward', id) as Promise<void>,
+    reload: (id: string) => ipcRenderer.invoke('browser:reload', id) as Promise<void>,
+    stop: (id: string) => ipcRenderer.invoke('browser:stop', id) as Promise<void>,
+    setBounds: (id: string, bounds: { x: number; y: number; width: number; height: number }) =>
+      ipcRenderer.invoke('browser:setBounds', id, bounds) as Promise<void>,
+    setActive: (id: string | null) =>
+      ipcRenderer.invoke('browser:setActive', id) as Promise<void>,
+    setAllHidden: (hidden: boolean) =>
+      ipcRenderer.invoke('browser:setAllHidden', hidden) as Promise<void>,
+    close: (id: string) => ipcRenderer.invoke('browser:close', id) as Promise<void>,
+    onEvent: (cb: (event: BrowserEvent) => void) => {
+      const listener = (_: unknown, event: BrowserEvent) => cb(event)
+      ipcRenderer.on('browser:event', listener)
+      return () => ipcRenderer.removeListener('browser:event', listener)
+    },
   },
   shell: {
     openExternal: (url: string) => ipcRenderer.invoke('shell:openExternal', url) as Promise<void>,
