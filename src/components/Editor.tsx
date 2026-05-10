@@ -207,7 +207,7 @@ export function Editor({
           extensions={[markdown(), EditorView.lineWrapping]}
           onChange={handleSourceChange}
           basicSetup={{
-            lineNumbers: false,
+            lineNumbers: true,
             foldGutter: false,
             highlightActiveLine: false,
             highlightActiveLineGutter: false,
