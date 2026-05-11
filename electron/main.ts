@@ -413,14 +413,12 @@ function stripMdExt(s: string): string {
 }
 
 /**
- * Rewrite `[[wikilinks]]` whose target points at the renamed file so they
- * keep resolving after the rename. Only runs when a markdown file is
- * renamed; folder-only renames don't change basenames.
+ * Rewrite `[[wikilinks]]` so they keep resolving after a rename or move.
  *
- * - `[[Foo]]` / `[[Foo|Bar]]` / `[[Foo#sec]]` — rewritten when the bare
- *   basename matches the old file's basename.
- * - `[[folder/Foo]]` — rewritten when its vault-relative path matches
- *   exactly the renamed file.
+ * - `[[Foo]]` / `[[Foo|Bar]]` / `[[Foo#sec]]` — rewritten only when a
+ *   markdown file is renamed (folder renames don't change basenames).
+ * - `[[folder/Foo]]` — rewritten when the resolved path either matches
+ *   the renamed file or lives inside a renamed folder.
  */
 function rewriteWikilinksOneFile(
   vaultRoot: string,
@@ -428,12 +426,9 @@ function rewriteWikilinksOneFile(
   newPath: string,
   content: string,
 ): string {
-  if (!/\.(md|markdown)$/i.test(oldPath)) return content
-
-  const oldBase = stripMdExt(path.basename(oldPath))
-  const newBase = stripMdExt(path.basename(newPath))
-  const newRel = path.relative(vaultRoot, newPath)
-  const newTargetPath = stripMdExt(newRel)
+  const oldIsMd = /\.(md|markdown)$/i.test(oldPath)
+  const oldBase = oldIsMd ? stripMdExt(path.basename(oldPath)) : ''
+  const newBase = oldIsMd ? stripMdExt(path.basename(newPath)) : ''
 
   return content.replace(WIKILINK_RE, (match, rawName, rawDisplay) => {
     const name = String(rawName)
@@ -445,10 +440,13 @@ function rewriteWikilinksOneFile(
     if (target.includes('/')) {
       const withExt = /\.(md|markdown)$/i.test(target) ? target : `${target}.md`
       const abs = path.join(vaultRoot, withExt)
-      if (abs !== oldPath) return match
-      return `[[${newTargetPath}${fragment}${displaySuffix}]]`
+      const remapped = remappedPath(abs, oldPath, newPath)
+      if (!remapped) return match
+      const newRel = path.relative(vaultRoot, remapped)
+      return `[[${stripMdExt(newRel)}${fragment}${displaySuffix}]]`
     }
 
+    if (!oldIsMd) return match
     if (stripMdExt(target) !== oldBase) return match
     return `[[${newBase}${fragment}${displaySuffix}]]`
   })
