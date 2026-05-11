@@ -13,6 +13,7 @@ import { LiveMarkdown } from './LiveMarkdown'
 import { CsvEditor } from './CsvEditor'
 import { PathSuggest } from './PathSuggest'
 import type { PaletteItem } from '../lib/paletteRanker'
+import { isWikilinkHref, resolveWikilink } from '../lib/wikilinks'
 
 type Props = {
   filePath: string
@@ -20,7 +21,6 @@ type Props = {
   initialContent: string
   paletteItems: PaletteItem[]
   onSave: (content: string) => Promise<void>
-  onOpenNote: (path: string) => void
   onNavigate: (path: string, replaceCurrent: boolean) => void
   canBack: boolean
   canForward: boolean
@@ -54,7 +54,6 @@ export function Editor({
   initialContent,
   paletteItems,
   onSave,
-  onOpenNote,
   onNavigate,
   canBack,
   canForward,
@@ -129,19 +128,25 @@ export function Editor({
   )
 
   const handleLinkClick = useCallback(
-    (href: string, _modifier: 'replace' | 'newTab') => {
+    (href: string, modifier: 'replace' | 'newTab') => {
       if (/^(https?|mailto):/i.test(href)) {
         void window.marvin.shell.openExternal(href)
+        return
+      }
+      const wikilink = isWikilinkHref(href)
+      if (wikilink) {
+        const target = resolveWikilink(wikilink.name, filePath, vaultPath, paletteItems)
+        if (target) onNavigate(target, modifier === 'replace')
         return
       }
       const cleanHref = href.split(/[?#]/)[0]
       if (!cleanHref) return
       const resolved = resolveLink(cleanHref, filePath, vaultPath)
-      if (resolved && /\.(md|markdown)$/i.test(resolved)) {
-        onOpenNote(resolved)
+      if (resolved) {
+        onNavigate(resolved, modifier === 'replace')
       }
     },
-    [filePath, vaultPath, onOpenNote],
+    [filePath, vaultPath, paletteItems, onNavigate],
   )
 
   const isMd = /\.(md|markdown)$/i.test(filePath)
