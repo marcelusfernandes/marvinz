@@ -338,8 +338,9 @@ async function listAllMarkdown(root: string, current = root): Promise<string[]> 
 //   [text](href)         standard link
 //   ![alt](href)         image
 //   [text](href "title") with title (preserved)
-// We DON'T touch wikilinks ([[ ]]) — none in MVP.
+//   [[Name]] / [[Name|Display]] / [[folder/Name]] / [[Name#section]] — wikilinks
 const MD_LINK_RE = /(!?)\[((?:\\.|[^\]\\])*)\]\(\s*([^\s)]+)(\s+"[^"]*")?\s*\)/g
+const WIKILINK_RE = /\[\[([^\[\]\n|]+)(?:\|([^\[\]\n]+))?\]\]/g
 
 function rewriteOneFile(
   fileAbsPath: string,
@@ -407,6 +408,52 @@ function remappedPath(target: string, oldPath: string, newPath: string): string 
   return null
 }
 
+function stripMdExt(s: string): string {
+  return s.replace(/\.(md|markdown)$/i, '')
+}
+
+/**
+ * Rewrite `[[wikilinks]]` whose target points at the renamed file so they
+ * keep resolving after the rename. Only runs when a markdown file is
+ * renamed; folder-only renames don't change basenames.
+ *
+ * - `[[Foo]]` / `[[Foo|Bar]]` / `[[Foo#sec]]` — rewritten when the bare
+ *   basename matches the old file's basename.
+ * - `[[folder/Foo]]` — rewritten when its vault-relative path matches
+ *   exactly the renamed file.
+ */
+function rewriteWikilinksOneFile(
+  vaultRoot: string,
+  oldPath: string,
+  newPath: string,
+  content: string,
+): string {
+  if (!/\.(md|markdown)$/i.test(oldPath)) return content
+
+  const oldBase = stripMdExt(path.basename(oldPath))
+  const newBase = stripMdExt(path.basename(newPath))
+  const newRel = path.relative(vaultRoot, newPath)
+  const newTargetPath = stripMdExt(newRel)
+
+  return content.replace(WIKILINK_RE, (match, rawName, rawDisplay) => {
+    const name = String(rawName)
+    const hashIdx = name.indexOf('#')
+    const target = hashIdx >= 0 ? name.slice(0, hashIdx) : name
+    const fragment = hashIdx >= 0 ? name.slice(hashIdx) : ''
+    const displaySuffix = rawDisplay ? `|${rawDisplay}` : ''
+
+    if (target.includes('/')) {
+      const withExt = /\.(md|markdown)$/i.test(target) ? target : `${target}.md`
+      const abs = path.join(vaultRoot, withExt)
+      if (abs !== oldPath) return match
+      return `[[${newTargetPath}${fragment}${displaySuffix}]]`
+    }
+
+    if (stripMdExt(target) !== oldBase) return match
+    return `[[${newBase}${fragment}${displaySuffix}]]`
+  })
+}
+
 async function rewriteLinksAfterMove(
   vaultRoot: string,
   oldPath: string,
@@ -417,7 +464,8 @@ async function rewriteLinksAfterMove(
     files.map(async (file) => {
       try {
         const content = await fs.readFile(file, 'utf8')
-        const next = rewriteOneFile(file, oldPath, newPath, content)
+        let next = rewriteOneFile(file, oldPath, newPath, content)
+        next = rewriteWikilinksOneFile(vaultRoot, oldPath, newPath, next)
         if (next !== content) {
           await fs.writeFile(file, next, 'utf8')
         }
