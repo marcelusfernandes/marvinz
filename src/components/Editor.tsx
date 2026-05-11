@@ -34,12 +34,10 @@ const SAVE_DEBOUNCE_MS = 600
 
 function resolveLink(href: string, currentFile: string, vaultPath: string): string | null {
   if (!href) return null
-  if (href.startsWith('/')) {
-    return href.startsWith(vaultPath) ? href : null
-  }
-  const currentDir = currentFile.replace(/\/[^/]+$/, '')
+  // `/`-prefix → vault-root-relative; else → file-relative.
+  const baseDir = href.startsWith('/') ? vaultPath : currentFile.replace(/\/[^/]+$/, '')
   const segments = href.split('/')
-  const stack = currentDir.split('/')
+  const stack = baseDir.split('/')
   for (const seg of segments) {
     if (seg === '..') stack.pop()
     else if (seg !== '.' && seg !== '') stack.push(seg)

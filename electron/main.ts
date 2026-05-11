@@ -344,6 +344,7 @@ const WIKILINK_RE = /\[\[([^\[\]\n|]+)(?:\|([^\[\]\n]+))?\]\]/g
 
 function rewriteOneFile(
   fileAbsPath: string,
+  vaultRoot: string,
   oldPath: string,
   newPath: string,
   content: string,
@@ -368,7 +369,11 @@ function rewriteOneFile(
     if (!purePath) return match
 
     const decoded = safeDecode(purePath)
-    const oldAbsTarget = path.resolve(oldFileDir, decoded)
+    // `/`-prefix → vault-root-relative; else → file-relative.
+    const isVaultRootRel = decoded.startsWith('/')
+    const oldAbsTarget = isVaultRootRel
+      ? path.join(vaultRoot, decoded)
+      : path.resolve(oldFileDir, decoded)
 
     // Where does this absolute path live AFTER the rename?
     const newAbsTarget = remappedPath(oldAbsTarget, oldPath, newPath) ?? oldAbsTarget
@@ -376,7 +381,10 @@ function rewriteOneFile(
     // If this file didn't move AND the target didn't move, nothing to do.
     if (!fileOldLocation && newAbsTarget === oldAbsTarget) return match
 
-    const newRel = path.relative(newFileDir, newAbsTarget) || '.'
+    // Preserve the form: vault-root-relative stays vault-root-relative.
+    const newRel = isVaultRootRel
+      ? '/' + path.relative(vaultRoot, newAbsTarget)
+      : path.relative(newFileDir, newAbsTarget) || '.'
     const newHref = encodePath(newRel) + suffix
     if (newHref === purePath + suffix) return match
 
@@ -462,7 +470,7 @@ async function rewriteLinksAfterMove(
     files.map(async (file) => {
       try {
         const content = await fs.readFile(file, 'utf8')
-        let next = rewriteOneFile(file, oldPath, newPath, content)
+        let next = rewriteOneFile(file, vaultRoot, oldPath, newPath, content)
         next = rewriteWikilinksOneFile(vaultRoot, oldPath, newPath, next)
         if (next !== content) {
           await fs.writeFile(file, next, 'utf8')
