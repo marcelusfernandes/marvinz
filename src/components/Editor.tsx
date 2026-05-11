@@ -13,6 +13,7 @@ import { LiveMarkdown } from './LiveMarkdown'
 import { CsvEditor } from './CsvEditor'
 import { PathSuggest } from './PathSuggest'
 import type { PaletteItem } from '../lib/paletteRanker'
+import { isWikilinkHref, resolveWikilink } from '../lib/wikilinks'
 
 type Props = {
   filePath: string
@@ -132,6 +133,12 @@ export function Editor({
         void window.marvin.shell.openExternal(href)
         return
       }
+      const wikilink = isWikilinkHref(href)
+      if (wikilink) {
+        const target = resolveWikilink(wikilink.name, filePath, vaultPath, paletteItems)
+        if (target) onNavigate(target, modifier === 'replace')
+        return
+      }
       const cleanHref = href.split(/[?#]/)[0]
       if (!cleanHref) return
       const resolved = resolveLink(cleanHref, filePath, vaultPath)
@@ -139,7 +146,7 @@ export function Editor({
         onNavigate(resolved, modifier === 'replace')
       }
     },
-    [filePath, vaultPath, onNavigate],
+    [filePath, vaultPath, paletteItems, onNavigate],
   )
 
   const isMd = /\.(md|markdown)$/i.test(filePath)

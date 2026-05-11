@@ -4,6 +4,7 @@ import { Milkdown, MilkdownProvider, useEditor } from '@milkdown/react'
 import { commonmark } from '@milkdown/preset-commonmark'
 import { gfm } from '@milkdown/preset-gfm'
 import { listener, listenerCtx } from '@milkdown/plugin-listener'
+import { parseWikilinks, unparseWikilinks } from '../lib/wikilinks'
 
 type Props = {
   /** Markdown body (without frontmatter) to render. */
@@ -40,7 +41,11 @@ function LiveMarkdownInner({ body, onChange, onLinkClick }: Props) {
 
   // We freeze the initial value at mount; further updates come from typing.
   // External changes are handled by remountKey causing a full remount.
-  const initial = useMemo(() => body, [])
+  // Wikilinks `[[X]]` get pre-processed into a `wikilink:` URI scheme so
+  // Milkdown can render them as ordinary `<a>` elements; the click handler
+  // recognizes the scheme. The inverse is applied on every emit so the
+  // saved file preserves the original `[[X]]` form.
+  const initial = useMemo(() => parseWikilinks(body), [])
   // ^ intentional: only first body matters for initialization
   // (eslint-disable-next-line react-hooks/exhaustive-deps)
 
@@ -54,7 +59,7 @@ function LiveMarkdownInner({ body, onChange, onLinkClick }: Props) {
           attributes: { class: 'milkdown-host' },
         }))
         ctx.get(listenerCtx).markdownUpdated((_ctx, markdown, prevMarkdown) => {
-          if (markdown !== prevMarkdown) onChangeRef.current(markdown)
+          if (markdown !== prevMarkdown) onChangeRef.current(unparseWikilinks(markdown))
         })
       })
       .use(commonmark)
