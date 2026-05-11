@@ -77,8 +77,10 @@ function LiveMarkdownInner({ body, onChange, onLinkClick }: Props) {
       if (!href) return
       e.preventDefault()
       e.stopPropagation()
-      const replace = e.metaKey || e.ctrlKey
-      onLinkClickRef.current(href, replace ? 'replace' : 'newTab')
+      // Default click navigates in-place (notes-app convention); Cmd/Ctrl
+      // opens in a new tab.
+      const openInNewTab = e.metaKey || e.ctrlKey
+      onLinkClickRef.current(href, openInNewTab ? 'newTab' : 'replace')
     }
     el.addEventListener('click', onClick)
     return () => el.removeEventListener('click', onClick)

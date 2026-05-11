@@ -995,7 +995,6 @@ export default function App() {
               initialContent={activeTab.content}
               paletteItems={paletteItems}
               onSave={handleSave}
-              onOpenNote={navigateInActiveTab}
               onNavigate={navigateOrOpen}
               canBack={activeTab.back.length > 0}
               canForward={activeTab.forward.length > 0}
