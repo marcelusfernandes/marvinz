@@ -1,3 +1,5 @@
+import { Icon } from './Icon'
+
 type NoteTab = {
   type: 'note'
   id: string
@@ -91,7 +93,7 @@ export function TabBar({ tabs, activeId, onActivate, onClose, onNewBrowserTab }:
                 onClose(t.id)
               }}
             >
-              ×
+              <Icon name="close" size={10} />
             </button>
           </div>
         )
@@ -103,7 +105,7 @@ export function TabBar({ tabs, activeId, onActivate, onClose, onNewBrowserTab }:
         title="New browser tab (⌘T)"
         aria-label="New browser tab"
       >
-        +
+        <Icon name="add" size={14} />
       </button>
     </div>
   )

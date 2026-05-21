@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AgentTerminal, type AgentDef, type AgentStatus } from './AgentTerminal'
 import { ContextMenu, type MenuItem } from './ContextMenu'
+import { Icon } from './Icon'
 
 type Props = {
   agents: AgentDef[]
@@ -213,7 +214,7 @@ export function AgentsPane({ agents, vaultPath, newTabTick }: Props) {
                   removeTab(t.id)
                 }}
               >
-                ×
+                <Icon name="close" size={10} />
               </button>
             </div>
           )
@@ -280,7 +281,7 @@ function NewTabButton({
         title={disabled ? 'No agent installed' : 'New terminal'}
         aria-label="New terminal"
       >
-        +
+        <Icon name="add" size={14} />
       </button>
       {showChevron && (
         <button
@@ -290,7 +291,7 @@ function NewTabButton({
           title="Choose agent"
           aria-label="Choose agent"
         >
-          <span className="agent-new-chevron-icon">⌄</span>
+          <Icon name="chevron-down" size={12} />
         </button>
       )}
     </div>

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { FileNode } from '../types'
+import { Icon } from './Icon'
 
 type Props = {
   nodes: FileNode[]
@@ -86,7 +87,7 @@ function FileTreeNode({
   onContextMenu: (e: React.MouseEvent, node: FileNode) => void
   onMove: (srcPath: string, destDir: string) => void
 }) {
-  const [open, setOpen] = useState(true)
+  const [open, setOpen] = useState(false)
   const [hovered, setHovered] = useState(false)
   const isSelected = selectedPath === node.path
   const padding = 8 + depth * 14
@@ -129,7 +130,14 @@ function FileTreeNode({
           onClick={() => setOpen((o) => !o)}
           onContextMenu={(e) => onContextMenu(e, node)}
         >
-          <span className="chev">{open ? '▾' : '▸'}</span>
+          <span className="chev">
+            <Icon name={open ? 'chevron-down' : 'chevron-right'} size={12} />
+          </span>
+          <Icon
+            name={open ? 'folder-opened' : 'folder'}
+            size={14}
+            className="folder-icon"
+          />
           <span className="name">{node.name}</span>
         </button>
         {open && node.children && node.children.length > 0 && (
@@ -159,7 +167,7 @@ function FileTreeNode({
       <button
         type="button"
         className={`file-tree-row file${isSelected ? ' selected' : ''}${md ? '' : ' non-md'}`}
-        style={{ paddingLeft: padding + 14 }}
+        style={{ paddingLeft: padding + 34 }}
         draggable
         onDragStart={handleDragStart}
         onClick={() => onSelect(node)}

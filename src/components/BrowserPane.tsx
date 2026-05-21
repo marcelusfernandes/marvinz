@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { Icon } from './Icon'
 
 type BrowserTabState = {
   type: 'browser'
@@ -147,7 +148,7 @@ export function BrowserPane({
           title="Back"
           aria-label="Back"
         >
-          ‹
+          <Icon name="chevron-left" size={14} />
         </button>
         <button
           type="button"
@@ -157,7 +158,7 @@ export function BrowserPane({
           title="Forward"
           aria-label="Forward"
         >
-          ›
+          <Icon name="chevron-right" size={14} />
         </button>
         <button
           type="button"
@@ -170,7 +171,7 @@ export function BrowserPane({
           title={tab.loading ? 'Stop' : 'Reload'}
           aria-label={tab.loading ? 'Stop' : 'Reload'}
         >
-          {tab.loading ? '×' : '↻'}
+          <Icon name={tab.loading ? 'close' : 'refresh'} size={14} />
         </button>
         <input
           ref={urlInputRef}

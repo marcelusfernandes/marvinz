@@ -6,6 +6,7 @@ import {
   type Frontmatter,
   type PropertyType,
 } from '../lib/frontmatter'
+import { Icon } from './Icon'
 
 type Props = {
   data: Frontmatter
@@ -149,7 +150,7 @@ function PropertyRow({
         aria-label={`Remove ${propKey}`}
         onClick={onRemove}
       >
-        ×
+        <Icon name="close" size={10} />
       </button>
     </li>
   )
@@ -361,7 +362,7 @@ function TagsEditor({
             aria-label={`Remove ${tag}`}
             onClick={() => remove(i)}
           >
-            ×
+            <Icon name="close" size={8} />
           </button>
         </span>
       ))}
@@ -417,7 +418,7 @@ function ListEditor({
             aria-label={`Remove ${item}`}
             onClick={() => remove(i)}
           >
-            ×
+            <Icon name="close" size={8} />
           </button>
         </span>
       ))}
