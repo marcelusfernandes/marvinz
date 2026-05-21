@@ -120,6 +120,10 @@ function isPdfPath(p: string): boolean {
   return /\.pdf$/i.test(p)
 }
 
+function isHtmlPath(p: string): boolean {
+  return /\.html?$/i.test(p)
+}
+
 /** Build a marvin:// URL for a vault-local absolute path. The
  * `localhost` host is a placeholder so the standard URL parser doesn't
  * eat the first path segment as the hostname. */
@@ -395,9 +399,10 @@ export default function App() {
         setActiveTabId(id)
         return
       }
-      // PDFs: open in a browser tab pointing at the marvin:// URL so
-      // Chromium's built-in PDF viewer (zoom, search, download) handles it.
-      if (isPdfPath(path)) {
+      // PDFs and HTML: open in a browser tab pointing at the marvin:// URL.
+      // PDFs use Chromium's built-in viewer; HTML renders via the custom
+      // protocol so relative asset paths resolve against the vault.
+      if (isPdfPath(path) || isHtmlPath(path)) {
         const url = marvinFileUrl(path)
         const id = newTabId()
         setTabs((prev) => [
@@ -568,6 +573,7 @@ export default function App() {
         isNoteTab(activeTab) &&
         !isImagePath(path) &&
         !isPdfPath(path) &&
+        !isHtmlPath(path) &&
         path !== activeTab.path
       ) {
         const noteTab = activeTab

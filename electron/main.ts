@@ -135,6 +135,11 @@ const MIME_BY_EXT: Record<string, string> = {
   ico: 'image/x-icon',
   avif: 'image/avif',
   pdf: 'application/pdf',
+  html: 'text/html; charset=utf-8',
+  htm: 'text/html; charset=utf-8',
+  css: 'text/css; charset=utf-8',
+  js: 'text/javascript; charset=utf-8',
+  mjs: 'text/javascript; charset=utf-8',
 }
 
 function mimeFor(filePath: string): string {
@@ -146,12 +151,29 @@ app.whenReady().then(() => {
   protocol.handle('marvin', async (request) => {
     try {
       const u = new URL(request.url)
-      const filePath = decodeURIComponent(u.pathname)
       if (!activeVaultPath) {
         console.warn('[marvin] no active vault, rejecting', request.url)
         return new Response('No vault', { status: 403 })
       }
-      if (!filePath.startsWith(activeVaultPath)) {
+      // Two URL shapes are accepted:
+      //   1. App-emitted: `marvin://localhost/<absolute-vault-path>` — host
+      //      is a placeholder so the standard URL parser doesn't eat the
+      //      first path segment. Pathname holds the full absolute path.
+      //   2. User-typed in URL bar: `marvin://<vault-relative-path>` — host
+      //      holds the first segment (case-folded by Chromium, hence the
+      //      lowercase-filename limitation for typed URLs). Resolved
+      //      against the active vault.
+      const host = decodeURIComponent(u.host)
+      const urlPath = decodeURIComponent(u.pathname)
+      let filePath: string
+      if (host && host !== 'localhost') {
+        filePath = path.resolve(activeVaultPath, host + urlPath)
+      } else if (urlPath.startsWith(activeVaultPath)) {
+        filePath = urlPath
+      } else {
+        filePath = path.resolve(activeVaultPath, urlPath.replace(/^\/+/, ''))
+      }
+      if (filePath !== activeVaultPath && !filePath.startsWith(activeVaultPath + path.sep)) {
         console.warn('[marvin] outside vault, rejecting', filePath, 'vault=', activeVaultPath)
         return new Response('Forbidden', { status: 403 })
       }
