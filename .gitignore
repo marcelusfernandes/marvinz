@@ -24,3 +24,10 @@ release
 *.njsproj
 *.sln
 *.sw?
+
+# Local audit notes (not for repo)
+.docs/audit/
+.docs/vision-audit.md
+
+# Claude Code agent worktrees (runtime artifacts)
+.claude/worktrees/
