@@ -22,15 +22,15 @@ Você é o **lead** desta missão. A flag `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=
 Classifique a entrada em um perfil. Em dúvida entre dois, prefira o menor.
 
 ### Perfil A — Feature cross-layer (renderer + main + persistência) → 5 teammates
-- `pm` (subagent_type: `product-manager`) — PRD em `docs/specs/<slug>.md`
+- `gustavo-pm` (subagent_type: `product-manager`) — PRD em `docs/specs/<slug>.md`
 - `electron` (subagent_type: `electron-pro`) — main process / IPC / preload
 - `react` (subagent_type: `react-component-architect`) — UI / componentes
 - `qa` (subagent_type: `qa-expert` ou `test-automator`) — testes
 - `security` (subagent_type: `security-auditor`) — review paralelo
 
 ### Perfil B — Feature de UI apenas → 3-4 teammates
-- `pm` (subagent_type: `product-manager` ou `ux-researcher`)
-- `designer` (subagent_type: `ui-designer`)
+- `gustavo-pm` (subagent_type: `product-manager`) OU `bruno-ux` (subagent_type: `ux-researcher`) — escolha conforme se a feature está definida ou em descoberta
+- `lipe-ui` (subagent_type: `ui-designer`)
 - `react` (subagent_type: `react-component-architect`)
 - `a11y` (subagent_type: `accessibility-tester`) — opcional, se houver mudança visual significativa
 
@@ -40,7 +40,7 @@ Classifique a entrada em um perfil. Em dúvida entre dois, prefira o menor.
 - `reviewer` (subagent_type: `code-reviewer`)
 
 ### Perfil D — Refactor / dívida técnica → 3 teammates
-- `architect` (subagent_type: `tech-lead-orchestrator`) — análise + plano
+- `marcelus-arq` (subagent_type: `tech-lead-orchestrator`) — análise + plano
 - `dev` (subagent_type da camada afetada)
 - `reviewer` (subagent_type: `code-reviewer`)
 
@@ -74,15 +74,15 @@ Agent({
   description: "<curta>",
   subagent_type: "product-manager",
   team_name: "<slug-da-missao>",
-  name: "pm",
-  prompt: "Você é o PM deste time. Sua primeira task é escrever o PRD em docs/specs/<slug>.md cobrindo: user story, acceptance criteria mensuráveis, edge cases. Use TaskList para ver suas tasks, TaskUpdate para marcar como completed, SendMessage para coordenar com outros teammates. Quando terminar o PRD, mande para 'electron' e 'react' uma referência ao arquivo."
+  name: "gustavo-pm",
+  prompt: "Você é o gustavo-pm, PM deste time. Sua primeira task é escrever o PRD em docs/specs/<slug>.md cobrindo: user story, acceptance criteria mensuráveis, edge cases. Use TaskList para ver suas tasks, TaskUpdate para marcar como completed, SendMessage para coordenar com outros teammates. Quando terminar o PRD, mande para 'electron' e 'react' uma referência ao arquivo."
 })
 ```
 Repita para `electron`, `react`, `qa`, `security` etc — conforme o perfil escolhido.
 
 ### 2.4 Atribuir owners das tasks
 ```
-TaskUpdate({ task_id: "<id>", owner: "pm" })
+TaskUpdate({ task_id: "<id>", owner: "gustavo-pm" })
 TaskUpdate({ task_id: "<id>", owner: "electron" })
 ...
 ```
@@ -91,7 +91,7 @@ TaskUpdate({ task_id: "<id>", owner: "electron" })
 Mande mensagem inicial para teammates que devem começar imediatamente (os outros pegam tasks unblocked depois):
 ```
 SendMessage({
-  to: "pm",
+  to: "gustavo-pm",
   summary: "kickoff: escrever PRD",
   message: "Comece pela task #1 (PRD). Quando terminar, avisa o electron e o react com o caminho do arquivo."
 })
@@ -109,7 +109,7 @@ SendMessage({
 
 1. Quando todas tasks estão `completed`, peça reports finais:
    ```
-   SendMessage({ to: "pm", summary: "report final", message: "Resuma o que foi entregue, arquivos tocados e ACs atendidos." })
+   SendMessage({ to: "gustavo-pm", summary: "report final", message: "Resuma o que foi entregue, arquivos tocados e ACs atendidos." })
    ```
    (repita para cada teammate)
 
