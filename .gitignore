@@ -31,3 +31,11 @@ release
 
 # Claude Code agent worktrees (runtime artifacts)
 .claude/worktrees/
+
+# Marvin snapshot storage (runtime artifacts, not for repo)
+**/.marvin/
+
+# Test output (runtime artifacts, not for repo)
+coverage/
+test-results/
+playwright-report/

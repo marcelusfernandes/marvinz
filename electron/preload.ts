@@ -91,6 +91,19 @@ const api = {
     openExternal: (url: string) => ipcRenderer.invoke('shell:openExternal', url) as Promise<void>,
     reveal: (target: string) => ipcRenderer.invoke('shell:reveal', target) as Promise<void>,
   },
+  snapshot: {
+    listTurns: () => ipcRenderer.invoke('snapshot:listTurns'),
+    listForFile: (relPath: string) => ipcRenderer.invoke('snapshot:listForFile', relPath),
+    read: (turnId: string, relPath: string) =>
+      ipcRenderer.invoke('snapshot:read', turnId, relPath),
+    restore: (turnId: string, relPath: string) =>
+      ipcRenderer.invoke('snapshot:restore', turnId, relPath),
+    onTurnCompleted: (cb: (event: { turnId: string; timestamp: number; files: string[] }) => void) => {
+      const listener = (_: unknown, event: { turnId: string; timestamp: number; files: string[] }) => cb(event)
+      ipcRenderer.on('snapshot:turn-completed', listener)
+      return () => ipcRenderer.removeListener('snapshot:turn-completed', listener)
+    },
+  },
   pty: {
     spawn: (opts: {
       id: string
