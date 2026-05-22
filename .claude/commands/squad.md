@@ -147,34 +147,47 @@ SendMessage({
 
 2. Consolide os reports em texto único para o usuário humano. Inclua: arquivos tocados, AC atendidos (X/N), riscos pendentes.
 
-3. **Abrir PR contra `develop` referenciando a issue** (sempre `Closes #<num>` no body — auto-close on merge):
+3. **Abrir issues de follow-up descobertos durante o squad** (se houver):
+
+   Bugs/gaps levantados pelo security review, gaps fora do escopo, ou flags do `qa` que ficaram out-of-scope da issue principal viram **issues novas** via `/issues:create` ou `gh issue create`. **Todas vão direto para `Todo` no project board** — não Backlog. Justificativa: follow-ups de squad têm escopo concreto, severity conhecida e ACs no body — passam todos os critérios de Todo (≠ "ideia talvez um dia").
+
+   Para cada follow-up:
+   ```bash
+   gh issue create --title "<título>" --body "..." --label <labels>
+   # Mover pra Todo:
+   gh project item-edit --id <item-id> --field-id <status-field-id> --project-id <project-id> --single-select-option-id <todo-option-id>
+   ```
+
+   Mencione cada follow-up criado no body da PR principal (seção "Follow-ups" / "Out of scope").
+
+4. **Abrir PR contra `develop` referenciando a issue** (sempre `Closes #<num>` no body — auto-close on merge):
    ```bash
    gh pr create --base develop --title "<tipo>: <descrição> (#<issue-num>)" --body "...Closes #<issue-num>..."
    ```
 
-4. **Mover issue para "In Review"** no project board:
+5. **Mover issue para "In Review"** no project board:
    ```bash
    gh project item-edit --id <item-id> --field-id <status-field-id> --project-id <project-id> --single-select-option-id <in-review-option-id>
    ```
    Idem caveat: se token sem scope `read:project`, pause e peça refresh.
 
-5. **Comentar na issue** com o link da PR (defesa caso `Closes #X` falhe em auto-link):
+6. **Comentar na issue** com o link da PR (defesa caso `Closes #X` falhe em auto-link):
    ```bash
    gh issue comment <issue-number> --body "PR aberta: #<pr-num>. Status: In Review."
    ```
 
-6. Shutdown teammates (em paralelo):
+7. Shutdown teammates (em paralelo):
    ```
    SendMessage({ to: "<teammate>", message: { type: "shutdown_request", reason: "missão completa" } })
    ```
    Cada teammate responde com `shutdown_response approve:true` e seu processo termina.
 
-7. Após todos saírem:
+8. Após todos saírem:
    ```
    TeamDelete()
    ```
 
-8. **Não faça merge.** Usuário humano aprova o merge da PR. Quando a PR for mergeada (você será notificado ou pode checar `gh pr view <num> --json state`):
+9. **Não faça merge.** Usuário humano aprova o merge da PR. Quando a PR for mergeada (você será notificado ou pode checar `gh pr view <num> --json state`):
    - Issue auto-fecha via `Closes #X` no body
    - **Mover issue para "Done"** no project board:
      ```bash
@@ -186,10 +199,11 @@ SendMessage({
 | Momento | Status no project board | Onde no `/squad` |
 |---|---|---|
 | Squad pega issue | **In Progress** | Passo 1.5.3 |
-| PR aberta | **In Review** | Passo 4.4 |
-| PR mergeada | **Done** | Passo 4.8 |
+| Follow-ups criados | **Todo** (direto) | Passo 4.3 |
+| PR aberta (issue principal) | **In Review** | Passo 4.5 |
+| PR mergeada (issue principal) | **Done** | Passo 4.9 |
 
-Cada transição vem acompanhada de um comment na issue (Passos 1.5.2, 4.5) — garantindo trilha auditável mesmo se project board não estiver acessível.
+Cada transição vem acompanhada de um comment na issue (Passos 1.5.2, 4.6) — garantindo trilha auditável mesmo se project board não estiver acessível.
 
 ## Limites & sanidade
 
