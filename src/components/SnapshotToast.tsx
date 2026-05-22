@@ -3,6 +3,7 @@ import { useEffect } from 'react'
 type Props = {
   files: string[]
   agentLabel?: string
+  verb?: string
   onOpenVersions: () => void
   onDismiss: () => void
   autoDismissMs?: number
@@ -13,6 +14,7 @@ const MAX_FILES_SHOWN = 3
 export function SnapshotToast({
   files,
   agentLabel = 'Claude',
+  verb = 'modified',
   onOpenVersions,
   onDismiss,
   autoDismissMs = 10000,
@@ -32,11 +34,11 @@ export function SnapshotToast({
       className="snapshot-toast"
       role="status"
       aria-live="polite"
-      aria-label={`${agentLabel} modified ${files.length} ${files.length === 1 ? 'file' : 'files'}`}
+      aria-label={`${agentLabel} ${verb} ${files.length} ${files.length === 1 ? 'file' : 'files'}`}
     >
       <div className="snapshot-toast-body">
         <span className="snapshot-toast-text">
-          <strong>{agentLabel}</strong> modified {summary}
+          <strong>{agentLabel}</strong> {verb} {summary}
         </span>
       </div>
       <div className="snapshot-toast-actions">

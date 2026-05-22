@@ -367,8 +367,8 @@ ipcMain.handle('vault:watch', (_e, vaultPath: string) => {
     persistent: true,
   })
   const notifyTree = () => win?.webContents.send('vault:changed')
-  const notifyFile = (filePath: string) =>
-    win?.webContents.send('file:changed', filePath)
+  const notifyFile = (filePath: string, source: 'agent' | 'external') =>
+    win?.webContents.send('file:changed', filePath, source)
 
   // Snapshot before notifying the renderer of an external change.
   // Prefers the in-memory cache (last content served via file:read) as the
@@ -412,13 +412,14 @@ ipcMain.handle('vault:watch', (_e, vaultPath: string) => {
   vaultWatcher
     .on('add', (p) => {
       notifyTree()
-      notifyFile(p)
+      notifyFile(p, Date.now() - lastPtyWriteAt < AI_TURN_WINDOW_MS ? 'agent' : 'external')
     })
     .on('change', (p) => {
+      const source: 'agent' | 'external' = Date.now() - lastPtyWriteAt < AI_TURN_WINDOW_MS ? 'agent' : 'external'
       snapshotExternalChange(p).catch((err) =>
         console.error('[snapshot] snapshotExternalChange unhandled', err),
       )
-      notifyFile(p)
+      notifyFile(p, source)
     })
     .on('unlink', (p) => {
       fileContentCache.delete(p)
@@ -1119,6 +1120,23 @@ ipcMain.handle('snapshot:restore', async (_e, turnId: unknown, relPath: unknown)
     const absPath = path.join(vault, rel)
     fileContentCache.delete(absPath)
     return ok({ preTurnId })
+  } catch (e) {
+    return err(e)
+  }
+})
+
+const BUFFER_SAVE_MAX_BYTES = 50 * 1024 * 1024 // 50 MB hard cap
+
+ipcMain.handle('snapshot:saveBuffer', async (_e, relPath: unknown, content: unknown) => {
+  try {
+    if (typeof content !== 'string') throw new Error('SNAPSHOT_INVALID_CONTENT')
+    if (Buffer.byteLength(content, 'utf8') > BUFFER_SAVE_MAX_BYTES) throw new Error('SNAPSHOT_BUFFER_TOO_LARGE')
+    const vault = requireVault()
+    const rel = validateRelPath(relPath)
+    const turnId = activeTurnId ?? newTurnId()
+    if (!activeTurnId) activeTurnId = turnId
+    const saved = await writeSnapshot(vault, turnId, rel, content, 'buffer-save')
+    return ok({ turnId, saved })
   } catch (e) {
     return err(e)
   }

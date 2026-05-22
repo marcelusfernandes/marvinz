@@ -21,6 +21,7 @@ type Props = {
   initialContent: string
   paletteItems: PaletteItem[]
   onSave: (content: string) => Promise<void>
+  onBufferChange?: (content: string) => void
   onNavigate: (path: string, replaceCurrent: boolean) => void
   canBack: boolean
   canForward: boolean
@@ -52,6 +53,7 @@ export function Editor({
   initialContent,
   paletteItems,
   onSave,
+  onBufferChange,
   onNavigate,
   canBack,
   canForward,
@@ -81,6 +83,7 @@ export function Editor({
     (next: string) => {
       setValue(next)
       latestValue.current = next
+      onBufferChange?.(next)
       if (timer.current) window.clearTimeout(timer.current)
       timer.current = window.setTimeout(async () => {
         setSaving(true)
@@ -92,7 +95,7 @@ export function Editor({
         }
       }, SAVE_DEBOUNCE_MS)
     },
-    [onSave],
+    [onSave, onBufferChange],
   )
 
   const handleSourceChange = useCallback(

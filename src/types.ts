@@ -12,7 +12,9 @@ export type BrowserEvent =
   | { id: string; kind: 'nav-state'; canBack: boolean; canForward: boolean }
   | { id: string; kind: 'load-error'; url: string; message: string }
 
-export type SnapshotTrigger = 'file:write' | 'watcher' | 'restore' | 'cascade'
+export type FileChangeSource = 'agent' | 'external'
+
+export type SnapshotTrigger = 'file:write' | 'watcher' | 'restore' | 'cascade' | 'buffer-save'
 
 export type SnapshotStatus = 'active' | 'completed'
 
@@ -57,7 +59,7 @@ export type MarvinAPI = {
     read: (filePath: string) => Promise<string>
     write: (filePath: string, content: string) => Promise<void>
     create: (parentDir: string, name: string) => Promise<string>
-    onChanged: (cb: (filePath: string) => void) => () => void
+    onChanged: (cb: (filePath: string, source: FileChangeSource) => void) => () => void
   }
   folder: {
     create: (parentDir: string, name: string) => Promise<string>
@@ -113,6 +115,7 @@ export type MarvinAPI = {
     listForFile: (relPath: string) => Promise<SnapshotEnvelope<SnapshotManifest[]>>
     read: (turnId: string, relPath: string) => Promise<SnapshotEnvelope<string>>
     restore: (turnId: string, relPath: string) => Promise<SnapshotEnvelope<{ preTurnId: string }>>
+    saveBuffer: (relPath: string, content: string) => Promise<SnapshotEnvelope<{ turnId: string; saved: boolean }>>
     onTurnCompleted: (cb: (event: SnapshotTurnCompletedEvent) => void) => () => void
   }
 }
