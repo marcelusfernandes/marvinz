@@ -9,6 +9,7 @@ This guide defines Marvinz's design token system — the single source of truth 
 | **Color** | `--bg-`, `--surface-`, `--border-`, `--text-`, `--accent-` | 27 | `--bg-app: #ececec`, `--text-primary: #1a1a1a`, `--text-error`, `--border-focus`, `--bg-overlay`, `--bg-hover`, `--bg-error-strong`, `--bg-error-subtle` |
 | **Z-index** | `--z-` | 5 | `--z-dropdown: 50`, `--z-modal: 200`, `--z-toast: 300` |
 | **Focus** | `--focus-ring`, `--focus-ring-inset` | 2 | Apply as `box-shadow: var(--focus-ring)` inside `:focus-visible` |
+| **Code syntax** | `--code-` | 8 | `--code-keyword`, `--code-string`, `--code-comment` (italic). Wired into CodeMirror via `HighlightStyle` in `Editor.tsx` |
 | **Spacing** | `--space-` | 7 | `--space-1: 4px`, `--space-4: 16px`, `--space-7: 48px` |
 | **Radius** | `--radius-` | 5 | `--radius-sm: 3px`, `--radius-md: 6px`, `--radius-lg: 12px`, `--radius-xl: 16px`, `--radius-pill: 999px` |
 | **Typography** | `--font-family-`, `--font-size-`, `--line-height-`, `--font-weight-` | 14 | `--font-family-sans` (system UI), `--font-family-mono` (system mono), `--font-size-md: 1rem` (14px), `--font-weight-semibold: 600`, `--font-weight-bold: 700` |

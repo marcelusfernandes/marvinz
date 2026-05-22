@@ -39,8 +39,18 @@
   --bg-success-subtle: rgba(22, 163, 74, 0.10);
 
   /* Focus ring (use as box-shadow, applied via :focus-visible) */
-  --focus-ring: 0 0 0 3px rgba(0, 122, 255, 0.35);
-  --focus-ring-inset: inset 0 0 0 2px rgba(0, 122, 255, 0.5);
+  --focus-ring: 0 0 0 3px rgba(0, 0, 0, 0.35);
+  --focus-ring-inset: inset 0 0 0 2px rgba(0, 0, 0, 0.5);
+
+  /* Syntax highlight (CodeMirror) — VS Code Light+ palette */
+  --code-keyword: #a31515;
+  --code-string: #067d17;
+  --code-number: #1565c0;
+  --code-function: #6f42c1;
+  --code-property: #795e26;
+  --code-comment: #008000;
+  --code-tag: #0451a5;
+  --code-operator: var(--text-primary);
 
   /* Z-index scale */
   --z-dropdown: 50;
@@ -132,9 +142,19 @@
   --bg-warning-subtle: rgba(176, 137, 64, 0.10);
   --bg-success-subtle: rgba(78, 199, 122, 0.10);
 
-  /* Focus ring (dark) */
-  --focus-ring: 0 0 0 3px rgba(10, 132, 255, 0.4);
-  --focus-ring-inset: inset 0 0 0 2px rgba(10, 132, 255, 0.55);
+  /* Focus ring (dark) — white tint so the ring stays visible against dark surfaces */
+  --focus-ring: 0 0 0 3px rgba(255, 255, 255, 0.35);
+  --focus-ring-inset: inset 0 0 0 2px rgba(255, 255, 255, 0.5);
+
+  /* Syntax highlight (dark) — VS Code Dark+ */
+  --code-keyword: #569cd6;
+  --code-string: #ce9178;
+  --code-number: #b5cea8;
+  --code-function: #dcdcaa;
+  --code-property: #9cdcfe;
+  --code-comment: #6a9955;
+  --code-tag: #569cd6;
+  --code-operator: var(--text-primary);
 
   /* Elevation — heavier in dark so shadows stay visible */
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.15);
@@ -1906,7 +1926,7 @@ button {
   font-weight: var(--font-weight-semibold);
   margin: 1.6em 0 0.6em;
   line-height: var(--line-height-tight);
-  color: #f0f0f0;
+  color: var(--text-primary);
 }
 
 .md-preview-inner h1:first-child,
@@ -1937,7 +1957,7 @@ button {
 }
 
 .md-preview-inner a {
-  color: #7aa3ef;
+  color: var(--accent);
   text-decoration: none;
 }
 .md-preview-inner a:hover {
@@ -1947,13 +1967,13 @@ button {
 .md-preview-inner code {
   font-family: var(--font-family-mono);
   font-size: 0.9em;
-  background: #2a2a2a;
+  background: var(--surface-3);
   padding: 2px 6px;
   border-radius: var(--radius-md);
 }
 
 .md-preview-inner pre {
-  background: #181818;
+  background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   padding: 12px 14px;
@@ -2392,7 +2412,7 @@ button.prop-bool {
      separation. This keeps WYSIWYG transforms from "jumping" the line. */
   margin: 0.4em 0 0.6em;
   line-height: var(--line-height-tight);
-  color: #f0f0f0;
+  color: var(--text-primary);
 }
 
 .live-md h1 {
@@ -2413,7 +2433,7 @@ button.prop-bool {
 }
 
 .live-md a {
-  color: #7aa3ef;
+  color: var(--accent);
   text-decoration: none;
   cursor: pointer;
 }
@@ -2424,13 +2444,13 @@ button.prop-bool {
 .live-md code {
   font-family: var(--font-family-mono);
   font-size: 0.9em;
-  background: #2a2a2a;
+  background: var(--surface-3);
   padding: 2px 6px;
   border-radius: var(--radius-md);
 }
 
 .live-md pre {
-  background: #181818;
+  background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   padding: 12px 14px;
