@@ -12,6 +12,37 @@ export type BrowserEvent =
   | { id: string; kind: 'nav-state'; canBack: boolean; canForward: boolean }
   | { id: string; kind: 'load-error'; url: string; message: string }
 
+export type SnapshotTrigger = 'file:write' | 'watcher' | 'restore' | 'cascade'
+
+export type SnapshotStatus = 'active' | 'completed'
+
+export type SnapshotManifestEntry = {
+  relPath: string
+  sizeBefore: number
+  hashBefore: string
+}
+
+export type SnapshotManifest = {
+  turnId: string
+  files: SnapshotManifestEntry[]
+  createdAt: string
+  timestamp: number
+  trigger: SnapshotTrigger
+  status: SnapshotStatus
+  agentId?: string
+}
+
+export type SnapshotEnvelope<T> =
+  | { ok: true; data: T }
+  | { ok: false; error: string }
+
+// Emitted on 'snapshot:turn-completed' IPC push event
+export type SnapshotTurnCompletedEvent = {
+  turnId: string
+  timestamp: number
+  files: string[]
+}
+
 export type MarvinAPI = {
   settings: {
     get: () => Promise<{ vaultPath?: string }>
@@ -76,6 +107,13 @@ export type MarvinAPI = {
     kill: (id: string) => Promise<void>
     onData: (id: string, cb: (data: string) => void) => () => void
     onExit: (id: string, cb: (code: number) => void) => () => void
+  }
+  snapshot: {
+    listTurns: () => Promise<SnapshotEnvelope<SnapshotManifest[]>>
+    listForFile: (relPath: string) => Promise<SnapshotEnvelope<SnapshotManifest[]>>
+    read: (turnId: string, relPath: string) => Promise<SnapshotEnvelope<string>>
+    restore: (turnId: string, relPath: string) => Promise<SnapshotEnvelope<{ preTurnId: string }>>
+    onTurnCompleted: (cb: (event: SnapshotTurnCompletedEvent) => void) => () => void
   }
 }
 

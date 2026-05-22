@@ -13,6 +13,8 @@ import { SidebarMenu } from './components/SidebarMenu'
 import { TabBar } from './components/TabBar'
 import { TopBar } from './components/TopBar'
 import { CommandPalette } from './components/CommandPalette'
+import { SnapshotPanel } from './components/SnapshotPanel'
+import { SnapshotToast } from './components/SnapshotToast'
 import type { PaletteItem } from './lib/paletteRanker'
 import type { LayoutMode } from './components/LayoutToggle'
 import './App.css'
@@ -140,6 +142,10 @@ function isBinaryReadError(err: unknown): boolean {
   return err instanceof Error && /MARVIN_BINARY/.test(err.message)
 }
 
+function isDirectoryReadError(err: unknown): boolean {
+  return err instanceof Error && /MARVIN_IS_DIRECTORY/.test(err.message)
+}
+
 function isTooLargeReadError(err: unknown): boolean {
   return err instanceof Error && /MARVIN_TOO_LARGE/.test(err.message)
 }
@@ -195,6 +201,7 @@ function humanizeError(err: unknown): string {
     return `Already exists: ${base}`
   }
   if (/MARVIN_BINARY/.test(raw)) return 'Binary file — opened externally instead.'
+  if (/MARVIN_IS_DIRECTORY/.test(raw)) return 'This is a folder, not a file.'
   const tooLarge = raw.match(/MARVIN_TOO_LARGE: (\d+)/)
   if (tooLarge) {
     const mb = (Number(tooLarge[1]) / (1024 * 1024)).toFixed(1)
@@ -215,6 +222,16 @@ export default function App() {
   const [ctx, setCtx] = useState<ContextState>(null)
   const [error, setError] = useState<string | null>(null)
   const [paletteOpen, setPaletteOpen] = useState(false)
+  const [snapshotPanel, setSnapshotPanel] = useState<
+    | {
+        filePath: string
+        relPath: string
+        currentContent: string
+        initialTurnId?: string
+      }
+    | null
+  >(null)
+  const [turnToast, setTurnToast] = useState<{ turnId: string; files: string[] } | null>(null)
   const [layoutMode, setLayoutModeState] = useState<LayoutMode>(() => readStoredLayout())
   const [urlBarFocusTick, setUrlBarFocusTick] = useState(0)
   const [newAgentTabTick, setNewAgentTabTick] = useState(0)
@@ -331,6 +348,15 @@ export default function App() {
   }, [vaultPath, loadTree])
 
   useEffect(() => {
+    if (!vaultPath) return
+    const off = window.marvin.snapshot.onTurnCompleted((event) => {
+      if (event.files.length === 0) return
+      setTurnToast({ turnId: event.turnId, files: event.files })
+    })
+    return off
+  }, [vaultPath])
+
+  useEffect(() => {
     const off = window.marvin.file.onChanged(async (filePath) => {
       const last = lastDiskContentRef.current.get(filePath)
       if (last == null) return
@@ -359,6 +385,49 @@ export default function App() {
     lastDiskContentRef.current.set(path, content)
     return content
   }, [])
+
+  const openSnapshotPanel = useCallback(
+    async (filePath: string, initialTurnId?: string) => {
+      if (!vaultPath) return
+      const prefix = vaultPath + '/'
+      if (!filePath.startsWith(prefix)) {
+        setError('File is outside the current vault')
+        return
+      }
+      const relPath = filePath.slice(prefix.length)
+      const openTab = tabs.find((t) => isNoteTab(t) && t.path === filePath)
+      let current: string
+      try {
+        current =
+          openTab && isNoteTab(openTab)
+            ? openTab.content
+            : await window.marvin.file.read(filePath)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to read file')
+        return
+      }
+      setSnapshotPanel({ filePath, relPath, currentContent: current, initialTurnId })
+    },
+    [vaultPath, tabs],
+  )
+
+  const handleSnapshotRestored = useCallback(
+    async (filePath: string) => {
+      try {
+        const content = await readFreshContent(filePath)
+        setTabs((prev) =>
+          prev.map((t) =>
+            isNoteTab(t) && t.path === filePath
+              ? { ...t, content, version: t.version + 1 }
+              : t,
+          ),
+        )
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to reload file')
+      }
+    },
+    [readFreshContent],
+  )
 
   const paletteItems = useMemo<PaletteItem[]>(
     () => (vaultPath ? flattenTree(tree, vaultPath) : []),
@@ -434,6 +503,15 @@ export default function App() {
         if (isBinaryReadError(err)) {
           // Hand binary files off to the OS so the right app handles them.
           setError(`Binary file: ${basenameOf(path)} — opened in Finder`)
+          try {
+            await window.marvin.shell.reveal(path)
+          } catch {
+            // ignore secondary failure
+          }
+          return
+        }
+        if (isDirectoryReadError(err)) {
+          setError(`This is a folder: ${basenameOf(path)} — opened in Finder`)
           try {
             await window.marvin.shell.reveal(path)
           } catch {
@@ -595,7 +673,7 @@ export default function App() {
           )
           return
         } catch (err) {
-          if (!isBinaryReadError(err) && !isTooLargeReadError(err)) {
+          if (!isBinaryReadError(err) && !isTooLargeReadError(err) && !isDirectoryReadError(err)) {
             reportError(err)
             return
           }
@@ -899,6 +977,15 @@ export default function App() {
         label: 'Reveal in Finder',
         onClick: () => void window.marvin.shell.reveal(node.path),
       },
+    )
+    if (!node.isDir) {
+      items.push({
+        kind: 'item',
+        label: 'View versions…',
+        onClick: () => void openSnapshotPanel(node.path),
+      })
+    }
+    items.push(
       { kind: 'separator' },
       {
         kind: 'item',
@@ -1077,6 +1164,32 @@ export default function App() {
           items={paletteItems}
           onPick={handlePalettePick}
           onClose={() => setPaletteOpen(false)}
+        />
+      )}
+
+      {snapshotPanel && (
+        <SnapshotPanel
+          filePath={snapshotPanel.filePath}
+          relPath={snapshotPanel.relPath}
+          currentContent={snapshotPanel.currentContent}
+          initialTurnId={snapshotPanel.initialTurnId}
+          onClose={() => setSnapshotPanel(null)}
+          onRestored={handleSnapshotRestored}
+          onError={setError}
+        />
+      )}
+
+      {turnToast && vaultPath && (
+        <SnapshotToast
+          files={turnToast.files}
+          onOpenVersions={() => {
+            const firstRel = turnToast.files[0]
+            if (!firstRel) return
+            const absPath = `${vaultPath}/${firstRel}`
+            void openSnapshotPanel(absPath, turnToast.turnId)
+            setTurnToast(null)
+          }}
+          onDismiss={() => setTurnToast(null)}
         />
       )}
       </div>

@@ -1,10 +1,20 @@
-import { app, BrowserWindow, WebContentsView, ipcMain, dialog, net, protocol, shell } from 'electron'
+import { app, BrowserWindow, WebContentsView, ipcMain, dialog, protocol, shell } from 'electron'
 import path from 'node:path'
 import fs from 'node:fs/promises'
 import { existsSync, statSync } from 'node:fs'
 import { execSync } from 'node:child_process'
 import chokidar, { type FSWatcher } from 'chokidar'
 import * as pty from 'node-pty'
+import {
+  writeSnapshot,
+  newTurnId,
+  ensureVaultGitignore,
+  completeTurn,
+  listTurns,
+  listForFile,
+  readSnapshot,
+  restoreSnapshot,
+} from './snapshot.js'
 
 process.env.APP_ROOT = path.join(__dirname, '..')
 
@@ -42,6 +52,49 @@ let win: BrowserWindow | null = null
 let vaultWatcher: FSWatcher | null = null
 let activeVaultPath: string | null = null
 const ptyProcesses = new Map<string, pty.IPty>()
+
+// AI turn tracking — a PTY write stamps lastPtyWriteAt; file:write checks recency.
+// 2 s window (PRD: PTY_ACTIVE_THRESHOLD = 2000 ms): if PTY was active within 2 s, treat as AI turn.
+const AI_TURN_WINDOW_MS = 2_000
+// 500 ms of silence marks end-of-turn (PRD: TURN_END_THRESHOLD).
+const TURN_END_MS = 500
+let lastPtyWriteAt = 0
+let activeTurnId: string | null = null
+let turnEndTimer: ReturnType<typeof setTimeout> | null = null
+
+async function finalizeTurn(vaultRoot: string, turnId: string): Promise<void> {
+  await completeTurn(vaultRoot, turnId)
+  try {
+    const turns = await listTurns(vaultRoot)
+    const manifest = turns.find((t) => t.turnId === turnId)
+    if (manifest && win && !win.isDestroyed()) {
+      win.webContents.send('snapshot:turn-completed', {
+        turnId,
+        timestamp: manifest.timestamp,
+        files: manifest.files.map((f) => f.relPath),
+      })
+    }
+  } catch {
+    // best-effort
+  }
+}
+
+function scheduleTurnEnd(vaultRoot: string, turnId: string) {
+  if (turnEndTimer) clearTimeout(turnEndTimer)
+  turnEndTimer = setTimeout(() => {
+    turnEndTimer = null
+    activeTurnId = null
+    finalizeTurn(vaultRoot, turnId).catch(() => {})
+  }, TURN_END_MS)
+}
+
+// Last-read cache — populated by file:read, used by the watcher to obtain the
+// "before" content when an external change is detected.
+// Limitation: if the watcher fires for a file that was never read through the
+// app (e.g. edited externally before any app open), the cache misses and no
+// snapshot is taken. This is a known best-effort race between disk change
+// detection and in-process state.
+const fileContentCache = new Map<string, string>()
 
 type BrowserEntry = {
   view: WebContentsView
@@ -180,7 +233,7 @@ app.whenReady().then(() => {
       const data = await fs.readFile(filePath)
       // Buffer is a Uint8Array subclass; Response accepts BodyInit which
       // includes ArrayBuffer / Uint8Array — cast to satisfy TS.
-      return new Response(data as unknown as BodyInit, {
+      return new Response(data as unknown as Uint8Array, {
         headers: { 'Content-Type': mimeFor(filePath) },
       })
     } catch (err) {
@@ -188,6 +241,13 @@ app.whenReady().then(() => {
       return new Response('Error', { status: 500 })
     }
   })
+  // Pre-populate activeVaultPath from persisted settings so IPC handlers
+  // (snapshot:*, vault:tree, etc.) work immediately when the renderer loads,
+  // without waiting for the renderer to call vault:watch first.
+  readSettings().then((s) => {
+    if (s.vaultPath) activeVaultPath = s.vaultPath
+  }).catch(() => {})
+
   createWindow()
 })
 
@@ -228,7 +288,7 @@ type FileNode = {
   children?: FileNode[]
 }
 
-const NOISY_DIRS = new Set(['.git', 'node_modules', '.DS_Store', '.svn', '.hg', '.idea'])
+const NOISY_DIRS = new Set(['.git', 'node_modules', '.DS_Store', '.svn', '.hg', '.idea', '.marvin'])
 const NOISY_FILES = new Set(['.DS_Store', 'Thumbs.db'])
 
 function isNoisy(name: string, isDir: boolean): boolean {
@@ -268,6 +328,9 @@ ipcMain.handle('vault:watch', (_e, vaultPath: string) => {
   vaultWatcher?.close()
   activeVaultPath = vaultPath || null
   if (!vaultPath) return
+  ensureVaultGitignore(vaultPath).catch((err) =>
+    console.error('[snapshot] ensureVaultGitignore failed', err),
+  )
   vaultWatcher = chokidar.watch(vaultPath, {
     ignored: (p) => {
       const base = path.basename(p)
@@ -279,13 +342,61 @@ ipcMain.handle('vault:watch', (_e, vaultPath: string) => {
   const notifyTree = () => win?.webContents.send('vault:changed')
   const notifyFile = (filePath: string) =>
     win?.webContents.send('file:changed', filePath)
+
+  // Snapshot before notifying the renderer of an external change.
+  // Prefers the in-memory cache (last content served via file:read) as the
+  // "before" value. If the cache is empty (file was never opened in the editor,
+  // e.g. Claude created and modified it entirely via PTY), falls back to reading
+  // from disk. Known race: the watcher fires after the write completes, so the
+  // disk read may already reflect the new content — we snapshot best-effort and
+  // log a warning when that happens (hashes equal after snapshot write).
+  const snapshotExternalChange = async (filePath: string): Promise<void> => {
+    const aiActive = Date.now() - lastPtyWriteAt < AI_TURN_WINDOW_MS
+    if (!aiActive || !activeVaultPath || !(filePath === activeVaultPath || filePath.startsWith(activeVaultPath + path.sep))) return
+    const turnId = activeTurnId ?? newTurnId()
+    if (!activeTurnId) activeTurnId = turnId
+    const relPath = path.relative(activeVaultPath, filePath)
+
+    let before = fileContentCache.get(filePath)
+    if (!before) {
+      // Cache miss — read from disk (best-effort; may already be post-write content)
+      try {
+        before = await fs.readFile(filePath, 'utf8')
+        console.warn('[snapshot] watcher cache miss — reading from disk, may be post-write content', { relPath })
+      } catch {
+        return // file unreadable (binary, deleted, permission) — skip
+      }
+    }
+
+    try {
+      await writeSnapshot(activeVaultPath, turnId, relPath, before, 'watcher')
+    } catch (err) {
+      console.error('[snapshot] watcher pre-change snapshot failed', { filePath, turnId, err })
+    }
+    // Update cache to the new on-disk content so the next change has a fresh baseline
+    try {
+      const next = await fs.readFile(filePath, 'utf8')
+      fileContentCache.set(filePath, next)
+    } catch {
+      fileContentCache.delete(filePath)
+    }
+  }
+
   vaultWatcher
     .on('add', (p) => {
       notifyTree()
       notifyFile(p)
     })
-    .on('change', (p) => notifyFile(p))
-    .on('unlink', notifyTree)
+    .on('change', (p) => {
+      snapshotExternalChange(p).catch((err) =>
+        console.error('[snapshot] snapshotExternalChange unhandled', err),
+      )
+      notifyFile(p)
+    })
+    .on('unlink', (p) => {
+      fileContentCache.delete(p)
+      notifyTree()
+    })
     .on('addDir', notifyTree)
     .on('unlinkDir', notifyTree)
 })
@@ -295,6 +406,7 @@ const BINARY_PROBE_BYTES = 8192 // any null byte in the first 8 KB → treat as 
 
 ipcMain.handle('file:read', async (_e, filePath: string) => {
   const stats = await fs.stat(filePath)
+  if (stats.isDirectory()) throw new Error('MARVIN_IS_DIRECTORY')
   if (stats.size > FILE_SIZE_LIMIT) {
     throw new Error(`MARVIN_TOO_LARGE: ${stats.size}`)
   }
@@ -313,10 +425,24 @@ ipcMain.handle('file:read', async (_e, filePath: string) => {
       await fd.close()
     }
   }
-  return fs.readFile(filePath, 'utf8')
+  const content = await fs.readFile(filePath, 'utf8')
+  fileContentCache.set(filePath, content)
+  return content
 })
 
 ipcMain.handle('file:write', async (_e, filePath: string, content: string) => {
+  const aiActive = Date.now() - lastPtyWriteAt < AI_TURN_WINDOW_MS
+  if (aiActive && activeVaultPath && (filePath === activeVaultPath || filePath.startsWith(activeVaultPath + path.sep)) && existsSync(filePath)) {
+    const turnId = activeTurnId ?? newTurnId()
+    if (!activeTurnId) activeTurnId = turnId
+    const relPath = path.relative(activeVaultPath, filePath)
+    try {
+      const before = await fs.readFile(filePath, 'utf8')
+      await writeSnapshot(activeVaultPath, turnId, relPath, before, 'file:write')
+    } catch (err) {
+      console.error('[snapshot] file:write pre-snapshot failed', { filePath, turnId, err })
+    }
+  }
   await fs.writeFile(filePath, content, 'utf8')
 })
 
@@ -488,6 +614,8 @@ async function rewriteLinksAfterMove(
   newPath: string,
 ): Promise<void> {
   const files = await listAllMarkdown(vaultRoot)
+  // One turn-id for all cascade snapshots in this rename operation
+  const cascadeTurnId = newTurnId()
   await Promise.all(
     files.map(async (file) => {
       try {
@@ -495,6 +623,10 @@ async function rewriteLinksAfterMove(
         let next = rewriteOneFile(file, vaultRoot, oldPath, newPath, content)
         next = rewriteWikilinksOneFile(vaultRoot, oldPath, newPath, next)
         if (next !== content) {
+          // Snapshot the file before rewriting its links — always, regardless of
+          // AI turn state, because the user did not edit this file directly.
+          const relPath = path.relative(vaultRoot, file)
+          await writeSnapshot(vaultRoot, cascadeTurnId, relPath, content, 'cascade')
           await fs.writeFile(file, next, 'utf8')
         }
       } catch {
@@ -506,6 +638,21 @@ async function rewriteLinksAfterMove(
 
 ipcMain.handle('path:rename', async (_e, oldPath: string, newPath: string) => {
   if (existsSync(newPath)) throw new Error('Target path already exists')
+
+  // Snapshot the source file before moving if AI turn is active and file is inside vault
+  const aiActive = Date.now() - lastPtyWriteAt < AI_TURN_WINDOW_MS
+  if (aiActive && activeVaultPath && (oldPath === activeVaultPath || oldPath.startsWith(activeVaultPath + path.sep)) && existsSync(oldPath)) {
+    const turnId = activeTurnId ?? newTurnId()
+    if (!activeTurnId) activeTurnId = turnId
+    const relPath = path.relative(activeVaultPath, oldPath)
+    try {
+      const content = await fs.readFile(oldPath, 'utf8')
+      await writeSnapshot(activeVaultPath, turnId, relPath, content, 'file:write')
+    } catch (err) {
+      console.error('[snapshot] path:rename pre-snapshot failed', { oldPath, turnId, err })
+    }
+  }
+
   await fs.mkdir(path.dirname(newPath), { recursive: true })
   await fs.rename(oldPath, newPath)
   if (activeVaultPath && oldPath.startsWith(activeVaultPath)) {
@@ -591,10 +738,26 @@ ipcMain.handle(
           // renderer being torn down (HMR) — ignore
         }
       }
-      ptyProcess.onData((data) => safeSend(`pty:data:${opts.id}`, data))
+      ptyProcess.onData((data) => {
+        // Stamp AI turn activity on every data chunk — Claude streams output
+        // continuously, so the 2s window stays open while it's responding.
+        lastPtyWriteAt = Date.now()
+        if (!activeTurnId) activeTurnId = newTurnId()
+        if (activeVaultPath) scheduleTurnEnd(activeVaultPath, activeTurnId)
+        safeSend(`pty:data:${opts.id}`, data)
+      })
       ptyProcess.onExit(({ exitCode }) => {
         safeSend(`pty:exit:${opts.id}`, exitCode)
         ptyProcesses.delete(opts.id)
+        // When last PTY exits, fire turn-end immediately rather than waiting the timer
+        if (ptyProcesses.size === 0 && activeTurnId && activeVaultPath) {
+          if (turnEndTimer) { clearTimeout(turnEndTimer); turnEndTimer = null }
+          const tid = activeTurnId
+          activeTurnId = null
+          finalizeTurn(activeVaultPath, tid).catch(() => {})
+        } else if (ptyProcesses.size === 0) {
+          activeTurnId = null
+        }
       })
       return { pid: ptyProcess.pid }
     } catch (err) {
@@ -605,6 +768,9 @@ ipcMain.handle(
 )
 
 ipcMain.handle('pty:write', (_e, id: string, data: string) => {
+  lastPtyWriteAt = Date.now()
+  if (!activeTurnId) activeTurnId = newTurnId()
+  if (activeVaultPath) scheduleTurnEnd(activeVaultPath, activeTurnId)
   ptyProcesses.get(id)?.write(data)
 })
 
@@ -814,4 +980,104 @@ ipcMain.handle('browser:close', (_e, id: string) => {
     // ignore
   }
   browserViews.delete(id)
+})
+
+// --- Snapshot IPC handlers ---------------------------------------------------
+
+// PRD format: <ISO-8601-compact>Z-<12-char-hex-salt>  e.g. 20250521T120345Z-abc123def456
+const TURN_ID_RE = /^\d{8}T\d{6}Z-[0-9a-f]{12}$/i
+
+function validateTurnId(turnId: unknown): string {
+  if (typeof turnId !== 'string' || !TURN_ID_RE.test(turnId)) {
+    throw new Error('SNAPSHOT_INVALID_TURN_ID')
+  }
+  return turnId
+}
+
+const MARVIN_DIR_PREFIX = '.marvin'
+
+function validateRelPath(relPath: unknown): string {
+  if (typeof relPath !== 'string' || !relPath) throw new Error('SNAPSHOT_INVALID_REL_PATH')
+  if (relPath.includes('\0')) throw new Error('SNAPSHOT_INVALID_REL_PATH') // L4: null byte
+  const normalized = path.normalize(relPath)
+  if (normalized.startsWith('..') || path.isAbsolute(normalized)) {
+    throw new Error('SNAPSHOT_INVALID_REL_PATH')
+  }
+  // L5: block access to .marvin/ internals via IPC
+  if (normalized === MARVIN_DIR_PREFIX || normalized.startsWith(MARVIN_DIR_PREFIX + path.sep)) {
+    throw new Error('SNAPSHOT_INVALID_REL_PATH')
+  }
+  return normalized
+}
+
+function requireVault(): string {
+  if (!activeVaultPath) throw new Error('SNAPSHOT_NO_VAULT')
+  return activeVaultPath
+}
+
+type SnapshotEnvelope<T> =
+  | { ok: true; data: T }
+  | { ok: false; error: string }
+
+function ok<T>(data: T): SnapshotEnvelope<T> {
+  return { ok: true, data }
+}
+
+// M9: never leak absolute host paths or fs error details to the renderer.
+// Whitelist our own error codes; map fs errors to SNAPSHOT_FS_<CODE>;
+// everything else becomes SNAPSHOT_INTERNAL_ERROR.
+const KNOWN_CODE_RE = /^(MARVIN|SNAPSHOT)_[A-Z_]+$/
+function err(e: unknown): SnapshotEnvelope<never> {
+  const message = e instanceof Error ? e.message : ''
+  if (KNOWN_CODE_RE.test(message)) return { ok: false, error: message }
+  const fsCode = (e as NodeJS.ErrnoException)?.code
+  return { ok: false, error: fsCode ? `SNAPSHOT_FS_${fsCode}` : 'SNAPSHOT_INTERNAL_ERROR' }
+}
+
+ipcMain.handle('snapshot:listTurns', async () => {
+  try {
+    const vault = requireVault()
+    const turns = await listTurns(vault)
+    return ok(turns)
+  } catch (e) {
+    return err(e)
+  }
+})
+
+ipcMain.handle('snapshot:listForFile', async (_e, relPath: unknown) => {
+  try {
+    const vault = requireVault()
+    const rel = validateRelPath(relPath)
+    const turns = await listForFile(vault, rel)
+    return ok(turns)
+  } catch (e) {
+    return err(e)
+  }
+})
+
+ipcMain.handle('snapshot:read', async (_e, turnId: unknown, relPath: unknown) => {
+  try {
+    const vault = requireVault()
+    const tid = validateTurnId(turnId)
+    const rel = validateRelPath(relPath)
+    const content = await readSnapshot(vault, tid, rel)
+    return ok(content)
+  } catch (e) {
+    return err(e)
+  }
+})
+
+ipcMain.handle('snapshot:restore', async (_e, turnId: unknown, relPath: unknown) => {
+  try {
+    const vault = requireVault()
+    const tid = validateTurnId(turnId)
+    const rel = validateRelPath(relPath)
+    const preTurnId = await restoreSnapshot(vault, tid, rel)
+    // Invalidate cache so the next file:read picks up the restored content
+    const absPath = path.join(vault, rel)
+    fileContentCache.delete(absPath)
+    return ok({ preTurnId })
+  } catch (e) {
+    return err(e)
+  }
 })
