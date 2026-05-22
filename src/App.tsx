@@ -9,7 +9,7 @@ import { Splitter } from './components/Splitter'
 import { ImageViewer } from './components/ImageViewer'
 import { InputDialog } from './components/InputDialog'
 import { ContextMenu, type MenuItem } from './components/ContextMenu'
-import { SidebarMenu } from './components/SidebarMenu'
+import { FileTreeToolbar } from './components/FileTreeToolbar'
 import { TabBar } from './components/TabBar'
 import { TopBar } from './components/TopBar'
 import { CommandPalette } from './components/CommandPalette'
@@ -172,6 +172,17 @@ function normalizeUrl(input: string): string {
   return `https://www.google.com/search?q=${q}`
 }
 
+function collectDirPaths(nodes: FileNode[]): string[] {
+  const out: string[] = []
+  const walk = (n: FileNode) => {
+    if (!n.isDir) return
+    out.push(n.path)
+    n.children?.forEach(walk)
+  }
+  nodes.forEach(walk)
+  return out
+}
+
 function flattenTree(nodes: FileNode[], vaultPath: string): PaletteItem[] {
   const out: PaletteItem[] = []
   const walk = (n: FileNode) => {
@@ -234,6 +245,7 @@ export default function App() {
   const [error, setError] = useState<string | null>(null)
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [openPaths, setOpenPaths] = useState<Set<string>>(() => new Set())
   const [snapshotPanel, setSnapshotPanel] = useState<
     | {
         filePath: string
@@ -1258,15 +1270,31 @@ export default function App() {
       <aside className="sidebar">
         <div className="sidebar-header">
           <span className="vault-name">{vaultPath.split('/').pop()}</span>
-          <SidebarMenu
-            onNewNote={() => setDialog({ kind: 'newNote', parentDir: vaultPath })}
+          <FileTreeToolbar
+            isAnyOpen={openPaths.size > 0}
+            onNewFile={() => setDialog({ kind: 'newNote', parentDir: vaultPath })}
             onNewFolder={() => setDialog({ kind: 'newFolder', parentDir: vaultPath })}
+            onRefresh={() => void loadTree(vaultPath)}
+            onToggleAll={() =>
+              setOpenPaths((prev) =>
+                prev.size > 0 ? new Set() : new Set(collectDirPaths(tree)),
+              )
+            }
           />
         </div>
         <FileTree
           nodes={tree}
           vaultPath={vaultPath}
           selectedPath={activeTab && isNoteTab(activeTab) ? activeTab.path : null}
+          openPaths={openPaths}
+          onToggleOpen={(p) =>
+            setOpenPaths((prev) => {
+              const next = new Set(prev)
+              if (next.has(p)) next.delete(p)
+              else next.add(p)
+              return next
+            })
+          }
           onSelect={handleSelectFile}
           onContextMenu={handleNodeContextMenu}
           onMove={handleDropMove}

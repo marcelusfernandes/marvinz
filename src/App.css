@@ -35,6 +35,28 @@ button {
   cursor: pointer;
 }
 
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
 .bootstrap,
 .welcome {
   display: flex;
@@ -276,8 +298,9 @@ button {
 }
 
 .icon-btn {
-  width: 22px;
-  height: 22px;
+  width: 16px;
+  height: 16px;
+  padding: 0;
   border-radius: 4px;
   display: flex;
   align-items: center;
@@ -289,6 +312,12 @@ button {
 .icon-btn:hover {
   background: var(--bg-3);
   color: var(--fg);
+}
+
+.file-tree-toolbar {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .file-tree,
@@ -1649,25 +1678,6 @@ button {
 .file-tree-row.file.non-md .name {
   color: var(--fg-3);
   font-style: italic;
-}
-
-.sidebar-menu {
-  position: relative;
-}
-
-.sidebar-menu-pop {
-  position: absolute;
-  top: 28px;
-  right: 0;
-  background: var(--bg-2);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 4px;
-  min-width: 160px;
-  z-index: 50;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
-  display: flex;
-  flex-direction: column;
 }
 
 .ctx-menu {
