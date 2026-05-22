@@ -45,9 +45,15 @@ export type SnapshotTurnCompletedEvent = {
   files: string[]
 }
 
+export type Settings = {
+  vaultPath?: string
+  iconTheme?: 'codicon' | 'material'
+}
+
 export type MarvinAPI = {
   settings: {
-    get: () => Promise<{ vaultPath?: string }>
+    get: () => Promise<Settings>
+    set: (partial: Partial<Settings>) => Promise<Settings>
   }
   vault: {
     pick: () => Promise<string | null>

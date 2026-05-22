@@ -125,7 +125,10 @@ function applyBounds(entry: BrowserEntry) {
 
 const SETTINGS_FILE = () => path.join(app.getPath('userData'), 'settings.json')
 
-type Settings = { vaultPath?: string }
+type Settings = {
+  vaultPath?: string
+  iconTheme?: 'codicon' | 'material'
+}
 
 async function readSettings(): Promise<Settings> {
   try {
@@ -277,6 +280,16 @@ app.on('activate', () => {
 })
 
 ipcMain.handle('settings:get', () => readSettings())
+
+// Read-modify-write so callers can update one key (e.g. iconTheme) without
+// having to know — or clobber — unrelated keys like vaultPath. Resolved
+// settings are returned so the renderer can sync its local cache.
+ipcMain.handle('settings:set', async (_e, partial: Partial<Settings>) => {
+  const current = await readSettings()
+  const next: Settings = { ...current, ...partial }
+  await writeSettings(next)
+  return next
+})
 
 ipcMain.handle('shell:openExternal', async (_e, url: string) => {
   if (!/^(https?|mailto):/i.test(url)) return

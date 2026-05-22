@@ -13,6 +13,8 @@ import { SidebarMenu } from './components/SidebarMenu'
 import { TabBar } from './components/TabBar'
 import { TopBar } from './components/TopBar'
 import { CommandPalette } from './components/CommandPalette'
+import { SettingsModal } from './components/SettingsModal'
+import { seedFromMain } from './lib/settingsStore'
 import { SnapshotPanel } from './components/SnapshotPanel'
 import { SnapshotToast } from './components/SnapshotToast'
 import { ExternalChangeBanner } from './components/ExternalChangeBanner'
@@ -230,6 +232,7 @@ export default function App() {
   const [ctx, setCtx] = useState<ContextState>(null)
   const [error, setError] = useState<string | null>(null)
   const [paletteOpen, setPaletteOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const [snapshotPanel, setSnapshotPanel] = useState<
     | {
         filePath: string
@@ -351,6 +354,7 @@ export default function App() {
         await loadTree(settings.vaultPath)
         await window.marvin.vault.watch(settings.vaultPath)
       }
+      seedFromMain(settings)
       setBootstrapped(true)
     })()
   }, [loadTree])
@@ -838,7 +842,7 @@ export default function App() {
 
   // Hide all browser views while any React modal/popover is open, so they
   // don't paint over the modal (WebContentsView is always above the renderer).
-  const modalOpen = paletteOpen || dialog != null || ctx != null || error != null
+  const modalOpen = paletteOpen || settingsOpen || dialog != null || ctx != null || error != null
   useEffect(() => {
     void window.marvin.browser.setAllHidden(modalOpen)
   }, [modalOpen])
@@ -875,6 +879,12 @@ export default function App() {
         if (!vaultPath) return
         e.preventDefault()
         setUrlBarFocusTick((t) => t + 1)
+        return
+      }
+      // Cmd+, → settings
+      if (!e.shiftKey && e.key === ',') {
+        e.preventDefault()
+        setSettingsOpen(true)
         return
       }
     }
@@ -1175,6 +1185,7 @@ export default function App() {
     <div className="shell">
       <TopBar
         onOpenPalette={() => setPaletteOpen(true)}
+        onOpenSettings={() => setSettingsOpen(true)}
         layoutMode={layoutMode}
         onLayoutChange={setLayoutMode}
       />
@@ -1331,6 +1342,8 @@ export default function App() {
           onClose={() => setPaletteOpen(false)}
         />
       )}
+
+      {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} />}
 
       {snapshotPanel && (
         <SnapshotPanel
