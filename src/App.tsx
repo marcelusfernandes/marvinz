@@ -210,6 +210,7 @@ function humanizeError(err: unknown): string {
   }
   if (/MARVIN_BINARY/.test(raw)) return 'Binary file — opened externally instead.'
   if (/MARVIN_IS_DIRECTORY/.test(raw)) return 'This is a folder, not a file.'
+  if (/MARVIN_OUTSIDE_VAULT/.test(raw)) return 'File is no longer in the active vault. Refreshing tree…'
   const tooLarge = raw.match(/MARVIN_TOO_LARGE: (\d+)/)
   if (tooLarge) {
     const mb = (Number(tooLarge[1]) / (1024 * 1024)).toFixed(1)
@@ -314,8 +315,15 @@ export default function App() {
 
   const activeTab = tabs.find((t) => t.id === activeTabId) ?? null
 
+  // Monotonic counter that invalidates in-flight tree responses when a newer
+  // load is started (e.g. rapid vault switching). Without this, a slow
+  // response from the previous vault can overwrite the tree for the new one.
+  const loadGenRef = useRef(0)
+
   const loadTree = useCallback(async (vp: string) => {
+    const gen = ++loadGenRef.current
     const t = await window.marvin.vault.tree(vp)
+    if (gen !== loadGenRef.current) return
     setTree(t)
   }, [])
 
@@ -347,13 +355,23 @@ export default function App() {
         },
       ])
       if (settings.vaultPath) {
-        setVaultPath(settings.vaultPath)
-        await loadTree(settings.vaultPath)
+        // Set the watch boundary before vaultPath so any subsequent file IPC
+        // observes the active vault as allowed. The tree load is triggered
+        // by the dedicated vaultPath effect below.
         await window.marvin.vault.watch(settings.vaultPath)
+        setVaultPath(settings.vaultPath)
       }
       setBootstrapped(true)
     })()
-  }, [loadTree])
+  }, [])
+
+  // Single source of truth for loading the tree whenever the active vault
+  // changes (bootstrap, switch via handlePickVault). `loadTree`'s generation
+  // token discards stale responses from a previous vault.
+  useEffect(() => {
+    if (!vaultPath) return
+    void loadTree(vaultPath)
+  }, [vaultPath, loadTree])
 
   useEffect(() => {
     if (!vaultPath) return
@@ -495,13 +513,24 @@ export default function App() {
   const handlePickVault = async () => {
     const picked = await window.marvin.vault.pick()
     if (!picked) return
+    if (picked === vaultPath) {
+      // Same vault re-selected: setVaultPath would be a no-op and the
+      // vaultPath useEffect wouldn't fire, leaving the tree blank.
+      // Refresh explicitly — gen token still guards against any race.
+      await loadTree(picked)
+      return
+    }
+    // Set the main-process boundary BEFORE any renderer state changes, so any
+    // file IPC that races in observes the new vault as allowed.
+    await window.marvin.vault.watch(picked)
     setVaultPath(picked)
+    setTree([])
     setTabs([])
     setActiveTabId(null)
     lastDiskContentRef.current.clear()
     bufferContentRef.current.clear()
-    await loadTree(picked)
-    await window.marvin.vault.watch(picked)
+    // The useEffect on `vaultPath` is the single trigger for loadTree —
+    // calling it here would race with a stale prior response.
   }
 
   // Open a path. If a tab already shows it, focus that tab. Otherwise create a new one.
@@ -980,6 +1009,10 @@ export default function App() {
 
   const reportError = (err: unknown) => {
     setError(humanizeError(err))
+    const raw = err instanceof Error ? err.message : String(err)
+    if (/MARVIN_OUTSIDE_VAULT/.test(raw) && vaultPath) {
+      void loadTree(vaultPath).catch(() => {})
+    }
   }
 
   const renameInTabs = (oldPath: string, newPath: string) => {
