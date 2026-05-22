@@ -13,6 +13,7 @@ import {
 } from '../lib/frontmatter'
 import { Properties } from './Properties'
 import { LiveMarkdown } from './LiveMarkdown'
+import { useColorTheme } from '../lib/colorTheme'
 import { CsvEditor } from './CsvEditor'
 import { HtmlPreview } from './HtmlPreview'
 import { PathSuggest } from './PathSuggest'
@@ -73,6 +74,7 @@ export function Editor({
   onBack,
   onForward,
 }: Props) {
+  const resolvedTheme = useColorTheme()
   const [value, setValue] = useState(initialContent)
   const [mode, setMode] = useState<Mode>('preview')
   const [saving, setSaving] = useState(false)
@@ -267,7 +269,7 @@ export function Editor({
         <CodeMirror
           value={value}
           height="100%"
-          theme="dark"
+          theme={resolvedTheme}
           extensions={extensions}
           onChange={handleSourceChange}
           basicSetup={{

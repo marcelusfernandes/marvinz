@@ -48,6 +48,7 @@ export type SnapshotTurnCompletedEvent = {
 export type Settings = {
   vaultPath?: string
   iconTheme?: 'codicon' | 'material'
+  colorTheme?: 'light' | 'dark' | 'system'
 }
 
 export type MarvinAPI = {

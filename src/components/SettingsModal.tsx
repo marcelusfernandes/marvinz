@@ -15,6 +15,7 @@ export function SettingsModal({ onClose }: Props) {
   }, [onClose])
 
   const iconTheme = useSetting('iconTheme') ?? 'codicon'
+  const colorTheme = useSetting('colorTheme') ?? 'system'
 
   return (
     <div className="modal-backdrop" onMouseDown={onClose}>
@@ -28,6 +29,43 @@ export function SettingsModal({ onClose }: Props) {
 
         <section className="modal-section">
           <div className="modal-section-header">Appearance</div>
+          <div className="modal-section-row">
+            <div>
+              <div className="modal-section-label">Color theme</div>
+              <div className="modal-section-hint">
+                Light, dark, or follow the system preference.
+              </div>
+            </div>
+            <div className="segmented" role="radiogroup" aria-label="Color theme">
+              <button
+                type="button"
+                role="radio"
+                aria-checked={colorTheme === 'light'}
+                className={`segmented-btn${colorTheme === 'light' ? ' active' : ''}`}
+                onClick={() => void setSetting('colorTheme', 'light')}
+              >
+                Light
+              </button>
+              <button
+                type="button"
+                role="radio"
+                aria-checked={colorTheme === 'dark'}
+                className={`segmented-btn${colorTheme === 'dark' ? ' active' : ''}`}
+                onClick={() => void setSetting('colorTheme', 'dark')}
+              >
+                Dark
+              </button>
+              <button
+                type="button"
+                role="radio"
+                aria-checked={colorTheme === 'system'}
+                className={`segmented-btn${colorTheme === 'system' ? ' active' : ''}`}
+                onClick={() => void setSetting('colorTheme', 'system')}
+              >
+                System
+              </button>
+            </div>
+          </div>
           <div className="modal-section-row">
             <div>
               <div className="modal-section-label">File tree icons</div>

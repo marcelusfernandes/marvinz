@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Marvinz — Design Tokens</title>
+<style>
+  /*
+   * Mirror of src/App.css tokens. Kept in sync manually for now.
+   * If the canonical tokens change, update this file too.
+   */
+  :root {
+    --bg-app: #ececec;
+    --surface-1: #ffffff;
+    --surface-2: #f7f7f8;
+    --surface-3: #ededee;
+    --border: #e3e3e5;
+    --border-strong: #d1d1d4;
+    --text-primary: #1a1a1a;
+    --text-secondary: #6b6b6f;
+    --text-tertiary: #9a9a9e;
+    --accent: #c4691f;
+    --accent-bg: #c4691f14;
+
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-5: 24px;
+    --space-6: 32px;
+    --space-7: 48px;
+
+    --radius-sm: 3px;
+    --radius-md: 6px;
+    --radius-lg: 10px;
+    --radius-pill: 999px;
+
+    --font-size-xs: 0.714rem;
+    --font-size-sm: 0.857rem;
+    --font-size-md: 1rem;
+    --font-size-lg: 1.143rem;
+    --font-size-xl: 1.429rem;
+
+    --line-height-tight: 1.2;
+    --line-height-normal: 1.45;
+    --line-height-loose: 1.7;
+
+    --font-weight-regular: 400;
+    --font-weight-medium: 500;
+    --font-weight-semibold: 600;
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+    --shadow-lg: 0 12px 30px rgba(0, 0, 0, 0.15);
+
+    --duration-fast: 120ms;
+    --duration-normal: 200ms;
+    --duration-slow: 300ms;
+
+    --ease-out: cubic-bezier(0, 0, 0.2, 1);
+    --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  [data-theme='dark'] {
+    --bg-app: #121212;
+    --surface-1: #1e1e1e;
+    --surface-2: #181818;
+    --surface-3: #232323;
+    --border: #2e2e2e;
+    --border-strong: #3a3a3a;
+    --text-primary: #e6e6e6;
+    --text-secondary: #a0a0a0;
+    --text-tertiary: #6a6a6a;
+    --accent: #c4691f;
+    --accent-bg: #c4691f22;
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.15);
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.25);
+    --shadow-lg: 0 12px 30px rgba(0, 0, 0, 0.45);
+  }
+
+  * { box-sizing: border-box; }
+  html { font-size: 14px; }
+  body {
+    margin: 0;
+    padding: var(--space-6);
+    background: var(--bg-app);
+    color: var(--text-primary);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    transition: background var(--duration-normal) var(--ease-out),
+                color var(--duration-normal) var(--ease-out);
+  }
+
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: var(--space-6);
+    padding-bottom: var(--space-4);
+    border-bottom: 1px solid var(--border);
+  }
+  header h1 {
+    font-size: var(--font-size-xl);
+    font-weight: var(--font-weight-semibold);
+    margin: 0;
+  }
+  header .sub {
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+  }
+  .theme-toggle {
+    display: inline-flex;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: var(--space-1);
+    gap: var(--space-1);
+  }
+  .theme-toggle button {
+    background: none;
+    border: none;
+    padding: var(--space-1) var(--space-3);
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    font: inherit;
+    font-size: var(--font-size-sm);
+    cursor: pointer;
+  }
+  .theme-toggle button.active {
+    background: var(--surface-1);
+    color: var(--text-primary);
+    box-shadow: var(--shadow-sm);
+  }
+
+  section {
+    margin-bottom: var(--space-7);
+  }
+  section h2 {
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-semibold);
+    margin: 0 0 var(--space-4);
+    color: var(--text-primary);
+  }
+  section .desc {
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+    margin: 0 0 var(--space-4);
+    max-width: 60ch;
+  }
+
+  /* Grid for swatch cards */
+  .grid {
+    display: grid;
+    gap: var(--space-3);
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  }
+  .card {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: var(--space-3);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+  .card .name {
+    font-family: ui-monospace, SF Mono, Menlo, monospace;
+    font-size: var(--font-size-sm);
+    color: var(--text-primary);
+  }
+  .card .value {
+    font-family: ui-monospace, SF Mono, Menlo, monospace;
+    font-size: var(--font-size-xs);
+    color: var(--text-tertiary);
+  }
+  .card .preview {
+    flex-shrink: 0;
+  }
+
+  /* Color swatches */
+  .swatch {
+    width: 100%;
+    height: 48px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+  }
+  /* Surface swatches need internal contrast indicator */
+  .swatch.surface { background: var(--target); }
+
+  /* Spacing bars */
+  .space-row { display: flex; flex-direction: column; gap: var(--space-1); padding: var(--space-2) 0; }
+  .space-row .bar {
+    background: var(--accent);
+    border-radius: var(--radius-sm);
+    height: 12px;
+  }
+
+  /* Radius examples */
+  .radius-box {
+    width: 100%;
+    height: 64px;
+    background: var(--accent-bg);
+    border: 1px solid var(--accent);
+  }
+
+  /* Typography examples */
+  .type-row {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: var(--space-3) var(--space-4);
+    margin-bottom: var(--space-2);
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: var(--space-4);
+  }
+  .type-row .label {
+    font-family: ui-monospace, SF Mono, Menlo, monospace;
+    font-size: var(--font-size-xs);
+    color: var(--text-tertiary);
+    flex-shrink: 0;
+    min-width: 200px;
+  }
+  .type-row .sample {
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* Shadow boxes */
+  .shadow-box {
+    width: 100%;
+    height: 64px;
+    background: var(--surface-1);
+    border-radius: var(--radius-md);
+  }
+
+  /* Motion demo */
+  .motion-demo {
+    width: 48px;
+    height: 48px;
+    background: var(--accent);
+    border-radius: var(--radius-sm);
+    margin: var(--space-2) auto;
+    transform: translateX(0);
+  }
+  .motion-card:hover .motion-demo {
+    transform: translateX(40px);
+  }
+  .motion-card[data-curve='ease-out'] .motion-demo {
+    transition: transform var(--target) var(--ease-out);
+  }
+  .motion-card[data-curve='ease-in-out'] .motion-demo {
+    transition: transform var(--target) var(--ease-in-out);
+  }
+
+  footer {
+    margin-top: var(--space-7);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--border);
+    font-size: var(--font-size-xs);
+    color: var(--text-tertiary);
+    text-align: center;
+  }
+  footer code { color: var(--text-secondary); }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>Marvinz · Design Tokens</h1>
+    <div class="sub">Visual preview of the design system foundation. Source of truth: <code>src/App.css</code>.</div>
+  </div>
+  <div class="theme-toggle" role="radiogroup" aria-label="Theme">
+    <button data-theme-set="light" class="active">Light</button>
+    <button data-theme-set="dark">Dark</button>
+    <button data-theme-set="system">System</button>
+  </div>
+</header>
+
+<section>
+  <h2>Surfaces &amp; text</h2>
+  <p class="desc">Background and text colors. Surfaces 1→3 go from highest contrast to lowest contrast against <code>--bg-app</code>.</p>
+  <div class="grid">
+    <div class="card"><div class="swatch surface" style="--target: var(--bg-app); background: var(--bg-app);"></div><div class="name">--bg-app</div><div class="value">outermost background</div></div>
+    <div class="card"><div class="swatch surface" style="background: var(--surface-1);"></div><div class="name">--surface-1</div><div class="value">panel cards</div></div>
+    <div class="card"><div class="swatch surface" style="background: var(--surface-2);"></div><div class="name">--surface-2</div><div class="value">subtle contrast</div></div>
+    <div class="card"><div class="swatch surface" style="background: var(--surface-3);"></div><div class="name">--surface-3</div><div class="value">hover / active</div></div>
+    <div class="card"><div class="swatch surface" style="background: var(--border);"></div><div class="name">--border</div><div class="value">dividers, outlines</div></div>
+    <div class="card"><div class="swatch surface" style="background: var(--border-strong);"></div><div class="name">--border-strong</div><div class="value">emphasis outline</div></div>
+    <div class="card"><div class="swatch surface" style="background: var(--text-primary);"></div><div class="name">--text-primary</div><div class="value">body, titles</div></div>
+    <div class="card"><div class="swatch surface" style="background: var(--text-secondary);"></div><div class="name">--text-secondary</div><div class="value">labels, captions</div></div>
+    <div class="card"><div class="swatch surface" style="background: var(--text-tertiary);"></div><div class="name">--text-tertiary</div><div class="value">placeholders, icons inativos</div></div>
+    <div class="card"><div class="swatch surface" style="background: var(--accent);"></div><div class="name">--accent</div><div class="value">brand</div></div>
+    <div class="card"><div class="swatch surface" style="background: var(--accent-bg);"></div><div class="name">--accent-bg</div><div class="value">accent overlay</div></div>
+  </div>
+</section>
+
+<section>
+  <h2>Spacing</h2>
+  <p class="desc">4px base unit. Use for padding, margin, gap. Bars rendered at actual size against the accent color.</p>
+  <div class="grid">
+    <div class="card"><div class="space-row"><div class="bar" style="width: var(--space-1);"></div></div><div class="name">--space-1</div><div class="value">4px · tight gaps</div></div>
+    <div class="card"><div class="space-row"><div class="bar" style="width: var(--space-2);"></div></div><div class="name">--space-2</div><div class="value">8px · base</div></div>
+    <div class="card"><div class="space-row"><div class="bar" style="width: var(--space-3);"></div></div><div class="name">--space-3</div><div class="value">12px · comfortable</div></div>
+    <div class="card"><div class="space-row"><div class="bar" style="width: var(--space-4);"></div></div><div class="name">--space-4</div><div class="value">16px · panels</div></div>
+    <div class="card"><div class="space-row"><div class="bar" style="width: var(--space-5);"></div></div><div class="name">--space-5</div><div class="value">24px · open</div></div>
+    <div class="card"><div class="space-row"><div class="bar" style="width: var(--space-6);"></div></div><div class="name">--space-6</div><div class="value">32px · generous</div></div>
+    <div class="card"><div class="space-row"><div class="bar" style="width: var(--space-7);"></div></div><div class="name">--space-7</div><div class="value">48px · editorial</div></div>
+  </div>
+</section>
+
+<section>
+  <h2>Radius</h2>
+  <p class="desc">From small chrome corners up to pills for badges.</p>
+  <div class="grid">
+    <div class="card"><div class="radius-box" style="border-radius: var(--radius-sm);"></div><div class="name">--radius-sm</div><div class="value">3px · micro chrome</div></div>
+    <div class="card"><div class="radius-box" style="border-radius: var(--radius-md);"></div><div class="name">--radius-md</div><div class="value">6px · inputs, buttons</div></div>
+    <div class="card"><div class="radius-box" style="border-radius: var(--radius-lg);"></div><div class="name">--radius-lg</div><div class="value">10px · modals, popovers</div></div>
+    <div class="card"><div class="radius-box" style="border-radius: var(--radius-pill);"></div><div class="name">--radius-pill</div><div class="value">999px · badges, tags</div></div>
+  </div>
+</section>
+
+<section>
+  <h2>Typography</h2>
+  <p class="desc">Sizes in rem (base = 14px). Apply line-height + weight independently.</p>
+  <div class="type-row"><div class="label">--font-size-xs · 0.714rem (10px)</div><div class="sample" style="font-size: var(--font-size-xs);">Status badge captions</div></div>
+  <div class="type-row"><div class="label">--font-size-sm · 0.857rem (12px)</div><div class="sample" style="font-size: var(--font-size-sm);">File tree row, tab label, modal hint</div></div>
+  <div class="type-row"><div class="label">--font-size-md · 1rem (14px)</div><div class="sample" style="font-size: var(--font-size-md);">Default body text, editor content</div></div>
+  <div class="type-row"><div class="label">--font-size-lg · 1.143rem (16px)</div><div class="sample" style="font-size: var(--font-size-lg);">Section headers, sidebar group titles</div></div>
+  <div class="type-row"><div class="label">--font-size-xl · 1.429rem (20px)</div><div class="sample" style="font-size: var(--font-size-xl); font-weight: var(--font-weight-semibold);">Modal titles, page headings</div></div>
+
+  <p class="desc" style="margin-top: var(--space-4);">Weights:</p>
+  <div class="type-row"><div class="label">--font-weight-regular · 400</div><div class="sample" style="font-weight: var(--font-weight-regular);">The quick brown fox jumps over the lazy dog</div></div>
+  <div class="type-row"><div class="label">--font-weight-medium · 500</div><div class="sample" style="font-weight: var(--font-weight-medium);">The quick brown fox jumps over the lazy dog</div></div>
+  <div class="type-row"><div class="label">--font-weight-semibold · 600</div><div class="sample" style="font-weight: var(--font-weight-semibold);">The quick brown fox jumps over the lazy dog</div></div>
+
+  <p class="desc" style="margin-top: var(--space-4);">Line heights:</p>
+  <div class="type-row"><div class="label">--line-height-tight · 1.2</div><div class="sample" style="line-height: var(--line-height-tight); white-space: normal;">Linha condensada que ocupa pouca altura — bom para títulos e botões compactos.</div></div>
+  <div class="type-row"><div class="label">--line-height-normal · 1.45</div><div class="sample" style="line-height: var(--line-height-normal); white-space: normal;">Altura de linha padrão para corpo de texto em parágrafos.</div></div>
+  <div class="type-row"><div class="label">--line-height-loose · 1.7</div><div class="sample" style="line-height: var(--line-height-loose); white-space: normal;">Espaçamento mais arejado para leitura longa e copy editorial.</div></div>
+</section>
+
+<section>
+  <h2>Shadow</h2>
+  <p class="desc">Soft in light theme, deeper alpha in dark. Aplica em cards e overlays.</p>
+  <div class="grid">
+    <div class="card"><div class="shadow-box" style="box-shadow: var(--shadow-sm);"></div><div class="name">--shadow-sm</div><div class="value">hover lift, buttons</div></div>
+    <div class="card"><div class="shadow-box" style="box-shadow: var(--shadow-md);"></div><div class="name">--shadow-md</div><div class="value">panel cards</div></div>
+    <div class="card"><div class="shadow-box" style="box-shadow: var(--shadow-lg);"></div><div class="name">--shadow-lg</div><div class="value">modals, popovers</div></div>
+  </div>
+</section>
+
+<section>
+  <h2>Motion</h2>
+  <p class="desc">Passe o mouse em cima de cada card pra ver a duração e a curva.</p>
+  <div class="grid">
+    <div class="card motion-card" data-curve="ease-out" style="--target: var(--duration-fast);"><div class="motion-demo"></div><div class="name">--duration-fast + --ease-out</div><div class="value">120ms · hovers</div></div>
+    <div class="card motion-card" data-curve="ease-out" style="--target: var(--duration-normal);"><div class="motion-demo"></div><div class="name">--duration-normal + --ease-out</div><div class="value">200ms · clicks</div></div>
+    <div class="card motion-card" data-curve="ease-in-out" style="--target: var(--duration-slow);"><div class="motion-demo"></div><div class="name">--duration-slow + --ease-in-out</div><div class="value">300ms · modals, panels</div></div>
+  </div>
+</section>
+
+<footer>
+  Source: <code>src/App.css</code> · Rules: <code>.claude/rules/design-tokens.md</code> · Toggle theme top right.
+</footer>
+
+<script>
+  const buttons = document.querySelectorAll('.theme-toggle button');
+  const mq = window.matchMedia('(prefers-color-scheme: dark)');
+
+  function applyTheme(mode) {
+    if (mode === 'system') {
+      document.documentElement.dataset.theme = mq.matches ? 'dark' : 'light';
+    } else {
+      document.documentElement.dataset.theme = mode;
+    }
+    buttons.forEach((b) => b.classList.toggle('active', b.dataset.themeSet === mode));
+    localStorage.setItem('tokens-preview-theme', mode);
+  }
+
+  buttons.forEach((b) => b.addEventListener('click', () => applyTheme(b.dataset.themeSet)));
+  mq.addEventListener('change', () => {
+    if (localStorage.getItem('tokens-preview-theme') === 'system') applyTheme('system');
+  });
+
+  applyTheme(localStorage.getItem('tokens-preview-theme') || 'light');
+</script>
+</body>
+</html>
