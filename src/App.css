@@ -233,16 +233,6 @@ button {
   color: var(--fg);
 }
 
-.layout-icon-thin {
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1;
-}
-
-.layout-icon-fill {
-  fill: currentColor;
-}
-
 .topbar-search-shortcut kbd,
 .palette-footer kbd {
   display: inline-flex;
