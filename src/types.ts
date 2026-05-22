@@ -14,7 +14,7 @@ export type BrowserEvent =
 
 export type FileChangeSource = 'agent' | 'external'
 
-export type SnapshotTrigger = 'file:write' | 'watcher' | 'restore' | 'cascade' | 'buffer-save'
+export type SnapshotTrigger = 'file:write' | 'watcher' | 'restore' | 'cascade' | 'buffer-save' | 'external-rejected'
 
 export type SnapshotStatus = 'active' | 'completed'
 
@@ -45,9 +45,15 @@ export type SnapshotTurnCompletedEvent = {
   files: string[]
 }
 
+export type Settings = {
+  vaultPath?: string
+  iconTheme?: 'codicon' | 'material'
+}
+
 export type MarvinAPI = {
   settings: {
-    get: () => Promise<{ vaultPath?: string }>
+    get: () => Promise<Settings>
+    set: (partial: Partial<Settings>) => Promise<Settings>
   }
   vault: {
     pick: () => Promise<string | null>
@@ -116,6 +122,7 @@ export type MarvinAPI = {
     read: (turnId: string, relPath: string) => Promise<SnapshotEnvelope<string>>
     restore: (turnId: string, relPath: string) => Promise<SnapshotEnvelope<{ preTurnId: string }>>
     saveBuffer: (relPath: string, content: string) => Promise<SnapshotEnvelope<{ turnId: string; saved: boolean }>>
+    saveExternalChange: (relPath: string, content: string) => Promise<SnapshotEnvelope<{ turnId: string; saved: boolean }>>
     onTurnCompleted: (cb: (event: SnapshotTurnCompletedEvent) => void) => () => void
   }
 }

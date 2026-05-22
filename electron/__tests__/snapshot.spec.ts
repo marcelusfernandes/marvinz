@@ -1218,3 +1218,104 @@ describe('cascade trigger (task #18)', () => {
     expect(snap).toBe('original')
   })
 })
+
+// ---------------------------------------------------------------------------
+// FU-6 (#72): external-rejected trigger — validateManifest and writeSnapshot
+// ---------------------------------------------------------------------------
+
+/**
+ * RED tests for issue #72.
+ *
+ * The 'external-rejected' trigger was added to SnapshotTrigger and is already
+ * present in snapshot.ts validateManifest (line 109). These tests verify:
+ *   1. validateManifest accepts 'external-rejected' (not treated as corrupted).
+ *   2. writeSnapshot stores 'external-rejected' trigger correctly in manifest.
+ *   3. writeSnapshot rejects traversal/null-byte relPath with 'external-rejected' trigger.
+ *
+ * The IPC handler snapshot:saveExternalChange in main.ts uses writeSnapshot with
+ * this trigger. Tests here verify the underlying snapshot.ts layer is correct
+ * before the IPC layer is wired in App.tsx handleKeepMine.
+ */
+
+describe('FU-6 (#72): external-rejected trigger', () => {
+  beforeEach(setup)
+  afterEach(teardown)
+
+  it('writeSnapshot accepts external-rejected trigger and stores it in manifest', async () => {
+    const turnId = newTurnId()
+    const externalContent = '# Written by Vim externally'
+    const ok = await writeSnapshot(tmpDir, turnId, 'rejected.md', externalContent, 'external-rejected')
+    expect(ok).toBe(true)
+
+    const turns = await listTurns(tmpDir)
+    const manifest = turns.find((m) => m.turnId === turnId)
+    expect(manifest).toBeDefined()
+    expect(manifest!.trigger).toBe('external-rejected')
+    expect(manifest!.files[0].relPath).toBe('rejected.md')
+  })
+
+  it('validateManifest accepts external-rejected trigger — not treated as corrupted', async () => {
+    const turnId = newTurnId()
+    await writeSnapshot(tmpDir, turnId, 'note.md', 'content', 'external-rejected')
+
+    // listTurns uses validateManifest internally — if it rejects the trigger the turn disappears
+    const turns = await listTurns(tmpDir)
+    const manifest = turns.find((m) => m.turnId === turnId)
+    expect(manifest).toBeDefined()
+    expect(manifest!.trigger).toBe('external-rejected')
+  })
+
+  it('external-rejected snapshot stores the correct diskContent', async () => {
+    const turnId = newTurnId()
+    const diskContent = '# Content written by external editor'
+    await writeSnapshot(tmpDir, turnId, 'external.md', diskContent, 'external-rejected')
+
+    const snap = await readSnapshot(tmpDir, turnId, 'external.md')
+    expect(snap).toBe(diskContent)
+  })
+
+  it('writeSnapshot with external-rejected returns false for relPath traversal', async () => {
+    const ok = await writeSnapshot(tmpDir, newTurnId(), '../escape.md', 'bad', 'external-rejected')
+    expect(ok).toBe(false)
+  })
+
+  it('writeSnapshot with external-rejected returns false for null-byte in relPath', async () => {
+    const ok = await writeSnapshot(tmpDir, newTurnId(), 'foo\0bar.md', 'bad', 'external-rejected')
+    expect(ok).toBe(false)
+  })
+
+  it('writeSnapshot with external-rejected returns false for absolute relPath', async () => {
+    const ok = await writeSnapshot(tmpDir, newTurnId(), '/etc/passwd', 'bad', 'external-rejected')
+    expect(ok).toBe(false)
+  })
+
+  it('listForFile returns external-rejected turns for the given file', async () => {
+    const turnId = newTurnId()
+    await writeSnapshot(tmpDir, turnId, 'notes/tracked.md', 'external version', 'external-rejected')
+
+    const versions = await listForFile(tmpDir, 'notes/tracked.md')
+    expect(versions).toHaveLength(1)
+    expect(versions[0].trigger).toBe('external-rejected')
+    expect(versions[0].turnId).toBe(turnId)
+  })
+
+  it('external-rejected snapshot is independent from buffer-save snapshot in same turn', async () => {
+    // Both triggers can coexist in different turns — verify they are separate
+    const t1 = newTurnId()
+    const t2 = newTurnId()
+
+    await writeSnapshot(tmpDir, t1, 'file.md', 'buffer content', 'buffer-save')
+    await writeSnapshot(tmpDir, t2, 'file.md', 'disk content from external', 'external-rejected')
+
+    const versions = await listForFile(tmpDir, 'file.md')
+    expect(versions).toHaveLength(2)
+
+    const bufferSaveTurn = versions.find((m) => m.trigger === 'buffer-save')
+    const externalRejectedTurn = versions.find((m) => m.trigger === 'external-rejected')
+    expect(bufferSaveTurn).toBeDefined()
+    expect(externalRejectedTurn).toBeDefined()
+
+    expect(await readSnapshot(tmpDir, t1, 'file.md')).toBe('buffer content')
+    expect(await readSnapshot(tmpDir, t2, 'file.md')).toBe('disk content from external')
+  })
+})

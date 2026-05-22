@@ -13,6 +13,8 @@ import { SidebarMenu } from './components/SidebarMenu'
 import { TabBar } from './components/TabBar'
 import { TopBar } from './components/TopBar'
 import { CommandPalette } from './components/CommandPalette'
+import { SettingsModal } from './components/SettingsModal'
+import { seedFromMain } from './lib/settingsStore'
 import { SnapshotPanel } from './components/SnapshotPanel'
 import { SnapshotToast } from './components/SnapshotToast'
 import { ExternalChangeBanner } from './components/ExternalChangeBanner'
@@ -210,6 +212,7 @@ function humanizeError(err: unknown): string {
   }
   if (/MARVIN_BINARY/.test(raw)) return 'Binary file — opened externally instead.'
   if (/MARVIN_IS_DIRECTORY/.test(raw)) return 'This is a folder, not a file.'
+  if (/MARVIN_OUTSIDE_VAULT/.test(raw)) return 'File is no longer in the active vault. Refreshing tree…'
   const tooLarge = raw.match(/MARVIN_TOO_LARGE: (\d+)/)
   if (tooLarge) {
     const mb = (Number(tooLarge[1]) / (1024 * 1024)).toFixed(1)
@@ -230,6 +233,7 @@ export default function App() {
   const [ctx, setCtx] = useState<ContextState>(null)
   const [error, setError] = useState<string | null>(null)
   const [paletteOpen, setPaletteOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const [snapshotPanel, setSnapshotPanel] = useState<
     | {
         filePath: string
@@ -314,8 +318,15 @@ export default function App() {
 
   const activeTab = tabs.find((t) => t.id === activeTabId) ?? null
 
+  // Monotonic counter that invalidates in-flight tree responses when a newer
+  // load is started (e.g. rapid vault switching). Without this, a slow
+  // response from the previous vault can overwrite the tree for the new one.
+  const loadGenRef = useRef(0)
+
   const loadTree = useCallback(async (vp: string) => {
+    const gen = ++loadGenRef.current
     const t = await window.marvin.vault.tree(vp)
+    if (gen !== loadGenRef.current) return
     setTree(t)
   }, [])
 
@@ -347,13 +358,24 @@ export default function App() {
         },
       ])
       if (settings.vaultPath) {
-        setVaultPath(settings.vaultPath)
-        await loadTree(settings.vaultPath)
+        // Set the watch boundary before vaultPath so any subsequent file IPC
+        // observes the active vault as allowed. The tree load is triggered
+        // by the dedicated vaultPath effect below.
         await window.marvin.vault.watch(settings.vaultPath)
+        setVaultPath(settings.vaultPath)
       }
+      seedFromMain(settings)
       setBootstrapped(true)
     })()
-  }, [loadTree])
+  }, [])
+
+  // Single source of truth for loading the tree whenever the active vault
+  // changes (bootstrap, switch via handlePickVault). `loadTree`'s generation
+  // token discards stale responses from a previous vault.
+  useEffect(() => {
+    if (!vaultPath) return
+    void loadTree(vaultPath)
+  }, [vaultPath, loadTree])
 
   useEffect(() => {
     if (!vaultPath) return
@@ -495,13 +517,24 @@ export default function App() {
   const handlePickVault = async () => {
     const picked = await window.marvin.vault.pick()
     if (!picked) return
+    if (picked === vaultPath) {
+      // Same vault re-selected: setVaultPath would be a no-op and the
+      // vaultPath useEffect wouldn't fire, leaving the tree blank.
+      // Refresh explicitly — gen token still guards against any race.
+      await loadTree(picked)
+      return
+    }
+    // Set the main-process boundary BEFORE any renderer state changes, so any
+    // file IPC that races in observes the new vault as allowed.
+    await window.marvin.vault.watch(picked)
     setVaultPath(picked)
+    setTree([])
     setTabs([])
     setActiveTabId(null)
     lastDiskContentRef.current.clear()
     bufferContentRef.current.clear()
-    await loadTree(picked)
-    await window.marvin.vault.watch(picked)
+    // The useEffect on `vaultPath` is the single trigger for loadTree —
+    // calling it here would race with a stale prior response.
   }
 
   // Open a path. If a tab already shows it, focus that tab. Otherwise create a new one.
@@ -838,7 +871,7 @@ export default function App() {
 
   // Hide all browser views while any React modal/popover is open, so they
   // don't paint over the modal (WebContentsView is always above the renderer).
-  const modalOpen = paletteOpen || dialog != null || ctx != null || error != null
+  const modalOpen = paletteOpen || settingsOpen || dialog != null || ctx != null || error != null
   useEffect(() => {
     void window.marvin.browser.setAllHidden(modalOpen)
   }, [modalOpen])
@@ -875,6 +908,12 @@ export default function App() {
         if (!vaultPath) return
         e.preventDefault()
         setUrlBarFocusTick((t) => t + 1)
+        return
+      }
+      // Cmd+, → settings
+      if (!e.shiftKey && e.key === ',') {
+        e.preventDefault()
+        setSettingsOpen(true)
         return
       }
     }
@@ -938,9 +977,9 @@ export default function App() {
             setError(`Could not snapshot your buffer before reloading (${res.error}).`)
             return
           }
-          if (!res.data.saved) {
+          if (res.data.saved === false) {
             setError(
-              "Couldn't snapshot binary content. Copy what you need from the diff before reloading.",
+              "Couldn't snapshot current buffer (binary content) — use 'Keep my version' instead.",
             )
             return
           }
@@ -968,18 +1007,39 @@ export default function App() {
   )
 
   // "Keep my version": dismiss the banner without touching the buffer. The
-  // editor's pending debounced save will eventually overwrite disk; the
-  // file:write hook already snapshots the on-disk version, so the external
-  // change is recoverable from the versions panel.
+  // editor's pending debounced save will eventually overwrite disk. For
+  // agent-sourced changes the file:write hook already snapshots the on-disk
+  // version (aiActive=true). For external sources the hook skips, so we
+  // snapshot the disk content explicitly here as 'external-rejected' so the
+  // user can still recover it from the versions panel. Fail-soft: a snapshot
+  // failure does not block dismissing the banner.
   const handleKeepMine = useCallback(
-    (filePath: string) => {
+    async (filePath: string, source: FileChangeSource, diskContent: string) => {
+      if (source === 'external' && vaultPath) {
+        const prefix = vaultPath + '/'
+        if (filePath.startsWith(prefix)) {
+          const relPath = filePath.slice(prefix.length)
+          try {
+            const res = await window.marvin.snapshot.saveExternalChange(relPath, diskContent)
+            if (!res.ok) {
+              setError(`Could not snapshot external change (${res.error}).`)
+            }
+          } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to snapshot external change')
+          }
+        }
+      }
       clearPendingExternalChange(filePath)
     },
-    [clearPendingExternalChange],
+    [clearPendingExternalChange, vaultPath],
   )
 
   const reportError = (err: unknown) => {
     setError(humanizeError(err))
+    const raw = err instanceof Error ? err.message : String(err)
+    if (/MARVIN_OUTSIDE_VAULT/.test(raw) && vaultPath) {
+      void loadTree(vaultPath).catch(() => {})
+    }
   }
 
   const renameInTabs = (oldPath: string, newPath: string) => {
@@ -1175,6 +1235,7 @@ export default function App() {
     <div className="shell">
       <TopBar
         onOpenPalette={() => setPaletteOpen(true)}
+        onOpenSettings={() => setSettingsOpen(true)}
         layoutMode={layoutMode}
         onLayoutChange={setLayoutMode}
       />
@@ -1240,7 +1301,13 @@ export default function App() {
                       bufferContentRef.current.get(activeTab.path) ?? activeTab.content,
                     )
                   }
-                  onKeepMine={() => handleKeepMine(activeTab.path)}
+                  onKeepMine={() =>
+                    handleKeepMine(
+                      activeTab.path,
+                      activeTab.pendingExternalChange!.source,
+                      activeTab.pendingExternalChange!.diskContent,
+                    )
+                  }
                   onDismiss={() => clearPendingExternalChange(activeTab.path)}
                 />
               )}
@@ -1331,6 +1398,8 @@ export default function App() {
           onClose={() => setPaletteOpen(false)}
         />
       )}
+
+      {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} />}
 
       {snapshotPanel && (
         <SnapshotPanel

@@ -17,6 +17,8 @@ import {
 } from './snapshot.js'
 import { assertInsideVaultAsync } from './vault-boundary.js'
 import { assertAllowedVault } from './vault-allowlist.js'
+import { assertPtySpawnAllowed, registerDynamicShell } from './pty-spawn-guard.js'
+import { assertAgentDetectAllowed, registerDetectedAgent } from './agent-detect-guard.js'
 
 process.env.APP_ROOT = path.join(__dirname, '..')
 
@@ -125,7 +127,10 @@ function applyBounds(entry: BrowserEntry) {
 
 const SETTINGS_FILE = () => path.join(app.getPath('userData'), 'settings.json')
 
-type Settings = { vaultPath?: string }
+type Settings = {
+  vaultPath?: string
+  iconTheme?: 'codicon' | 'material'
+}
 
 async function readSettings(): Promise<Settings> {
   try {
@@ -231,15 +236,17 @@ app.whenReady().then(() => {
       } else {
         filePath = path.resolve(activeVaultPath, urlPath.replace(/^\/+/, ''))
       }
-      if (filePath !== activeVaultPath && !filePath.startsWith(activeVaultPath + path.sep)) {
-        console.warn('[marvin] outside vault, rejecting', filePath, 'vault=', activeVaultPath)
+      let safePath: string
+      try {
+        safePath = await assertInsideVaultAsync(activeVaultPath, filePath)
+      } catch {
         return new Response('Forbidden', { status: 403 })
       }
-      const data = await fs.readFile(filePath)
+      const data = await fs.readFile(safePath)
       // Buffer is a Uint8Array subclass; Response accepts BodyInit which
       // includes ArrayBuffer / Uint8Array — cast to satisfy TS.
       return new Response(data as unknown as Uint8Array, {
-        headers: { 'Content-Type': mimeFor(filePath) },
+        headers: { 'Content-Type': mimeFor(safePath) },
       })
     } catch (err) {
       console.error('[marvin] handler failed', request.url, err)
@@ -255,7 +262,9 @@ app.whenReady().then(() => {
       try {
         resolved = await fs.realpath(path.resolve(s.vaultPath))
       } catch {
-        resolved = path.resolve(s.vaultPath)
+        // ENOENT: settings stale or dir removed — skip allowlist, keep lexical for activeVaultPath
+        activeVaultPath = path.resolve(s.vaultPath)
+        return
       }
       allowedVaultPaths.add(resolved)
       activeVaultPath = resolved
@@ -278,6 +287,16 @@ app.on('activate', () => {
 
 ipcMain.handle('settings:get', () => readSettings())
 
+// Read-modify-write so callers can update one key (e.g. iconTheme) without
+// having to know — or clobber — unrelated keys like vaultPath. Resolved
+// settings are returned so the renderer can sync its local cache.
+ipcMain.handle('settings:set', async (_e, partial: Partial<Settings>) => {
+  const current = await readSettings()
+  const next: Settings = { ...current, ...partial }
+  await writeSettings(next)
+  return next
+})
+
 ipcMain.handle('shell:openExternal', async (_e, url: string) => {
   if (!/^(https?|mailto):/i.test(url)) return
   await shell.openExternal(url)
@@ -294,7 +313,8 @@ ipcMain.handle('vault:pick', async () => {
   try {
     resolvedVault = await fs.realpath(path.resolve(vaultPath))
   } catch {
-    resolvedVault = path.resolve(vaultPath)
+    // ENOENT/EACCES: skip — don't add a symlink or removed path to allowlist
+    return null
   }
   allowedVaultPaths.add(resolvedVault)
   const settings = await readSettings()
@@ -355,8 +375,7 @@ ipcMain.handle('vault:watch', async (_e, vaultPath: string) => {
   try {
     resolvedVault = await fs.realpath(path.resolve(vaultPath))
   } catch {
-    // If realpath fails (e.g., path doesn't exist), fall back to lexical resolution
-    resolvedVault = path.resolve(vaultPath)
+    throw new Error('MARVIN_VAULT_NOT_ALLOWED')
   }
   assertAllowedVault(resolvedVault, allowedVaultPaths)
   vaultWatcher?.close()
@@ -717,6 +736,7 @@ ipcMain.handle('shell:reveal', async (_e, target: string) => {
   shell.showItemInFolder(safe)
 })
 
+
 function detectBinary(name: string): string | null {
   // Defensive: only allow simple binary names — no path traversal or shell.
   if (!/^[a-zA-Z0-9_-]+$/.test(name)) return null
@@ -739,14 +759,29 @@ function detectBinary(name: string): string | null {
   return null
 }
 
-ipcMain.handle('agent:detect', async (_e, name: string) => detectBinary(name))
+ipcMain.handle('agent:detect', async (_e, name: string) => {
+  assertAgentDetectAllowed(name)
+  const detected = detectBinary(name)
+  if (detected) {
+    registerDynamicShell(detected)
+    registerDetectedAgent(detected)
+  }
+  return detected
+})
 
 // Back-compat shim for the previous renderer API.
-ipcMain.handle('claude:detect', async () => detectBinary('claude'))
+ipcMain.handle('claude:detect', async () => {
+  const detected = detectBinary('claude')
+  if (detected) registerDynamicShell(detected)
+  return detected
+})
 
 ipcMain.handle(
   'pty:spawn',
-  (_e, opts: { id: string; shell: string; cwd: string; cols: number; rows: number; args?: string[] }) => {
+  async (_e, opts: { id: string; shell: string; cwd: string; cols: number; rows: number; args?: string[] }) => {
+    if (!activeVaultPath) throw new Error('MARVIN_OUTSIDE_VAULT')
+    const { shell: resolvedShell, cwd: safeCwd } = await assertPtySpawnAllowed(activeVaultPath, opts)
+
     const existing = ptyProcesses.get(opts.id)
     if (existing) existing.kill()
 
@@ -764,11 +799,11 @@ ipcMain.handle(
     const rows = Math.max(opts.rows || 24, 5)
 
     try {
-      const ptyProcess = pty.spawn(opts.shell, opts.args ?? [], {
+      const ptyProcess = pty.spawn(resolvedShell, opts.args ?? [], {
         name: 'xterm-256color',
         cols,
         rows,
-        cwd: opts.cwd,
+        cwd: safeCwd,
         env,
       })
       ptyProcesses.set(opts.id, ptyProcess)
@@ -805,8 +840,10 @@ ipcMain.handle(
       })
       return { pid: ptyProcess.pid }
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err)
-      throw new Error(`Failed to spawn ${opts.shell}: ${message}`)
+      const code = err instanceof Error ? err.message : String(err)
+      if (/^(MARVIN|SNAPSHOT)_[A-Z_]+$/.test(code)) throw err
+      console.error('[pty:spawn] spawn failed', { id: opts.id, shell: opts.shell, err })
+      throw new Error('MARVIN_PTY_SPAWN_FAILED')
     }
   },
 )
@@ -1148,4 +1185,19 @@ ipcMain.handle('snapshot:saveBuffer', async (_e, relPath: unknown, content: unkn
   } catch (e) {
     return err(e)
   }
+})
+
+ipcMain.handle('snapshot:saveExternalChange', async (_e, relPath: unknown, content: unknown) => {
+  try {
+    const vault = requireVault()
+    const rel = validateRelPath(relPath)
+    if (typeof content !== 'string') throw new Error('SNAPSHOT_INVALID_CONTENT')
+    if (Buffer.byteLength(content, 'utf8') > BUFFER_SAVE_MAX_BYTES) {
+      throw new Error('SNAPSHOT_BUFFER_TOO_LARGE')
+    }
+    const turnId = activeTurnId ?? newTurnId()
+    if (!activeTurnId) activeTurnId = turnId
+    const saved = await writeSnapshot(vault, turnId, rel, content, 'external-rejected')
+    return ok({ turnId, saved })
+  } catch (e) { return err(e) }
 })

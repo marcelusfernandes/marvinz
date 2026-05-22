@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import type { FileNode } from '../types'
 import { Icon } from './Icon'
+import { MaterialIcon } from './MaterialIcon'
 import { fileIconFor } from '../lib/fileIcons'
+import { useSetting } from '../lib/settingsStore'
 
 type Props = {
   nodes: FileNode[]
@@ -90,6 +92,7 @@ function FileTreeNode({
 }) {
   const [open, setOpen] = useState(false)
   const [hovered, setHovered] = useState(false)
+  const iconTheme = useSetting('iconTheme') ?? 'codicon'
   const isSelected = selectedPath === node.path
   const padding = 8 + depth * 14
 
@@ -134,10 +137,19 @@ function FileTreeNode({
           <span className="chev">
             <Icon name={open ? 'chevron-down' : 'chevron-right'} />
           </span>
-          <Icon
-            name={open ? 'folder-opened' : 'folder'}
-            className="folder-icon"
-          />
+          {iconTheme === 'material' ? (
+            <MaterialIcon
+              name={node.name}
+              isDir
+              open={open}
+              className="material-file-icon"
+            />
+          ) : (
+            <Icon
+              name={open ? 'folder-opened' : 'folder'}
+              className="folder-icon"
+            />
+          )}
           <span className="name">{node.name}</span>
         </button>
         {open && node.children && node.children.length > 0 && (
@@ -173,7 +185,11 @@ function FileTreeNode({
         onClick={() => onSelect(node)}
         onContextMenu={(e) => onContextMenu(e, node)}
       >
-        <Icon name={fileIconFor(node.name)} className="file-icon" />
+        {iconTheme === 'material' ? (
+          <MaterialIcon name={node.name} isDir={false} className="material-file-icon" />
+        ) : (
+          <Icon name={fileIconFor(node.name)} className="file-icon" />
+        )}
         <span className="name">{displayName}</span>
       </button>
     </li>

@@ -372,6 +372,13 @@ button {
   color: var(--fg);
 }
 
+/* Material Icon Theme renders colored <img> SVGs; intentionally no `color:` */
+.file-tree-row .material-file-icon {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+}
+
 .file-tree-row .name {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1450,6 +1457,111 @@ button {
 .modal-btn.primary:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* Settings modal — extensible section layout */
+.modal.modal-settings {
+  width: 480px;
+  gap: 16px;
+}
+
+.modal-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.modal-section + .modal-section {
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.modal-section-header {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--fg-3);
+}
+
+.modal-section-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.modal-section-label {
+  font-size: 13px;
+  color: var(--fg);
+}
+
+.modal-section-hint {
+  font-size: 12px;
+  color: var(--fg-3);
+  margin-top: 2px;
+}
+
+/* Segmented control — visual language matches LayoutToggle */
+.segmented {
+  -webkit-app-region: no-drag;
+  display: inline-flex;
+  align-items: center;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 2px;
+  gap: 2px;
+  height: 26px;
+}
+
+.segmented-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 20px;
+  padding: 0 10px;
+  border-radius: 3px;
+  font-size: 12px;
+  color: var(--fg-3);
+  cursor: pointer;
+  background: transparent;
+  border: none;
+}
+
+.segmented-btn:hover {
+  color: var(--fg-2);
+}
+
+.segmented-btn.active {
+  background: var(--bg-3);
+  color: var(--fg);
+}
+
+/* TopBar gear button — matches topbar-search hover/active treatment */
+.topbar-icon-btn {
+  -webkit-app-region: no-drag;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  margin-left: 8px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--fg-3);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.topbar-icon-btn:hover {
+  border-color: var(--fg-3);
+  color: var(--fg-2);
+}
+
+.topbar-icon-btn.active {
+  color: var(--fg);
 }
 
 .file-tree-row.file.non-md .name {

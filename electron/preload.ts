@@ -16,9 +16,16 @@ type BrowserEvent =
 
 type FileChangeSource = 'agent' | 'external'
 
+type Settings = {
+  vaultPath?: string
+  iconTheme?: 'codicon' | 'material'
+}
+
 const api = {
   settings: {
-    get: () => ipcRenderer.invoke('settings:get') as Promise<{ vaultPath?: string }>,
+    get: () => ipcRenderer.invoke('settings:get') as Promise<Settings>,
+    set: (partial: Partial<Settings>) =>
+      ipcRenderer.invoke('settings:set', partial) as Promise<Settings>,
   },
   vault: {
     pick: () => ipcRenderer.invoke('vault:pick') as Promise<string | null>,
@@ -102,6 +109,8 @@ const api = {
       ipcRenderer.invoke('snapshot:restore', turnId, relPath),
     saveBuffer: (relPath: string, content: string) =>
       ipcRenderer.invoke('snapshot:saveBuffer', relPath, content),
+    saveExternalChange: (relPath: string, content: string) =>
+      ipcRenderer.invoke('snapshot:saveExternalChange', relPath, content),
     onTurnCompleted: (cb: (event: { turnId: string; timestamp: number; files: string[] }) => void) => {
       const listener = (_: unknown, event: { turnId: string; timestamp: number; files: string[] }) => cb(event)
       ipcRenderer.on('snapshot:turn-completed', listener)
