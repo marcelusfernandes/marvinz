@@ -15,6 +15,8 @@ import {
   readSnapshot,
   restoreSnapshot,
 } from './snapshot.js'
+import { assertInsideVaultAsync } from './vault-boundary.js'
+import { assertAllowedVault } from './vault-allowlist.js'
 
 process.env.APP_ROOT = path.join(__dirname, '..')
 
@@ -51,6 +53,9 @@ const RENDERER_DIST = path.join(process.env.APP_ROOT, 'dist')
 let win: BrowserWindow | null = null
 let vaultWatcher: FSWatcher | null = null
 let activeVaultPath: string | null = null
+// Allowlist of vault paths that were opened via OS dialog (vault:pick) or loaded
+// from the persisted settings file. vault:watch only accepts paths in this set.
+const allowedVaultPaths = new Set<string>()
 const ptyProcesses = new Map<string, pty.IPty>()
 
 // AI turn tracking — a PTY write stamps lastPtyWriteAt; file:write checks recency.
@@ -244,8 +249,17 @@ app.whenReady().then(() => {
   // Pre-populate activeVaultPath from persisted settings so IPC handlers
   // (snapshot:*, vault:tree, etc.) work immediately when the renderer loads,
   // without waiting for the renderer to call vault:watch first.
-  readSettings().then((s) => {
-    if (s.vaultPath) activeVaultPath = s.vaultPath
+  readSettings().then(async (s) => {
+    if (s.vaultPath) {
+      let resolved: string
+      try {
+        resolved = await fs.realpath(path.resolve(s.vaultPath))
+      } catch {
+        resolved = path.resolve(s.vaultPath)
+      }
+      allowedVaultPaths.add(resolved)
+      activeVaultPath = resolved
+    }
   }).catch(() => {})
 
   createWindow()
@@ -276,9 +290,16 @@ ipcMain.handle('vault:pick', async () => {
   })
   if (result.canceled || result.filePaths.length === 0) return null
   const vaultPath = result.filePaths[0]
+  let resolvedVault: string
+  try {
+    resolvedVault = await fs.realpath(path.resolve(vaultPath))
+  } catch {
+    resolvedVault = path.resolve(vaultPath)
+  }
+  allowedVaultPaths.add(resolvedVault)
   const settings = await readSettings()
   await writeSettings({ ...settings, vaultPath })
-  return vaultPath
+  return resolvedVault
 })
 
 type FileNode = {
@@ -319,19 +340,25 @@ async function readVaultTree(root: string, current = root): Promise<FileNode[]> 
   return nodes
 }
 
-ipcMain.handle('vault:tree', async (_e, vaultPath: string) => {
-  if (!vaultPath || !existsSync(vaultPath)) return []
-  return readVaultTree(vaultPath)
+ipcMain.handle('vault:tree', async () => {
+  if (!activeVaultPath || !existsSync(activeVaultPath)) return []
+  return readVaultTree(activeVaultPath)
 })
 
 ipcMain.handle('vault:watch', (_e, vaultPath: string) => {
+  if (!vaultPath) {
+    vaultWatcher?.close()
+    activeVaultPath = null
+    return
+  }
+  const resolvedVault = path.resolve(vaultPath)
+  assertAllowedVault(resolvedVault, allowedVaultPaths)
   vaultWatcher?.close()
-  activeVaultPath = vaultPath || null
-  if (!vaultPath) return
-  ensureVaultGitignore(vaultPath).catch((err) =>
+  activeVaultPath = resolvedVault
+  ensureVaultGitignore(resolvedVault).catch((err) =>
     console.error('[snapshot] ensureVaultGitignore failed', err),
   )
-  vaultWatcher = chokidar.watch(vaultPath, {
+  vaultWatcher = chokidar.watch(resolvedVault, {
     ignored: (p) => {
       const base = path.basename(p)
       return NOISY_DIRS.has(base) || NOISY_FILES.has(base)
@@ -405,7 +432,8 @@ const FILE_SIZE_LIMIT = 5 * 1024 * 1024 // 5 MB — guard against pathologically
 const BINARY_PROBE_BYTES = 8192 // any null byte in the first 8 KB → treat as binary
 
 ipcMain.handle('file:read', async (_e, filePath: string) => {
-  const stats = await fs.stat(filePath)
+  const safe = await assertInVault(filePath)
+  const stats = await fs.stat(safe)
   if (stats.isDirectory()) throw new Error('MARVIN_IS_DIRECTORY')
   if (stats.size > FILE_SIZE_LIMIT) {
     throw new Error(`MARVIN_TOO_LARGE: ${stats.size}`)
@@ -413,7 +441,7 @@ ipcMain.handle('file:read', async (_e, filePath: string) => {
   // Sniff the head for null bytes — the standard binary heuristic. Most
   // text formats (utf-8) don't contain literal NUL; most binary files do.
   if (stats.size > 0) {
-    const fd = await fs.open(filePath, 'r')
+    const fd = await fs.open(safe, 'r')
     try {
       const probeLen = Math.min(BINARY_PROBE_BYTES, stats.size)
       const probe = Buffer.alloc(probeLen)
@@ -425,41 +453,44 @@ ipcMain.handle('file:read', async (_e, filePath: string) => {
       await fd.close()
     }
   }
-  const content = await fs.readFile(filePath, 'utf8')
-  fileContentCache.set(filePath, content)
+  const content = await fs.readFile(safe, 'utf8')
+  fileContentCache.set(safe, content)
   return content
 })
 
 ipcMain.handle('file:write', async (_e, filePath: string, content: string) => {
+  const safe = await assertInVault(filePath)
   const aiActive = Date.now() - lastPtyWriteAt < AI_TURN_WINDOW_MS
-  if (aiActive && activeVaultPath && (filePath === activeVaultPath || filePath.startsWith(activeVaultPath + path.sep)) && existsSync(filePath)) {
+  if (aiActive && activeVaultPath && existsSync(safe)) {
     const turnId = activeTurnId ?? newTurnId()
     if (!activeTurnId) activeTurnId = turnId
-    const relPath = path.relative(activeVaultPath, filePath)
+    const relPath = path.relative(activeVaultPath, safe)
     try {
-      const before = await fs.readFile(filePath, 'utf8')
+      const before = await fs.readFile(safe, 'utf8')
       await writeSnapshot(activeVaultPath, turnId, relPath, before, 'file:write')
     } catch (err) {
-      console.error('[snapshot] file:write pre-snapshot failed', { filePath, turnId, err })
+      console.error('[snapshot] file:write pre-snapshot failed', { relPath, turnId, err })
     }
   }
-  await fs.writeFile(filePath, content, 'utf8')
+  await fs.writeFile(safe, content, 'utf8')
 })
 
 ipcMain.handle('file:create', async (_e, parentDir: string, name: string) => {
   const safeName = name.endsWith('.md') ? name : `${name}.md`
   const full = path.join(parentDir, safeName)
-  if (existsSync(full)) throw new Error('File already exists')
-  await fs.mkdir(path.dirname(full), { recursive: true })
-  await fs.writeFile(full, '', 'utf8')
-  return full
+  const safe = await assertInVault(full)
+  if (existsSync(safe)) throw new Error('File already exists')
+  await fs.mkdir(path.dirname(safe), { recursive: true })
+  await fs.writeFile(safe, '', 'utf8')
+  return safe
 })
 
 ipcMain.handle('folder:create', async (_e, parentDir: string, name: string) => {
   const full = path.join(parentDir, name)
-  if (existsSync(full)) throw new Error('Folder already exists')
-  await fs.mkdir(full, { recursive: false })
-  return full
+  const safe = await assertInVault(full)
+  if (existsSync(safe)) throw new Error('Folder already exists')
+  await fs.mkdir(safe, { recursive: false })
+  return safe
 })
 
 async function listAllMarkdown(root: string, current = root): Promise<string[]> {
@@ -637,40 +668,44 @@ async function rewriteLinksAfterMove(
 }
 
 ipcMain.handle('path:rename', async (_e, oldPath: string, newPath: string) => {
-  if (existsSync(newPath)) throw new Error('Target path already exists')
+  const safeOld = await assertInVault(oldPath)
+  const safeNew = await assertInVault(newPath)
+  if (existsSync(safeNew)) throw new Error('Target path already exists')
 
-  // Snapshot the source file before moving if AI turn is active and file is inside vault
+  // Snapshot the source file before moving if AI turn is active
   const aiActive = Date.now() - lastPtyWriteAt < AI_TURN_WINDOW_MS
-  if (aiActive && activeVaultPath && (oldPath === activeVaultPath || oldPath.startsWith(activeVaultPath + path.sep)) && existsSync(oldPath)) {
+  if (aiActive && activeVaultPath && existsSync(safeOld)) {
     const turnId = activeTurnId ?? newTurnId()
     if (!activeTurnId) activeTurnId = turnId
-    const relPath = path.relative(activeVaultPath, oldPath)
+    const relPath = path.relative(activeVaultPath, safeOld)
     try {
-      const content = await fs.readFile(oldPath, 'utf8')
+      const content = await fs.readFile(safeOld, 'utf8')
       await writeSnapshot(activeVaultPath, turnId, relPath, content, 'file:write')
     } catch (err) {
-      console.error('[snapshot] path:rename pre-snapshot failed', { oldPath, turnId, err })
+      console.error('[snapshot] path:rename pre-snapshot failed', { relPath, turnId, err })
     }
   }
 
-  await fs.mkdir(path.dirname(newPath), { recursive: true })
-  await fs.rename(oldPath, newPath)
-  if (activeVaultPath && oldPath.startsWith(activeVaultPath)) {
+  await fs.mkdir(path.dirname(safeNew), { recursive: true })
+  await fs.rename(safeOld, safeNew)
+  if (activeVaultPath) {
     try {
-      await rewriteLinksAfterMove(activeVaultPath, oldPath, newPath)
+      await rewriteLinksAfterMove(activeVaultPath, safeOld, safeNew)
     } catch (err) {
       console.error('[rewriteLinksAfterMove] failed', err)
     }
   }
-  return newPath
+  return safeNew
 })
 
 ipcMain.handle('path:trash', async (_e, target: string) => {
-  await shell.trashItem(target)
+  const safe = await assertInVault(target)
+  await shell.trashItem(safe)
 })
 
 ipcMain.handle('shell:reveal', async (_e, target: string) => {
-  shell.showItemInFolder(target)
+  const safe = await assertInVault(target)
+  shell.showItemInFolder(safe)
 })
 
 function detectBinary(name: string): string | null {
@@ -1008,6 +1043,13 @@ function validateRelPath(relPath: unknown): string {
     throw new Error('SNAPSHOT_INVALID_REL_PATH')
   }
   return normalized
+}
+
+async function assertInVault(filePath: string): Promise<string> {
+  if (!activeVaultPath) throw new Error('MARVIN_NO_VAULT')
+  // Use the realpath-resolved path returned by assertInsideVaultAsync as the
+  // canonical I/O path — eliminates the TOCTOU window between check and use (C2).
+  return assertInsideVaultAsync(activeVaultPath, filePath)
 }
 
 function requireVault(): string {
