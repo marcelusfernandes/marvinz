@@ -276,8 +276,9 @@ button {
 }
 
 .icon-btn {
-  width: 22px;
-  height: 22px;
+  width: 16px;
+  height: 16px;
+  padding: 0;
   border-radius: 4px;
   display: flex;
   align-items: center;
@@ -294,7 +295,7 @@ button {
 .file-tree-toolbar {
   display: inline-flex;
   align-items: center;
-  gap: 2px;
+  gap: 8px;
 }
 
 .file-tree,
