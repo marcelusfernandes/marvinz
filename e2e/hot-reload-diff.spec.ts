@@ -846,4 +846,79 @@ test.describe('snapshot:saveExternalChange IPC contract', () => {
       await app.close()
     }
   })
+
+  test('saveExternalChange rejects non-string content — SNAPSHOT_INVALID_CONTENT', async () => {
+    const app = await electron.launch({
+      args: ['.', `--user-data-dir=${userDataDir}`],
+      env: { ...process.env, NODE_ENV: 'test' },
+    })
+    const page = await app.firstWindow()
+    await page.waitForLoadState('domcontentloaded')
+    await expect(page.locator('.file-tree-row.file', { hasText: /^note$/ })).toBeVisible({ timeout: 15_000 })
+
+    try {
+      const result = await page.evaluate(async () => {
+        return await (window as unknown as {
+          marvin: { snapshot: { saveExternalChange: (r: string, c: unknown) => Promise<unknown> } }
+        }).marvin.snapshot.saveExternalChange('note.md', 42 as unknown as string)
+      })
+      const envelope = result as { ok: boolean; error?: string }
+      expect(envelope.ok).toBe(false)
+      expect(envelope.error).toBe('SNAPSHOT_INVALID_CONTENT')
+    } finally {
+      await app.close()
+    }
+  })
+
+  test('saveExternalChange rejects content exceeding 50MB — SNAPSHOT_BUFFER_TOO_LARGE', async () => {
+    const app = await electron.launch({
+      args: ['.', `--user-data-dir=${userDataDir}`],
+      env: { ...process.env, NODE_ENV: 'test' },
+    })
+    const page = await app.firstWindow()
+    await page.waitForLoadState('domcontentloaded')
+    await expect(page.locator('.file-tree-row.file', { hasText: /^note$/ })).toBeVisible({ timeout: 15_000 })
+
+    try {
+      const result = await page.evaluate(async () => {
+        // 50MB + 1 byte — just over the hard cap
+        const oversized = 'x'.repeat(50 * 1024 * 1024 + 1)
+        return await (window as unknown as {
+          marvin: { snapshot: { saveExternalChange: (r: string, c: string) => Promise<unknown> } }
+        }).marvin.snapshot.saveExternalChange('note.md', oversized)
+      })
+      const envelope = result as { ok: boolean; error?: string }
+      expect(envelope.ok).toBe(false)
+      expect(envelope.error).toBe('SNAPSHOT_BUFFER_TOO_LARGE')
+    } finally {
+      await app.close()
+    }
+  })
+
+  test('saveExternalChange without active vault — MARVIN_NO_VAULT', async () => {
+    // Launch with a userDataDir that has no settings.json → vault is never configured
+    const rawNoVault = await fs.mkdtemp(path.join(os.tmpdir(), 'marvin-e2e-novault-'))
+    const noVaultUserDataDir = await fs.realpath(rawNoVault)
+
+    const app = await electron.launch({
+      args: ['.', `--user-data-dir=${noVaultUserDataDir}`],
+      env: { ...process.env, NODE_ENV: 'test' },
+    })
+    const page = await app.firstWindow()
+    await page.waitForLoadState('domcontentloaded')
+
+    try {
+      const result = await page.evaluate(async () => {
+        return await (window as unknown as {
+          marvin: { snapshot: { saveExternalChange: (r: string, c: string) => Promise<unknown> } }
+        }).marvin.snapshot.saveExternalChange('note.md', 'some content')
+      })
+      const envelope = result as { ok: boolean; error?: string }
+      expect(envelope.ok).toBe(false)
+      expect(envelope.error).toBe('MARVIN_NO_VAULT')
+    } finally {
+      await app.close()
+      await fs.rm(noVaultUserDataDir, { recursive: true, force: true }).catch(() => {})
+    }
+  })
 })
