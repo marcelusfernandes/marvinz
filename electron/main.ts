@@ -236,15 +236,17 @@ app.whenReady().then(() => {
       } else {
         filePath = path.resolve(activeVaultPath, urlPath.replace(/^\/+/, ''))
       }
-      if (filePath !== activeVaultPath && !filePath.startsWith(activeVaultPath + path.sep)) {
-        console.warn('[marvin] outside vault, rejecting', filePath, 'vault=', activeVaultPath)
+      let safePath: string
+      try {
+        safePath = await assertInsideVaultAsync(activeVaultPath, filePath)
+      } catch {
         return new Response('Forbidden', { status: 403 })
       }
-      const data = await fs.readFile(filePath)
+      const data = await fs.readFile(safePath)
       // Buffer is a Uint8Array subclass; Response accepts BodyInit which
       // includes ArrayBuffer / Uint8Array — cast to satisfy TS.
       return new Response(data as unknown as Uint8Array, {
-        headers: { 'Content-Type': mimeFor(filePath) },
+        headers: { 'Content-Type': mimeFor(safePath) },
       })
     } catch (err) {
       console.error('[marvin] handler failed', request.url, err)
