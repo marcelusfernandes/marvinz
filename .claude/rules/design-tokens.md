@@ -6,7 +6,9 @@ This guide defines Marvinz's design token system — the single source of truth 
 
 | Category | Var Prefix | Count | Examples |
 |----------|-----------|-------|----------|
-| **Color** | `--bg-`, `--surface-`, `--border-`, `--text-`, `--accent-` | 14 | `--bg-app: #ececec`, `--text-primary: #1a1a1a` |
+| **Color** | `--bg-`, `--surface-`, `--border-`, `--text-`, `--accent-` | 27 | `--bg-app: #ececec`, `--text-primary: #1a1a1a`, `--text-error`, `--border-focus`, `--bg-overlay`, `--bg-hover`, `--bg-error-strong`, `--bg-error-subtle` |
+| **Z-index** | `--z-` | 5 | `--z-dropdown: 50`, `--z-modal: 200`, `--z-toast: 300` |
+| **Focus** | `--focus-ring`, `--focus-ring-inset` | 2 | Apply as `box-shadow: var(--focus-ring)` inside `:focus-visible` |
 | **Spacing** | `--space-` | 7 | `--space-1: 4px`, `--space-4: 16px`, `--space-7: 48px` |
 | **Radius** | `--radius-` | 5 | `--radius-sm: 3px`, `--radius-md: 6px`, `--radius-lg: 12px`, `--radius-xl: 16px`, `--radius-pill: 999px` |
 | **Typography** | `--font-family-`, `--font-size-`, `--line-height-`, `--font-weight-` | 14 | `--font-family-sans` (system UI), `--font-family-mono` (system mono), `--font-size-md: 1rem` (14px), `--font-weight-semibold: 600`, `--font-weight-bold: 700` |
@@ -17,8 +19,8 @@ This guide defines Marvinz's design token system — the single source of truth 
 
 **Color tokens** — Every surface, text, border, and accent. Light theme in `:root`, dark overrides in `[data-theme='dark']`.
 - Surfaces: `--bg-app` (page), `--surface-1/2/3` (cards, panels, nesting)
-- Text: `--text-primary` (body), `--text-secondary` (hints, captions), `--text-tertiary` (disabled, very faint)
-- Borders: `--border` (dividers), `--border-strong` (interactive focus)
+- Text: `--text-primary` (body), `--text-secondary` (hints, captions), `--text-tertiary` (disabled, very faint), `--text-error / --text-warning / --text-success` (semantic states)
+- Borders: `--border-subtle` (intra-panel hairlines), `--border` (default dividers), `--border-strong` (emphasis), `--border-focus` (focused inputs — defaults to `--accent`), `--border-error / --border-warning / --border-success` (semantic states)
 - Accent: `--accent` (buttons, links), `--accent-bg` (highlights)
 
 **Spacing** — padding/margin inside components or between elements.
@@ -44,6 +46,19 @@ This guide defines Marvinz's design token system — the single source of truth 
 - Medium (cards, dropdowns): `--shadow-md`
 - Large (modals, panels): `--shadow-lg`
 - Dark theme gets heavier shadows for visibility.
+
+**Z-index** — UI layering. Never use bare integers for z-index (except local stacking contexts like `z-index: 1`).
+- Dropdowns / inline suggestions: `--z-dropdown`
+- Popovers / path-suggest: `--z-popover`
+- Modals + backdrops: `--z-modal`
+- Toasts / context menus / overlays above modals: `--z-toast`
+- Tooltips: `--z-tooltip`
+
+**Focus** — keyboard focus ring. Apply via `box-shadow` inside `:focus-visible`, not `outline` (avoids layout shift).
+```css
+.btn:focus-visible { box-shadow: var(--focus-ring); }
+.input:focus-visible { box-shadow: var(--focus-ring-inset); }
+```
 
 **Motion** — transitions and animations.
 - Hover effects (fast feedback): `--duration-fast` (120ms) + `--ease-out`

@@ -14,13 +14,40 @@
     --surface-1: #ffffff;
     --surface-2: #f7f7f8;
     --surface-3: #ededee;
+    --border-subtle: rgba(0, 0, 0, 0.05);
     --border: #e3e3e5;
     --border-strong: #d1d1d4;
+    --border-focus: var(--accent);
+    --border-error: #dc3545;
+    --border-warning: #d97706;
+    --border-success: #16a34a;
     --text-primary: #1a1a1a;
     --text-secondary: #6b6b6f;
     --text-tertiary: #9a9a9e;
+    --text-error: #dc3545;
+    --text-warning: #d97706;
+    --text-success: #16a34a;
     --accent: #007aff;
     --accent-bg: #007aff14;
+
+    --bg-overlay: rgba(0, 0, 0, 0.5);
+    --bg-overlay-light: rgba(0, 0, 0, 0.45);
+    --bg-hover: rgba(0, 0, 0, 0.04);
+    --bg-hover-strong: rgba(0, 0, 0, 0.1);
+
+    --bg-error-strong: #c0392b;
+    --bg-error-subtle: rgba(192, 57, 43, 0.08);
+    --bg-warning-subtle: rgba(217, 119, 6, 0.10);
+    --bg-success-subtle: rgba(22, 163, 74, 0.10);
+
+    --focus-ring: 0 0 0 3px rgba(0, 122, 255, 0.35);
+    --focus-ring-inset: inset 0 0 0 2px rgba(0, 122, 255, 0.5);
+
+    --z-dropdown: 50;
+    --z-popover: 100;
+    --z-modal: 200;
+    --z-toast: 300;
+    --z-tooltip: 400;
 
     --space-1: 4px;
     --space-2: 8px;
@@ -71,13 +98,30 @@
     --surface-1: #1e1e1e;
     --surface-2: #181818;
     --surface-3: #232323;
+    --border-subtle: rgba(255, 255, 255, 0.06);
     --border: #2e2e2e;
     --border-strong: #3a3a3a;
+    --border-focus: var(--accent);
+    --border-error: #e07b6e;
+    --border-warning: #b08940;
+    --border-success: #4ec77a;
     --text-primary: #e6e6e6;
     --text-secondary: #a0a0a0;
     --text-tertiary: #6a6a6a;
+    --text-error: #e07b6e;
+    --text-warning: #b08940;
+    --text-success: #4ec77a;
     --accent: #0a84ff;
     --accent-bg: #0a84ff22;
+
+    --bg-hover: rgba(255, 255, 255, 0.04);
+    --bg-hover-strong: rgba(255, 255, 255, 0.1);
+    --bg-error-strong: #a93226;
+    --bg-error-subtle: rgba(224, 123, 110, 0.08);
+    --bg-warning-subtle: rgba(176, 137, 64, 0.10);
+    --bg-success-subtle: rgba(78, 199, 122, 0.10);
+    --focus-ring: 0 0 0 3px rgba(10, 132, 255, 0.4);
+    --focus-ring-inset: inset 0 0 0 2px rgba(10, 132, 255, 0.55);
 
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.15);
     --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.25);
@@ -293,11 +337,19 @@
     <div class="card"><div class="swatch surface" style="background: var(--surface-1);"></div><div class="name">--surface-1</div><div class="value">panel cards</div></div>
     <div class="card"><div class="swatch surface" style="background: var(--surface-2);"></div><div class="name">--surface-2</div><div class="value">subtle contrast</div></div>
     <div class="card"><div class="swatch surface" style="background: var(--surface-3);"></div><div class="name">--surface-3</div><div class="value">hover / active</div></div>
+    <div class="card"><div class="swatch surface" style="background: var(--border-subtle);"></div><div class="name">--border-subtle</div><div class="value">hairlines within a panel</div></div>
     <div class="card"><div class="swatch surface" style="background: var(--border);"></div><div class="name">--border</div><div class="value">dividers, outlines</div></div>
     <div class="card"><div class="swatch surface" style="background: var(--border-strong);"></div><div class="name">--border-strong</div><div class="value">emphasis outline</div></div>
+    <div class="card"><div class="swatch surface" style="background: var(--border-focus);"></div><div class="name">--border-focus</div><div class="value">focused input ring</div></div>
+    <div class="card"><div class="swatch surface" style="background: var(--border-error);"></div><div class="name">--border-error</div><div class="value">invalid state</div></div>
+    <div class="card"><div class="swatch surface" style="background: var(--border-warning);"></div><div class="name">--border-warning</div><div class="value">caution state</div></div>
+    <div class="card"><div class="swatch surface" style="background: var(--border-success);"></div><div class="name">--border-success</div><div class="value">success state</div></div>
     <div class="card"><div class="swatch surface" style="background: var(--text-primary);"></div><div class="name">--text-primary</div><div class="value">body, titles</div></div>
     <div class="card"><div class="swatch surface" style="background: var(--text-secondary);"></div><div class="name">--text-secondary</div><div class="value">labels, captions</div></div>
     <div class="card"><div class="swatch surface" style="background: var(--text-tertiary);"></div><div class="name">--text-tertiary</div><div class="value">placeholders, icons inativos</div></div>
+    <div class="card"><div class="swatch surface" style="background: var(--text-error);"></div><div class="name">--text-error</div><div class="value">error messages</div></div>
+    <div class="card"><div class="swatch surface" style="background: var(--text-warning);"></div><div class="name">--text-warning</div><div class="value">warnings, caution</div></div>
+    <div class="card"><div class="swatch surface" style="background: var(--text-success);"></div><div class="name">--text-success</div><div class="value">success states</div></div>
     <div class="card"><div class="swatch surface" style="background: var(--accent);"></div><div class="name">--accent</div><div class="value">brand</div></div>
     <div class="card"><div class="swatch surface" style="background: var(--accent-bg);"></div><div class="name">--accent-bg</div><div class="value">accent overlay</div></div>
   </div>
