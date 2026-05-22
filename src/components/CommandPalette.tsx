@@ -5,6 +5,8 @@ import {
   stripBasename,
 } from '../lib/paletteRanker'
 import { HighlightedMatch } from './HighlightedMatch'
+import { Icon } from './Icon'
+import { fileIconFor } from '../lib/fileIcons'
 
 export type { PaletteItem }
 
@@ -80,6 +82,7 @@ export function CommandPalette({ items, onPick, onClose }: Props) {
                 onMouseEnter={() => setActiveIdx(i)}
                 onClick={(e) => onPick(r.item, e.metaKey || e.ctrlKey)}
               >
+                <Icon name={fileIconFor(r.item.name)} className="palette-icon" size={14} />
                 <span className="palette-name">
                   <HighlightedMatch text={r.item.name} matches={r.nameMatches} />
                   {!r.item.isMarkdown && <span className="palette-ext-tag">file</span>}

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { Icon } from './Icon'
 
 type Props = {
   onNewNote: () => void
@@ -33,7 +34,7 @@ export function SidebarMenu({ onNewNote, onNewFolder }: Props) {
         title="Create"
         onClick={() => setOpen((o) => !o)}
       >
-        +
+        <Icon name="add"/>
       </button>
       {open && (
         <div className="sidebar-menu-pop">

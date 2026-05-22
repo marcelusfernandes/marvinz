@@ -14,6 +14,7 @@ import { CsvEditor } from './CsvEditor'
 import { PathSuggest } from './PathSuggest'
 import type { PaletteItem } from '../lib/paletteRanker'
 import { isWikilinkHref, resolveWikilink } from '../lib/wikilinks'
+import { Icon } from './Icon'
 
 type Props = {
   filePath: string
@@ -181,7 +182,7 @@ export function Editor({
             title="Back"
             aria-label="Back"
           >
-            ‹
+            <Icon name="chevron-left"/>
           </button>
           <button
             type="button"
@@ -191,7 +192,7 @@ export function Editor({
             title="Forward"
             aria-label="Forward"
           >
-            ›
+            <Icon name="chevron-right"/>
           </button>
           <PathSuggest
             value={relativePath}
@@ -211,6 +212,7 @@ export function Editor({
                 onClick={() => setMode('edit')}
                 title="Edit (raw)"
               >
+                <Icon name="edit" size={14} />
                 Edit
               </button>
               <button
@@ -219,6 +221,7 @@ export function Editor({
                 onClick={() => setMode('preview')}
                 title="Preview (rendered)"
               >
+                <Icon name="eye" size={14} />
                 Preview
               </button>
             </div>

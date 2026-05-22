@@ -3,6 +3,7 @@ import Papa from 'papaparse'
 import { DataGrid, type Column, type SortColumn } from 'react-data-grid'
 import 'react-data-grid/lib/styles.css'
 import { ContextMenu, type MenuItem } from './ContextMenu'
+import { Icon } from './Icon'
 
 type Col = { key: string; name: string }
 type Row = Record<string, string> & { __id: string }
@@ -259,7 +260,7 @@ export function CsvEditor({ filePath, initialContent, onChange }: Props) {
             aria-label={`Actions for row ${rowIdx + 1}`}
             onClick={(e) => openRowMenuFromButton(e, row.__id)}
           >
-            ⋮
+            <Icon name="kebab-vertical" />
           </button>
         </div>
       ),
@@ -387,7 +388,7 @@ function CsvHeaderCell({
         aria-label={`Actions for column ${name}`}
         onClick={onMenu}
       >
-        ⋮
+        <Icon name="kebab-vertical" />
       </button>
     </div>
   )

@@ -352,9 +352,24 @@ button {
 }
 
 .file-tree-row .chev {
-  width: 12px;
-  font-size: 10px;
+  width: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   color: var(--fg-3);
+}
+
+.file-tree-row .folder-icon,
+.file-tree-row .file-icon {
+  flex: 0 0 auto;
+  color: var(--fg-3);
+}
+
+.file-tree-row.dir:hover .folder-icon,
+.file-tree-row.dir.selected .folder-icon,
+.file-tree-row.file:hover .file-icon,
+.file-tree-row.file.selected .file-icon {
+  color: var(--fg);
 }
 
 .file-tree-row .name {
@@ -426,8 +441,6 @@ button {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 18px;
-  line-height: 1;
   color: var(--fg-2);
   flex-shrink: 0;
 }
@@ -548,11 +561,9 @@ button {
 }
 
 .tab-close {
-  width: 16px;
-  height: 16px;
+  width: 20px;
+  height: 20px;
   border-radius: 3px;
-  font-size: 14px;
-  line-height: 1;
   color: var(--fg-3);
   display: flex;
   align-items: center;
@@ -595,8 +606,6 @@ button {
   justify-content: center;
   width: 32px;
   height: 100%;
-  font-size: 18px;
-  line-height: 1;
   color: var(--fg-3);
   flex-shrink: 0;
 }
@@ -644,6 +653,9 @@ button {
   background: var(--bg-2);
   border: 1px solid var(--border);
   flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .image-viewer-action:hover {
@@ -780,6 +792,9 @@ button {
   border-radius: 4px;
   color: var(--fg-2);
   font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .mode-btn:hover {
@@ -1076,6 +1091,9 @@ button {
   background: var(--bg-3);
   color: var(--fg);
   border: 1px solid var(--border);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .claude-restart:hover {
@@ -1177,8 +1195,6 @@ button {
   background: transparent;
   border: none;
   color: var(--fg-3);
-  font-size: 14px;
-  line-height: 1;
   cursor: pointer;
 }
 
@@ -1209,12 +1225,8 @@ button {
   justify-content: center;
   background: transparent;
   border: 1px solid transparent;
-  /* Match the editor's `.tab-new` style: dim color, larger glyph. The
-     chevron's inner icon span overrides font-size for its own glyph. */
   color: var(--fg-3);
   cursor: pointer;
-  font-size: 18px;
-  line-height: 1;
 }
 
 .agent-new-plus {
@@ -1226,16 +1238,6 @@ button {
   width: 38px;
   border-radius: 0 4px 4px 0;
   border-left: 1px solid var(--border);
-}
-
-/* `⌄` (U+2304 DOWN ARROWHEAD) renders as a thin chevron-down. Bump the
-   font-size to match the visual height of the "+" sibling at 14px, and
-   translateY pulls the glyph up since it hugs the bottom of its em-box. */
-.agent-new-chevron-icon {
-  display: inline-block;
-  font-size: 14px;
-  line-height: 1;
-  transform: translateY(-3px);
 }
 
 .agent-new:hover .agent-new-plus,
@@ -1481,6 +1483,22 @@ button {
   padding: 6px 12px;
   border-radius: 4px;
   color: var(--fg);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ctx-item-icon {
+  flex-shrink: 0;
+  color: var(--fg-3);
+}
+
+.ctx-item:hover .ctx-item-icon {
+  color: var(--fg-2);
+}
+
+.ctx-item.danger .ctx-item-icon {
+  color: inherit;
 }
 
 .ctx-item:hover {
@@ -1823,8 +1841,9 @@ button {
   height: 18px;
   border-radius: 3px;
   color: var(--fg-3);
-  font-size: 14px;
-  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .prop-row:hover .prop-remove {
@@ -1895,14 +1914,12 @@ button.prop-bool {
 }
 
 .prop-pill-remove {
-  width: 14px;
-  height: 14px;
+  width: 18px;
+  height: 18px;
   border-radius: 50%;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 11px;
-  line-height: 1;
   color: var(--fg-3);
   margin-left: 2px;
 }
@@ -2191,7 +2208,7 @@ button.prop-bool {
 
 .palette-row {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 10px;
   width: 100%;
   text-align: left;
@@ -2200,6 +2217,15 @@ button.prop-bool {
   font-size: 13px;
   color: var(--fg);
   cursor: pointer;
+}
+
+.palette-icon {
+  flex: 0 0 auto;
+  color: var(--fg-3);
+}
+
+.palette-row.active .palette-icon {
+  color: var(--fg-2);
 }
 
 .palette-row.active {
