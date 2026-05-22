@@ -1,13 +1,20 @@
 import { Icon } from './Icon'
 
 type Props = {
+  isAnyOpen: boolean
   onNewFile: () => void
   onNewFolder: () => void
   onRefresh: () => void
-  onCollapseAll: () => void
+  onToggleAll: () => void
 }
 
-export function FileTreeToolbar({ onNewFile, onNewFolder, onRefresh, onCollapseAll }: Props) {
+export function FileTreeToolbar({
+  isAnyOpen,
+  onNewFile,
+  onNewFolder,
+  onRefresh,
+  onToggleAll,
+}: Props) {
   return (
     <div className="file-tree-toolbar">
       <button
@@ -40,11 +47,11 @@ export function FileTreeToolbar({ onNewFile, onNewFolder, onRefresh, onCollapseA
       <button
         type="button"
         className="icon-btn"
-        title="Collapse all"
-        aria-label="Collapse all"
-        onClick={onCollapseAll}
+        title={isAnyOpen ? 'Collapse all' : 'Expand all'}
+        aria-label={isAnyOpen ? 'Collapse all' : 'Expand all'}
+        onClick={onToggleAll}
       >
-        <Icon name="collapse-all" size={20} />
+        <Icon name={isAnyOpen ? 'collapse-all' : 'expand-all'} size={20} />
       </button>
     </div>
   )

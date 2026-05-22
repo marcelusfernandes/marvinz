@@ -172,6 +172,17 @@ function normalizeUrl(input: string): string {
   return `https://www.google.com/search?q=${q}`
 }
 
+function collectDirPaths(nodes: FileNode[]): string[] {
+  const out: string[] = []
+  const walk = (n: FileNode) => {
+    if (!n.isDir) return
+    out.push(n.path)
+    n.children?.forEach(walk)
+  }
+  nodes.forEach(walk)
+  return out
+}
+
 function flattenTree(nodes: FileNode[], vaultPath: string): PaletteItem[] {
   const out: PaletteItem[] = []
   const walk = (n: FileNode) => {
@@ -1260,10 +1271,15 @@ export default function App() {
         <div className="sidebar-header">
           <span className="vault-name">{vaultPath.split('/').pop()}</span>
           <FileTreeToolbar
+            isAnyOpen={openPaths.size > 0}
             onNewFile={() => setDialog({ kind: 'newNote', parentDir: vaultPath })}
             onNewFolder={() => setDialog({ kind: 'newFolder', parentDir: vaultPath })}
             onRefresh={() => void loadTree(vaultPath)}
-            onCollapseAll={() => setOpenPaths(new Set())}
+            onToggleAll={() =>
+              setOpenPaths((prev) =>
+                prev.size > 0 ? new Set() : new Set(collectDirPaths(tree)),
+              )
+            }
           />
         </div>
         <FileTree
