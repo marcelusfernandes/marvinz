@@ -15,6 +15,7 @@ import { TopBar } from './components/TopBar'
 import { CommandPalette } from './components/CommandPalette'
 import { SettingsModal } from './components/SettingsModal'
 import { seedFromMain } from './lib/settingsStore'
+import { useColorTheme } from './lib/colorTheme'
 import { SnapshotPanel } from './components/SnapshotPanel'
 import { SnapshotToast } from './components/SnapshotToast'
 import { ExternalChangeBanner } from './components/ExternalChangeBanner'
@@ -234,6 +235,7 @@ function humanizeError(err: unknown): string {
 }
 
 export default function App() {
+  useColorTheme()
   const [vaultPath, setVaultPath] = useState<string | null>(null)
   const [tree, setTree] = useState<FileNode[]>([])
   const [tabs, setTabs] = useState<Tab[]>([])

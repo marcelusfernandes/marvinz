@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import CodeMirror from '@uiw/react-codemirror'
 import { EditorView } from '@codemirror/view'
 import { search } from '@codemirror/search'
-import { bracketMatching, indentUnit } from '@codemirror/language'
+import { bracketMatching, indentUnit, HighlightStyle, syntaxHighlighting } from '@codemirror/language'
+import { tags as t } from '@lezer/highlight'
 import type { Extension } from '@codemirror/state'
 import { languageIdFor, loadLanguage } from '../lib/cmLanguage'
 import {
@@ -13,12 +14,36 @@ import {
 } from '../lib/frontmatter'
 import { Properties } from './Properties'
 import { LiveMarkdown } from './LiveMarkdown'
+import { useColorTheme } from '../lib/colorTheme'
 import { CsvEditor } from './CsvEditor'
 import { HtmlPreview } from './HtmlPreview'
 import { PathSuggest } from './PathSuggest'
 import type { PaletteItem } from '../lib/paletteRanker'
 import { isWikilinkHref, resolveWikilink } from '../lib/wikilinks'
 import { Icon } from './Icon'
+
+const codeHighlightStyle = HighlightStyle.define([
+  // Language tokens (TS/JS/JSON/etc.)
+  { tag: t.keyword, color: 'var(--code-keyword)' },
+  { tag: [t.controlKeyword, t.moduleKeyword, t.definitionKeyword], color: 'var(--code-keyword)' },
+  { tag: [t.string, t.special(t.string)], color: 'var(--code-string)' },
+  { tag: [t.number, t.bool, t.null, t.atom], color: 'var(--code-number)' },
+  { tag: [t.function(t.variableName), t.function(t.propertyName)], color: 'var(--code-function)' },
+  { tag: [t.propertyName, t.definition(t.propertyName)], color: 'var(--code-property)' },
+  { tag: [t.comment, t.lineComment, t.blockComment], color: 'var(--code-comment)', fontStyle: 'italic' },
+  { tag: [t.tagName, t.attributeName], color: 'var(--code-tag)' },
+  { tag: t.operator, color: 'var(--code-operator)' },
+
+  // Markdown-specific
+  { tag: t.heading, fontWeight: 'bold', color: 'var(--text-primary)' },
+  { tag: t.strong, fontWeight: 'bold' },
+  { tag: t.emphasis, fontStyle: 'italic' },
+  { tag: [t.link, t.url], color: 'var(--accent)' },
+  { tag: t.monospace, color: 'var(--code-string)' },
+  { tag: t.quote, color: 'var(--text-secondary)', fontStyle: 'italic' },
+  { tag: t.processingInstruction, color: 'var(--text-tertiary)' },
+  { tag: t.contentSeparator, color: 'var(--text-tertiary)' },
+])
 
 type Props = {
   filePath: string
@@ -73,6 +98,7 @@ export function Editor({
   onBack,
   onForward,
 }: Props) {
+  const resolvedTheme = useColorTheme()
   const [value, setValue] = useState(initialContent)
   const [mode, setMode] = useState<Mode>('preview')
   const [saving, setSaving] = useState(false)
@@ -95,7 +121,13 @@ export function Editor({
   }, [filePath])
 
   const extensions = useMemo(() => {
-    const base = [search(), bracketMatching(), indentUnit.of('  '), EditorView.lineWrapping]
+    const base = [
+      search(),
+      bracketMatching(),
+      indentUnit.of('  '),
+      EditorView.lineWrapping,
+      syntaxHighlighting(codeHighlightStyle),
+    ]
     return langExt ? [...base, langExt] : base
   }, [langExt])
 
@@ -267,7 +299,7 @@ export function Editor({
         <CodeMirror
           value={value}
           height="100%"
-          theme="dark"
+          theme={resolvedTheme}
           extensions={extensions}
           onChange={handleSourceChange}
           basicSetup={{

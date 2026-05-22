@@ -15,6 +15,10 @@ function readFromLocalStorage(): Settings {
     if (iconTheme === 'codicon' || iconTheme === 'material') {
       out.iconTheme = iconTheme
     }
+    const colorTheme = window.localStorage.getItem(`${LS_PREFIX}colorTheme`)
+    if (colorTheme === 'light' || colorTheme === 'dark' || colorTheme === 'system') {
+      out.colorTheme = colorTheme
+    }
   } catch {
     // ignore
   }

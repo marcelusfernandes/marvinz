@@ -4,6 +4,21 @@ import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import '@xterm/xterm/css/xterm.css'
 import { Icon } from './Icon'
+import { useColorTheme } from '../lib/colorTheme'
+
+function readCssVar(name: string): string {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim()
+}
+
+function xtermThemeFromCss() {
+  return {
+    background: readCssVar('--surface-2'),
+    foreground: readCssVar('--text-primary'),
+    cursor: readCssVar('--text-primary'),
+    black: readCssVar('--surface-1'),
+    brightBlack: readCssVar('--text-tertiary'),
+  }
+}
 
 export type AgentDef = {
   /** Stable identifier (`'claude'`, `'codex'`, …). */
@@ -33,6 +48,7 @@ type Props = {
 }
 
 export function AgentTerminal({ agent, ptyId, vaultPath, isActive, onStatusChange }: Props) {
+  const resolvedTheme = useColorTheme()
   const hostRef = useRef<HTMLDivElement>(null)
   const termRef = useRef<Terminal | null>(null)
   const fitRef = useRef<FitAddon | null>(null)
@@ -52,13 +68,7 @@ export function AgentTerminal({ agent, ptyId, vaultPath, isActive, onStatusChang
       fontFamily: 'ui-monospace, SF Mono, Menlo, Monaco, Consolas, monospace',
       fontSize: 13,
       cursorBlink: true,
-      theme: {
-        background: '#181818',
-        foreground: '#e6e6e6',
-        cursor: '#e6e6e6',
-        black: '#1e1e1e',
-        brightBlack: '#5c5c5c',
-      },
+      theme: xtermThemeFromCss(),
       convertEol: true,
       scrollback: 5000,
       allowProposedApi: true,
@@ -168,6 +178,12 @@ export function AgentTerminal({ agent, ptyId, vaultPath, isActive, onStatusChang
       }
     })
   }, [isActive])
+
+  // Re-read theme colors from CSS vars when the user switches color theme.
+  useEffect(() => {
+    if (!termRef.current) return
+    termRef.current.options.theme = xtermThemeFromCss()
+  }, [resolvedTheme])
 
   const handleRestart = useCallback(() => {
     setStatus('starting')
