@@ -163,8 +163,17 @@ SendMessage({
 
 4. **Abrir PR contra `develop` referenciando a issue** (sempre `Closes #<num>` no body — auto-close on merge):
    ```bash
-   gh pr create --base develop --title "<tipo>: <descrição> (#<issue-num>)" --body "...Closes #<issue-num>..."
+   gh pr create --base develop --title "<type>: <description> (#<issue-num>)" --body "...Closes #<issue-num>..."
    ```
+
+   **Verificar metadata da PR imediatamente após criação** (per `.claude/rules/git-workflow.md` — checklist PR metadata):
+
+   ```bash
+   gh pr view <pr-num> --json title,assignees,projectItems,closingIssuesReferences,labels,milestone --jq \
+     '{title, assignees: [.assignees[].login], projects: [.projectItems[].title], closes: [.closingIssuesReferences[].number], labels: [.labels[].name], milestone: .milestone.title}'
+   ```
+
+   Esperado: `assignees` contém o autor; `projects` contém "Marvinz"; `closes` contém a issue alvo; `title` em inglês; `labels` reflete o tipo. Campos vazios → completar com `gh pr edit <pr-num> --add-...` antes de seguir.
 
 5. **Mover issue para "In Review"** no project board:
    ```bash

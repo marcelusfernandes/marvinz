@@ -62,3 +62,28 @@ Formato: `<type>: <short imperative description>`
 - Attribution (Co-Authored-By) is globally disabled
 
 Example: `feat: wikilink resolver by basename`
+
+## PR metadata — checklist obrigatório
+
+Toda PR aberta deve ter os campos abaixo preenchidos. Verificar e completar logo após `gh pr create` — alguns são auto-populados, outros precisam de comando explícito.
+
+| Campo | Auto-populado? | Como garantir |
+|---|---|---|
+| **Title + Body em inglês** | Não | Escrever em inglês na criação |
+| **`Closes #<num>` no body** | Não | Incluir manualmente quando a PR resolve uma issue (Step 4.4 do `/squad`). Liga ao **Development** da issue + auto-fecha no merge |
+| **Assignees: autor da PR** | Sim (GitHub) | Default em todas as PRs do projeto. Se cair fora, `gh pr edit <num> --add-assignee @me` |
+| **Project: Marvinz** | Sim (automation do GitHub) | Verifica via `gh pr view <num> --json projectItems`. Se vazio, `gh pr edit <num> --add-project Marvinz` (precisa scope `project`) |
+| **Development → Issue linkada** | Sim, se branch foi criada via `gh issue develop` | Sempre criar branch dessa forma quando há issue (`gh issue develop <num> --base develop --name <type>/<slug>`). Reforço extra: `Closes #X` no body também ativa o link |
+| **Labels** | Não | Adicionar 1-2 que reflitam o tipo do trabalho (`enhancement`, `bug`, `security`, etc.) na criação ou `gh pr edit --add-label` |
+| **Milestone** | Não | Se a PR fecha issue de milestone (ex: G2), associar via `gh pr edit --milestone "<name>"` |
+
+**Verificação rápida após `gh pr create`**:
+
+```bash
+gh pr view <num> --json title,assignees,projectItems,closingIssuesReferences,labels,milestone --jq \
+  '{title, assignees: [.assignees[].login], projects: [.projectItems[].title], closes: [.closingIssuesReferences[].number], labels: [.labels[].name], milestone: .milestone.title}'
+```
+
+Se algum campo obrigatório estiver vazio, completar antes de pedir review humano.
+
+**Se `gh` não tiver scope `project`**: pause e peça `gh auth refresh -s project,read:project`. Não tente contornar.
