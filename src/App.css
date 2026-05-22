@@ -33,7 +33,10 @@
   --radius-lg: 10px;
   --radius-pill: 999px;
 
-  /* Typography — base: 14px on html (1rem = 14px) */
+  /* Typography — system fonts, base 14px on html (1rem = 14px) */
+  --font-family-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-family-mono: ui-monospace, 'SF Mono', Menlo, Monaco, Consolas, monospace;
+
   --font-size-xs: 0.714rem; /* 10px — captions, status badges */
   --font-size-sm: 0.857rem; /* 12px — labels, file tree, tabs */
   --font-size-md: 1rem;     /* 14px — body, editor */
@@ -95,7 +98,7 @@ body,
   height: 100vh;
   background: var(--bg-app);
   color: var(--text-primary);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: var(--font-family-sans);
   font-size: 14px;
   overflow: hidden;
 }
@@ -1074,7 +1077,7 @@ button {
 }
 
 .csv-grid-meta code {
-  font-family: ui-monospace, SF Mono, Menlo, Monaco, Consolas, monospace;
+  font-family: var(--font-family-mono);
   background: var(--surface-3);
   padding: 1px 4px;
   border-radius: 3px;
@@ -1110,7 +1113,7 @@ button {
 }
 
 .cm-host .cm-content {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: var(--font-family-sans);
   padding: 24px 48px 24px 8px;
   line-height: 1.7;
 }
@@ -1125,7 +1128,7 @@ button {
 }
 
 .cm-host .cm-lineNumbers {
-  font-family: ui-monospace, SF Mono, Menlo, Monaco, Consolas, monospace;
+  font-family: var(--font-family-mono);
   /* Same font-size as the content + same line-height ratio (1.7) so each
      gutter element's height equals the corresponding content line's height.
      Without this, a smaller gutter font drifts out of alignment by line N. */
@@ -1497,7 +1500,7 @@ button {
 }
 
 .agent-install-hints code {
-  font-family: ui-monospace, SF Mono, Menlo, Monaco, Consolas, monospace;
+  font-family: var(--font-family-mono);
   background: var(--surface-3);
   padding: 1px 6px;
   border-radius: 3px;
@@ -1887,7 +1890,7 @@ button {
 }
 
 .md-preview-inner code {
-  font-family: ui-monospace, SF Mono, Menlo, Monaco, Consolas, monospace;
+  font-family: var(--font-family-mono);
   font-size: 0.9em;
   background: #2a2a2a;
   padding: 2px 6px;
@@ -2113,7 +2116,7 @@ button {
 .prop-object {
   color: var(--text-tertiary);
   font-style: italic;
-  font-family: ui-monospace, SF Mono, Menlo, Monaco, Consolas, monospace;
+  font-family: var(--font-family-mono);
   font-size: 12px;
 }
 
@@ -2364,7 +2367,7 @@ button.prop-bool {
 }
 
 .live-md code {
-  font-family: ui-monospace, SF Mono, Menlo, Monaco, Consolas, monospace;
+  font-family: var(--font-family-mono);
   font-size: 0.9em;
   background: #2a2a2a;
   padding: 2px 6px;
@@ -2664,7 +2667,7 @@ button.prop-bool {
   flex: 1;
   min-height: 0;
   overflow: auto;
-  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-family: var(--font-family-mono);
   font-size: 12.5px;
   line-height: 1.5;
 }
@@ -2804,7 +2807,7 @@ button.prop-bool {
   margin: 2px 0 0;
   font-size: 12px;
   color: var(--text-tertiary);
-  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-family: var(--font-family-mono);
 }
 
 .snapshot-close {

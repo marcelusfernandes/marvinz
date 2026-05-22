@@ -35,6 +35,9 @@
     --radius-lg: 10px;
     --radius-pill: 999px;
 
+    --font-family-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --font-family-mono: ui-monospace, 'SF Mono', Menlo, Monaco, Consolas, monospace;
+
     --font-size-xs: 0.714rem;
     --font-size-sm: 0.857rem;
     --font-size-md: 1rem;
@@ -86,7 +89,7 @@
     padding: var(--space-6);
     background: var(--bg-app);
     color: var(--text-primary);
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-family: var(--font-family-sans);
     transition: background var(--duration-normal) var(--ease-out),
                 color var(--duration-normal) var(--ease-out);
   }
@@ -164,12 +167,12 @@
     gap: var(--space-2);
   }
   .card .name {
-    font-family: ui-monospace, SF Mono, Menlo, monospace;
+    font-family: var(--font-family-mono);
     font-size: var(--font-size-sm);
     color: var(--text-primary);
   }
   .card .value {
-    font-family: ui-monospace, SF Mono, Menlo, monospace;
+    font-family: var(--font-family-mono);
     font-size: var(--font-size-xs);
     color: var(--text-tertiary);
   }
@@ -216,7 +219,7 @@
     gap: var(--space-4);
   }
   .type-row .label {
-    font-family: ui-monospace, SF Mono, Menlo, monospace;
+    font-family: var(--font-family-mono);
     font-size: var(--font-size-xs);
     color: var(--text-tertiary);
     flex-shrink: 0;
@@ -331,6 +334,10 @@
   <div class="type-row"><div class="label">--font-size-md · 1rem (14px)</div><div class="sample" style="font-size: var(--font-size-md);">Default body text, editor content</div></div>
   <div class="type-row"><div class="label">--font-size-lg · 1.143rem (16px)</div><div class="sample" style="font-size: var(--font-size-lg);">Section headers, sidebar group titles</div></div>
   <div class="type-row"><div class="label">--font-size-xl · 1.429rem (20px)</div><div class="sample" style="font-size: var(--font-size-xl); font-weight: var(--font-weight-semibold);">Modal titles, page headings</div></div>
+
+  <p class="desc" style="margin-top: var(--space-4);">Families:</p>
+  <div class="type-row"><div class="label">--font-family-sans</div><div class="sample" style="font-family: var(--font-family-sans);">SF Pro · Segoe UI · Roboto (system UI)</div></div>
+  <div class="type-row"><div class="label">--font-family-mono</div><div class="sample" style="font-family: var(--font-family-mono);">SF Mono · Consolas · Menlo (system mono)</div></div>
 
   <p class="desc" style="margin-top: var(--space-4);">Weights:</p>
   <div class="type-row"><div class="label">--font-weight-regular · 400</div><div class="sample" style="font-weight: var(--font-weight-regular);">The quick brown fox jumps over the lazy dog</div></div>
