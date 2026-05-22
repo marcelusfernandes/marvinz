@@ -9,6 +9,8 @@ type Props = {
   nodes: FileNode[]
   vaultPath: string
   selectedPath: string | null
+  openPaths: Set<string>
+  onToggleOpen: (path: string) => void
   onSelect: (node: FileNode) => void
   onContextMenu: (e: React.MouseEvent, node: FileNode) => void
   onMove: (srcPath: string, destDir: string) => void
@@ -29,6 +31,8 @@ export function FileTree({
   nodes,
   vaultPath,
   selectedPath,
+  openPaths,
+  onToggleOpen,
   onSelect,
   onContextMenu,
   onMove,
@@ -66,6 +70,8 @@ export function FileTree({
           node={node}
           depth={0}
           selectedPath={selectedPath}
+          openPaths={openPaths}
+          onToggleOpen={onToggleOpen}
           onSelect={onSelect}
           onContextMenu={onContextMenu}
           onMove={onMove}
@@ -79,6 +85,8 @@ function FileTreeNode({
   node,
   depth,
   selectedPath,
+  openPaths,
+  onToggleOpen,
   onSelect,
   onContextMenu,
   onMove,
@@ -86,11 +94,13 @@ function FileTreeNode({
   node: FileNode
   depth: number
   selectedPath: string | null
+  openPaths: Set<string>
+  onToggleOpen: (path: string) => void
   onSelect: (node: FileNode) => void
   onContextMenu: (e: React.MouseEvent, node: FileNode) => void
   onMove: (srcPath: string, destDir: string) => void
 }) {
-  const [open, setOpen] = useState(false)
+  const open = openPaths.has(node.path)
   const [hovered, setHovered] = useState(false)
   const iconTheme = useSetting('iconTheme') ?? 'codicon'
   const isSelected = selectedPath === node.path
@@ -131,7 +141,7 @@ function FileTreeNode({
           onDragOver={handleDragOver}
           onDragLeave={() => setHovered(false)}
           onDrop={handleDrop}
-          onClick={() => setOpen((o) => !o)}
+          onClick={() => onToggleOpen(node.path)}
           onContextMenu={(e) => onContextMenu(e, node)}
         >
           <span className="chev">
@@ -160,6 +170,8 @@ function FileTreeNode({
                 node={child}
                 depth={depth + 1}
                 selectedPath={selectedPath}
+                openPaths={openPaths}
+                onToggleOpen={onToggleOpen}
                 onSelect={onSelect}
                 onContextMenu={onContextMenu}
                 onMove={onMove}

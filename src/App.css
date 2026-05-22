@@ -291,6 +291,12 @@ button {
   color: var(--fg);
 }
 
+.file-tree-toolbar {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
 .file-tree,
 .file-tree ul {
   list-style: none;
@@ -1649,25 +1655,6 @@ button {
 .file-tree-row.file.non-md .name {
   color: var(--fg-3);
   font-style: italic;
-}
-
-.sidebar-menu {
-  position: relative;
-}
-
-.sidebar-menu-pop {
-  position: absolute;
-  top: 28px;
-  right: 0;
-  background: var(--bg-2);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 4px;
-  min-width: 160px;
-  z-index: 50;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
-  display: flex;
-  flex-direction: column;
 }
 
 .ctx-menu {
