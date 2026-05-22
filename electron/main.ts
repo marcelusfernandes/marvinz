@@ -361,13 +361,18 @@ ipcMain.handle('vault:tree', async () => {
   return readVaultTree(activeVaultPath)
 })
 
-ipcMain.handle('vault:watch', (_e, vaultPath: string) => {
+ipcMain.handle('vault:watch', async (_e, vaultPath: string) => {
   if (!vaultPath) {
     vaultWatcher?.close()
     activeVaultPath = null
     return
   }
-  const resolvedVault = path.resolve(vaultPath)
+  let resolvedVault: string
+  try {
+    resolvedVault = await fs.realpath(path.resolve(vaultPath))
+  } catch {
+    throw new Error('MARVIN_VAULT_NOT_ALLOWED')
+  }
   assertAllowedVault(resolvedVault, allowedVaultPaths)
   vaultWatcher?.close()
   activeVaultPath = resolvedVault
