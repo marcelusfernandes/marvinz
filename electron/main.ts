@@ -258,7 +258,9 @@ app.whenReady().then(() => {
       try {
         resolved = await fs.realpath(path.resolve(s.vaultPath))
       } catch {
-        resolved = path.resolve(s.vaultPath)
+        // ENOENT: settings stale or dir removed — skip allowlist, keep lexical for activeVaultPath
+        activeVaultPath = path.resolve(s.vaultPath)
+        return
       }
       allowedVaultPaths.add(resolved)
       activeVaultPath = resolved
@@ -307,7 +309,8 @@ ipcMain.handle('vault:pick', async () => {
   try {
     resolvedVault = await fs.realpath(path.resolve(vaultPath))
   } catch {
-    resolvedVault = path.resolve(vaultPath)
+    // ENOENT/EACCES: skip — don't add a symlink or removed path to allowlist
+    return null
   }
   allowedVaultPaths.add(resolvedVault)
   const settings = await readSettings()
