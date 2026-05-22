@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { FileNode } from './types'
+import type { FileChangeSource, FileNode } from './types'
 import { FileTree } from './components/FileTree'
 import { Editor } from './components/Editor'
 import { AgentsPane } from './components/AgentsPane'
@@ -15,6 +15,7 @@ import { TopBar } from './components/TopBar'
 import { CommandPalette } from './components/CommandPalette'
 import { SnapshotPanel } from './components/SnapshotPanel'
 import { SnapshotToast } from './components/SnapshotToast'
+import { ExternalChangeBanner } from './components/ExternalChangeBanner'
 import type { PaletteItem } from './lib/paletteRanker'
 import type { LayoutMode } from './components/LayoutToggle'
 import './App.css'
@@ -57,6 +58,12 @@ function clamp(n: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, n))
 }
 
+type PendingExternalChange = {
+  diskContent: string
+  diskChangedAt: number
+  source: FileChangeSource
+}
+
 type NoteTab = {
   type: 'note'
   id: string
@@ -65,6 +72,7 @@ type NoteTab = {
   version: number
   back: string[]
   forward: string[]
+  pendingExternalChange?: PendingExternalChange
 }
 
 type BrowserTabState = {
@@ -232,6 +240,10 @@ export default function App() {
     | null
   >(null)
   const [turnToast, setTurnToast] = useState<{ turnId: string; files: string[] } | null>(null)
+  const [externalToast, setExternalToast] = useState<{
+    filePath: string
+    source: FileChangeSource
+  } | null>(null)
   const [layoutMode, setLayoutModeState] = useState<LayoutMode>(() => readStoredLayout())
   const [urlBarFocusTick, setUrlBarFocusTick] = useState(0)
   const [newAgentTabTick, setNewAgentTabTick] = useState(0)
@@ -295,6 +307,10 @@ export default function App() {
   // Tracks last on-disk content per path that we have open. Lets us tell our
   // own saves apart from external writes (claude editing the note).
   const lastDiskContentRef = useRef<Map<string, string>>(new Map())
+  // Tracks the latest in-memory buffer per open note path. Diverges from
+  // lastDiskContentRef while the user is typing between debounced saves —
+  // used to detect "dirty" state when an external write lands.
+  const bufferContentRef = useRef<Map<string, string>>(new Map())
 
   const activeTab = tabs.find((t) => t.id === activeTabId) ?? null
 
@@ -357,7 +373,7 @@ export default function App() {
   }, [vaultPath])
 
   useEffect(() => {
-    const off = window.marvin.file.onChanged(async (filePath) => {
+    const off = window.marvin.file.onChanged(async (filePath, source) => {
       const last = lastDiskContentRef.current.get(filePath)
       if (last == null) return
       let fresh: string
@@ -369,13 +385,51 @@ export default function App() {
       }
       if (fresh === last) return
       lastDiskContentRef.current.set(filePath, fresh)
+
+      // "Dirty" means the editor's live buffer for this path has diverged from
+      // the last known disk content. If we don't have a buffer entry yet we
+      // assume clean (tab was just opened or no edits happened).
+      const buffer = bufferContentRef.current.get(filePath)
+      const isDirty = buffer != null && buffer !== last
+
+      if (isDirty) {
+        // Keep the buffer intact and surface the conflict via the banner.
+        setTabs((prev) =>
+          prev.map((t) =>
+            isNoteTab(t) && t.path === filePath
+              ? {
+                  ...t,
+                  pendingExternalChange: {
+                    diskContent: fresh,
+                    diskChangedAt: Date.now(),
+                    source,
+                  },
+                }
+              : t,
+          ),
+        )
+        return
+      }
+
+      // Buffer is clean — reload silently and notify with a small toast.
+      bufferContentRef.current.set(filePath, fresh)
       setTabs((prev) =>
         prev.map((t) =>
           isNoteTab(t) && t.path === filePath
-            ? { ...t, content: fresh, version: t.version + 1 }
+            ? {
+                ...t,
+                content: fresh,
+                version: t.version + 1,
+                pendingExternalChange: undefined,
+              }
             : t,
         ),
       )
+      // For agent writes the snapshot:turn-completed toast already covers
+      // multi-file batches, so we don't double-notify here.
+      if (source === 'external') {
+        setExternalToast({ filePath, source })
+      }
     })
     return off
   }, [])
@@ -383,6 +437,7 @@ export default function App() {
   const readFreshContent = useCallback(async (path: string): Promise<string> => {
     const content = await window.marvin.file.read(path)
     lastDiskContentRef.current.set(path, content)
+    bufferContentRef.current.set(path, content)
     return content
   }, [])
 
@@ -444,6 +499,7 @@ export default function App() {
     setTabs([])
     setActiveTabId(null)
     lastDiskContentRef.current.clear()
+    bufferContentRef.current.clear()
     await loadTree(picked)
     await window.marvin.vault.watch(picked)
   }
@@ -622,6 +678,15 @@ export default function App() {
         const next = prev.filter((t) => t.id !== id)
         if (closing && isBrowserTab(closing)) {
           void window.marvin.browser.close(id)
+        }
+        if (closing && isNoteTab(closing)) {
+          // Drop tracked buffer/disk content for paths no tab still owns.
+          const stillOpen = next.some(
+            (t) => isNoteTab(t) && t.path === closing.path,
+          )
+          if (!stillOpen) {
+            bufferContentRef.current.delete(closing.path)
+          }
         }
         // pick neighbor as new active if we closed the active one
         if (activeTabId === id) {
@@ -838,8 +903,79 @@ export default function App() {
       if (!activeTab || !isNoteTab(activeTab)) return
       await window.marvin.file.write(activeTab.path, content)
       lastDiskContentRef.current.set(activeTab.path, content)
+      bufferContentRef.current.set(activeTab.path, content)
     },
     [activeTab],
+  )
+
+  const handleBufferChange = useCallback((path: string, content: string) => {
+    bufferContentRef.current.set(path, content)
+  }, [])
+
+  const clearPendingExternalChange = useCallback((filePath: string) => {
+    setTabs((prev) =>
+      prev.map((t) =>
+        isNoteTab(t) && t.path === filePath
+          ? { ...t, pendingExternalChange: undefined }
+          : t,
+      ),
+    )
+  }, [])
+
+  // "Reload": snapshot the user's current buffer (so they can recover it) and
+  // then swap the buffer to whatever's on disk now. If the buffer can't be
+  // snapshotted (binary content), block the reload so the user doesn't lose
+  // data they can't recover from the versions panel.
+  const handleAcceptDisk = useCallback(
+    async (filePath: string, diskContent: string, currentBuffer: string) => {
+      if (!vaultPath) return
+      const prefix = vaultPath + '/'
+      if (filePath.startsWith(prefix)) {
+        const relPath = filePath.slice(prefix.length)
+        try {
+          const res = await window.marvin.snapshot.saveBuffer(relPath, currentBuffer)
+          if (!res.ok) {
+            setError(`Could not snapshot your buffer before reloading (${res.error}).`)
+            return
+          }
+          if (!res.data.saved) {
+            setError(
+              "Couldn't snapshot binary content. Copy what you need from the diff before reloading.",
+            )
+            return
+          }
+        } catch (err) {
+          setError(err instanceof Error ? err.message : 'Failed to snapshot buffer')
+          return
+        }
+      }
+      lastDiskContentRef.current.set(filePath, diskContent)
+      bufferContentRef.current.set(filePath, diskContent)
+      setTabs((prev) =>
+        prev.map((t) =>
+          isNoteTab(t) && t.path === filePath
+            ? {
+                ...t,
+                content: diskContent,
+                version: t.version + 1,
+                pendingExternalChange: undefined,
+              }
+            : t,
+        ),
+      )
+    },
+    [vaultPath],
+  )
+
+  // "Keep my version": dismiss the banner without touching the buffer. The
+  // editor's pending debounced save will eventually overwrite disk; the
+  // file:write hook already snapshots the on-disk version, so the external
+  // change is recoverable from the versions panel.
+  const handleKeepMine = useCallback(
+    (filePath: string) => {
+      clearPendingExternalChange(filePath)
+    },
+    [clearPendingExternalChange],
   )
 
   const reportError = (err: unknown) => {
@@ -864,15 +1000,16 @@ export default function App() {
           : { ...t, path, back, forward }
       }),
     )
-    // remap tracked content
-    const tracked = lastDiskContentRef.current
-    for (const [k, v] of Array.from(tracked.entries())) {
-      if (k === oldPath) {
-        tracked.delete(k)
-        tracked.set(newPath, v)
-      } else if (k.startsWith(`${oldPath}/`)) {
-        tracked.delete(k)
-        tracked.set(newPath + k.slice(oldPath.length), v)
+    // remap tracked content for both the on-disk and live buffer maps
+    for (const tracked of [lastDiskContentRef.current, bufferContentRef.current]) {
+      for (const [k, v] of Array.from(tracked.entries())) {
+        if (k === oldPath) {
+          tracked.delete(k)
+          tracked.set(newPath, v)
+        } else if (k.startsWith(`${oldPath}/`)) {
+          tracked.delete(k)
+          tracked.set(newPath + k.slice(oldPath.length), v)
+        }
       }
     }
   }
@@ -1086,19 +1223,42 @@ export default function App() {
         />
         <div className="editor-stack">
           {activeTab && isNoteTab(activeTab) && (
-            <Editor
-              key={`${activeTab.id}#${activeTab.path}#${activeTab.version}`}
-              filePath={activeTab.path}
-              vaultPath={vaultPath}
-              initialContent={activeTab.content}
-              paletteItems={paletteItems}
-              onSave={handleSave}
-              onNavigate={navigateOrOpen}
-              canBack={activeTab.back.length > 0}
-              canForward={activeTab.forward.length > 0}
-              onBack={goBack}
-              onForward={goForward}
-            />
+            <div className="note-tab-container">
+              {activeTab.pendingExternalChange && (
+                <ExternalChangeBanner
+                  filePath={activeTab.path}
+                  getCurrentBuffer={() =>
+                    bufferContentRef.current.get(activeTab.path) ?? activeTab.content
+                  }
+                  diskContent={activeTab.pendingExternalChange.diskContent}
+                  diskChangedAt={activeTab.pendingExternalChange.diskChangedAt}
+                  source={activeTab.pendingExternalChange.source}
+                  onAcceptDisk={() =>
+                    handleAcceptDisk(
+                      activeTab.path,
+                      activeTab.pendingExternalChange!.diskContent,
+                      bufferContentRef.current.get(activeTab.path) ?? activeTab.content,
+                    )
+                  }
+                  onKeepMine={() => handleKeepMine(activeTab.path)}
+                  onDismiss={() => clearPendingExternalChange(activeTab.path)}
+                />
+              )}
+              <Editor
+                key={`${activeTab.id}#${activeTab.path}#${activeTab.version}`}
+                filePath={activeTab.path}
+                vaultPath={vaultPath}
+                initialContent={activeTab.content}
+                paletteItems={paletteItems}
+                onSave={handleSave}
+                onBufferChange={(content) => handleBufferChange(activeTab.path, content)}
+                onNavigate={navigateOrOpen}
+                canBack={activeTab.back.length > 0}
+                canForward={activeTab.forward.length > 0}
+                onBack={goBack}
+                onForward={goForward}
+              />
+            </div>
           )}
           {activeTab && isImageTab(activeTab) && (
             <ImageViewer
@@ -1195,6 +1355,21 @@ export default function App() {
             setTurnToast(null)
           }}
           onDismiss={() => setTurnToast(null)}
+        />
+      )}
+
+      {externalToast && vaultPath && (
+        <SnapshotToast
+          files={[externalToast.filePath.startsWith(vaultPath + '/')
+            ? externalToast.filePath.slice(vaultPath.length + 1)
+            : externalToast.filePath]}
+          agentLabel="External change"
+          verb="updated"
+          onOpenVersions={() => {
+            void openSnapshotPanel(externalToast.filePath)
+            setExternalToast(null)
+          }}
+          onDismiss={() => setExternalToast(null)}
         />
       )}
       </div>

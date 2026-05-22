@@ -8,7 +8,7 @@ import { shell } from 'electron'
 // Types
 // ---------------------------------------------------------------------------
 
-export type SnapshotTrigger = 'file:write' | 'watcher' | 'restore' | 'cascade'
+export type SnapshotTrigger = 'file:write' | 'watcher' | 'restore' | 'cascade' | 'buffer-save'
 
 export type ManifestEntry = {
   relPath: string
@@ -106,7 +106,7 @@ function validateManifest(obj: unknown): SnapshotManifest | null {
     typeof m.createdAt !== 'string' ||
     typeof m.timestamp !== 'number' ||
     !Array.isArray(m.files) ||
-    (m.trigger !== 'file:write' && m.trigger !== 'watcher' && m.trigger !== 'restore' && m.trigger !== 'cascade') ||
+    (m.trigger !== 'file:write' && m.trigger !== 'watcher' && m.trigger !== 'restore' && m.trigger !== 'cascade' && m.trigger !== 'buffer-save') ||
     (m.status !== 'active' && m.status !== 'completed')
   ) {
     return null
