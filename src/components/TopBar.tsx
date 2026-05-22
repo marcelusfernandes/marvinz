@@ -3,11 +3,12 @@ import { Icon } from './Icon'
 
 type Props = {
   onOpenPalette: () => void
+  onOpenSettings: () => void
   layoutMode: LayoutMode
   onLayoutChange: (mode: LayoutMode) => void
 }
 
-export function TopBar({ onOpenPalette, layoutMode, onLayoutChange }: Props) {
+export function TopBar({ onOpenPalette, onOpenSettings, layoutMode, onLayoutChange }: Props) {
   return (
     <div className="topbar">
       <div className="topbar-left" />
@@ -27,6 +28,15 @@ export function TopBar({ onOpenPalette, layoutMode, onLayoutChange }: Props) {
         </span>
       </button>
       <div className="topbar-right">
+        <button
+          type="button"
+          className="topbar-icon-btn"
+          onClick={onOpenSettings}
+          title="Settings (⌘,)"
+          aria-label="Open settings"
+        >
+          <Icon name="settings-gear" />
+        </button>
         <LayoutToggle mode={layoutMode} onChange={onLayoutChange} />
       </div>
     </div>

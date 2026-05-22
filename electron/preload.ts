@@ -16,9 +16,16 @@ type BrowserEvent =
 
 type FileChangeSource = 'agent' | 'external'
 
+type Settings = {
+  vaultPath?: string
+  iconTheme?: 'codicon' | 'material'
+}
+
 const api = {
   settings: {
-    get: () => ipcRenderer.invoke('settings:get') as Promise<{ vaultPath?: string }>,
+    get: () => ipcRenderer.invoke('settings:get') as Promise<Settings>,
+    set: (partial: Partial<Settings>) =>
+      ipcRenderer.invoke('settings:set', partial) as Promise<Settings>,
   },
   vault: {
     pick: () => ipcRenderer.invoke('vault:pick') as Promise<string | null>,
