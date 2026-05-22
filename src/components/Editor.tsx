@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import CodeMirror from '@uiw/react-codemirror'
-import { markdown } from '@codemirror/lang-markdown'
 import { EditorView } from '@codemirror/view'
+import { search } from '@codemirror/search'
+import { bracketMatching, indentUnit } from '@codemirror/language'
+import type { Extension } from '@codemirror/state'
+import { languageIdFor, loadLanguage } from '../lib/cmLanguage'
 import {
   replaceFrontmatter,
   serializeFrontmatter,
@@ -11,6 +14,7 @@ import {
 import { Properties } from './Properties'
 import { LiveMarkdown } from './LiveMarkdown'
 import { CsvEditor } from './CsvEditor'
+import { HtmlPreview } from './HtmlPreview'
 import { PathSuggest } from './PathSuggest'
 import type { PaletteItem } from '../lib/paletteRanker'
 import { isWikilinkHref, resolveWikilink } from '../lib/wikilinks'
@@ -20,6 +24,12 @@ type Props = {
   filePath: string
   vaultPath: string
   initialContent: string
+  /** Cache-buster for surfaces that render the file via a URL (HtmlPreview).
+   * Bumped by App.tsx whenever the file is saved or changes externally. */
+  version: number
+  /** Forwarded to HtmlPreview so the embedded WebContentsView re-anchors
+   * after pure-position layout shifts. */
+  geometryKey: string | number
   paletteItems: PaletteItem[]
   onSave: (content: string) => Promise<void>
   onBufferChange?: (content: string) => void
@@ -52,6 +62,8 @@ export function Editor({
   filePath,
   vaultPath,
   initialContent,
+  version,
+  geometryKey,
   paletteItems,
   onSave,
   onBufferChange,
@@ -65,8 +77,27 @@ export function Editor({
   const [mode, setMode] = useState<Mode>('preview')
   const [saving, setSaving] = useState(false)
   const [savedAt, setSavedAt] = useState<number | null>(null)
+  const [langExt, setLangExt] = useState<Extension | null>(null)
   const timer = useRef<number | null>(null)
   const latestValue = useRef(initialContent)
+
+  useEffect(() => {
+    setLangExt(null)
+    const id = languageIdFor(filePath)
+    if (!id) return
+    let cancelled = false
+    loadLanguage(id).then((ext) => {
+      if (!cancelled) setLangExt(ext)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [filePath])
+
+  const extensions = useMemo(() => {
+    const base = [search(), bracketMatching(), indentUnit.of('  '), EditorView.lineWrapping]
+    return langExt ? [...base, langExt] : base
+  }, [langExt])
 
   useEffect(() => {
     setValue(initialContent)
@@ -153,7 +184,8 @@ export function Editor({
 
   const isMd = /\.(md|markdown)$/i.test(filePath)
   const isCsv = /\.(csv|tsv)$/i.test(filePath)
-  const hasPreview = isMd || isCsv
+  const isHtml = /\.(html|htm)$/i.test(filePath)
+  const hasPreview = isMd || isCsv || isHtml
   const effectiveMode: Mode = hasPreview ? mode : 'edit'
 
   const relativePath = filePath.startsWith(vaultPath + '/')
@@ -236,7 +268,7 @@ export function Editor({
           value={value}
           height="100%"
           theme="dark"
-          extensions={isMd ? [markdown(), EditorView.lineWrapping] : [EditorView.lineWrapping]}
+          extensions={extensions}
           onChange={handleSourceChange}
           basicSetup={{
             lineNumbers: true,
@@ -252,6 +284,8 @@ export function Editor({
           initialContent={value}
           onChange={scheduleSave}
         />
+      ) : isHtml ? (
+        <HtmlPreview filePath={filePath} version={version} geometryKey={geometryKey} />
       ) : (
         <div className="md-preview">
           <div className="md-preview-inner">
