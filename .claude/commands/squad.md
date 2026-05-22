@@ -16,6 +16,7 @@ Você é o **lead** desta missão. A flag `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=
 - **Mensagens chegam automaticamente** como novos turnos — não precisa checar inbox.
 - **Skills e mcpServers da frontmatter NÃO se aplicam** quando subagent vira teammate. Se a task depende de skill, inclua a instrução no `message` inicial.
 - **Refira-se a teammates pelo nome**, nunca por UUID.
+- **Inglês em tudo que vai pro GitHub** — commit messages, PR title/body, comments em PRs e issues, issue title/body (incluindo follow-ups). Coordenação interna (mensagens entre teammates, este chat com o usuário) segue em PT-BR. Detalhes: `.claude/rules/git-workflow.md`.
 
 ## Passo 1 — Triagem (decida sem perguntar)
 
@@ -162,8 +163,17 @@ SendMessage({
 
 4. **Abrir PR contra `develop` referenciando a issue** (sempre `Closes #<num>` no body — auto-close on merge):
    ```bash
-   gh pr create --base develop --title "<tipo>: <descrição> (#<issue-num>)" --body "...Closes #<issue-num>..."
+   gh pr create --base develop --title "<type>: <description> (#<issue-num>)" --body "...Closes #<issue-num>..."
    ```
+
+   **Verificar metadata da PR imediatamente após criação** (per `.claude/rules/git-workflow.md` — checklist PR metadata):
+
+   ```bash
+   gh pr view <pr-num> --json title,assignees,projectItems,closingIssuesReferences,labels,milestone --jq \
+     '{title, assignees: [.assignees[].login], projects: [.projectItems[].title], closes: [.closingIssuesReferences[].number], labels: [.labels[].name], milestone: .milestone.title}'
+   ```
+
+   Esperado: `assignees` contém o autor; `projects` contém "Marvinz"; `closes` contém a issue alvo; `title` em inglês; `labels` reflete o tipo. Campos vazios → completar com `gh pr edit <pr-num> --add-...` antes de seguir.
 
 5. **Mover issue para "In Review"** no project board:
    ```bash
