@@ -430,6 +430,193 @@ test.describe('G2-3 hot-reload diff — external change scenarios', () => {
 })
 
 // ---------------------------------------------------------------------------
+// FU-5 (#71): Reload with binary buffer shows friendly error, buffer preserved
+// ---------------------------------------------------------------------------
+
+test.describe('FU-5 (#71) — Reload with binary/null-byte buffer', () => {
+  let vaultRoot: string
+  let userDataDir: string
+
+  test.beforeEach(async () => {
+    const rawVault = await fs.mkdtemp(path.join(os.tmpdir(), 'marvin-e2e-fu5-'))
+    vaultRoot = await fs.realpath(rawVault)
+    userDataDir = await createUserDataDir(vaultRoot)
+  })
+
+  test.afterEach(async () => {
+    await fs.rm(vaultRoot, { recursive: true, force: true }).catch(() => {})
+    await fs.rm(userDataDir, { recursive: true, force: true }).catch(() => {})
+  })
+
+  /**
+   * RED test: buffer dirty with null byte (binary content) → user clicks "Reload"
+   * → friendly error toast/message appears, buffer NOT replaced by disk content.
+   *
+   * The saveBuffer IPC returns { ok: true, data: { saved: false } } for binary content.
+   * handleAcceptDisk must consume saved=false and show an error instead of proceeding.
+   *
+   * Will FAIL until #71 fix: handleAcceptDisk checks res.data.saved and returns early.
+   */
+  test('Scenario 7: null-byte buffer + Reload → friendly error shown, buffer not replaced', async () => {
+    const relPath = 'binary-note.md'
+    const initialContent = '# Normal text'
+    const externalContent = '# External wrote this new content to disk'
+    const absPath = await seedVaultWithNote(vaultRoot, relPath, initialContent)
+
+    const app = await electron.launch({
+      args: ['.', `--user-data-dir=${userDataDir}`],
+      env: { ...process.env, NODE_ENV: 'test' },
+    })
+    const page = await app.firstWindow()
+    await page.waitForLoadState('domcontentloaded')
+
+    try {
+      await openFileInEditor(page, 'binary-note')
+      await makeBufferDirty(page)
+
+      // Inject null byte into bufferContentRef via the marvin IPC
+      // saveBuffer with null-byte content returns saved=false — this simulates
+      // the renderer calling saveBuffer with a buffer that contains a null byte.
+      // We cannot type a null byte via keyboard, so we test the contract via page.evaluate.
+      // The E2E scenario: write external content to disk so banner appears, then
+      // override window.marvin.snapshot.saveBuffer to simulate null-byte rejection.
+      await page.evaluate(() => {
+        const orig = (window as unknown as Record<string, unknown>).marvin as {
+          snapshot: { saveBuffer: (r: string, c: string) => Promise<unknown> }
+        }
+        // Wrap saveBuffer to always return saved=false (simulating binary content rejection)
+        const wrapped = {
+          ...orig.snapshot,
+          saveBuffer: async (_r: string, _c: string) => ({ ok: true, data: { turnId: 'fake', saved: false } }),
+        }
+        ;(orig as unknown as Record<string, unknown>).snapshot = wrapped
+      })
+
+      // Write external change so banner appears
+      await fs.writeFile(absPath, externalContent, 'utf8')
+
+      const banner = page.locator('.external-change-banner')
+      await expect(banner).toBeVisible({ timeout: 10_000 })
+
+      // Click Reload with the patched saveBuffer that returns saved=false
+      await banner.getByRole('button', { name: 'Reload' }).click()
+
+      // Banner must NOT dismiss (Reload should be blocked)
+      await page.waitForTimeout(1_000)
+      await expect(banner).toBeVisible()
+
+      // An error message must be shown to the user
+      const errorLocator = page.locator('.error-toast, .error-banner, [role="alert"]:not(.external-change-banner), .error-message')
+      await expect(errorLocator).toBeVisible({ timeout: 5_000 })
+
+      // Buffer must NOT have been replaced: disk file should still hold externalContent
+      // but the editor should not show it (banner still visible means reload was blocked)
+      const diskContent = await fs.readFile(absPath, 'utf8')
+      expect(diskContent).toBe(externalContent) // disk unchanged (no write from Keep Mine)
+    } finally {
+      await app.close()
+    }
+  })
+})
+
+// ---------------------------------------------------------------------------
+// FU-6 (#72): Keep Mine + source=external snapshots diskContent (external-rejected)
+// ---------------------------------------------------------------------------
+
+test.describe('FU-6 (#72) — Keep Mine snapshots external diskContent', () => {
+  let vaultRoot: string
+  let userDataDir: string
+
+  test.beforeEach(async () => {
+    const rawVault = await fs.mkdtemp(path.join(os.tmpdir(), 'marvin-e2e-fu6-'))
+    vaultRoot = await fs.realpath(rawVault)
+    userDataDir = await createUserDataDir(vaultRoot)
+  })
+
+  test.afterEach(async () => {
+    await fs.rm(vaultRoot, { recursive: true, force: true }).catch(() => {})
+    await fs.rm(userDataDir, { recursive: true, force: true }).catch(() => {})
+  })
+
+  /**
+   * RED test: dirty buffer + external change (source='external', no PTY active)
+   * → user clicks "Keep my version" → snapshot created in .marvin/snapshots/<turn>/<file>
+   * with trigger='external-rejected' containing the rejected diskContent.
+   *
+   * Will FAIL until #72 fix: handleKeepMine calls saveExternalChange(relPath, diskContent).
+   */
+  test('Scenario 8: Keep my version with source=external → external-rejected snapshot created', async () => {
+    const relPath = 'keep-external.md'
+    const initialContent = '# My local edits'
+    const externalContent = '# Written by external editor (Vim, VSCode, etc.)'
+    const absPath = await seedVaultWithNote(vaultRoot, relPath, initialContent)
+
+    const app = await electron.launch({
+      args: ['.', `--user-data-dir=${userDataDir}`],
+      env: { ...process.env, NODE_ENV: 'test' },
+    })
+    const page = await app.firstWindow()
+    await page.waitForLoadState('domcontentloaded')
+
+    try {
+      await openFileInEditor(page, 'keep-external')
+      await makeBufferDirty(page)
+
+      // Ensure lastPtyWriteAt is OLD (no PTY stamp) → source will be 'external'
+      // (no pty:write call here, so aiActive=false when file:changed fires)
+      await fs.writeFile(absPath, externalContent, 'utf8')
+
+      const banner = page.locator('.external-change-banner')
+      await expect(banner).toBeVisible({ timeout: 10_000 })
+
+      const turnsBefore = await countSnapshotTurns(vaultRoot)
+
+      await banner.getByRole('button', { name: 'Keep my version' }).click()
+
+      // Banner dismisses
+      await expect(banner).not.toBeVisible({ timeout: 5_000 })
+
+      // Wait for snapshot I/O
+      await page.waitForTimeout(1_000)
+
+      // A new snapshot turn must have been created
+      const turnsAfter = await countSnapshotTurns(vaultRoot)
+      expect(turnsAfter).toBeGreaterThan(turnsBefore)
+
+      // The snapshot must have trigger='external-rejected'
+      const manifest = await getMostRecentManifest(vaultRoot)
+      expect(manifest?.trigger).toBe('external-rejected')
+
+      // The snapshot file must contain the rejected diskContent (not the buffer)
+      const snapshotsDir = path.join(vaultRoot, '.marvin', 'snapshots')
+      const allDirs = await fs.readdir(snapshotsDir, { withFileTypes: true })
+      const externalRejectedTurnId = (
+        await Promise.all(
+          allDirs
+            .filter((e) => e.isDirectory())
+            .map(async (d) => {
+              try {
+                const m = JSON.parse(
+                  await fs.readFile(path.join(snapshotsDir, d.name, '_manifest.json'), 'utf8'),
+                )
+                return m.trigger === 'external-rejected' ? d.name : null
+              } catch { return null }
+            }),
+        )
+      ).find(Boolean)
+
+      expect(externalRejectedTurnId).toBeTruthy()
+      const snapFilePath = path.join(snapshotsDir, externalRejectedTurnId!, relPath)
+      await expect(fs.access(snapFilePath)).resolves.toBeUndefined()
+      const snapContent = await fs.readFile(snapFilePath, 'utf8')
+      expect(snapContent).toBe(externalContent)
+    } finally {
+      await app.close()
+    }
+  })
+})
+
+// ---------------------------------------------------------------------------
 // IPC contract: snapshot:saveBuffer
 // ---------------------------------------------------------------------------
 
@@ -532,6 +719,125 @@ test.describe('snapshot:saveBuffer IPC contract', () => {
         return await (window as unknown as {
           marvin: { snapshot: { saveBuffer: (r: string, c: string) => Promise<unknown> } }
         }).marvin.snapshot.saveBuffer('foo\0bar.md', 'bad content')
+      })
+      const envelope = result as { ok: boolean; error?: string }
+      expect(envelope.ok).toBe(false)
+      expect(envelope.error).toBe('SNAPSHOT_INVALID_REL_PATH')
+    } finally {
+      await app.close()
+    }
+  })
+})
+
+// ---------------------------------------------------------------------------
+// IPC contract: snapshot:saveExternalChange (#72)
+// ---------------------------------------------------------------------------
+
+test.describe('snapshot:saveExternalChange IPC contract', () => {
+  let vaultRoot: string
+  let userDataDir: string
+
+  test.beforeEach(async () => {
+    const rawVault = await fs.mkdtemp(path.join(os.tmpdir(), 'marvin-e2e-saveexternal-'))
+    vaultRoot = await fs.realpath(rawVault)
+    await fs.writeFile(path.join(vaultRoot, 'note.md'), '# note', 'utf8')
+    userDataDir = await createUserDataDir(vaultRoot)
+  })
+
+  test.afterEach(async () => {
+    await fs.rm(vaultRoot, { recursive: true, force: true }).catch(() => {})
+    await fs.rm(userDataDir, { recursive: true, force: true }).catch(() => {})
+  })
+
+  /**
+   * RED test: saveExternalChange IPC creates snapshot with trigger external-rejected.
+   *
+   * Will FAIL until #72 fix: snapshot:saveExternalChange IPC handler is wired in main.ts
+   * (handler already exists in main.ts from current branch — verifies the contract).
+   */
+  test('saveExternalChange creates snapshot with trigger external-rejected', async () => {
+    const app = await electron.launch({
+      args: ['.', `--user-data-dir=${userDataDir}`],
+      env: { ...process.env, NODE_ENV: 'test' },
+    })
+    const page = await app.firstWindow()
+    await page.waitForLoadState('domcontentloaded')
+    await expect(page.locator('.file-tree-row.file', { hasText: /^note$/ })).toBeVisible({ timeout: 15_000 })
+
+    try {
+      const turnsBefore = await countSnapshotTurns(vaultRoot)
+
+      const result = await page.evaluate(async () => {
+        return await (window as unknown as {
+          marvin: { snapshot: { saveExternalChange: (r: string, c: string) => Promise<unknown> } }
+        }).marvin.snapshot.saveExternalChange('note.md', '# External version written by Vim')
+      })
+
+      const envelope = result as { ok: boolean; data?: { turnId: string; saved: boolean }; error?: string }
+      expect(envelope.ok).toBe(true)
+      expect(envelope.data?.turnId).toMatch(/^\d{8}T\d{6}Z-[0-9a-f]+$/i)
+      expect(envelope.data?.saved).toBe(true)
+
+      await page.waitForTimeout(300)
+      expect(await countSnapshotTurns(vaultRoot)).toBe(turnsBefore + 1)
+
+      const manifest = await getMostRecentManifest(vaultRoot)
+      expect(manifest?.trigger).toBe('external-rejected')
+      expect((manifest?.files as Array<{ relPath: string }>)?.[0]?.relPath).toBe('note.md')
+
+      const snapPath = path.join(vaultRoot, '.marvin', 'snapshots', envelope.data!.turnId, 'note.md')
+      const snapContent = await fs.readFile(snapPath, 'utf8')
+      expect(snapContent).toBe('# External version written by Vim')
+    } finally {
+      await app.close()
+    }
+  })
+
+  test('saveExternalChange rejects path traversal relPaths — SNAPSHOT_INVALID_REL_PATH', async () => {
+    const app = await electron.launch({
+      args: ['.', `--user-data-dir=${userDataDir}`],
+      env: { ...process.env, NODE_ENV: 'test' },
+    })
+    const page = await app.firstWindow()
+    await page.waitForLoadState('domcontentloaded')
+    await expect(page.locator('.file-tree-row.file', { hasText: /^note$/ })).toBeVisible({ timeout: 15_000 })
+
+    try {
+      const vectors = [
+        '../escape.md',
+        '../../etc/passwd',
+        '/etc/passwd',
+        'foo/../../evil.md',
+      ]
+      for (const relPath of vectors) {
+        const result = await page.evaluate(async (rp: string) => {
+          return await (window as unknown as {
+            marvin: { snapshot: { saveExternalChange: (r: string, c: string) => Promise<unknown> } }
+          }).marvin.snapshot.saveExternalChange(rp, 'bad content')
+        }, relPath)
+        const envelope = result as { ok: boolean; error?: string }
+        expect(envelope.ok, `Expected rejection for: ${relPath}`).toBe(false)
+        expect(envelope.error, `Expected SNAPSHOT_INVALID_REL_PATH for: ${relPath}`).toBe('SNAPSHOT_INVALID_REL_PATH')
+      }
+    } finally {
+      await app.close()
+    }
+  })
+
+  test('saveExternalChange rejects null byte in relPath — SNAPSHOT_INVALID_REL_PATH', async () => {
+    const app = await electron.launch({
+      args: ['.', `--user-data-dir=${userDataDir}`],
+      env: { ...process.env, NODE_ENV: 'test' },
+    })
+    const page = await app.firstWindow()
+    await page.waitForLoadState('domcontentloaded')
+    await expect(page.locator('.file-tree-row.file', { hasText: /^note$/ })).toBeVisible({ timeout: 15_000 })
+
+    try {
+      const result = await page.evaluate(async () => {
+        return await (window as unknown as {
+          marvin: { snapshot: { saveExternalChange: (r: string, c: string) => Promise<unknown> } }
+        }).marvin.snapshot.saveExternalChange('foo\0bar.md', 'bad content')
       })
       const envelope = result as { ok: boolean; error?: string }
       expect(envelope.ok).toBe(false)
