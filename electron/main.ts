@@ -369,7 +369,7 @@ ipcMain.handle('vault:watch', async (_e, vaultPath: string) => {
   if (!vaultPath) {
     vaultWatcher?.close()
     activeVaultPath = null
-    return
+    return null
   }
   let resolvedVault: string
   try {
@@ -452,6 +452,8 @@ ipcMain.handle('vault:watch', async (_e, vaultPath: string) => {
     })
     .on('addDir', notifyTree)
     .on('unlinkDir', notifyTree)
+  
+  return resolvedVault
 })
 
 const FILE_SIZE_LIMIT = 5 * 1024 * 1024 // 5 MB — guard against pathologically large files
