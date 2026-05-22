@@ -977,9 +977,9 @@ export default function App() {
             setError(`Could not snapshot your buffer before reloading (${res.error}).`)
             return
           }
-          if (!res.data.saved) {
+          if (res.data.saved === false) {
             setError(
-              "Couldn't snapshot binary content. Copy what you need from the diff before reloading.",
+              "Couldn't snapshot current buffer (binary content) — use 'Keep my version' instead.",
             )
             return
           }
@@ -1007,14 +1007,31 @@ export default function App() {
   )
 
   // "Keep my version": dismiss the banner without touching the buffer. The
-  // editor's pending debounced save will eventually overwrite disk; the
-  // file:write hook already snapshots the on-disk version, so the external
-  // change is recoverable from the versions panel.
+  // editor's pending debounced save will eventually overwrite disk. For
+  // agent-sourced changes the file:write hook already snapshots the on-disk
+  // version (aiActive=true). For external sources the hook skips, so we
+  // snapshot the disk content explicitly here as 'external-rejected' so the
+  // user can still recover it from the versions panel. Fail-soft: a snapshot
+  // failure does not block dismissing the banner.
   const handleKeepMine = useCallback(
-    (filePath: string) => {
+    async (filePath: string, source: FileChangeSource, diskContent: string) => {
+      if (source === 'external' && vaultPath) {
+        const prefix = vaultPath + '/'
+        if (filePath.startsWith(prefix)) {
+          const relPath = filePath.slice(prefix.length)
+          try {
+            const res = await window.marvin.snapshot.saveExternalChange(relPath, diskContent)
+            if (!res.ok) {
+              setError(`Could not snapshot external change (${res.error}).`)
+            }
+          } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to snapshot external change')
+          }
+        }
+      }
       clearPendingExternalChange(filePath)
     },
-    [clearPendingExternalChange],
+    [clearPendingExternalChange, vaultPath],
   )
 
   const reportError = (err: unknown) => {
@@ -1284,7 +1301,13 @@ export default function App() {
                       bufferContentRef.current.get(activeTab.path) ?? activeTab.content,
                     )
                   }
-                  onKeepMine={() => handleKeepMine(activeTab.path)}
+                  onKeepMine={() =>
+                    handleKeepMine(
+                      activeTab.path,
+                      activeTab.pendingExternalChange!.source,
+                      activeTab.pendingExternalChange!.diskContent,
+                    )
+                  }
                   onDismiss={() => clearPendingExternalChange(activeTab.path)}
                 />
               )}

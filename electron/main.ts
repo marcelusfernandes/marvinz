@@ -1184,3 +1184,18 @@ ipcMain.handle('snapshot:saveBuffer', async (_e, relPath: unknown, content: unkn
     return err(e)
   }
 })
+
+ipcMain.handle('snapshot:saveExternalChange', async (_e, relPath: unknown, content: unknown) => {
+  try {
+    const vault = requireVault()
+    const rel = validateRelPath(relPath)
+    if (typeof content !== 'string') throw new Error('SNAPSHOT_INVALID_CONTENT')
+    if (Buffer.byteLength(content, 'utf8') > BUFFER_SAVE_MAX_BYTES) {
+      throw new Error('SNAPSHOT_BUFFER_TOO_LARGE')
+    }
+    const turnId = activeTurnId ?? newTurnId()
+    if (!activeTurnId) activeTurnId = turnId
+    const saved = await writeSnapshot(vault, turnId, rel, content, 'external-rejected')
+    return ok({ turnId, saved })
+  } catch (e) { return err(e) }
+})
