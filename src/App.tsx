@@ -10,8 +10,8 @@ import { ImageViewer } from './components/ImageViewer'
 import { InputDialog } from './components/InputDialog'
 import { ContextMenu, type MenuItem } from './components/ContextMenu'
 import { FileTreeToolbar } from './components/FileTreeToolbar'
+import { Icon } from './components/Icon'
 import { TabBar } from './components/TabBar'
-import { TopBar } from './components/TopBar'
 import { CommandPalette } from './components/CommandPalette'
 import { SettingsModal } from './components/SettingsModal'
 import { seedFromMain } from './lib/settingsStore'
@@ -1253,12 +1253,6 @@ export default function App() {
 
   return (
     <div className="shell">
-      <TopBar
-        onOpenPalette={() => setPaletteOpen(true)}
-        onOpenSettings={() => setSettingsOpen(true)}
-        layoutMode={layoutMode}
-        onLayoutChange={setLayoutMode}
-      />
       <div
         className="app"
         data-layout={layoutMode}
@@ -1270,8 +1264,33 @@ export default function App() {
         }
       >
       <aside className="sidebar">
+        <div className="sidebar-search">
+          <button
+            type="button"
+            className="sidebar-search-btn"
+            onClick={() => setPaletteOpen(true)}
+            aria-label="Search (⌘P)"
+          >
+            <Icon name="search" size={14} />
+            <span className="sidebar-search-placeholder">Search…</span>
+            <span className="sidebar-search-kbd">⌘P</span>
+          </button>
+        </div>
         <div className="sidebar-header">
-          <span className="vault-name">{vaultPath.split('/').pop()}</span>
+          <div className="sidebar-project-info">
+            <div className="sidebar-avatar">
+              {(vaultPath.split('/').pop() ?? '')
+                .split(/[\s\-_]+/)
+                .filter(Boolean)
+                .slice(0, 2)
+                .map((w) => w[0].toUpperCase())
+                .join('')}
+            </div>
+            <div className="sidebar-project-text">
+              <span className="sidebar-project-name">{vaultPath.split('/').pop()}</span>
+              <span className="sidebar-branch-name">main</span>
+            </div>
+          </div>
           <FileTreeToolbar
             isAnyOpen={openPaths.size > 0}
             onNewFile={() => setDialog({ kind: 'newNote', parentDir: vaultPath })}
@@ -1302,6 +1321,14 @@ export default function App() {
           onMove={handleDropMove}
         />
         <div className="sidebar-footer">
+          <button
+            type="button"
+            className="sidebar-footer-btn"
+            onClick={() => setSettingsOpen(true)}
+          >
+            <Icon name="gear" size={16} />
+            <span>Settings</span>
+          </button>
           <button type="button" className="text-btn" onClick={handlePickVault}>
             Switch vault
           </button>
@@ -1437,7 +1464,13 @@ export default function App() {
         />
       )}
 
-      {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} />}
+      {settingsOpen && (
+        <SettingsModal
+          onClose={() => setSettingsOpen(false)}
+          layoutMode={layoutMode}
+          onLayoutChange={setLayoutMode}
+        />
+      )}
 
       {snapshotPanel && (
         <SnapshotPanel

@@ -1,11 +1,14 @@
 import { useEffect } from 'react'
 import { setSetting, useSetting } from '../lib/settingsStore'
+import type { LayoutMode } from './LayoutToggle'
 
 type Props = {
   onClose: () => void
+  layoutMode: LayoutMode
+  onLayoutChange: (mode: LayoutMode) => void
 }
 
-export function SettingsModal({ onClose }: Props) {
+export function SettingsModal({ onClose, layoutMode, onLayoutChange }: Props) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
@@ -91,6 +94,38 @@ export function SettingsModal({ onClose }: Props) {
                 onClick={() => void setSetting('iconTheme', 'material')}
               >
                 Material
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <section className="modal-section">
+          <div className="modal-section-header">Layout</div>
+          <div className="modal-section-row">
+            <div>
+              <div className="modal-section-label">Panel arrangement</div>
+              <div className="modal-section-hint">
+                Choose which panel is centered.
+              </div>
+            </div>
+            <div className="segmented" role="radiogroup" aria-label="Panel arrangement">
+              <button
+                type="button"
+                role="radio"
+                aria-checked={layoutMode === 'editor-center'}
+                className={`segmented-btn${layoutMode === 'editor-center' ? ' active' : ''}`}
+                onClick={() => onLayoutChange('editor-center')}
+              >
+                Editor
+              </button>
+              <button
+                type="button"
+                role="radio"
+                aria-checked={layoutMode === 'claude-center'}
+                className={`segmented-btn${layoutMode === 'claude-center' ? ' active' : ''}`}
+                onClick={() => onLayoutChange('claude-center')}
+              >
+                Claude
               </button>
             </div>
           </div>

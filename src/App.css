@@ -249,52 +249,51 @@ button {
   flex-direction: column;
   height: 100vh;
   width: 100%;
-  background: var(--surface-1);
+  background: var(--bg-app);
+  padding: var(--space-3);
+  -webkit-app-region: drag;
 }
 
 .app {
+  -webkit-app-region: no-drag;
   display: grid;
   /* 5 tracks: sidebar | split | editor | split | claude. Sidebar and claude
-     widths are driven by --sidebar-w / --agents-w state vars; each splitter
-     reserves a 1px-wide track that the .splitter element decorates and
-     extends a wider invisible hit zone via ::before. */
-  grid-template-columns: var(--sidebar-w, 240px) 1px 1fr 1px var(--agents-w, 588px);
+     widths driven by --sidebar-w / --agents-w state vars. The 2 splitter
+     tracks are var(--space-3) wide so they double as visual gap between the
+     panel cards; .splitter renders a centered hit zone inside. */
+  grid-template-columns: var(--sidebar-w, 240px) var(--space-3) 1fr var(--space-3) var(--agents-w, 588px);
   grid-template-rows: 1fr;
   grid-template-areas: 'sidebar split-sidebar editor split-agents claude';
   flex: 1;
   min-height: 0;
-  background: var(--surface-1);
 }
 
 .app[data-layout='claude-center'] {
   /* Same fixed widths swap to 'sidebar | split | claude | split | editor'.
      The agents pane (.claude-pane) is now in the middle column. */
-  grid-template-columns: var(--sidebar-w, 240px) 1px var(--agents-w, 588px) 1px 1fr;
+  grid-template-columns: var(--sidebar-w, 240px) var(--space-3) var(--agents-w, 588px) var(--space-3) 1fr;
   grid-template-areas: 'sidebar split-sidebar claude split-agents editor';
 }
 
 .splitter {
   grid-row: 1;
-  background: var(--border);
+  background: transparent;
   cursor: col-resize;
   position: relative;
   transition: background var(--duration-fast);
 }
 
-/* Wider invisible hit zone so users don't have to land on the 1px line. */
+/* Hit zone fills the full track (now var(--space-3) wide). */
 .splitter::before {
   content: '';
   position: absolute;
-  top: 0;
-  bottom: 0;
-  left: -3px;
-  right: -3px;
+  inset: 0;
   z-index: 1;
 }
 
 .splitter:hover,
 .splitter.dragging {
-  background: var(--accent);
+  background: var(--accent-bg);
 }
 
 .app > .splitter:nth-of-type(1) {
@@ -305,109 +304,8 @@ button {
   grid-area: split-agents;
 }
 
-.topbar {
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  align-items: center;
-  height: 38px;
-  flex-shrink: 0;
-  border-bottom: 1px solid var(--border);
-  background: var(--surface-2);
-  -webkit-app-region: drag;
-  padding: 0 var(--space-2);
-}
-
-.topbar-left,
-.topbar-right {
-  height: 100%;
-}
-
-.topbar-search {
-  -webkit-app-region: no-drag;
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  height: 26px;
-  padding: 0 10px 0 var(--space-3);
-  background: var(--surface-1);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  color: var(--text-tertiary);
-  font-size: var(--font-size-sm);
-  min-width: 360px;
-  max-width: 540px;
-  width: 40vw;
-  justify-content: space-between;
-  cursor: text;
-}
-
-.topbar-search:hover {
-  border-color: var(--text-tertiary);
-  color: var(--text-secondary);
-}
-
-.topbar-search-icon {
-  font-size: var(--font-size-md);
-  color: var(--text-tertiary);
-}
-
-.topbar-search-text {
-  flex: 1;
-  text-align: left;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.topbar-search-shortcut {
-  display: inline-flex;
-  gap: 2px;
-}
-
-.topbar-left {
-  /* Reserved for the macOS traffic lights; no content yet. */
-  min-width: 78px;
-}
-
-.topbar-right {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  padding-right: var(--space-2);
-}
-
-.layout-toggle {
-  -webkit-app-region: no-drag;
-  display: inline-flex;
-  align-items: center;
-  background: transparent;
-  border: none;
-  padding: 0;
-  gap: 2px;
-  height: 26px;
-}
-
-.layout-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  height: 20px;
-  padding: 0 6px;
-  border-radius: var(--radius-sm);
-  color: var(--text-tertiary);
-  cursor: pointer;
-}
-
-.layout-btn:hover {
-  color: var(--text-secondary);
-}
-
-.layout-btn.active {
-  background: var(--surface-3);
-  color: var(--text-primary);
-}
-
-.topbar-search-shortcut kbd,
-.palette-footer kbd {
+.palette-footer kbd,
+.sidebar-search-btn kbd {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -426,9 +324,44 @@ button {
   grid-area: sidebar;
   display: flex;
   flex-direction: column;
-  /* No border-right: the .splitter on our right provides the visual line. */
-  background: var(--surface-2);
+  background: var(--surface-1);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-md);
   overflow: hidden;
+}
+
+.sidebar-search {
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.sidebar-search-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-1) var(--space-2);
+  background: var(--surface-2);
+  border-radius: var(--radius-md);
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+  text-align: left;
+  -webkit-app-region: no-drag;
+}
+
+.sidebar-search-btn:hover {
+  background: var(--surface-3);
+  color: var(--text-secondary);
+}
+
+.sidebar-search-placeholder {
+  flex: 1;
+}
+
+.sidebar-search-kbd {
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+  opacity: 0.7;
 }
 
 .sidebar-header {
@@ -437,13 +370,50 @@ button {
   justify-content: space-between;
   padding: var(--space-2) var(--space-3);
   border-bottom: 1px solid var(--border);
-  height: 38px;
+  gap: var(--space-2);
 }
 
-.vault-name {
+.sidebar-project-info {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  flex: 1;
+}
+
+.sidebar-avatar {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-md);
+  background: var(--accent-bg);
+  color: var(--accent);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  letter-spacing: 0.02em;
+}
+
+.sidebar-project-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.sidebar-project-name {
   font-weight: var(--font-weight-semibold);
   font-size: 13px;
-  color: var(--text-secondary);
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-branch-name {
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -557,13 +527,33 @@ button {
 
 .sidebar-footer {
   border-top: 1px solid var(--border);
-  padding: 6px var(--space-2);
+  padding: var(--space-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.sidebar-footer-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  -webkit-app-region: no-drag;
+}
+
+.sidebar-footer-btn:hover {
+  background: var(--surface-3);
+  color: var(--text-primary);
 }
 
 .text-btn {
   font-size: var(--font-size-sm);
   color: var(--text-tertiary);
-  padding: var(--space-1) 6px;
+  padding: var(--space-1) var(--space-2);
 }
 
 .text-btn:hover {
@@ -576,6 +566,8 @@ button {
   flex-direction: column;
   overflow: hidden;
   background: var(--surface-1);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-md);
 }
 
 .empty-editor {
@@ -1298,9 +1290,9 @@ button {
 
 .claude-pane {
   grid-area: claude;
-  /* No border: the .splitter adjacent provides the visual separator
-     regardless of which side claude lands on. */
-  background: var(--surface-2);
+  background: var(--surface-1);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-md);
   overflow: hidden;
 }
 
@@ -1797,33 +1789,6 @@ button {
 
 .segmented-btn.active {
   background: var(--surface-3);
-  color: var(--text-primary);
-}
-
-/* TopBar gear button — borderless icon button */
-.topbar-icon-btn {
-  -webkit-app-region: no-drag;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  padding: 0;
-  margin-left: var(--space-2);
-  background: transparent;
-  border: none;
-  border-radius: var(--radius-md);
-  color: var(--text-tertiary);
-  cursor: pointer;
-  line-height: 0;
-}
-
-.topbar-icon-btn:hover {
-  background: var(--surface-3);
-  color: var(--text-secondary);
-}
-
-.topbar-icon-btn.active {
   color: var(--text-primary);
 }
 
