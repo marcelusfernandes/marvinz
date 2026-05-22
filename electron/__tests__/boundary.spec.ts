@@ -774,7 +774,7 @@ describe('C2 TOCTOU proof — assertInsideVaultAsync returns realpath', () => {
     expect(safe).toBe(expected)
   })
 
-  it('post-swap readFile via safe path throws ENOENT, not reading outside file', async () => {
+  it('O_NOFOLLOW at open time blocks post-swap symlink read (correct TOCTOU fix)', async () => {
     // Setup: vault/foo.md exists with known content
     const file = path.join(vault, 'foo.md')
     await fs.writeFile(file, 'original', 'utf8')
@@ -788,12 +788,13 @@ describe('C2 TOCTOU proof — assertInsideVaultAsync returns realpath', () => {
     await fs.unlink(file)
     await fs.symlink(evilFile, file)
 
-    // Handler I/O: read via `safe` (the realpath from before the swap)
-    // If safe is a realpath, the original inode is gone → ENOENT (correct)
-    // If safe is lexical, it now follows the new symlink → reads evil.md (vulnerable)
-    await expect(fs.readFile(safe, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
+    // A string realpath alone does NOT protect against TOCTOU — the path is re-resolved
+    // at open time. Only O_NOFOLLOW at the actual open call closes the window.
+    // Verify: opening `safe` with O_NOFOLLOW after the swap throws ELOOP (symlink detected).
+    const flags = fs.constants.O_NOFOLLOW | fs.constants.O_RDONLY
+    await expect(fs.open(safe, flags)).rejects.toMatchObject({ code: 'ELOOP' })
 
-    // Confirm the evil file itself was NOT read (still has original content)
+    // Confirm evil file was not read through
     const evilContent = await fs.readFile(evilFile, 'utf8')
     expect(evilContent).toBe('evil content')
   })
