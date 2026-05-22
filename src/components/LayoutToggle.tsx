@@ -1,3 +1,5 @@
+import { Icon } from './Icon'
+
 export type LayoutMode = 'editor-center' | 'claude-center'
 
 type Props = {
@@ -16,7 +18,7 @@ export function LayoutToggle({ mode, onChange }: Props) {
         aria-label="Editor in center"
         aria-pressed={mode === 'editor-center'}
       >
-        <EditorCenterIcon />
+        <Icon name="layout-sidebar-right" size={16} />
       </button>
       <button
         type="button"
@@ -26,30 +28,8 @@ export function LayoutToggle({ mode, onChange }: Props) {
         aria-label="Claude in center"
         aria-pressed={mode === 'claude-center'}
       >
-        <ClaudeCenterIcon />
+        <Icon name="layout-sidebar-left" size={16} />
       </button>
     </div>
-  )
-}
-
-// 24×16 viewBox. Three columns: narrow sidebar · wide editor (highlighted) · medium claude.
-function EditorCenterIcon() {
-  return (
-    <svg width="22" height="14" viewBox="0 0 24 16" aria-hidden>
-      <rect x="1" y="2" width="3.5" height="12" rx="0.5" className="layout-icon-thin" />
-      <rect x="5.5" y="2" width="11" height="12" rx="0.5" className="layout-icon-fill" />
-      <rect x="17.5" y="2" width="5.5" height="12" rx="0.5" className="layout-icon-thin" />
-    </svg>
-  )
-}
-
-// 24×16 viewBox. Three columns: narrow sidebar · medium claude · wide editor (highlighted).
-function ClaudeCenterIcon() {
-  return (
-    <svg width="22" height="14" viewBox="0 0 24 16" aria-hidden>
-      <rect x="1" y="2" width="3.5" height="12" rx="0.5" className="layout-icon-thin" />
-      <rect x="5.5" y="2" width="5.5" height="12" rx="0.5" className="layout-icon-thin" />
-      <rect x="12" y="2" width="11" height="12" rx="0.5" className="layout-icon-fill" />
-    </svg>
   )
 }
