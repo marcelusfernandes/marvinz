@@ -345,13 +345,19 @@ ipcMain.handle('vault:tree', async () => {
   return readVaultTree(activeVaultPath)
 })
 
-ipcMain.handle('vault:watch', (_e, vaultPath: string) => {
+ipcMain.handle('vault:watch', async (_e, vaultPath: string) => {
   if (!vaultPath) {
     vaultWatcher?.close()
     activeVaultPath = null
-    return
+    return null
   }
-  const resolvedVault = path.resolve(vaultPath)
+  let resolvedVault: string
+  try {
+    resolvedVault = await fs.realpath(path.resolve(vaultPath))
+  } catch {
+    // If realpath fails (e.g., path doesn't exist), fall back to lexical resolution
+    resolvedVault = path.resolve(vaultPath)
+  }
   assertAllowedVault(resolvedVault, allowedVaultPaths)
   vaultWatcher?.close()
   activeVaultPath = resolvedVault
@@ -427,6 +433,8 @@ ipcMain.handle('vault:watch', (_e, vaultPath: string) => {
     })
     .on('addDir', notifyTree)
     .on('unlinkDir', notifyTree)
+  
+  return resolvedVault
 })
 
 const FILE_SIZE_LIMIT = 5 * 1024 * 1024 // 5 MB — guard against pathologically large files
