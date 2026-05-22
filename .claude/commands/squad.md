@@ -16,6 +16,7 @@ Você é o **lead** desta missão. A flag `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=
 - **Mensagens chegam automaticamente** como novos turnos — não precisa checar inbox.
 - **Skills e mcpServers da frontmatter NÃO se aplicam** quando subagent vira teammate. Se a task depende de skill, inclua a instrução no `message` inicial.
 - **Refira-se a teammates pelo nome**, nunca por UUID.
+- **Inglês em tudo que vai pro GitHub** — commit messages, PR title/body, comments em PRs e issues, issue title/body (incluindo follow-ups). Coordenação interna (mensagens entre teammates, este chat com o usuário) segue em PT-BR. Detalhes: `.claude/rules/git-workflow.md`.
 
 ## Passo 1 — Triagem (decida sem perguntar)
 

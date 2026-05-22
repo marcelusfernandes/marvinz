@@ -40,11 +40,25 @@ Exemplos: `feat/wikilinks`, `fix/pty-spawn-race`, `refactor/file-tree`, `chore/u
 - **Não** push da feature branch antes da confirmação do usuário
 - **Não** force-push em `main` ou `develop` em hipótese nenhuma
 
+## Idioma — sempre inglês
+
+**Convenção do projeto**: todo texto que vai pro GitHub é em **inglês**:
+
+- Commit messages (title + body)
+- PR titles e bodies
+- Comentários em PRs e issues
+- Issue titles e bodies (criadas via squad ou diretamente)
+- Mensagens de erro em código quando expostas ao usuário (já era padrão pós-G2-1)
+
+**Conversa com o usuário (este chat, planejamento, gates humanos)** segue em PT-BR — o idioma só é forçado quando o conteúdo sai do contexto local pro repositório público.
+
+Justificativa: histórico do repo + reviewers eventuais (open source ou colaboradores externos) precisam de baseline consistente em inglês. Mistura de idiomas no git log gera ruído de leitura.
+
 ## Commit message
 
-Formato: `<type>: <descrição curta no imperativo>`
-- Mesmo `<type>` da branch (`feat`, `fix`, `refactor`, etc.)
-- Descrição em letra minúscula, sem ponto final
-- Atribuição (Co-Authored-By) está desabilitada globalmente
+Formato: `<type>: <short imperative description>`
+- Same `<type>` as the branch (`feat`, `fix`, `refactor`, etc.)
+- Description in lowercase, no trailing period, **in English**
+- Attribution (Co-Authored-By) is globally disabled
 
-Exemplo: `feat: wikilink resolver by basename`
+Example: `feat: wikilink resolver by basename`
