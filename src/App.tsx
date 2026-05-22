@@ -557,10 +557,11 @@ export default function App() {
         setActiveTabId(id)
         return
       }
-      // PDFs and HTML: open in a browser tab pointing at the marvin:// URL.
-      // PDFs use Chromium's built-in viewer; HTML renders via the custom
-      // protocol so relative asset paths resolve against the vault.
-      if (isPdfPath(path) || isHtmlPath(path)) {
+      // PDFs: open in a browser tab pointing at the marvin:// URL so
+      // Chromium's built-in PDF viewer handles them. HTML files go through
+      // the NoteTab branch — Editor.tsx's HTML branch renders the preview
+      // via HtmlPreview while keeping the source editable.
+      if (isPdfPath(path)) {
         const url = marvinFileUrl(path)
         const id = newTabId()
         setTabs((prev) => [
@@ -749,7 +750,6 @@ export default function App() {
         isNoteTab(activeTab) &&
         !isImagePath(path) &&
         !isPdfPath(path) &&
-        !isHtmlPath(path) &&
         path !== activeTab.path
       ) {
         const noteTab = activeTab
@@ -863,9 +863,15 @@ export default function App() {
   }, [])
 
   // Tell main which browser is currently the active visible one (or null).
+  // HtmlPreview also rides on the browser-view IPC, so when an HTML NoteTab
+  // is active we point the active id at its synthetic preview id.
   useEffect(() => {
-    const activeBrowserId =
-      activeTab && isBrowserTab(activeTab) ? activeTab.id : null
+    let activeBrowserId: string | null = null
+    if (activeTab && isBrowserTab(activeTab)) {
+      activeBrowserId = activeTab.id
+    } else if (activeTab && isNoteTab(activeTab) && isHtmlPath(activeTab.path)) {
+      activeBrowserId = `html-preview-${activeTab.path}`
+    }
     void window.marvin.browser.setActive(activeBrowserId)
   }, [activeTab])
 
@@ -1312,10 +1318,12 @@ export default function App() {
                 />
               )}
               <Editor
-                key={`${activeTab.id}#${activeTab.path}#${activeTab.version}`}
+                key={`${activeTab.id}#${activeTab.path}`}
                 filePath={activeTab.path}
                 vaultPath={vaultPath}
                 initialContent={activeTab.content}
+                version={activeTab.version}
+                geometryKey={`${layoutMode}#${sidebarWidth}#${agentsWidth}`}
                 paletteItems={paletteItems}
                 onSave={handleSave}
                 onBufferChange={(content) => handleBufferChange(activeTab.path, content)}

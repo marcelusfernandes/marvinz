@@ -771,7 +771,8 @@ button {
   border-color: var(--accent);
 }
 
-.browser-host {
+.browser-host,
+.html-preview-host {
   flex: 1;
   /* The actual web content is rendered by Electron's WebContentsView,
      positioned over this placeholder via setBounds. We just reserve space. */
@@ -1000,6 +1001,20 @@ button {
 .cm-host .cm-editor {
   height: 100%;
   font-size: 14px;
+  background: var(--bg);
+}
+
+.cm-host .cm-editor.cm-focused {
+  outline: none;
+}
+
+.cm-host .cm-scroller {
+  background: var(--bg);
+}
+
+.cm-host .cm-activeLine,
+.cm-host .cm-activeLineGutter {
+  background: transparent;
 }
 
 .cm-host .cm-content {
@@ -1032,6 +1047,83 @@ button {
   min-width: 28px;
   text-align: right;
   color: var(--fg-3);
+}
+
+/* CodeMirror search panel + bracket highlight */
+.cm-host .cm-panels {
+  background: var(--bg-2);
+  border-bottom: 1px solid var(--border);
+}
+
+.cm-host .cm-panel.cm-search {
+  padding: 6px 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cm-host .cm-panel.cm-search input[type="checkbox"] {
+  margin: 0 4px;
+}
+
+.cm-host .cm-panel.cm-search input[type="text"],
+.cm-host .cm-textfield {
+  background: var(--bg);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 3px 6px;
+  font-size: 12px;
+  outline: none;
+}
+
+.cm-host .cm-textfield:focus {
+  border-color: var(--accent);
+}
+
+.cm-host .cm-panel.cm-search button,
+.cm-host .cm-button {
+  background: var(--bg-3);
+  color: var(--fg-2);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 2px 8px;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.cm-host .cm-button:hover,
+.cm-host .cm-panel.cm-search button:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+}
+
+.cm-host .cm-panel.cm-search label {
+  color: var(--fg-3);
+  font-size: 11px;
+}
+
+.cm-host .cm-searchMatch {
+  background: rgba(196, 105, 31, 0.18);
+  outline: 1px solid rgba(196, 105, 31, 0.4);
+}
+
+.cm-host .cm-searchMatch-selected {
+  background: var(--accent);
+  outline: 1px solid var(--accent);
+  color: white;
+}
+
+.cm-host .cm-matchingBracket {
+  background: var(--bg-3);
+  outline: 1px solid rgba(196, 105, 31, 0.4);
+  border-radius: 2px;
+}
+
+.cm-host .cm-nonmatchingBracket {
+  background: rgba(255, 100, 100, 0.15);
+  outline: 1px solid rgba(255, 100, 100, 0.5);
 }
 
 .claude-pane {
@@ -1538,7 +1630,7 @@ button {
   color: var(--fg);
 }
 
-/* TopBar gear button — matches topbar-search hover/active treatment */
+/* TopBar gear button — borderless icon button */
 .topbar-icon-btn {
   -webkit-app-region: no-drag;
   display: inline-flex;
@@ -1546,17 +1638,18 @@ button {
   justify-content: center;
   width: 26px;
   height: 26px;
+  padding: 0;
   margin-left: 8px;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 6px;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
   color: var(--fg-3);
-  font-size: 14px;
   cursor: pointer;
+  line-height: 0;
 }
 
 .topbar-icon-btn:hover {
-  border-color: var(--fg-3);
+  background: var(--bg-3);
   color: var(--fg-2);
 }
 
