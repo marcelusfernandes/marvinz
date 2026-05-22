@@ -35,7 +35,7 @@ export function TopBar({ onOpenPalette, onOpenSettings, layoutMode, onLayoutChan
           title="Settings (⌘,)"
           aria-label="Open settings"
         >
-          <Icon name="settings-gear" />
+          <Icon name="gear" />
         </button>
         <LayoutToggle mode={layoutMode} onChange={onLayoutChange} />
       </div>
