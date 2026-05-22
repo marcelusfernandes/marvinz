@@ -2,7 +2,7 @@
   "name": "marvin",
   "productName": "Marvin",
   "private": true,
-  "version": "0.8.0",
+  "version": "0.9.0",
   "type": "module",
   "main": "dist-electron/main.cjs",
   "scripts": {
