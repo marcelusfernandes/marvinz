@@ -1630,7 +1630,7 @@ button {
   color: var(--fg);
 }
 
-/* TopBar gear button — matches topbar-search hover/active treatment */
+/* TopBar gear button — borderless icon button */
 .topbar-icon-btn {
   -webkit-app-region: no-drag;
   display: inline-flex;
@@ -1639,16 +1639,15 @@ button {
   width: 26px;
   height: 26px;
   margin-left: 8px;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 6px;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
   color: var(--fg-3);
-  font-size: 14px;
   cursor: pointer;
 }
 
 .topbar-icon-btn:hover {
-  border-color: var(--fg-3);
+  background: var(--bg-3);
   color: var(--fg-2);
 }
 
