@@ -17,6 +17,8 @@ import {
 } from './snapshot.js'
 import { assertInsideVaultAsync } from './vault-boundary.js'
 import { assertAllowedVault } from './vault-allowlist.js'
+import { assertPtySpawnAllowed, registerDynamicShell } from './pty-spawn-guard.js'
+import { assertAgentDetectAllowed, registerDetectedAgent } from './agent-detect-guard.js'
 
 process.env.APP_ROOT = path.join(__dirname, '..')
 
@@ -709,6 +711,7 @@ ipcMain.handle('shell:reveal', async (_e, target: string) => {
   shell.showItemInFolder(safe)
 })
 
+
 function detectBinary(name: string): string | null {
   // Defensive: only allow simple binary names — no path traversal or shell.
   if (!/^[a-zA-Z0-9_-]+$/.test(name)) return null
@@ -731,14 +734,29 @@ function detectBinary(name: string): string | null {
   return null
 }
 
-ipcMain.handle('agent:detect', async (_e, name: string) => detectBinary(name))
+ipcMain.handle('agent:detect', async (_e, name: string) => {
+  assertAgentDetectAllowed(name)
+  const detected = detectBinary(name)
+  if (detected) {
+    registerDynamicShell(detected)
+    registerDetectedAgent(detected)
+  }
+  return detected
+})
 
 // Back-compat shim for the previous renderer API.
-ipcMain.handle('claude:detect', async () => detectBinary('claude'))
+ipcMain.handle('claude:detect', async () => {
+  const detected = detectBinary('claude')
+  if (detected) registerDynamicShell(detected)
+  return detected
+})
 
 ipcMain.handle(
   'pty:spawn',
-  (_e, opts: { id: string; shell: string; cwd: string; cols: number; rows: number; args?: string[] }) => {
+  async (_e, opts: { id: string; shell: string; cwd: string; cols: number; rows: number; args?: string[] }) => {
+    if (!activeVaultPath) throw new Error('MARVIN_OUTSIDE_VAULT')
+    const { shell: resolvedShell, cwd: safeCwd } = await assertPtySpawnAllowed(activeVaultPath, opts)
+
     const existing = ptyProcesses.get(opts.id)
     if (existing) existing.kill()
 
@@ -756,11 +774,11 @@ ipcMain.handle(
     const rows = Math.max(opts.rows || 24, 5)
 
     try {
-      const ptyProcess = pty.spawn(opts.shell, opts.args ?? [], {
+      const ptyProcess = pty.spawn(resolvedShell, opts.args ?? [], {
         name: 'xterm-256color',
         cols,
         rows,
-        cwd: opts.cwd,
+        cwd: safeCwd,
         env,
       })
       ptyProcesses.set(opts.id, ptyProcess)
@@ -797,8 +815,10 @@ ipcMain.handle(
       })
       return { pid: ptyProcess.pid }
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err)
-      throw new Error(`Failed to spawn ${opts.shell}: ${message}`)
+      const code = err instanceof Error ? err.message : String(err)
+      if (/^(MARVIN|SNAPSHOT)_[A-Z_]+$/.test(code)) throw err
+      console.error('[pty:spawn] spawn failed', { id: opts.id, shell: opts.shell, err })
+      throw new Error('MARVIN_PTY_SPAWN_FAILED')
     }
   },
 )

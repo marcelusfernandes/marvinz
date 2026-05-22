@@ -20,6 +20,23 @@ export function assertInsideVault(vaultPath: string, targetPath: string): void {
 }
 
 /**
+ * Async boundary check for a cwd (directory) argument.
+ *
+ * Unlike assertInsideVaultAsync, skips the parent-dir check — cwd must be the
+ * vault root itself or a subdirectory inside it. Resolves symlinks on the
+ * directory entry itself to block symlink-escaped cwds.
+ *
+ * Throws 'MARVIN_OUTSIDE_VAULT' on any violation.
+ */
+export async function assertCwdInsideVaultAsync(vaultPath: string, cwd: string): Promise<string> {
+  if (cwd.includes('\0')) throw new Error('MARVIN_OUTSIDE_VAULT')
+  const vault = path.resolve(vaultPath)
+  const abs = path.resolve(cwd)
+  rejectOutside(abs, vault)
+  return checkEntry(abs, vault)
+}
+
+/**
  * Async boundary check with full symlink resolution.
  *
  * Checks the parent directory and the target path itself — including dangling
