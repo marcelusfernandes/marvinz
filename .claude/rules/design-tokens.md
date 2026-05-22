@@ -8,8 +8,8 @@ This guide defines Marvinz's design token system — the single source of truth 
 |----------|-----------|-------|----------|
 | **Color** | `--bg-`, `--surface-`, `--border-`, `--text-`, `--accent-` | 14 | `--bg-app: #ececec`, `--text-primary: #1a1a1a` |
 | **Spacing** | `--space-` | 7 | `--space-1: 4px`, `--space-4: 16px`, `--space-7: 48px` |
-| **Radius** | `--radius-` | 4 | `--radius-sm: 3px`, `--radius-md: 6px`, `--radius-pill: 999px` |
-| **Typography** | `--font-family-`, `--font-size-`, `--line-height-`, `--font-weight-` | 13 | `--font-family-sans` (system UI), `--font-family-mono` (system mono), `--font-size-md: 1rem` (14px), `--font-weight-semibold: 600` |
+| **Radius** | `--radius-` | 5 | `--radius-sm: 3px`, `--radius-md: 6px`, `--radius-lg: 12px`, `--radius-xl: 16px`, `--radius-pill: 999px` |
+| **Typography** | `--font-family-`, `--font-size-`, `--line-height-`, `--font-weight-` | 14 | `--font-family-sans` (system UI), `--font-family-mono` (system mono), `--font-size-md: 1rem` (14px), `--font-weight-semibold: 600`, `--font-weight-bold: 700` |
 | **Shadow** | `--shadow-` | 3 base + dark variants | `--shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08)` |
 | **Motion** | `--duration-`, `--ease-` | 5 | `--duration-normal: 200ms`, `--ease-out: cubic-bezier(0, 0, 0.2, 1)` |
 
@@ -28,7 +28,8 @@ This guide defines Marvinz's design token system — the single source of truth 
 
 **Radius** — border-radius for UI elements.
 - Buttons, inputs: `--radius-md` (6px)
-- Modals, panels, cards: `--radius-lg` (10px)
+- Modals, popovers: `--radius-lg` (12px)
+- Layout panels (sidebar, editor, claude card): `--radius-xl` (16px)
 - Badges, pills, avatars: `--radius-pill` (999px)
 - Chrome elements (scrollbars): `--radius-sm` (3px)
 

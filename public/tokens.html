@@ -19,8 +19,8 @@
     --text-primary: #1a1a1a;
     --text-secondary: #6b6b6f;
     --text-tertiary: #9a9a9e;
-    --accent: #c4691f;
-    --accent-bg: #c4691f14;
+    --accent: #007aff;
+    --accent-bg: #007aff14;
 
     --space-1: 4px;
     --space-2: 8px;
@@ -32,7 +32,8 @@
 
     --radius-sm: 3px;
     --radius-md: 6px;
-    --radius-lg: 10px;
+    --radius-lg: 12px;
+    --radius-xl: 16px;
     --radius-pill: 999px;
 
     --font-family-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -51,6 +52,7 @@
     --font-weight-regular: 400;
     --font-weight-medium: 500;
     --font-weight-semibold: 600;
+    --font-weight-bold: 700;
 
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
     --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
@@ -74,8 +76,8 @@
     --text-primary: #e6e6e6;
     --text-secondary: #a0a0a0;
     --text-tertiary: #6a6a6a;
-    --accent: #c4691f;
-    --accent-bg: #c4691f22;
+    --accent: #0a84ff;
+    --accent-bg: #0a84ff22;
 
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.15);
     --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.25);
@@ -321,7 +323,8 @@
   <div class="grid">
     <div class="card"><div class="radius-box" style="border-radius: var(--radius-sm);"></div><div class="name">--radius-sm</div><div class="value">3px · micro chrome</div></div>
     <div class="card"><div class="radius-box" style="border-radius: var(--radius-md);"></div><div class="name">--radius-md</div><div class="value">6px · inputs, buttons</div></div>
-    <div class="card"><div class="radius-box" style="border-radius: var(--radius-lg);"></div><div class="name">--radius-lg</div><div class="value">10px · modals, popovers</div></div>
+    <div class="card"><div class="radius-box" style="border-radius: var(--radius-lg);"></div><div class="name">--radius-lg</div><div class="value">12px · modals, popovers</div></div>
+    <div class="card"><div class="radius-box" style="border-radius: var(--radius-xl);"></div><div class="name">--radius-xl</div><div class="value">16px · layout panels (sidebar, editor, claude)</div></div>
     <div class="card"><div class="radius-box" style="border-radius: var(--radius-pill);"></div><div class="name">--radius-pill</div><div class="value">999px · badges, tags</div></div>
   </div>
 </section>
@@ -335,14 +338,18 @@
   <div class="type-row"><div class="label">--font-size-lg · 1.143rem (16px)</div><div class="sample" style="font-size: var(--font-size-lg);">Section headers, sidebar group titles</div></div>
   <div class="type-row"><div class="label">--font-size-xl · 1.429rem (20px)</div><div class="sample" style="font-size: var(--font-size-xl); font-weight: var(--font-weight-semibold);">Modal titles, page headings</div></div>
 
-  <p class="desc" style="margin-top: var(--space-4);">Families:</p>
-  <div class="type-row"><div class="label">--font-family-sans</div><div class="sample" style="font-family: var(--font-family-sans);">SF Pro · Segoe UI · Roboto (system UI)</div></div>
-  <div class="type-row"><div class="label">--font-family-mono</div><div class="sample" style="font-family: var(--font-family-mono);">SF Mono · Consolas · Menlo (system mono)</div></div>
+  <p class="desc" style="margin-top: var(--space-4);">
+    Families — system font stack (nenhum arquivo de fonte baixado). O browser resolve a primeira opção disponível no SO:
+    <br><strong>macOS:</strong> SF Pro / SF Mono · <strong>Windows:</strong> Segoe UI / Consolas · <strong>Linux:</strong> Roboto ou fallback genérico.
+  </p>
+  <div class="type-row"><div class="label">--font-family-sans</div><div class="sample" style="font-family: var(--font-family-sans);">SF Pro (macOS) · Segoe UI (Win) · Roboto (Linux)</div></div>
+  <div class="type-row"><div class="label">--font-family-mono</div><div class="sample" style="font-family: var(--font-family-mono);">SF Mono (macOS) · Consolas (Win) · Menlo · monospace</div></div>
 
   <p class="desc" style="margin-top: var(--space-4);">Weights:</p>
   <div class="type-row"><div class="label">--font-weight-regular · 400</div><div class="sample" style="font-weight: var(--font-weight-regular);">The quick brown fox jumps over the lazy dog</div></div>
   <div class="type-row"><div class="label">--font-weight-medium · 500</div><div class="sample" style="font-weight: var(--font-weight-medium);">The quick brown fox jumps over the lazy dog</div></div>
   <div class="type-row"><div class="label">--font-weight-semibold · 600</div><div class="sample" style="font-weight: var(--font-weight-semibold);">The quick brown fox jumps over the lazy dog</div></div>
+  <div class="type-row"><div class="label">--font-weight-bold · 700</div><div class="sample" style="font-weight: var(--font-weight-bold);">The quick brown fox jumps over the lazy dog</div></div>
 
   <p class="desc" style="margin-top: var(--space-4);">Line heights:</p>
   <div class="type-row"><div class="label">--line-height-tight · 1.2</div><div class="sample" style="line-height: var(--line-height-tight); white-space: normal;">Linha condensada que ocupa pouca altura — bom para títulos e botões compactos.</div></div>

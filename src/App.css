@@ -15,8 +15,8 @@
   --text-tertiary: #9a9a9e;
 
   /* Accent */
-  --accent: #c4691f;
-  --accent-bg: #c4691f14;
+  --accent: #007aff;
+  --accent-bg: #007aff14;
 
   /* Spacing — 4px base, 7 steps from tight UI gaps to editorial insets */
   --space-1: 4px;
@@ -27,10 +27,11 @@
   --space-6: 32px;
   --space-7: 48px;
 
-  /* Radius — sm chrome → md inputs → lg modals → pill badges */
+  /* Radius — sm chrome → md inputs → lg modals → xl layout panels → pill badges */
   --radius-sm: 3px;
   --radius-md: 6px;
-  --radius-lg: 10px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
   --radius-pill: 999px;
 
   /* Typography — system fonts, base 14px on html (1rem = 14px) */
@@ -50,6 +51,7 @@
   --font-weight-regular: 400;
   --font-weight-medium: 500;
   --font-weight-semibold: 600;
+  --font-weight-bold: 700;
 
   /* Elevation — soft on light surfaces */
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
@@ -78,8 +80,8 @@
   --text-secondary: #a0a0a0;
   --text-tertiary: #6a6a6a;
 
-  --accent: #c4691f;
-  --accent-bg: #c4691f22;
+  --accent: #0a84ff;
+  --accent-bg: #0a84ff22;
 
   /* Elevation — heavier in dark so shadows stay visible */
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.15);
