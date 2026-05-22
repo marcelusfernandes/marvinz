@@ -44,6 +44,38 @@ Classifique a entrada em um perfil. Em dúvida entre dois, prefira o menor.
 - `dev` (subagent_type da camada afetada)
 - `reviewer` (subagent_type: `code-reviewer`)
 
+## Passo 1.5 — Vincular issue (se a missão tem issue no GitHub)
+
+Se a entrada do `/squad` cita uma issue (ex: "trabalhar na issue #60"), faça o vínculo issue↔branch↔status ANTES de spawn dos teammates. Pula esta seção apenas se for trabalho exploratório sem issue rastreável.
+
+### 1.5.1 Criar branch a partir da issue
+
+Use `gh issue develop` — cria branch a partir de `develop`, **vincula automaticamente à issue**, e checa o branch:
+```bash
+gh issue develop <issue-number> --base develop --branch <type>/<slug> --checkout
+```
+
+Onde `<type>` segue `.claude/rules/git-workflow.md` (`feat`, `fix`, `refactor`, `chore`, etc.) e `<slug>` é kebab-case curto.
+
+### 1.5.2 Comentar na issue com link da branch
+
+```bash
+gh issue comment <issue-number> --body "Squad iniciado — branch: \`<type>/<slug>\`. Status: In Progress."
+```
+
+### 1.5.3 Mover issue para "In Progress" no project board
+
+Se houver project board com status:
+```bash
+# Descobrir project ID, status field ID, "In Progress" option ID:
+gh project list --owner <owner> --format json
+gh project field-list <project-number> --owner <owner> --format json
+# Mover:
+gh project item-edit --id <item-id> --field-id <status-field-id> --project-id <project-id> --single-select-option-id <in-progress-option-id>
+```
+
+**Se `gh` retornar erro `missing required scopes [read:project]`**: pause e peça ao usuário rodar `gh auth refresh -s read:project,project`. Não tente contornar. Documente no relatório final que o status fica desatualizado até a refresh.
+
 ## Passo 2 — Spawn programático
 
 Execute nesta ordem:
@@ -115,18 +147,49 @@ SendMessage({
 
 2. Consolide os reports em texto único para o usuário humano. Inclua: arquivos tocados, AC atendidos (X/N), riscos pendentes.
 
-3. Shutdown teammates (em paralelo):
+3. **Abrir PR contra `develop` referenciando a issue** (sempre `Closes #<num>` no body — auto-close on merge):
+   ```bash
+   gh pr create --base develop --title "<tipo>: <descrição> (#<issue-num>)" --body "...Closes #<issue-num>..."
+   ```
+
+4. **Mover issue para "In Review"** no project board:
+   ```bash
+   gh project item-edit --id <item-id> --field-id <status-field-id> --project-id <project-id> --single-select-option-id <in-review-option-id>
+   ```
+   Idem caveat: se token sem scope `read:project`, pause e peça refresh.
+
+5. **Comentar na issue** com o link da PR (defesa caso `Closes #X` falhe em auto-link):
+   ```bash
+   gh issue comment <issue-number> --body "PR aberta: #<pr-num>. Status: In Review."
+   ```
+
+6. Shutdown teammates (em paralelo):
    ```
    SendMessage({ to: "<teammate>", message: { type: "shutdown_request", reason: "missão completa" } })
    ```
    Cada teammate responde com `shutdown_response approve:true` e seu processo termina.
 
-4. Após todos saírem:
+7. Após todos saírem:
    ```
    TeamDelete()
    ```
 
-5. **Não faça merge nem push.** Siga `.claude/rules/git-workflow.md`: branch a partir de `develop`, PR contra `develop`, usuário humano aprova merge.
+8. **Não faça merge.** Usuário humano aprova o merge da PR. Quando a PR for mergeada (você será notificado ou pode checar `gh pr view <num> --json state`):
+   - Issue auto-fecha via `Closes #X` no body
+   - **Mover issue para "Done"** no project board:
+     ```bash
+     gh project item-edit --id <item-id> --field-id <status-field-id> --project-id <project-id> --single-select-option-id <done-option-id>
+     ```
+
+**Resumo do flow de status da issue durante o squad:**
+
+| Momento | Status no project board | Onde no `/squad` |
+|---|---|---|
+| Squad pega issue | **In Progress** | Passo 1.5.3 |
+| PR aberta | **In Review** | Passo 4.4 |
+| PR mergeada | **Done** | Passo 4.8 |
+
+Cada transição vem acompanhada de um comment na issue (Passos 1.5.2, 4.5) — garantindo trilha auditável mesmo se project board não estiver acessível.
 
 ## Limites & sanidade
 
