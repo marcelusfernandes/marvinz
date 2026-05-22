@@ -1,4 +1,5 @@
 import { LayoutToggle, type LayoutMode } from './LayoutToggle'
+import { Icon } from './Icon'
 
 type Props = {
   onOpenPalette: () => void
@@ -17,7 +18,7 @@ export function TopBar({ onOpenPalette, layoutMode, onLayoutChange }: Props) {
         title="Search files (⌘P)"
       >
         <span className="topbar-search-icon" aria-hidden>
-          ⌕
+          <Icon name="search" />
         </span>
         <span className="topbar-search-text">Search files…</span>
         <span className="topbar-search-shortcut">

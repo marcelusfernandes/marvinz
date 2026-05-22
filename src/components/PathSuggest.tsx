@@ -6,6 +6,8 @@ import {
   stripBasename,
 } from '../lib/paletteRanker'
 import { HighlightedMatch } from './HighlightedMatch'
+import { Icon } from './Icon'
+import { fileIconFor } from '../lib/fileIcons'
 
 type Props = {
   /** Vault-relative path currently committed (the open file's location). */
@@ -188,6 +190,7 @@ export function PathSuggest({ value, items, onCommit, placeholder }: Props) {
                 }}
                 onClick={(e) => commit(r.item.path, !(e.metaKey || e.ctrlKey))}
               >
+                <Icon name={fileIconFor(r.item.name)} className="palette-icon" size={14} />
                 <span className="palette-name">
                   <HighlightedMatch text={r.item.name} matches={r.nameMatches} />
                   {!r.item.isMarkdown && <span className="palette-ext-tag">file</span>}

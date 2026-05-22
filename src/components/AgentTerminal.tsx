@@ -3,6 +3,7 @@ import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import '@xterm/xterm/css/xterm.css'
+import { Icon } from './Icon'
 
 export type AgentDef = {
   /** Stable identifier (`'claude'`, `'codex'`, …). */
@@ -181,6 +182,7 @@ export function AgentTerminal({ agent, ptyId, vaultPath, isActive, onStatusChang
       {showRestart && (
         <div className="agent-restart-bar">
           <button type="button" className="claude-restart" onClick={handleRestart}>
+            <Icon name="debug-restart" size={14} />
             Restart {agent.name}
           </button>
         </div>

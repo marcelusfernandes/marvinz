@@ -1,7 +1,14 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { Icon, type IconName } from './Icon'
 
 export type MenuItem =
-  | { kind: 'item'; label: string; onClick: () => void; danger?: boolean }
+  | {
+      kind: 'item'
+      label: string
+      onClick: () => void
+      danger?: boolean
+      icon?: IconName
+    }
   | { kind: 'separator' }
 
 type Props = {
@@ -59,7 +66,8 @@ export function ContextMenu({ x, y, items, onClose }: Props) {
               onClose()
             }}
           >
-            {item.label}
+            {item.icon && <Icon name={item.icon} size={14} className="ctx-item-icon" />}
+            <span className="ctx-item-label">{item.label}</span>
           </button>
         )
       })}

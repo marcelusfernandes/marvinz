@@ -14,6 +14,7 @@ import { CsvEditor } from './CsvEditor'
 import { PathSuggest } from './PathSuggest'
 import type { PaletteItem } from '../lib/paletteRanker'
 import { isWikilinkHref, resolveWikilink } from '../lib/wikilinks'
+import { Icon } from './Icon'
 
 type Props = {
   filePath: string
@@ -21,6 +22,7 @@ type Props = {
   initialContent: string
   paletteItems: PaletteItem[]
   onSave: (content: string) => Promise<void>
+  onBufferChange?: (content: string) => void
   onNavigate: (path: string, replaceCurrent: boolean) => void
   canBack: boolean
   canForward: boolean
@@ -52,6 +54,7 @@ export function Editor({
   initialContent,
   paletteItems,
   onSave,
+  onBufferChange,
   onNavigate,
   canBack,
   canForward,
@@ -81,6 +84,7 @@ export function Editor({
     (next: string) => {
       setValue(next)
       latestValue.current = next
+      onBufferChange?.(next)
       if (timer.current) window.clearTimeout(timer.current)
       timer.current = window.setTimeout(async () => {
         setSaving(true)
@@ -92,7 +96,7 @@ export function Editor({
         }
       }, SAVE_DEBOUNCE_MS)
     },
-    [onSave],
+    [onSave, onBufferChange],
   )
 
   const handleSourceChange = useCallback(
@@ -181,7 +185,7 @@ export function Editor({
             title="Back"
             aria-label="Back"
           >
-            ‹
+            <Icon name="chevron-left"/>
           </button>
           <button
             type="button"
@@ -191,7 +195,7 @@ export function Editor({
             title="Forward"
             aria-label="Forward"
           >
-            ›
+            <Icon name="chevron-right"/>
           </button>
           <PathSuggest
             value={relativePath}
@@ -211,6 +215,7 @@ export function Editor({
                 onClick={() => setMode('edit')}
                 title="Edit (raw)"
               >
+                <Icon name="edit" size={14} />
                 Edit
               </button>
               <button
@@ -219,6 +224,7 @@ export function Editor({
                 onClick={() => setMode('preview')}
                 title="Preview (rendered)"
               >
+                <Icon name="eye" size={14} />
                 Preview
               </button>
             </div>

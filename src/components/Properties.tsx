@@ -6,6 +6,7 @@ import {
   type Frontmatter,
   type PropertyType,
 } from '../lib/frontmatter'
+import { Icon } from './Icon'
 
 type Props = {
   data: Frontmatter
@@ -149,7 +150,7 @@ function PropertyRow({
         aria-label={`Remove ${propKey}`}
         onClick={onRemove}
       >
-        ×
+        <Icon name="close"/>
       </button>
     </li>
   )
@@ -361,7 +362,7 @@ function TagsEditor({
             aria-label={`Remove ${tag}`}
             onClick={() => remove(i)}
           >
-            ×
+            <Icon name="close"/>
           </button>
         </span>
       ))}
@@ -417,7 +418,7 @@ function ListEditor({
             aria-label={`Remove ${item}`}
             onClick={() => remove(i)}
           >
-            ×
+            <Icon name="close"/>
           </button>
         </span>
       ))}
@@ -493,72 +494,17 @@ function AddPropertyRow({
   )
 }
 
+const PROP_ICON_BY_TYPE: Record<PropertyType, 'symbol-string' | 'symbol-numeric' | 'symbol-boolean' | 'calendar' | 'tag' | 'list-unordered' | 'json' | 'dash'> = {
+  string: 'symbol-string',
+  number: 'symbol-numeric',
+  boolean: 'symbol-boolean',
+  date: 'calendar',
+  tags: 'tag',
+  list: 'list-unordered',
+  object: 'json',
+  empty: 'dash',
+}
+
 function PropertyIcon({ type }: { type: PropertyType }) {
-  switch (type) {
-    case 'number':
-      return (
-        <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round">
-          <path d="M5 2.5 L3.5 13.5" />
-          <path d="M12.5 2.5 L11 13.5" />
-          <path d="M2.5 5.5 L13.5 5.5" />
-          <path d="M2.5 10.5 L13.5 10.5" />
-        </svg>
-      )
-    case 'boolean':
-      return (
-        <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.4">
-          <rect x="2.5" y="2.5" width="11" height="11" rx="2" />
-          <path d="M5 8 L7.2 10.2 L11 5.8" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      )
-    case 'date':
-      return (
-        <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round">
-          <rect x="2.5" y="3.5" width="11" height="10" rx="1.5" />
-          <path d="M2.5 6.5 L13.5 6.5" />
-          <path d="M5.5 2 L5.5 5" />
-          <path d="M10.5 2 L10.5 5" />
-        </svg>
-      )
-    case 'tags':
-      return (
-        <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M2 8 L8 2 L13.5 2 L13.5 7.5 L7.5 13.5 Z" />
-          <circle cx="10.5" cy="5" r="0.7" fill="currentColor" />
-        </svg>
-      )
-    case 'list':
-      return (
-        <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round">
-          <circle cx="3.5" cy="4" r="0.7" fill="currentColor" stroke="none" />
-          <circle cx="3.5" cy="8" r="0.7" fill="currentColor" stroke="none" />
-          <circle cx="3.5" cy="12" r="0.7" fill="currentColor" stroke="none" />
-          <path d="M6.5 4 L13.5 4" />
-          <path d="M6.5 8 L13.5 8" />
-          <path d="M6.5 12 L13.5 12" />
-        </svg>
-      )
-    case 'object':
-      return (
-        <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M5.5 2 C 4 2 4 4 4 5.5 C 4 7 3 8 2 8 C 3 8 4 9 4 10.5 C 4 12 4 14 5.5 14" />
-          <path d="M10.5 2 C 12 2 12 4 12 5.5 C 12 7 13 8 14 8 C 13 8 12 9 12 10.5 C 12 12 12 14 10.5 14" />
-        </svg>
-      )
-    case 'empty':
-      return (
-        <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round">
-          <path d="M3.5 8 L12.5 8" />
-        </svg>
-      )
-    case 'string':
-    default:
-      return (
-        <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round">
-          <path d="M3 4.5 L13 4.5" />
-          <path d="M3 8 L13 8" />
-          <path d="M3 11.5 L9 11.5" />
-        </svg>
-      )
-  }
+  return <Icon name={PROP_ICON_BY_TYPE[type]} size={14} />
 }

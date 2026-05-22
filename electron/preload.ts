@@ -14,6 +14,8 @@ type BrowserEvent =
   | { id: string; kind: 'nav-state'; canBack: boolean; canForward: boolean }
   | { id: string; kind: 'load-error'; url: string; message: string }
 
+type FileChangeSource = 'agent' | 'external'
+
 const api = {
   settings: {
     get: () => ipcRenderer.invoke('settings:get') as Promise<{ vaultPath?: string }>,
@@ -35,8 +37,8 @@ const api = {
       ipcRenderer.invoke('file:write', filePath, content) as Promise<void>,
     create: (parentDir: string, name: string) =>
       ipcRenderer.invoke('file:create', parentDir, name) as Promise<string>,
-    onChanged: (cb: (filePath: string) => void) => {
-      const listener = (_: unknown, filePath: string) => cb(filePath)
+    onChanged: (cb: (filePath: string, source: FileChangeSource) => void) => {
+      const listener = (_: unknown, filePath: string, source: FileChangeSource) => cb(filePath, source)
       ipcRenderer.on('file:changed', listener)
       return () => ipcRenderer.removeListener('file:changed', listener)
     },
@@ -90,6 +92,21 @@ const api = {
   shell: {
     openExternal: (url: string) => ipcRenderer.invoke('shell:openExternal', url) as Promise<void>,
     reveal: (target: string) => ipcRenderer.invoke('shell:reveal', target) as Promise<void>,
+  },
+  snapshot: {
+    listTurns: () => ipcRenderer.invoke('snapshot:listTurns'),
+    listForFile: (relPath: string) => ipcRenderer.invoke('snapshot:listForFile', relPath),
+    read: (turnId: string, relPath: string) =>
+      ipcRenderer.invoke('snapshot:read', turnId, relPath),
+    restore: (turnId: string, relPath: string) =>
+      ipcRenderer.invoke('snapshot:restore', turnId, relPath),
+    saveBuffer: (relPath: string, content: string) =>
+      ipcRenderer.invoke('snapshot:saveBuffer', relPath, content),
+    onTurnCompleted: (cb: (event: { turnId: string; timestamp: number; files: string[] }) => void) => {
+      const listener = (_: unknown, event: { turnId: string; timestamp: number; files: string[] }) => cb(event)
+      ipcRenderer.on('snapshot:turn-completed', listener)
+      return () => ipcRenderer.removeListener('snapshot:turn-completed', listener)
+    },
   },
   pty: {
     spawn: (opts: {
