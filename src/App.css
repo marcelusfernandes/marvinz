@@ -249,9 +249,50 @@ button {
   flex-direction: column;
   height: 100vh;
   width: 100%;
-  background: var(--bg-app);
+  background: var(--surface-1);
   padding: var(--space-3);
+  gap: var(--space-3);
   -webkit-app-region: drag;
+}
+
+.shell-topbar {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  height: 28px;
+  /* Reserve space for the macOS traffic lights (positioned at x:14, ~70px wide). */
+  padding-left: 70px;
+}
+
+.shell-search-btn {
+  -webkit-app-region: no-drag;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 28px;
+  padding: 0 var(--space-2);
+  background: var(--surface-2);
+  border-radius: var(--radius-md);
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+  min-width: 220px;
+  cursor: text;
+}
+
+.shell-search-btn:hover {
+  background: var(--surface-3);
+  color: var(--text-secondary);
+}
+
+.shell-search-placeholder {
+  flex: 1;
+  text-align: left;
+}
+
+.shell-search-kbd {
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+  opacity: 0.7;
 }
 
 .app {
@@ -326,42 +367,7 @@ button {
   flex-direction: column;
   background: var(--surface-1);
   border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-md);
   overflow: hidden;
-}
-
-.sidebar-search {
-  padding: var(--space-2) var(--space-3);
-  border-bottom: 1px solid var(--border-subtle);
-}
-
-.sidebar-search-btn {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  width: 100%;
-  padding: var(--space-1) var(--space-2);
-  background: var(--surface-2);
-  border-radius: var(--radius-md);
-  color: var(--text-tertiary);
-  font-size: var(--font-size-sm);
-  text-align: left;
-  -webkit-app-region: no-drag;
-}
-
-.sidebar-search-btn:hover {
-  background: var(--surface-3);
-  color: var(--text-secondary);
-}
-
-.sidebar-search-placeholder {
-  flex: 1;
-}
-
-.sidebar-search-kbd {
-  font-size: var(--font-size-xs);
-  color: var(--text-tertiary);
-  opacity: 0.7;
 }
 
 .sidebar-header {
@@ -565,9 +571,8 @@ button {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: var(--surface-1);
+  background: var(--surface-2);
   border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-md);
 }
 
 .empty-editor {
@@ -1290,9 +1295,8 @@ button {
 
 .claude-pane {
   grid-area: claude;
-  background: var(--surface-1);
+  background: var(--surface-2);
   border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-md);
   overflow: hidden;
 }
 
