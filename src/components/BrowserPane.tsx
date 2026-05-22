@@ -148,7 +148,7 @@ export function BrowserPane({
           title="Back"
           aria-label="Back"
         >
-          <Icon name="chevron-left" size={14} />
+          <Icon name="chevron-left"/>
         </button>
         <button
           type="button"
@@ -158,7 +158,7 @@ export function BrowserPane({
           title="Forward"
           aria-label="Forward"
         >
-          <Icon name="chevron-right" size={14} />
+          <Icon name="chevron-right"/>
         </button>
         <button
           type="button"
@@ -171,7 +171,7 @@ export function BrowserPane({
           title={tab.loading ? 'Stop' : 'Reload'}
           aria-label={tab.loading ? 'Stop' : 'Reload'}
         >
-          <Icon name={tab.loading ? 'close' : 'refresh'} size={14} />
+          <Icon name={tab.loading ? 'close' : 'refresh'}/>
         </button>
         <input
           ref={urlInputRef}

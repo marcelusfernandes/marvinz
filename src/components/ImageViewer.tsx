@@ -1,3 +1,5 @@
+import { Icon } from './Icon'
+
 type Props = {
   path: string
   /** Open in the system default app (Preview, etc.) via Reveal in Finder. */
@@ -34,6 +36,7 @@ export function ImageViewer({ path, onRevealInFinder }: Props) {
             onClick={() => onRevealInFinder(path)}
             title="Reveal in Finder"
           >
+            <Icon name="link-external" size={14} />
             Reveal
           </button>
         )}

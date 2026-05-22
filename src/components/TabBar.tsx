@@ -1,4 +1,5 @@
 import { Icon } from './Icon'
+import { fileIconFor } from '../lib/fileIcons'
 
 type NoteTab = {
   type: 'note'
@@ -79,7 +80,7 @@ export function TabBar({ tabs, activeId, onActivate, onClose, onNewBrowserTab }:
             title={tooltip}
           >
             <TabIcon
-              kind={kind}
+              tab={t}
               loading={t.type === 'browser' ? t.loading : false}
             />
             <span className="tab-title">{label}</span>
@@ -93,7 +94,7 @@ export function TabBar({ tabs, activeId, onActivate, onClose, onNewBrowserTab }:
                 onClose(t.id)
               }}
             >
-              <Icon name="close" size={10} />
+              <Icon name="close"/>
             </button>
           </div>
         )
@@ -105,38 +106,17 @@ export function TabBar({ tabs, activeId, onActivate, onClose, onNewBrowserTab }:
         title="New browser tab (⌘T)"
         aria-label="New browser tab"
       >
-        <Icon name="add" size={14} />
+        <Icon name="add"/>
       </button>
     </div>
   )
 }
 
-function TabIcon({ kind, loading }: { kind: 'note' | 'browser' | 'image'; loading: boolean }) {
-  if (kind === 'image') {
-    return (
-      <svg className="tab-icon" viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" aria-hidden>
-        <rect x="1.5" y="2.5" width="13" height="11" rx="1.5" />
-        <circle cx="5.5" cy="6" r="1.2" fill="currentColor" stroke="none" />
-        <path d="M2 12 L6 8 L9 11 L11 9 L14 12" />
-      </svg>
-    )
+function TabIcon({ tab, loading }: { tab: Tab; loading: boolean }) {
+  if (tab.type === 'browser') {
+    if (loading) return <span className="tab-icon spinner" aria-hidden />
+    return <Icon name="globe" className="tab-icon" size={12} />
   }
-  if (kind === 'browser') {
-    if (loading) {
-      return <span className="tab-icon spinner" aria-hidden />
-    }
-    return (
-      <svg className="tab-icon" viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
-        <circle cx="8" cy="8" r="6.5" />
-        <ellipse cx="8" cy="8" rx="3" ry="6.5" />
-        <path d="M1.5 8 L14.5 8" />
-      </svg>
-    )
-  }
-  return (
-    <svg className="tab-icon" viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" aria-hidden>
-      <path d="M3 1.5 L9 1.5 L13 5.5 L13 14.5 L3 14.5 Z" />
-      <path d="M9 1.5 L9 5.5 L13 5.5" />
-    </svg>
-  )
+  // note & image both have a path → use file-type icon based on extension
+  return <Icon name={fileIconFor(basename(tab.path))} className="tab-icon" size={12} />
 }

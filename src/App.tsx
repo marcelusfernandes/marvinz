@@ -872,11 +872,13 @@ export default function App() {
         {
           kind: 'item',
           label: 'New note here',
+          icon: 'new-file',
           onClick: () => setDialog({ kind: 'newNote', parentDir: node.path }),
         },
         {
           kind: 'item',
           label: 'New folder here',
+          icon: 'new-folder',
           onClick: () => setDialog({ kind: 'newFolder', parentDir: node.path }),
         },
         { kind: 'separator' },
@@ -886,17 +888,20 @@ export default function App() {
       {
         kind: 'item',
         label: 'Rename',
+        icon: 'edit',
         onClick: () => setDialog({ kind: 'rename', target: node.path, isDir: node.isDir }),
       },
       {
         kind: 'item',
         label: 'Reveal in Finder',
+        icon: 'go-to-file',
         onClick: () => void window.marvin.shell.reveal(node.path),
       },
       { kind: 'separator' },
       {
         kind: 'item',
         label: node.isDir ? 'Move folder to Trash' : 'Move file to Trash',
+        icon: 'trash',
         danger: true,
         onClick: () => handleTrash(node.path),
       },

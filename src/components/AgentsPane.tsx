@@ -214,7 +214,7 @@ export function AgentsPane({ agents, vaultPath, newTabTick }: Props) {
                   removeTab(t.id)
                 }}
               >
-                <Icon name="close" size={10} />
+                <Icon name="close"/>
               </button>
             </div>
           )
@@ -281,7 +281,7 @@ function NewTabButton({
         title={disabled ? 'No agent installed' : 'New terminal'}
         aria-label="New terminal"
       >
-        <Icon name="add" size={14} />
+        <Icon name="add"/>
       </button>
       {showChevron && (
         <button
@@ -291,7 +291,7 @@ function NewTabButton({
           title="Choose agent"
           aria-label="Choose agent"
         >
-          <Icon name="chevron-down" size={12} />
+          <Icon name="chevron-down"/>
         </button>
       )}
     </div>

@@ -34,7 +34,7 @@ export function SidebarMenu({ onNewNote, onNewFolder }: Props) {
         title="Create"
         onClick={() => setOpen((o) => !o)}
       >
-        <Icon name="add" size={14} />
+        <Icon name="add"/>
       </button>
       {open && (
         <div className="sidebar-menu-pop">

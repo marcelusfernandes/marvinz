@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { FileNode } from '../types'
 import { Icon } from './Icon'
+import { fileIconFor } from '../lib/fileIcons'
 
 type Props = {
   nodes: FileNode[]
@@ -131,11 +132,10 @@ function FileTreeNode({
           onContextMenu={(e) => onContextMenu(e, node)}
         >
           <span className="chev">
-            <Icon name={open ? 'chevron-down' : 'chevron-right'} size={12} />
+            <Icon name={open ? 'chevron-down' : 'chevron-right'} />
           </span>
           <Icon
             name={open ? 'folder-opened' : 'folder'}
-            size={14}
             className="folder-icon"
           />
           <span className="name">{node.name}</span>
@@ -167,12 +167,13 @@ function FileTreeNode({
       <button
         type="button"
         className={`file-tree-row file${isSelected ? ' selected' : ''}${md ? '' : ' non-md'}`}
-        style={{ paddingLeft: padding + 34 }}
+        style={{ paddingLeft: padding + 20 }}
         draggable
         onDragStart={handleDragStart}
         onClick={() => onSelect(node)}
         onContextMenu={(e) => onContextMenu(e, node)}
       >
+        <Icon name={fileIconFor(node.name)} className="file-icon" />
         <span className="name">{displayName}</span>
       </button>
     </li>
