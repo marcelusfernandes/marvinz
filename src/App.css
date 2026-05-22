@@ -1638,12 +1638,14 @@ button {
   justify-content: center;
   width: 26px;
   height: 26px;
+  padding: 0;
   margin-left: 8px;
   background: transparent;
   border: none;
   border-radius: 4px;
   color: var(--fg-3);
   cursor: pointer;
+  line-height: 0;
 }
 
 .topbar-icon-btn:hover {
