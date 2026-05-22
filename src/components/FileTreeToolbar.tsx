@@ -24,7 +24,7 @@ export function FileTreeToolbar({
         aria-label="New file"
         onClick={onNewFile}
       >
-        <Icon name="new-file" size={20} />
+        <Icon name="new-file" size={16} />
       </button>
       <button
         type="button"
@@ -33,7 +33,7 @@ export function FileTreeToolbar({
         aria-label="New folder"
         onClick={onNewFolder}
       >
-        <Icon name="new-folder" size={20} />
+        <Icon name="new-folder" size={16} />
       </button>
       <button
         type="button"
@@ -42,7 +42,7 @@ export function FileTreeToolbar({
         aria-label="Refresh"
         onClick={onRefresh}
       >
-        <Icon name="refresh" size={20} />
+        <Icon name="refresh" size={16} />
       </button>
       <button
         type="button"
@@ -51,7 +51,7 @@ export function FileTreeToolbar({
         aria-label={isAnyOpen ? 'Collapse all' : 'Expand all'}
         onClick={onToggleAll}
       >
-        <Icon name={isAnyOpen ? 'collapse-all' : 'expand-all'} size={20} />
+        <Icon name={isAnyOpen ? 'collapse-all' : 'expand-all'} size={16} />
       </button>
     </div>
   )
