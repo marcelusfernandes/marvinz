@@ -19,6 +19,14 @@ import { assertInsideVaultAsync } from './vault-boundary.js'
 import { assertAllowedVault } from './vault-allowlist.js'
 import { assertPtySpawnAllowed, registerDynamicShell } from './pty-spawn-guard.js'
 import { assertAgentDetectAllowed, registerDetectedAgent } from './agent-detect-guard.js'
+import {
+  spawnAgent,
+  cancelAgent,
+  killAgentSession,
+  handleApproval,
+  killAllAgents,
+} from './agent/index.js'
+import type { AgentRequest, AgentEvent } from './agent/protocol.js'
 
 process.env.APP_ROOT = path.join(__dirname, '..')
 
@@ -277,6 +285,7 @@ app.whenReady().then(() => {
 app.on('window-all-closed', () => {
   for (const p of ptyProcesses.values()) p.kill()
   ptyProcesses.clear()
+  killAllAgents().catch(() => {})
   vaultWatcher?.close()
   if (process.platform !== 'darwin') app.quit()
 })
@@ -1200,4 +1209,69 @@ ipcMain.handle('snapshot:saveExternalChange', async (_e, relPath: unknown, conte
     const saved = await writeSnapshot(vault, turnId, rel, content, 'external-rejected')
     return ok({ turnId, saved })
   } catch (e) { return err(e) }
+})
+
+// --- Agent IPC handlers (agent namespace) ------------------------------------
+
+type AgentResponse = { ok: true } | { ok: false; error: string }
+
+function requireAgentRequest(raw: unknown): AgentRequest {
+  if (!raw || typeof raw !== 'object' || !('type' in raw)) {
+    throw new Error('AGENT_INVALID_REQUEST')
+  }
+  return raw as AgentRequest
+}
+
+ipcMain.handle('agent:request', async (e, raw: unknown): Promise<AgentResponse> => {
+  try {
+    const req = requireAgentRequest(raw)
+
+    // Events go back to the renderer that made the request, not a global win ref.
+    const sender = e.sender
+    function senderSend(channel: string, payload: AgentEvent) {
+      try {
+        if (!sender.isDestroyed()) sender.send(channel, payload)
+      } catch {
+        // renderer being torn down — ignore
+      }
+    }
+
+    if (req.type === 'start') {
+      const binary = detectBinary('claude')
+      if (!binary) {
+        senderSend(`agent:event:${req.sessionId}`, {
+          type: 'error',
+          sessionId: req.sessionId,
+          code: 'AGENT_NOT_FOUND',
+          message: 'claude binary not found in PATH',
+          recoverable: false,
+        })
+        return { ok: true }
+      }
+      // Register the binary so pty-spawn-guard validates it if ever needed.
+      registerDynamicShell(binary)
+      await spawnAgent(req, binary, senderSend)
+      return { ok: true }
+    }
+
+    if (req.type === 'cancel') {
+      await cancelAgent(req.sessionId)
+      return { ok: true }
+    }
+
+    if (req.type === 'kill') {
+      await killAgentSession(req.sessionId)
+      return { ok: true }
+    }
+
+    if (req.type === 'approval') {
+      handleApproval(req.sessionId, req.toolUseId, req.decision, senderSend)
+      return { ok: true }
+    }
+
+    return { ok: true }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    return { ok: false, error: message }
+  }
 })
