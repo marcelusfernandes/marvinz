@@ -18,11 +18,19 @@ export class NdjsonStream {
   // StringDecoder holds incomplete multi-byte sequences between chunks.
   private readonly decoder = new StringDecoder('utf8')
 
+  readonly #onLine: (obj: unknown) => void
+  readonly #onMalformed: (line: string, err: Error) => void
+  readonly #onFatal: (err: Error) => void
+
   constructor(
-    private readonly onLine: (obj: unknown) => void,
-    private readonly onMalformed: (line: string, err: Error) => void,
-    private readonly onFatal: (err: Error) => void,
-  ) {}
+    onLine: (obj: unknown) => void,
+    onMalformed: (line: string, err: Error) => void,
+    onFatal: (err: Error) => void,
+  ) {
+    this.#onLine = onLine
+    this.#onMalformed = onMalformed
+    this.#onFatal = onFatal
+  }
 
   push(chunk: Buffer): void {
     this.buf += this.decoder.write(chunk)
@@ -33,13 +41,13 @@ export class NdjsonStream {
       this.buf = this.buf.slice(nl + 1)
       if (!line) continue
       try {
-        this.onLine(JSON.parse(line))
+        this.#onLine(JSON.parse(line))
         this.consecutiveMalformed = 0
       } catch (e) {
         this.consecutiveMalformed++
-        this.onMalformed(line, e as Error)
+        this.#onMalformed(line, e as Error)
         if (this.consecutiveMalformed >= MALFORMED_CRASH_THRESHOLD) {
-          this.onFatal(new Error('NDJSON_TOO_MANY_MALFORMED'))
+          this.#onFatal(new Error('NDJSON_TOO_MANY_MALFORMED'))
           return
         }
       }
@@ -47,10 +55,10 @@ export class NdjsonStream {
 
     if (this.buf.length > LINE_CAP_BYTES) {
       this.consecutiveMalformed++
-      this.onMalformed(this.buf, new Error('LINE_TOO_LONG'))
+      this.#onMalformed(this.buf, new Error('LINE_TOO_LONG'))
       this.buf = ''
       if (this.consecutiveMalformed >= MALFORMED_CRASH_THRESHOLD) {
-        this.onFatal(new Error('NDJSON_TOO_MANY_MALFORMED'))
+        this.#onFatal(new Error('NDJSON_TOO_MANY_MALFORMED'))
       }
     }
   }
