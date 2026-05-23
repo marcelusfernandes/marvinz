@@ -306,6 +306,9 @@ export function Editor({
               body={previewBody}
               onChange={handleBodyChange}
               onLinkClick={handleLinkClick}
+              filePath={filePath}
+              vaultPath={vaultPath}
+              paletteItems={paletteItems}
               remountKey={liveKey}
             />
           </div>

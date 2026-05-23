@@ -19,6 +19,7 @@ export function SettingsModal({ onClose, layoutMode, onLayoutChange }: Props) {
 
   const iconTheme = useSetting('iconTheme') ?? 'codicon'
   const colorTheme = useSetting('colorTheme') ?? 'system'
+  const terminalModeEnabled = useSetting('terminalModeEnabled') ?? false
 
   return (
     <div className="modal-backdrop" onMouseDown={onClose}>
@@ -128,6 +129,29 @@ export function SettingsModal({ onClose, layoutMode, onLayoutChange }: Props) {
                 Claude
               </button>
             </div>
+          </div>
+        </section>
+
+        <section className="modal-section">
+          <div className="modal-section-header">Advanced</div>
+          <div className="modal-section-row">
+            <div>
+              <div className="modal-section-label">Enable terminal mode</div>
+              <div className="modal-section-hint">
+                New agent tabs open the legacy PTY terminal instead of the native chat panel.
+              </div>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={terminalModeEnabled}
+              className={`segmented-btn${terminalModeEnabled ? ' active' : ''}`}
+              onClick={() =>
+                void setSetting('terminalModeEnabled', !terminalModeEnabled)
+              }
+            >
+              {terminalModeEnabled ? 'On' : 'Off'}
+            </button>
           </div>
         </section>
 

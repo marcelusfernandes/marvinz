@@ -49,6 +49,11 @@ export type Settings = {
   vaultPath?: string
   iconTheme?: 'codicon' | 'material'
   colorTheme?: 'light' | 'dark' | 'system'
+  /**
+   * When true, new agent tabs default to the legacy PTY terminal instead of
+   * the native chat panel. Per-tab type is preserved across the toggle.
+   */
+  terminalModeEnabled?: boolean
 }
 
 export type MarvinAPI = {
