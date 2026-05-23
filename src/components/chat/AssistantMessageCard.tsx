@@ -16,6 +16,7 @@ import type {
 type Props = {
   sessionId: SessionId
   message: AssistantMessage
+  vaultPath?: string
 }
 
 function dotStateForTool(status: ToolStatus): TimelineDotState {
@@ -75,7 +76,7 @@ function formatDuration(ms: number): string {
   return `${(ms / 1000).toFixed(1)}s`
 }
 
-function AssistantMessageCardImpl({ sessionId, message }: Props) {
+function AssistantMessageCardImpl({ sessionId, message, vaultPath }: Props) {
   const { decide } = useToolApproval(sessionId)
   const onDecide = (toolUseId: ToolCallId, decision: ApprovalDecision) => {
     void decide(toolUseId, decision)
@@ -116,6 +117,9 @@ function AssistantMessageCardImpl({ sessionId, message }: Props) {
               result={block.result}
               errorMessage={block.errorMessage}
               durationMs={block.durationMs}
+              snapshotSaved={block.snapshotSaved}
+              snapshotTurnId={block.snapshotTurnId}
+              vaultPath={vaultPath}
             />
             {block.status === 'pending_approval' && (
               <ToolApprovalGate
@@ -144,5 +148,7 @@ function AssistantMessageCardImpl({ sessionId, message }: Props) {
 export const AssistantMessageCard = memo(
   AssistantMessageCardImpl,
   (prev, next) =>
-    prev.message === next.message && prev.sessionId === next.sessionId,
+    prev.message === next.message &&
+    prev.sessionId === next.sessionId &&
+    prev.vaultPath === next.vaultPath,
 )

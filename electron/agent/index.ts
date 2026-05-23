@@ -16,6 +16,7 @@ import {
   cancelPendingApprovals,
 } from './permissions.js'
 import { createApprovalServer, type ApprovalServer } from './approval-socket.js'
+import { newTurnId } from '../snapshot.js'
 import type { AgentEvent, AgentRequest, Provider, PermissionMode } from './protocol.js'
 
 export type AgentChild = {
@@ -35,6 +36,12 @@ export type AgentChild = {
   // text-delta coalescing ring buffer keyed by messageId
   deltaBuffers: Map<string, string[]>
   flushTimer: ReturnType<typeof setImmediate> | null
+  // Mutable ref to the current agent turn ID, shared with approval-socket for snapshot tagging.
+  agentTurnId: { current: string }
+  // Files touched (by file-edit tools) in the current turn, for turn-snapshot-summary.
+  touchedFiles: Set<string>
+  // Snapshot result promises keyed by toolUseId — populated by approval-socket, consumed by dispatchEvent.
+  snapshotResults: Map<string, Promise<{ saved: boolean; turnId: string }>>
 }
 
 // Emitter callback: main.ts passes win.webContents.send bound to the window.
@@ -214,7 +221,39 @@ function dispatchEvent(child: AgentChild, event: AgentEvent, emit: EventEmitter)
     }
   }
 
+  // For file-edit tool-use events, augment with snapshotSaved + snapshotTurnId.
+  // The snapshot promise is set by approval-socket before the hook responds, so it should
+  // be settled by the time the NDJSON tool-use event arrives. Await it and defer the emit.
+  if (event.type === 'tool-use') {
+    const snapPromise = child.snapshotResults.get(event.toolUseId)
+    if (snapPromise) {
+      child.snapshotResults.delete(event.toolUseId)
+      void snapPromise.then((snap) => {
+        emit(`agent:event:${child.sessionId}`, {
+          ...event,
+          snapshotSaved: snap.saved,
+          snapshotTurnId: snap.turnId,
+        })
+      })
+      return
+    }
+  }
+
   emit(`agent:event:${child.sessionId}`, event)
+
+  // After turn-result: emit turn-snapshot-summary then reset per-turn state.
+  if (event.type === 'turn-result' && child.touchedFiles.size > 0) {
+    const fileNames = [...child.touchedFiles]
+    emit(`agent:event:${child.sessionId}`, {
+      type: 'turn-snapshot-summary',
+      sessionId: child.sessionId,
+      turnId: child.agentTurnId.current,
+      fileCount: fileNames.length,
+      fileNames,
+    })
+    child.touchedFiles.clear()
+    child.agentTurnId.current = newTurnId()
+  }
 }
 
 export type AgentBinaries = {
@@ -253,6 +292,9 @@ export async function spawnAgent(
   // Codex does not use the hook bridge — skip for Codex sessions.
   const pendingApprovalIds = new Set<string>()
   const pendingToolNames = new Map<string, string>()
+  const agentTurnId = { current: newTurnId() }
+  const touchedFiles = new Set<string>()
+  const snapshotResults = new Map<string, Promise<{ saved: boolean; turnId: string }>>()
 
   let approvalServer: ApprovalServer | null = null
   if (!isCodex) {
@@ -262,6 +304,9 @@ export async function spawnAgent(
       pendingApprovalIds,
       pendingToolNames,
       emit,
+      agentTurnId,
+      touchedFiles,
+      snapshotResults,
     )
   }
 
@@ -305,6 +350,9 @@ export async function spawnAgent(
     pendingToolNames,
     deltaBuffers: new Map(),
     flushTimer: null,
+    agentTurnId,
+    touchedFiles,
+    snapshotResults,
   }
   agentChildren.set(req.sessionId, child)
 

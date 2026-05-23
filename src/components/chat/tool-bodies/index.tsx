@@ -2,6 +2,7 @@ import type { ComponentType } from 'react'
 import { BashCard } from './BashCard'
 import { ReadCard } from './ReadCard'
 import { WriteCard } from './WriteCard'
+import { EditCard } from './EditCard'
 import { AgentCard } from './AgentCard'
 import { GenericToolCard } from './GenericToolCard'
 import type { ToolBodyProps } from './types'
@@ -25,10 +26,11 @@ function pickToolBody(tool: string): ComponentType<ToolBodyProps> {
     case 'read_file':
       return ReadCard
     case 'Write':
-    case 'Edit':
-    case 'edit_file':
     case 'create_file':
       return WriteCard
+    case 'Edit':
+    case 'edit_file':
+      return EditCard
     case 'Agent':
     case 'Task':
     case 'spawn_agent':
@@ -38,4 +40,4 @@ function pickToolBody(tool: string): ComponentType<ToolBodyProps> {
   }
 }
 
-export { BashCard, ReadCard, WriteCard, AgentCard, GenericToolCard }
+export { BashCard, ReadCard, WriteCard, EditCard, AgentCard, GenericToolCard }

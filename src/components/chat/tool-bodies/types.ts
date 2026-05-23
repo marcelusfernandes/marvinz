@@ -14,6 +14,14 @@ export type ToolBodyProps = {
   result?: unknown
   errorMessage?: string
   durationMs?: number
+  /** Pre-edit snapshot outcome for Edit/Write — drives the "Saved" badge. */
+  snapshotSaved?: boolean
+  /** Snapshot turn id — pass to `snapshot.read(turnId, relPath)` for the pre-edit content. */
+  snapshotTurnId?: string
+  /** Vault root — used to convert absolute file paths to vault-relative ones. */
+  vaultPath?: string
+  /** Open the resolved file in the editor pane (filename pill click). */
+  onOpenFile?: (path: string) => void
 }
 
 /** Heuristic: pull a primary "path-like" identifier from common tool inputs. */
