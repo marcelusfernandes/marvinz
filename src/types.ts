@@ -45,6 +45,14 @@ export type SnapshotTurnCompletedEvent = {
   files: string[]
 }
 
+export type EditorMenuRequest = {
+  hasSelection: boolean
+  canUndo: boolean
+  canRedo: boolean
+}
+
+export type EditorMenuAction = 'cut' | 'copy' | 'paste' | 'selectAll' | 'undo' | 'redo' | null
+
 export type Settings = {
   vaultPath?: string
   iconTheme?: 'codicon' | 'material'
@@ -132,6 +140,11 @@ export type MarvinAPI = {
     saveBuffer: (relPath: string, content: string) => Promise<SnapshotEnvelope<{ turnId: string; saved: boolean }>>
     saveExternalChange: (relPath: string, content: string) => Promise<SnapshotEnvelope<{ turnId: string; saved: boolean }>>
     onTurnCompleted: (cb: (event: SnapshotTurnCompletedEvent) => void) => () => void
+  }
+  editor: {
+    showContextMenu: (req: EditorMenuRequest) => Promise<EditorMenuAction>
+    readClipboard: () => Promise<string>
+    writeClipboard: (text: string) => Promise<void>
   }
 }
 

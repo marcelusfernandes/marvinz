@@ -22,6 +22,16 @@ export default defineConfig({
       },
       {
         test: {
+          name: 'editor',
+          environment: 'jsdom',
+          include: [
+            'src/components/__tests__/**/*.spec.{ts,tsx}',
+          ],
+          setupFiles: ['src/lib/chat/__tests__/setup.ts'],
+        },
+      },
+      {
+        test: {
           name: 'chat',
           environment: 'jsdom',
           include: [

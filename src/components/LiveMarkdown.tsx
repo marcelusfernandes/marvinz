@@ -1,9 +1,19 @@
-import { useEffect, useMemo, useRef } from 'react'
-import { Editor as MilkdownEditor, defaultValueCtx, editorViewOptionsCtx, rootCtx } from '@milkdown/core'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
+import {
+  Editor as MilkdownEditor,
+  defaultValueCtx,
+  editorViewCtx,
+  editorViewOptionsCtx,
+  prosePluginsCtx,
+  rootCtx,
+} from '@milkdown/core'
 import { Milkdown, MilkdownProvider, useEditor } from '@milkdown/react'
 import { commonmark } from '@milkdown/preset-commonmark'
 import { gfm } from '@milkdown/preset-gfm'
 import { listener, listenerCtx } from '@milkdown/plugin-listener'
+import { selectAll } from 'prosemirror-commands'
+import { history as pmHistory, redo, redoDepth, undo, undoDepth } from 'prosemirror-history'
+import { keymap } from 'prosemirror-keymap'
 import { imageNodeView } from '../lib/imageNodeView'
 import type { PaletteItem } from '../lib/paletteRanker'
 import { parseWikilinks, unparseWikilinks } from '../lib/wikilinks'
@@ -72,7 +82,7 @@ function LiveMarkdownInner({
     [],
   )
 
-  useEditor((root) => {
+  const editorInfo = useEditor((root) => {
     return MilkdownEditor.make()
       .config((ctx) => {
         ctx.set(rootCtx, root)
@@ -81,6 +91,14 @@ function LiveMarkdownInner({
           ...prev,
           attributes: { class: 'milkdown-host' },
         }))
+        // Use prosemirror-history directly via prosePluginsCtx. Avoids the
+        // @milkdown/plugin-history path that broke the editor's SchemaReady
+        // timer in our setup. Keymap registers Cmd/Ctrl+Z + Shift+Cmd/Ctrl+Z.
+        ctx.update(prosePluginsCtx, (prev) => [
+          ...prev,
+          pmHistory(),
+          keymap({ 'Mod-z': undo, 'Mod-Shift-z': redo, 'Mod-y': redo }),
+        ])
         ctx.get(listenerCtx).markdownUpdated((_ctx, markdown, prevMarkdown) => {
           if (markdown !== prevMarkdown) onChangeRef.current(unparseWikilinks(markdown))
         })
@@ -115,8 +133,63 @@ function LiveMarkdownInner({
     return () => el.removeEventListener('click', onClick)
   }, [])
 
+  const handleContextMenu = useCallback(
+    async (e: React.MouseEvent<HTMLDivElement>) => {
+      const editor = editorInfo.get()
+      if (!editor) return
+      let view
+      try {
+        view = editor.ctx.get(editorViewCtx)
+      } catch {
+        return
+      }
+      e.preventDefault()
+      const state = view.state
+      const action = await window.marvin.editor.showContextMenu({
+        hasSelection: !state.selection.empty,
+        canUndo: undoDepth(state) > 0,
+        canRedo: redoDepth(state) > 0,
+      })
+      if (!action) return
+      switch (action) {
+        case 'selectAll':
+          selectAll(view.state, view.dispatch, view)
+          break
+        case 'undo':
+          undo(view.state, view.dispatch)
+          break
+        case 'redo':
+          redo(view.state, view.dispatch)
+          break
+        case 'copy':
+        case 'cut': {
+          // Synthetic ClipboardEvent has isTrusted=false and Chromium blocks
+          // access to the system clipboard for such events. Use the Electron
+          // clipboard module via IPC instead. Trim leading/trailing newlines so
+          // a single-paragraph copy never carries a trailing block separator
+          // that would force a paragraph split on paste.
+          const selection = view.state.selection
+          if (selection.empty) break
+          const text = view.state.doc
+            .textBetween(selection.from, selection.to, '\n', '\n')
+            .replace(/^\n+|\n+$/g, '')
+          await window.marvin.editor.writeClipboard(text)
+          if (action === 'cut') view.dispatch(view.state.tr.deleteSelection())
+          break
+        }
+        case 'paste': {
+          const text = await window.marvin.editor.readClipboard()
+          if (text) view.dispatch(view.state.tr.insertText(text))
+          break
+        }
+      }
+      view.focus()
+    },
+    [editorInfo],
+  )
+
   return (
-    <div ref={containerRef} className="live-md">
+    <div ref={containerRef} className="live-md" onContextMenu={handleContextMenu}>
       <Milkdown />
     </div>
   )

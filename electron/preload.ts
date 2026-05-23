@@ -144,6 +144,15 @@ const api = {
     openExternal: (url: string) => ipcRenderer.invoke('shell:openExternal', url) as Promise<void>,
     reveal: (target: string) => ipcRenderer.invoke('shell:reveal', target) as Promise<void>,
   },
+  editor: {
+    showContextMenu: (req: { hasSelection: boolean; canUndo: boolean; canRedo: boolean }) =>
+      ipcRenderer.invoke('editor:show-context-menu', req) as Promise<
+        'cut' | 'copy' | 'paste' | 'selectAll' | 'undo' | 'redo' | null
+      >,
+    readClipboard: () => ipcRenderer.invoke('editor:clipboard-read') as Promise<string>,
+    writeClipboard: (text: string) =>
+      ipcRenderer.invoke('editor:clipboard-write', text) as Promise<void>,
+  },
   snapshot: {
     listTurns: () => ipcRenderer.invoke('snapshot:listTurns'),
     listForFile: (relPath: string) => ipcRenderer.invoke('snapshot:listForFile', relPath),
