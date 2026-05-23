@@ -35,7 +35,7 @@ export type AgentChild = {
   pendingToolNames: Map<string, string>
   // text-delta coalescing ring buffer keyed by messageId
   deltaBuffers: Map<string, string[]>
-  flushTimer: ReturnType<typeof setImmediate> | null
+  flushTimer: ReturnType<typeof setTimeout> | null
   // Mutable ref to the current agent turn ID, shared with approval-socket for snapshot tagging.
   agentTurnId: { current: string }
   // Files touched (by file-edit tools) in the current turn, for turn-snapshot-summary.
@@ -187,10 +187,7 @@ function flushDeltaBuffers(child: AgentChild, emit: EventEmitter): void {
 
 function scheduleFlush(child: AgentChild, emit: EventEmitter): void {
   if (child.flushTimer !== null) return
-  child.flushTimer = setImmediate(() => {
-    // setImmediate fires after I/O but we want ~16ms batching; wrap in setTimeout.
-    setTimeout(() => flushDeltaBuffers(child, emit), FLUSH_INTERVAL_MS)
-  })
+  child.flushTimer = setTimeout(() => flushDeltaBuffers(child, emit), FLUSH_INTERVAL_MS)
 }
 
 function dispatchEvent(child: AgentChild, event: AgentEvent, emit: EventEmitter): void {
@@ -216,7 +213,7 @@ function dispatchEvent(child: AgentChild, event: AgentEvent, emit: EventEmitter)
     event.type === 'crashed'
   ) {
     if (child.flushTimer !== null) {
-      clearImmediate(child.flushTimer)
+      clearTimeout(child.flushTimer)
       flushDeltaBuffers(child, emit)
     }
   }
@@ -363,7 +360,6 @@ export async function spawnAgent(
   }
 
   let malformedCount = 0
-  let streamEnded = false
 
   const ndjson = new NdjsonStream(
     (obj) => {
@@ -394,7 +390,7 @@ export async function spawnAgent(
     async (err) => {
       await writeAgentLog(req.sessionId, `[FATAL] ${err.message}`)
       if (child.flushTimer !== null) {
-        clearImmediate(child.flushTimer)
+        clearTimeout(child.flushTimer)
         flushDeltaBuffers(child, emit)
       }
       emit(`agent:event:${req.sessionId}`, {
@@ -427,7 +423,7 @@ export async function spawnAgent(
     ndjson.end()
 
     if (child.flushTimer !== null) {
-      clearImmediate(child.flushTimer)
+      clearTimeout(child.flushTimer)
       flushDeltaBuffers(child, emit)
     }
 
@@ -438,7 +434,6 @@ export async function spawnAgent(
       }
     }
 
-    streamEnded = true
     cancelPendingApprovals([...child.pendingApprovalIds])
     agentChildren.delete(req.sessionId)
     clearSessionRules(req.sessionId)
@@ -454,7 +449,6 @@ export async function spawnAgent(
     }
   })
 
-  void streamEnded // used only to satisfy the closure
 }
 
 export async function cancelAgent(sessionId: string): Promise<void> {
@@ -462,6 +456,8 @@ export async function cancelAgent(sessionId: string): Promise<void> {
   if (!child) return
   cancelPendingApprovals([...child.pendingApprovalIds])
   child.proc.kill('SIGINT')
+  const dead = await waitForExit(child.proc, SIGTERM_GRACE_MS)
+  if (!dead) child.proc.kill('SIGKILL')
 }
 
 export async function killAgentSession(sessionId: string): Promise<void> {

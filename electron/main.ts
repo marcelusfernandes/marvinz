@@ -795,7 +795,6 @@ ipcMain.handle('agent:detect', async (_e, name: string) => {
   assertAgentDetectAllowed(name)
   const detected = detectBinary(name)
   if (detected) {
-    registerDynamicShell(detected)
     registerDetectedAgent(detected)
   }
   return detected

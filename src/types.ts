@@ -1,3 +1,11 @@
+import type {
+  AgentRequest,
+  AgentEvent,
+  ApprovalDecision,
+} from './shared/agent-protocol.js'
+
+export type { AgentRequest, AgentEvent, ApprovalDecision }
+
 export type FileNode = {
   name: string
   path: string
@@ -87,6 +95,9 @@ export type MarvinAPI = {
   }
   agent: {
     detect: (name: string) => Promise<string | null>
+    request: (req: AgentRequest) => Promise<{ ok: true } | { ok: false; error: string }>
+    approve: (sessionId: string, toolUseId: string, decision: ApprovalDecision) => Promise<{ ok: true } | { ok: false; error: string }>
+    onEvent: (sessionId: string, cb: (event: AgentEvent) => void) => () => void
   }
   browser: {
     create: (opts: {

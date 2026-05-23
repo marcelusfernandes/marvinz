@@ -6,58 +6,17 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useChatStore } from './store'
 import type {
-  ChatStreamEvent,
   Mention,
   Message,
   MessageId,
   PermissionMode,
   Session,
   SessionId,
-  ToolCallId,
 } from './types'
 
-export type ApprovalDecisionKind = 'allow' | 'deny'
-export type ApprovalRemember = 'session' | 'always'
-export type ApprovalDecision = {
-  kind: ApprovalDecisionKind
-  remember?: ApprovalRemember
-}
-
-type ChatAgentRequest =
-  | {
-      type: 'start'
-      sessionId: SessionId
-      provider: 'claude' | 'codex'
-      prompt: string
-      vaultRoot: string
-      resumeFromSessionId?: string
-      model?: string
-      permissionMode: PermissionMode
-    }
-  | { type: 'cancel'; sessionId: SessionId }
-  | { type: 'kill'; sessionId: SessionId }
-  | { type: 'input'; sessionId: SessionId; content: string }
-  | {
-      type: 'approval'
-      sessionId: SessionId
-      toolUseId: ToolCallId
-      decision: ApprovalDecision
-    }
-
-type ChatAgentApi = {
-  request?: (
-    req: ChatAgentRequest,
-  ) => Promise<{ ok: true } | { ok: false; error: string } | void>
-  onEvent?: (
-    sessionId: SessionId,
-    cb: (ev: ChatStreamEvent) => void,
-  ) => () => void
-}
-
-function getAgentApi(): ChatAgentApi | null {
+function getAgentApi() {
   if (typeof window === 'undefined') return null
-  const w = window as unknown as { marvin?: { agent?: ChatAgentApi } }
-  return w.marvin?.agent ?? null
+  return window.marvin?.agent ?? null
 }
 
 // ---------------------------------------------------------------------------
@@ -90,7 +49,8 @@ export function useChatSession(sessionId: SessionId): UseChatSessionResult {
     const api = getAgentApi()
     if (!api?.onEvent) return
     const unsub = api.onEvent(sessionId, (ev) => {
-      useChatStore.getState().applyStreamEvent(sessionId, ev)
+      // AgentEvent and ChatStreamEvent are structurally equivalent; cast is safe.
+      useChatStore.getState().applyStreamEvent(sessionId, ev as import('./types').ChatStreamEvent)
     })
     return () => {
       try {

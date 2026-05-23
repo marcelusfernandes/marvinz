@@ -12,34 +12,14 @@
 
 import { useCallback, useMemo } from 'react'
 import { useChatStore } from './store'
-import type {
-  ApprovalDecision,
-  ApprovalRemember,
-} from './hooks'
+import type { ApprovalDecision } from '../../shared/agent-protocol.js'
 import type { SessionId, ToolCallId } from './types'
 
-type ApprovalResult = { ok: true } | { ok: false; error: string } | void
+type ApprovalRemember = 'session' | 'always'
 
-type AgentApi = {
-  approve?: (
-    sessionId: SessionId,
-    toolUseId: ToolCallId,
-    decision: ApprovalDecision,
-  ) => Promise<ApprovalResult>
-  request?: (
-    req: {
-      type: 'approval'
-      sessionId: SessionId
-      toolUseId: ToolCallId
-      decision: ApprovalDecision
-    },
-  ) => Promise<ApprovalResult>
-}
-
-function getAgentApi(): AgentApi | null {
+function getAgentApi() {
   if (typeof window === 'undefined') return null
-  const w = window as unknown as { marvin?: { agent?: AgentApi } }
-  return w.marvin?.agent ?? null
+  return window.marvin?.agent ?? null
 }
 
 export type UseToolApprovalResult = {

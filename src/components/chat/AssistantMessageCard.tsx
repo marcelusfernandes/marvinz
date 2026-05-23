@@ -145,6 +145,7 @@ function AssistantMessageCardImpl({ sessionId, message }: Props) {
  */
 export const AssistantMessageCard = memo(
   AssistantMessageCardImpl,
+  // Intentional reference-only check; relies on store's immutable updates per message.
   (prev, next) =>
     prev.message === next.message && prev.sessionId === next.sessionId,
 )
