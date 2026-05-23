@@ -18,6 +18,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, fireEvent, act } from '@testing-library/react'
 import type { AgentDef } from '../AgentTerminal'
 
+// Capture the real jsdom localStorage before any test mock can replace it.
+const realLocalStorage = window.localStorage
+
 // ---------------------------------------------------------------------------
 // Stub heavy sub-components AgentsPane imports
 // ---------------------------------------------------------------------------
@@ -504,5 +507,202 @@ describe('AgentsPane — agent picker chevron', () => {
       await new Promise((r) => setTimeout(r, 30))
     })
     expect(container.querySelectorAll('.agent-tab').length).toBe(0)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Persistence — helpers used by the persistence describe blocks
+// ---------------------------------------------------------------------------
+
+const TAB_LABELS_KEY = 'marvin.tabLabels'
+
+function setupMarvinMockRealStorage() {
+  showContextMenuMock = vi.fn().mockResolvedValue(null)
+  // Restore the real jsdom localStorage (setupMarvinMock replaces it with a
+  // plain mock object) and set up window.marvin.
+  Object.defineProperty(window, 'localStorage', {
+    value: realLocalStorage,
+    writable: true,
+    configurable: true,
+  })
+  Object.assign(window, {
+    marvin: {
+      app: {
+        showContextMenu: showContextMenuMock,
+        canPaste: vi.fn().mockResolvedValue(false),
+      },
+    },
+  })
+}
+
+// ---------------------------------------------------------------------------
+// Persistence — GC: orphan labels are removed on mount
+// ---------------------------------------------------------------------------
+
+describe('AgentsPane — persistence: GC', () => {
+  beforeEach(() => {
+    setupMarvinMockRealStorage()
+    realLocalStorage.clear()
+  })
+
+  afterEach(() => {
+    capturedInputDialog = null
+    vi.restoreAllMocks()
+    realLocalStorage.clear()
+  })
+
+  it('removes orphan label entries that have no matching tab on mount', async () => {
+    // Pre-seed an orphan entry (no matching tab will exist).
+    realLocalStorage.setItem(TAB_LABELS_KEY, JSON.stringify({ orphanTab: 'Orphan Label' }))
+    // Mount with no tabs initially — hydration effect runs, finds no matching
+    // tab ids, and writes back an empty map (GC).
+    await act(async () => {
+      render(<AgentsPane {...defaultProps()} />)
+      await new Promise((r) => setTimeout(r, 20))
+    })
+    const stored = JSON.parse(realLocalStorage.getItem(TAB_LABELS_KEY) ?? '{}')
+    expect(stored).not.toHaveProperty('orphanTab')
+  })
+
+  it('removes all entries when no tabs exist at mount time', async () => {
+    realLocalStorage.setItem(
+      TAB_LABELS_KEY,
+      JSON.stringify({ 'claude-1': 'A', 'claude-2': 'B' }),
+    )
+    await act(async () => {
+      render(<AgentsPane {...defaultProps()} />)
+      await new Promise((r) => setTimeout(r, 20))
+    })
+    const stored = JSON.parse(realLocalStorage.getItem(TAB_LABELS_KEY) ?? 'null')
+    // All entries were orphans (no tabs on mount) — map is empty or key removed.
+    expect(Object.keys(stored ?? {}).length).toBe(0)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Persistence — write-through: rename writes label to localStorage
+// ---------------------------------------------------------------------------
+
+describe('AgentsPane — persistence: write-through', () => {
+  beforeEach(() => {
+    setupMarvinMockRealStorage()
+    realLocalStorage.clear()
+  })
+
+  afterEach(() => {
+    capturedInputDialog = null
+    vi.restoreAllMocks()
+    realLocalStorage.clear()
+  })
+
+  it('writes the new label to localStorage when a tab is renamed', async () => {
+    showContextMenuMock.mockResolvedValue('rename')
+    const { container } = await renderWithOneTab()
+    await act(async () => {
+      rightClickFirstTab(container)
+      await new Promise((r) => setTimeout(r, 30))
+    })
+    await act(async () => {
+      capturedInputDialog!.onSubmit('My Custom Label')
+    })
+    const stored = JSON.parse(realLocalStorage.getItem(TAB_LABELS_KEY) ?? '{}')
+    const tabId = Object.keys(stored)[0]
+    expect(stored[tabId]).toBe('My Custom Label')
+  })
+
+  it('removes the label from localStorage when rename is submitted with empty string', async () => {
+    showContextMenuMock.mockResolvedValue('rename')
+    const { container } = await renderWithOneTab()
+    // Rename to something first.
+    await act(async () => {
+      rightClickFirstTab(container)
+      await new Promise((r) => setTimeout(r, 30))
+    })
+    await act(async () => {
+      capturedInputDialog!.onSubmit('Temp Label')
+    })
+    // Now rename to empty.
+    showContextMenuMock.mockResolvedValue('rename')
+    await act(async () => {
+      rightClickFirstTab(container)
+      await new Promise((r) => setTimeout(r, 30))
+    })
+    await act(async () => {
+      capturedInputDialog!.onSubmit('  ')
+    })
+    const stored = JSON.parse(realLocalStorage.getItem(TAB_LABELS_KEY) ?? '{}')
+    expect(Object.keys(stored).length).toBe(0)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Persistence — restart preservation: renamed label survives restart
+// ---------------------------------------------------------------------------
+
+describe('AgentsPane — persistence: restart preservation', () => {
+  beforeEach(() => {
+    setupMarvinMockRealStorage()
+    realLocalStorage.clear()
+  })
+
+  afterEach(() => {
+    capturedInputDialog = null
+    vi.restoreAllMocks()
+    realLocalStorage.clear()
+  })
+
+  it('reapplies the renamed label to the new tab after restart', async () => {
+    // Step 1: rename the tab.
+    showContextMenuMock.mockResolvedValue('rename')
+    const { container } = await renderWithOneTab()
+    await act(async () => {
+      rightClickFirstTab(container)
+      await new Promise((r) => setTimeout(r, 30))
+    })
+    await act(async () => {
+      capturedInputDialog!.onSubmit('Renamed Agent')
+    })
+    const tabNameBefore = container.querySelector('.agent-tab-name')?.textContent
+    expect(tabNameBefore).toBe('Renamed Agent')
+
+    // Step 2: restart the tab via context menu.
+    showContextMenuMock.mockResolvedValue('restart')
+    await act(async () => {
+      rightClickFirstTab(container)
+      await new Promise((r) => setTimeout(r, 50))
+    })
+
+    // Step 3: the restarted tab should still show the renamed label.
+    const tabNameAfter = container.querySelector('.agent-tab-name')?.textContent
+    expect(tabNameAfter).toBe('Renamed Agent')
+  })
+
+  it('updates localStorage to use the new tab id after restart', async () => {
+    showContextMenuMock.mockResolvedValue('rename')
+    const { container } = await renderWithOneTab()
+    await act(async () => {
+      rightClickFirstTab(container)
+      await new Promise((r) => setTimeout(r, 30))
+    })
+    await act(async () => {
+      capturedInputDialog!.onSubmit('Restarted Label')
+    })
+
+    const storedBefore = JSON.parse(realLocalStorage.getItem(TAB_LABELS_KEY) ?? '{}')
+    const oldTabId = Object.keys(storedBefore)[0]
+
+    // Restart.
+    showContextMenuMock.mockResolvedValue('restart')
+    await act(async () => {
+      rightClickFirstTab(container)
+      await new Promise((r) => setTimeout(r, 50))
+    })
+
+    const storedAfter = JSON.parse(realLocalStorage.getItem(TAB_LABELS_KEY) ?? '{}')
+    // Old id should be removed.
+    expect(storedAfter).not.toHaveProperty(oldTabId)
+    // New id should carry the label.
+    const values = Object.values(storedAfter)
+    expect(values).toContain('Restarted Label')
   })
 })

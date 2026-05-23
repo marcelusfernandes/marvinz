@@ -5,6 +5,11 @@ import { InputDialog } from './InputDialog'
 import { ChatPanel, type TurnSummary } from './chat/ChatPanel'
 import { useSetting } from '../lib/settingsStore'
 import type { Provider } from '../lib/chat/types'
+import {
+  clearTabLabel,
+  readTabLabels,
+  writeTabLabels,
+} from '../lib/chat/tabLabels'
 import type { MenuItemSpec } from '../types'
 
 type Props = {
@@ -71,6 +76,36 @@ export function AgentsPane({
   const [renameTarget, setRenameTarget] = useState<AgentTab | null>(null)
   const counterRef = useRef<Record<string, number>>({})
   const newButtonRef = useRef<HTMLDivElement>(null)
+  const tabsRef = useRef<AgentTab[]>(tabs)
+  useEffect(() => {
+    tabsRef.current = tabs
+  }, [tabs])
+
+  // Hydrate displayLabel from localStorage on mount and GC orphan entries.
+  useEffect(() => {
+    const stored = readTabLabels()
+    if (Object.keys(stored).length === 0) return
+    setTabs((prev) => {
+      const ids = new Set(prev.map((t) => t.id))
+      const cleaned: Record<string, string> = {}
+      for (const [id, label] of Object.entries(stored)) {
+        if (ids.has(id)) cleaned[id] = label
+      }
+      writeTabLabels(cleaned)
+      if (prev.length === 0) return prev
+      let changed = false
+      const next = prev.map((t) => {
+        const label = cleaned[t.id]
+        if (label && label !== t.displayLabel) {
+          changed = true
+          return { ...t, displayLabel: label }
+        }
+        return t
+      })
+      return changed ? next : prev
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Persist default agent.
   useEffect(() => {
@@ -152,6 +187,7 @@ export function AgentsPane({
         delete next[id]
         return next
       })
+      clearTabLabel(id)
     },
     [activeId],
   )
@@ -174,20 +210,49 @@ export function AgentsPane({
       next[idx] = { ...next[idx], displayLabel: trimmed || undefined }
       return next
     })
+    const trimmed = label.trim()
+    if (trimmed) {
+      const stored = readTabLabels()
+      stored[id] = trimmed
+      writeTabLabels(stored)
+    } else {
+      clearTabLabel(id)
+    }
   }, [])
 
   const restartTab = useCallback(
     (id: string) => {
-      const target = tabs.find((t) => t.id === id)
+      const target = tabsRef.current.find((t) => t.id === id)
       if (!target) return
+      const savedLabel = target.displayLabel
       removeTab(id)
       addTab(target.agentId)
+      if (!savedLabel) return
+      // addTab synchronously bumped counterRef and queued a setTabs with id
+      // `${agentId}-<new ptySeq>`. Compute that id and reapply the label.
+      const newPtySeq = counterRef.current[target.agentId]
+      const newId = `${target.agentId}-${newPtySeq}`
+      setTabs((prev) => {
+        const idx = prev.findIndex((t) => t.id === newId)
+        if (idx === -1) return prev
+        if (prev[idx].displayLabel === savedLabel) return prev
+        const next = prev.slice()
+        next[idx] = { ...next[idx], displayLabel: savedLabel }
+        return next
+      })
+      clearTabLabel(id)
+      const stored = readTabLabels()
+      stored[newId] = savedLabel
+      writeTabLabels(stored)
     },
-    [tabs, removeTab, addTab],
+    [removeTab, addTab],
   )
 
   const closeOthers = useCallback(
     (keepId: string) => {
+      const droppedIds = tabsRef.current
+        .filter((t) => t.id !== keepId)
+        .map((t) => t.id)
       setTabs((prev) => {
         const keep = prev.find((t) => t.id === keepId)
         if (!keep) return prev
@@ -198,6 +263,17 @@ export function AgentsPane({
         if (keepId in prev) return { [keepId]: prev[keepId] }
         return {}
       })
+      if (droppedIds.length > 0) {
+        const stored = readTabLabels()
+        let changed = false
+        for (const id of droppedIds) {
+          if (id in stored) {
+            delete stored[id]
+            changed = true
+          }
+        }
+        if (changed) writeTabLabels(stored)
+      }
     },
     [],
   )
