@@ -156,6 +156,13 @@ export type MarvinAPI = {
     showContextMenu: (items: MenuItemSpec[]) => Promise<string | null>
     canPaste: () => Promise<boolean>
   }
+  fs: {
+    importExternal: (sources: string[], destDir: string) => Promise<{
+      imported: string[]
+      skipped: { source: string; reason: 'not-found' | 'denied' | 'fs-error' }[]
+    }>
+    getPathForFile: (file: File) => string
+  }
 }
 
 declare global {

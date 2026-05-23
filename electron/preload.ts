@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type {
   ApprovalDecision,
   AgentRequest,
@@ -137,6 +137,14 @@ const api = {
     showContextMenu: (items: MenuItemSpec[]) =>
       ipcRenderer.invoke('app:show-context-menu', items) as Promise<string | null>,
     canPaste: () => ipcRenderer.invoke('app:can-paste') as Promise<boolean>,
+  },
+  fs: {
+    importExternal: (sources: string[], destDir: string) =>
+      ipcRenderer.invoke('fs:importExternal', sources, destDir) as Promise<{
+        imported: string[]
+        skipped: { source: string; reason: 'not-found' | 'denied' | 'fs-error' }[]
+      }>,
+    getPathForFile: (file: File) => webUtils.getPathForFile(file),
   },
   snapshot: {
     listTurns: () => ipcRenderer.invoke('snapshot:listTurns'),

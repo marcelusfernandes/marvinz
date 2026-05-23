@@ -27,6 +27,7 @@ import {
   killAllAgents,
 } from './agent/index.js'
 import type { AgentRequest, AgentEvent } from './agent/protocol.js'
+import { importExternal } from './fs-import-external.js'
 
 process.env.APP_ROOT = path.join(__dirname, '..')
 
@@ -761,6 +762,11 @@ ipcMain.handle('path:rename', async (_e, oldPath: string, newPath: string) => {
 ipcMain.handle('path:trash', async (_e, target: string) => {
   const safe = await assertInVault(target)
   await shell.trashItem(safe)
+})
+
+ipcMain.handle('fs:importExternal', (_e, sources: string[], destDir: string) => {
+  if (!activeVaultPath) throw new Error('MARVIN_OUTSIDE_VAULT')
+  return importExternal(activeVaultPath, sources, destDir)
 })
 
 ipcMain.handle('shell:reveal', async (_e, target: string) => {
