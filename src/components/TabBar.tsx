@@ -94,7 +94,7 @@ export function TabBar({ tabs, activeId, onActivate, onClose, onNewBrowserTab }:
                 onClose(t.id)
               }}
             >
-              <Icon name="close"/>
+              <Icon name="close" size={14}/>
             </button>
           </div>
         )

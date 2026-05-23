@@ -22,9 +22,13 @@
   --text-warning: #d97706;
   --text-success: #16a34a;
 
-  /* Accent */
+  /* Accent (Codex = Apple blue, Claude = Anthropic warm orange) */
   --accent: #007aff;
   --accent-bg: #007aff14;
+  --accent-claude: #c4691f;
+  --accent-claude-bg: #c4691f14;
+  --accent-codex: var(--accent);
+  --accent-codex-bg: var(--accent-bg);
 
   /* Overlays + hover washes */
   --bg-overlay: rgba(0, 0, 0, 0.5);
@@ -59,7 +63,9 @@
   --z-toast: 300;
   --z-tooltip: 400;
 
-  /* Spacing — 4px base, 7 steps from tight UI gaps to editorial insets */
+  /* Spacing — 4px base, 7 steps from tight UI gaps to editorial insets.
+     space-0 = 2px for very tight chip/icon internals only. */
+  --space-0: 2px;
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -69,8 +75,8 @@
   --space-7: 48px;
 
   /* Radius — sm chrome → md inputs → lg modals → xl layout panels → pill badges */
-  --radius-sm: 3px;
-  --radius-md: 6px;
+  --radius-sm: 4px;
+  --radius-md: 8px;
   --radius-lg: 12px;
   --radius-xl: 16px;
   --radius-pill: 999px;
@@ -93,6 +99,21 @@
   --font-weight-medium: 500;
   --font-weight-semibold: 600;
   --font-weight-bold: 700;
+
+  /* Shell wash — translucent tint that sits over macOS BrowserWindow vibrancy.
+     Tuned for the 'fullscreen-ui' material; intentionally not derived from
+     --surface-1 because the wash is chosen to read well over OS vibrancy,
+     not over a flat surface. */
+  --shell-wash: rgba(246, 246, 246, 0.7);
+
+  /* Pills / chips — generic list items + warm wash for tags. Tag colors
+     derive from --accent-claude so theme switches stay coherent. */
+  --pill-bg: var(--surface-3);
+  --pill-border: var(--border);
+  --pill-text: var(--text-primary);
+  --pill-tag-bg: color-mix(in srgb, var(--accent-claude) 12%, transparent);
+  --pill-tag-border: color-mix(in srgb, var(--accent-claude) 35%, transparent);
+  --pill-tag-text: var(--accent-claude);
 
   /* Elevation — soft on light surfaces */
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
@@ -132,28 +153,37 @@
 }
 
 [data-theme='dark'] {
-  --bg-app: #121212;
-  --surface-1: #1e1e1e;
-  --surface-2: #181818;
-  --surface-3: #232323;
+  /* Surface scale inverted from light: in dark, "elevated" surfaces are
+     LIGHTER (more luminance). surface-2 = recessed inputs/search,
+     surface-3 = raised hover/inactive tabs. */
+  --bg-app: #0e0e0e;
+  --surface-1: #26262a;
+  --surface-2: #2e2e32;
+  --surface-3: #36363a;
 
   --border-subtle: rgba(255, 255, 255, 0.06);
-  --border: #2e2e2e;
-  --border-strong: #3a3a3a;
+  --border: #38383a;
+  --border-strong: #48484a;
   --border-focus: var(--accent);
   --border-error: #e07b6e;
   --border-warning: #b08940;
   --border-success: #4ec77a;
 
-  --text-primary: #e6e6e6;
-  --text-secondary: #a0a0a0;
-  --text-tertiary: #6a6a6a;
+  /* Text scale tuned to Apple HIG dark labels — brighter primary
+     pushes headings forward; tertiary lifts off near-invisible territory. */
+  --text-primary: #f2f2f7;
+  --text-secondary: #aeaeb2;
+  --text-tertiary: #8e8e93;
   --text-error: #e07b6e;
   --text-warning: #b08940;
   --text-success: #4ec77a;
 
   --accent: #0a84ff;
   --accent-bg: #0a84ff22;
+  --accent-claude: #d97a30;
+  --accent-claude-bg: #d97a3022;
+  --accent-codex: var(--accent);
+  --accent-codex-bg: var(--accent-bg);
 
   /* Overlays + hover washes (dark) */
   --bg-hover: rgba(255, 255, 255, 0.04);
@@ -179,6 +209,10 @@
   --code-tag: #569cd6;
   --code-operator: var(--text-primary);
 
+  /* Shell wash (dark) — slightly more opaque so text stays readable over
+     vibrancy, near-black tint mirrors a darker surface-1. */
+  --shell-wash: rgba(15, 15, 15, 0.75);
+
   /* Elevation — heavier in dark so shadows stay visible */
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.15);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.25);
@@ -198,7 +232,9 @@ body,
 #root {
   margin: 0;
   height: 100vh;
-  background: var(--bg-app);
+  /* Transparent so the macOS vibrancy material (set via BrowserWindow
+     `vibrancy: 'fullscreen-ui'`) reaches the user's eye. .shell tints. */
+  background: transparent;
   color: var(--text-primary);
   font-family: var(--font-family-sans);
   font-size: 14px;
@@ -276,52 +312,92 @@ button {
   flex-direction: column;
   height: 100vh;
   width: 100%;
-  background: var(--surface-1);
+  background: var(--shell-wash);
+  padding: var(--space-3);
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+  -webkit-app-region: drag;
+}
+
+.sidebar-search {
+  -webkit-app-region: no-drag;
+  padding: var(--space-1) var(--space-2);
+  /* Clear the macOS traffic lights — they sit at x=14 with ~70px width
+     (so they end at ~x=84). The sidebar starts at .shell padding-left = 12px.
+     Search needs to start after the lights: 84 - 12 = 72px from sidebar
+     inner edge, plus an 8px buffer = 80px. */
+  padding-left: 80px;
+}
+
+.sidebar-search-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  height: 28px;
+  padding: 0 var(--space-2);
+  background: var(--surface-3);
+  border-radius: var(--radius-md);
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+  text-align: left;
+}
+
+.sidebar-search-btn:hover {
+  background: var(--surface-3);
+  color: var(--text-secondary);
+}
+
+.sidebar-search-placeholder {
+  flex: 1;
+}
+
+.sidebar-search-kbd {
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+  opacity: 0.7;
 }
 
 .app {
+  -webkit-app-region: no-drag;
   display: grid;
   /* 5 tracks: sidebar | split | editor | split | claude. Sidebar and claude
-     widths are driven by --sidebar-w / --agents-w state vars; each splitter
-     reserves a 1px-wide track that the .splitter element decorates and
-     extends a wider invisible hit zone via ::before. */
-  grid-template-columns: var(--sidebar-w, 240px) 1px 1fr 1px var(--agents-w, 588px);
+     widths driven by --sidebar-w / --agents-w state vars. The 2 splitter
+     tracks are var(--space-3) wide so they double as visual gap between the
+     panel cards; .splitter renders a centered hit zone inside. */
+  grid-template-columns: var(--sidebar-w, 240px) var(--space-3) 1fr var(--space-3) var(--agents-w, 588px);
   grid-template-rows: 1fr;
   grid-template-areas: 'sidebar split-sidebar editor split-agents claude';
   flex: 1;
   min-height: 0;
-  background: var(--surface-1);
 }
 
 .app[data-layout='claude-center'] {
   /* Same fixed widths swap to 'sidebar | split | claude | split | editor'.
      The agents pane (.claude-pane) is now in the middle column. */
-  grid-template-columns: var(--sidebar-w, 240px) 1px var(--agents-w, 588px) 1px 1fr;
+  grid-template-columns: var(--sidebar-w, 240px) var(--space-3) var(--agents-w, 588px) var(--space-3) 1fr;
   grid-template-areas: 'sidebar split-sidebar claude split-agents editor';
 }
 
 .splitter {
   grid-row: 1;
-  background: var(--border);
+  background: transparent;
   cursor: col-resize;
   position: relative;
   transition: background var(--duration-fast);
 }
 
-/* Wider invisible hit zone so users don't have to land on the 1px line. */
+/* Hit zone fills the full track (now var(--space-3) wide). */
 .splitter::before {
   content: '';
   position: absolute;
-  top: 0;
-  bottom: 0;
-  left: -3px;
-  right: -3px;
+  inset: 0;
   z-index: 1;
 }
 
 .splitter:hover,
 .splitter.dragging {
-  background: var(--accent);
+  background: var(--accent-bg);
 }
 
 .app > .splitter:nth-of-type(1) {
@@ -332,109 +408,8 @@ button {
   grid-area: split-agents;
 }
 
-.topbar {
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  align-items: center;
-  height: 38px;
-  flex-shrink: 0;
-  border-bottom: 1px solid var(--border);
-  background: var(--surface-2);
-  -webkit-app-region: drag;
-  padding: 0 var(--space-2);
-}
-
-.topbar-left,
-.topbar-right {
-  height: 100%;
-}
-
-.topbar-search {
-  -webkit-app-region: no-drag;
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  height: 26px;
-  padding: 0 10px 0 var(--space-3);
-  background: var(--surface-1);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  color: var(--text-tertiary);
-  font-size: var(--font-size-sm);
-  min-width: 360px;
-  max-width: 540px;
-  width: 40vw;
-  justify-content: space-between;
-  cursor: text;
-}
-
-.topbar-search:hover {
-  border-color: var(--text-tertiary);
-  color: var(--text-secondary);
-}
-
-.topbar-search-icon {
-  font-size: var(--font-size-md);
-  color: var(--text-tertiary);
-}
-
-.topbar-search-text {
-  flex: 1;
-  text-align: left;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.topbar-search-shortcut {
-  display: inline-flex;
-  gap: 2px;
-}
-
-.topbar-left {
-  /* Reserved for the macOS traffic lights; no content yet. */
-  min-width: 78px;
-}
-
-.topbar-right {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  padding-right: var(--space-2);
-}
-
-.layout-toggle {
-  -webkit-app-region: no-drag;
-  display: inline-flex;
-  align-items: center;
-  background: transparent;
-  border: none;
-  padding: 0;
-  gap: 2px;
-  height: 26px;
-}
-
-.layout-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  height: 20px;
-  padding: 0 6px;
-  border-radius: var(--radius-sm);
-  color: var(--text-tertiary);
-  cursor: pointer;
-}
-
-.layout-btn:hover {
-  color: var(--text-secondary);
-}
-
-.layout-btn.active {
-  background: var(--surface-3);
-  color: var(--text-primary);
-}
-
-.topbar-search-shortcut kbd,
-.palette-footer kbd {
+.palette-footer kbd,
+.sidebar-search-btn kbd {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -453,8 +428,9 @@ button {
   grid-area: sidebar;
   display: flex;
   flex-direction: column;
-  /* No border-right: the .splitter on our right provides the visual line. */
-  background: var(--surface-2);
+  /* Transparent so the .shell's translucent tint + macOS vibrancy show through. */
+  background: transparent;
+  border-radius: var(--radius-xl);
   overflow: hidden;
 }
 
@@ -463,14 +439,53 @@ button {
   align-items: center;
   justify-content: space-between;
   padding: var(--space-2) var(--space-3);
-  border-bottom: 1px solid var(--border);
-  height: 38px;
+  gap: var(--space-2);
 }
 
-.vault-name {
+.sidebar-project-info {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  flex: 1;
+}
+
+.sidebar-avatar {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-md);
+  background: var(--accent-bg);
+  color: var(--accent);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  letter-spacing: 0.02em;
+}
+
+.sidebar-project-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.sidebar-project-name {
   font-weight: var(--font-weight-semibold);
   font-size: 13px;
-  color: var(--text-secondary);
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-branch-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--text-tertiary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -521,7 +536,7 @@ button {
   padding: var(--space-1) var(--space-2);
   text-align: left;
   font-size: 13px;
-  color: var(--text-secondary);
+  color: var(--text-primary);
   gap: var(--space-1);
   border-radius: var(--radius-md);
 }
@@ -553,13 +568,13 @@ button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
 }
 
 .file-tree-row .folder-icon,
 .file-tree-row .file-icon {
   flex: 0 0 auto;
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
 }
 
 .file-tree-row.dir:hover .folder-icon,
@@ -583,14 +598,33 @@ button {
 }
 
 .sidebar-footer {
-  border-top: 1px solid var(--border);
-  padding: 6px var(--space-2);
+  padding: var(--space-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.sidebar-footer-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  -webkit-app-region: no-drag;
+}
+
+.sidebar-footer-btn:hover {
+  background: var(--surface-3);
+  color: var(--text-primary);
 }
 
 .text-btn {
   font-size: var(--font-size-sm);
   color: var(--text-tertiary);
-  padding: var(--space-1) 6px;
+  padding: var(--space-1) var(--space-2);
 }
 
 .text-btn:hover {
@@ -603,6 +637,7 @@ button {
   flex-direction: column;
   overflow: hidden;
   background: var(--surface-1);
+  border-radius: var(--radius-xl);
 }
 
 .empty-editor {
@@ -697,25 +732,29 @@ button {
 .path-suggest-dropdown {
   position: fixed;
   z-index: var(--z-popover);
-  background: var(--surface-2);
+  /* Semi-transparent surface + backdrop blur for macOS-style material —
+     saturate boost keeps colors lively through the blur layer. */
+  background: color-mix(in srgb, var(--surface-2) 75%, transparent);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
   border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  padding: 4px;
+  border-radius: var(--radius-lg);
+  padding: var(--space-1);
   overflow-y: auto;
-  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--shadow-lg);
   display: flex;
   flex-direction: column;
 }
 
 .tab-bar {
   display: flex;
-  align-items: stretch;
-  background: var(--surface-2);
-  border-bottom: 1px solid var(--border);
-  padding: 0 var(--space-1);
+  align-items: center;
+  background: transparent;
+  padding: var(--space-2) var(--space-3);
+  gap: var(--space-1);
   overflow-x: auto;
   flex-shrink: 0;
-  height: 38px;
+  height: 48px;
 }
 
 .tab-bar::-webkit-scrollbar {
@@ -726,15 +765,17 @@ button {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 0 10px 0 var(--space-3);
+  height: 32px;
+  padding: 0 var(--space-2) 0 var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
   font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
   color: var(--text-secondary);
   cursor: pointer;
-  border-right: 1px solid var(--border);
   user-select: none;
   flex-shrink: 0;
   max-width: 200px;
-  position: relative;
 }
 
 .tab:hover {
@@ -743,18 +784,10 @@ button {
 }
 
 .tab.active {
-  background: var(--surface-1);
+  /* Pill bg carries the indicator; text + icon stay neutral so the active
+     tab doesn't read as "neon" in either theme. */
+  background: var(--accent-bg);
   color: var(--text-primary);
-}
-
-.tab.active::after {
-  content: '';
-  position: absolute;
-  bottom: -1px;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background: var(--accent);
 }
 
 .tab-title {
@@ -765,14 +798,19 @@ button {
 }
 
 .tab-close {
-  width: 20px;
-  height: 20px;
+  display: none;
+  width: 22px;
+  height: 22px;
+  padding: 0;
   border-radius: var(--radius-sm);
   color: var(--text-tertiary);
-  display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+}
+
+.tab.active .tab-close {
+  display: flex;
 }
 
 .tab-close:hover {
@@ -786,7 +824,7 @@ button {
 }
 
 .tab.active .tab-icon {
-  color: var(--text-secondary);
+  color: var(--text-primary);
 }
 
 .tab-icon.spinner {
@@ -809,7 +847,8 @@ button {
   align-items: center;
   justify-content: center;
   width: 32px;
-  height: 100%;
+  height: 32px;
+  border-radius: var(--radius-md);
   color: var(--text-tertiary);
   flex-shrink: 0;
 }
@@ -994,33 +1033,48 @@ button {
   color: var(--text-tertiary);
 }
 
+/* Segmented control — macOS-style pill toggle. Container is the recessed
+   track; active item rises with a subtle shadow on the lighter surface-3. */
 .mode-toggle {
-  display: flex;
+  display: inline-flex;
   background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  padding: 2px;
-  gap: 2px;
+  border-radius: var(--radius-pill);
+  padding: var(--space-1);
+  gap: var(--space-1);
 }
 
 .mode-btn {
-  font-size: var(--font-size-xs);
-  padding: 3px 10px;
-  border-radius: var(--radius-md);
-  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
   font-weight: var(--font-weight-medium);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-pill);
+  color: var(--text-secondary);
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--space-1);
+  transition:
+    color var(--duration-fast) var(--ease-out),
+    background-color var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-fast) var(--ease-out);
 }
 
-.mode-btn:hover {
+.mode-btn:hover:not(.active) {
   color: var(--text-primary);
 }
 
 .mode-btn.active {
   background: var(--surface-3);
   color: var(--text-primary);
+  box-shadow: var(--shadow-sm);
+}
+
+.mode-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.mode-btn.active:focus-visible {
+  box-shadow: var(--shadow-sm), var(--focus-ring);
 }
 
 .cm-host {
@@ -1211,13 +1265,74 @@ button {
 
 .cm-host .cm-activeLine,
 .cm-host .cm-activeLineGutter {
+  /* Subtle row highlight like VS Code — washes the whole line in a
+     translucent tint so the cursor's line stands out without competing
+     with selection or search highlights. */
+  background: var(--bg-hover);
+}
+
+/* When the user has a non-empty selection, suppress the active-line wash so
+   it doesn't leak past the selection edges (the "white line" sticking out
+   beyond the selected range). */
+.cm-host .cm-editor:has(.cm-selectionLayer .cm-selectionBackground) .cm-activeLine,
+.cm-host .cm-editor:has(.cm-selectionLayer .cm-selectionBackground) .cm-activeLineGutter {
   background: transparent;
 }
 
+/* Text selection — CodeMirror draws two layers: the custom
+   .cm-selectionBackground div behind the line, and the native ::selection
+   on the characters themselves. Color the custom layer with our accent-bg
+   and kill the native one so only one wash shows. */
+.cm-host .cm-selectionBackground,
+.cm-host.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground {
+  background: var(--accent-bg) !important;
+}
+
+/* Kill the browser's native ::selection inside the editor so only the
+   custom .cm-selectionBackground layer is visible. Belt-and-suspenders
+   list — different webviews respond to different selectors. */
+.cm-host ::selection,
+.cm-host *::selection,
+.cm-host .cm-content ::selection,
+.cm-host .cm-line::selection,
+.cm-host .cm-line *::selection {
+  background-color: transparent !important;
+  color: inherit !important;
+}
+
+.cm-host .cm-activeLineGutter {
+  color: var(--text-secondary);
+  opacity: 1;
+}
+
 .cm-host .cm-content {
-  font-family: var(--font-family-sans);
+  /* Mono by default — code files (json/ts/js/etc.) get proper width on
+     the space character so nested indentation reads naturally. */
+  font-family: var(--font-family-mono);
   padding: 24px 48px 24px 8px;
   line-height: var(--line-height-loose);
+  color: var(--text-primary);
+  caret-color: var(--accent);
+}
+
+/* Code body sits at 13px — between --font-size-sm (12) and --font-size-md (14);
+   denser than prose without losing readability for mono. */
+.cm-host.cm-host-code .cm-content {
+  font-size: 13px;
+}
+
+/* Markdown source mode reads more like prose — switch to sans so the
+   editing surface matches what the user expects from a markdown editor. */
+.cm-host.cm-host-prose .cm-content {
+  font-family: var(--font-family-sans);
+}
+
+/* Cursor — thicker bar in accent color so it's easy to spot. CodeMirror
+   draws its own cursor via .cm-cursor (border-left), which we override
+   so width is reliable across themes. */
+.cm-host .cm-cursor,
+.cm-host .cm-dropCursor {
+  border-left: 2px solid var(--accent) !important;
 }
 
 .cm-host .cm-gutters {
@@ -1225,18 +1340,25 @@ button {
   border-right: 1px solid var(--border);
   color: var(--text-tertiary);
   user-select: none;
-  /* Top padding matches the content's so line 1's number aligns with line 1's text. */
-  padding-top: 24px;
 }
 
 .cm-host .cm-lineNumbers {
+  /* Mirror the content's font family so number baseline aligns with line text. */
   font-family: var(--font-family-mono);
-  /* Same font-size as the content + same line-height ratio (1.7) so each
-     gutter element's height equals the corresponding content line's height.
-     Without this, a smaller gutter font drifts out of alignment by line N. */
   font-size: var(--font-size-md);
   line-height: var(--line-height-loose);
   font-variant-numeric: tabular-nums;
+  font-weight: var(--font-weight-regular);
+}
+
+.cm-host.cm-host-prose .cm-lineNumbers {
+  font-family: var(--font-family-sans);
+}
+
+/* Line numbers track the code body size so gutter rows stay aligned with
+   content rows when code drops to 13px. */
+.cm-host.cm-host-code .cm-lineNumbers {
+  font-size: 13px;
 }
 
 .cm-host .cm-lineNumbers .cm-gutterElement {
@@ -1244,6 +1366,7 @@ button {
   min-width: 28px;
   text-align: right;
   color: var(--text-tertiary);
+  opacity: 0.7;
 }
 
 /* CodeMirror search panel + bracket highlight */
@@ -1325,9 +1448,8 @@ button {
 
 .claude-pane {
   grid-area: claude;
-  /* No border: the .splitter adjacent provides the visual separator
-     regardless of which side claude lands on. */
-  background: var(--surface-2);
+  background: var(--surface-1);
+  border-radius: var(--radius-xl);
   overflow: hidden;
 }
 
@@ -1420,6 +1542,12 @@ button {
 .claude-host .xterm-viewport,
 .claude-host .xterm-screen {
   height: 100% !important;
+  background: transparent !important;
+}
+
+.agent-terminal,
+.agent-stack {
+  background: transparent;
 }
 
 /* === Agents pane (multi-CLI tab bar over the right column) === */
@@ -1432,10 +1560,11 @@ button {
 
 .agent-tabs {
   display: flex;
-  align-items: stretch;
-  height: 38px;
-  border-bottom: 1px solid var(--border);
-  padding: 0 var(--space-1);
+  align-items: center;
+  height: 48px;
+  background: transparent;
+  padding: var(--space-2) var(--space-3);
+  gap: var(--space-1);
   flex-shrink: 0;
   overflow-x: auto;
 }
@@ -1446,40 +1575,40 @@ button {
 
 .agent-tab {
   display: inline-flex;
-  align-items: stretch;
+  align-items: center;
+  height: 32px;
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-medium);
-  color: var(--text-tertiary);
-  border-right: 1px solid var(--border);
+  color: var(--text-secondary);
   user-select: none;
   flex-shrink: 0;
-  position: relative;
 }
 
 .agent-tab:hover {
-  color: var(--text-secondary);
-}
-
-.agent-tab.active {
-  background: var(--surface-1);
+  background: var(--surface-3);
   color: var(--text-primary);
 }
 
-.agent-tab.active::after {
-  content: '';
-  position: absolute;
-  bottom: -1px;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background: var(--accent);
+.agent-tab.active {
+  background: var(--accent-bg);
+  color: var(--text-primary);
+}
+
+.agent-tab[data-agent='claude'].active {
+  background: var(--accent-claude-bg);
+}
+
+.agent-tab[data-agent='codex'].active {
+  background: var(--accent-codex-bg);
 }
 
 .agent-tab-main {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
-  padding: 0 6px 0 14px;
+  padding: 0 var(--space-2) 0 var(--space-3);
   background: transparent;
   color: inherit;
   border: none;
@@ -1496,7 +1625,9 @@ button {
 
 .agent-tab-close {
   display: none;
-  width: 18px;
+  width: 22px;
+  height: 22px;
+  padding: 0;
   align-self: center;
   margin-right: 6px;
   border-radius: var(--radius-sm);
@@ -1506,12 +1637,23 @@ button {
   cursor: pointer;
 }
 
-.agent-tab:hover .agent-tab-close,
 .agent-tab.active .agent-tab-close {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   height: 18px;
+}
+
+/* Dot color matches the brand accent so the dot reads as "this is Claude/Codex"
+   regardless of whether the tab is the active one. */
+.agent-tab[data-agent='claude'] .agent-tab-dot,
+.agent-tab[data-agent='claude'] .agent-tab-dot.running {
+  background: var(--accent-claude);
+}
+
+.agent-tab[data-agent='codex'] .agent-tab-dot,
+.agent-tab[data-agent='codex'] .agent-tab-dot.running {
+  background: var(--accent-codex);
 }
 
 .agent-tab-close:hover {
@@ -1527,25 +1669,24 @@ button {
 
 .agent-new-plus,
 .agent-new-chevron {
-  height: 100%;
+  height: 32px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   background: transparent;
-  border: 1px solid transparent;
+  border: none;
   color: var(--text-tertiary);
   cursor: pointer;
 }
 
 .agent-new-plus {
-  width: 38px;
-  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+  width: 32px;
+  border-radius: var(--radius-md) 0 0 var(--radius-md);
 }
 
 .agent-new-chevron {
-  width: 38px;
-  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
-  border-left: 1px solid var(--border);
+  width: 24px;
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
 }
 
 .agent-new:hover .agent-new-plus,
@@ -1835,35 +1976,8 @@ button {
   color: var(--text-primary);
 }
 
-/* TopBar gear button — borderless icon button */
-.topbar-icon-btn {
-  -webkit-app-region: no-drag;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  padding: 0;
-  margin-left: var(--space-2);
-  background: transparent;
-  border: none;
-  border-radius: var(--radius-md);
-  color: var(--text-tertiary);
-  cursor: pointer;
-  line-height: 0;
-}
-
-.topbar-icon-btn:hover {
-  background: var(--surface-3);
-  color: var(--text-secondary);
-}
-
-.topbar-icon-btn.active {
-  color: var(--text-primary);
-}
-
 .file-tree-row.file.non-md .name {
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   font-style: italic;
 }
 
@@ -2115,11 +2229,11 @@ button {
   display: grid;
   grid-template-columns: 18px 160px 1fr;
   align-items: start;
-  gap: 10px;
-  padding: 5px 6px;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-md);
   color: var(--text-primary);
-  min-height: 28px;
+  min-height: 32px;
 }
 
 .prop-row:hover {
@@ -2176,14 +2290,14 @@ button {
 .prop-bool {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
 }
 
 .prop-bool-box {
   width: 14px;
   height: 14px;
   border: 1.5px solid var(--text-tertiary);
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   display: inline-block;
   position: relative;
 }
@@ -2208,30 +2322,30 @@ button {
 .prop-pills {
   display: inline-flex;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: var(--space-1);
 }
 
 .prop-pill {
   display: inline-flex;
   align-items: center;
-  gap: 2px;
-  background: var(--surface-3);
-  color: var(--text-primary);
-  padding: 2px 8px;
+  gap: var(--space-0);
+  background: var(--pill-bg);
+  color: var(--pill-text);
+  padding: var(--space-0) var(--space-2);
   border-radius: var(--radius-pill);
   font-size: var(--font-size-sm);
-  border: 1px solid var(--border);
+  border: 1px solid var(--pill-border);
 }
 
 .prop-pill-tag {
-  background: rgba(196, 105, 31, 0.12);
-  border-color: rgba(196, 105, 31, 0.35);
-  color: #e6a06b;
+  background: var(--pill-tag-bg);
+  border-color: var(--pill-tag-border);
+  color: var(--pill-tag-text);
 }
 
 .prop-pill-hash {
-  color: var(--accent);
-  font-weight: 600;
+  color: inherit;
+  font-weight: var(--font-weight-semibold);
   margin-right: 1px;
 }
 
@@ -2249,8 +2363,8 @@ button {
 
 .prop-row .prop-remove {
   position: absolute;
-  right: 6px;
-  top: 4px;
+  right: var(--space-2);
+  top: var(--space-1);
   opacity: 0;
   width: 18px;
   height: 18px;
@@ -2280,7 +2394,7 @@ button {
   padding: 0;
   font: inherit;
   cursor: text;
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
 }
 
 .prop-display:hover {
@@ -2293,7 +2407,7 @@ button {
   background: var(--surface-1);
   border: 1px solid var(--accent);
   border-radius: var(--radius-md);
-  padding: 3px 8px;
+  padding: var(--space-1) var(--space-2);
   font: inherit;
   color: var(--text-primary);
   outline: none;
@@ -2310,7 +2424,7 @@ button {
 button.prop-bool {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
   padding: 0;
   background: transparent;
   color: inherit;
@@ -2325,18 +2439,18 @@ button.prop-bool {
 .prop-pill {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--space-1);
 }
 
 .prop-pill-remove {
   width: 18px;
   height: 18px;
-  border-radius: 50%;
+  border-radius: var(--radius-pill);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   color: var(--text-tertiary);
-  margin-left: 2px;
+  margin-left: var(--space-0);
 }
 
 .prop-pill-remove:hover {
@@ -2361,10 +2475,13 @@ button.prop-bool {
 }
 
 .props-add {
-  margin-top: 6px;
-  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-top: var(--space-1);
+  font-size: var(--font-size-sm);
   color: var(--text-tertiary);
-  padding: 4px 6px;
+  padding: var(--space-1) var(--space-2);
   border-radius: var(--radius-md);
 }
 
@@ -2375,29 +2492,48 @@ button.prop-bool {
 
 .props-add-row {
   display: flex;
-  gap: 6px;
-  margin-top: 6px;
-  padding: 6px;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+  padding: var(--space-2);
   background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   align-items: center;
 }
 
-.prop-type-select {
+/* Type picker — codicon + label + chevron-down trigger that opens a
+   ContextMenu of property types. Replaces the native <select>. */
+.prop-type-picker {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
   background: var(--surface-1);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   color: var(--text-primary);
   font: inherit;
-  font-size: 12px;
-  padding: 3px 6px;
+  font-size: var(--font-size-sm);
+  padding: var(--space-1) var(--space-2);
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out);
+}
+
+.prop-type-picker:hover {
+  background: var(--surface-3);
+  border-color: var(--border-strong);
+}
+
+.prop-type-picker:focus-visible {
   outline: none;
+  box-shadow: var(--focus-ring);
 }
 
 .props-add-btn {
-  font-size: 12px;
-  padding: 4px 10px;
+  font-size: var(--font-size-sm);
+  padding: var(--space-1) var(--space-3);
   border-radius: var(--radius-md);
 }
 
@@ -3265,7 +3401,6 @@ button.prop-bool {
   flex-direction: column;
   height: 100%;
   min-height: 0;
-  background: var(--surface-2);
   color: var(--text-primary);
 }
 
@@ -3286,7 +3421,6 @@ button.prop-bool {
 .chat-header {
   flex: none;
   border-bottom: 1px solid var(--border);
-  background: var(--surface-2);
 }
 
 .chat-header-top-row {
@@ -3632,7 +3766,7 @@ button.prop-bool {
 /* Composer -------------------------------------------------------- */
 
 .chat-composer {
-  background: var(--surface-1);
+  background: var(--surface-3);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: 10px 12px;

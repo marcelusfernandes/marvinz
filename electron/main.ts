@@ -138,6 +138,9 @@ const SETTINGS_FILE = () => path.join(app.getPath('userData'), 'settings.json')
 type Settings = {
   vaultPath?: string
   iconTheme?: 'codicon' | 'material'
+  colorTheme?: 'light' | 'dark' | 'system'
+  visualStyle?: 'modern' | 'legacy'
+  terminalModeEnabled?: boolean
 }
 
 async function readSettings(): Promise<Settings> {
@@ -162,7 +165,13 @@ function createWindow() {
     minHeight: 600,
     titleBarStyle: process.platform === 'darwin' ? 'hidden' : 'default',
     trafficLightPosition: { x: 14, y: 13 },
-    backgroundColor: '#1e1e1e',
+    // Transparent + frameless on macOS so .shell can own rounded corners +
+    // translucent vibrancy blur (Tahoe-friendly look). Traffic lights still
+    // draw via titleBarStyle 'hidden'.
+    transparent: process.platform === 'darwin',
+    frame: process.platform !== 'darwin',
+    backgroundColor: process.platform === 'darwin' ? '#00000000' : '#1e1e1e',
+    vibrancy: process.platform === 'darwin' ? 'fullscreen-ui' : undefined,
     webPreferences: {
       preload: path.join(__dirname, 'preload.mjs'),
       contextIsolation: true,

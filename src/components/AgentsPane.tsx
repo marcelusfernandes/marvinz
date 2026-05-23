@@ -211,6 +211,7 @@ export function AgentsPane({ agents, vaultPath, newTabTick }: Props) {
             <div
               key={t.id}
               className={`agent-tab${activeId === t.id ? ' active' : ''}`}
+              data-agent={t.agentId}
             >
               <button
                 type="button"
@@ -233,7 +234,7 @@ export function AgentsPane({ agents, vaultPath, newTabTick }: Props) {
                   removeTab(t.id)
                 }}
               >
-                <Icon name="close"/>
+                <Icon name="close" size={14}/>
               </button>
             </div>
           )
