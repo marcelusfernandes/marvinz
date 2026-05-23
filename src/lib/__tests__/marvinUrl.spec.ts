@@ -65,12 +65,13 @@ describe('resolveImageSrc — external passthrough', () => {
     expect(result).toEqual({ kind: 'external', url: src })
   })
 
-  it('already-resolved marvin:// src falls through to relative branch and builds a nested marvin URL', () => {
-    // marvin:// is not http/https/data, so it hits the relative branch.
-    // lexicalJoin produces a path inside vault → kind: marvin.
-    // The main handler validates it before serving; no security risk from renderer side.
-    const result = resolveImageSrc('marvin://localhost/vault/img.png', CURRENT_FILE, VAULT, [])
-    expect(result.kind).toBe('marvin')
+  it('passes through already-resolved marvin:// src as external', () => {
+    // A user can paste/type a `marvin://…` URL directly into the markdown,
+    // which makes this a boundary input — handled symmetrically to
+    // http(s):/data: passthrough. The main handler does the real validation.
+    const src = 'marvin://localhost/vault/img.png'
+    const result = resolveImageSrc(src, CURRENT_FILE, VAULT, [])
+    expect(result).toEqual({ kind: 'external', url: src })
   })
 })
 

@@ -17,7 +17,7 @@ export function toMarvinUrl(absPath: string): string {
   return `marvin://localhost${encoded}`
 }
 
-const EXTERNAL_RE = /^(https?:|data:)/i
+const EXTERNAL_RE = /^(https?:|data:|marvin:)/i
 
 export type ResolvedImageSrc =
   | { kind: 'marvin'; url: string }
@@ -28,10 +28,10 @@ export type ResolvedImageSrc =
  * Resolve a markdown image `src` to something the renderer can load.
  *
  * Branches:
- *   1. `http(s):` / `data:`           → external, passthrough.
- *   2. `wikilink-image:` sentinel     → resolve name via palette index.
- *   3. `/`-prefix                     → vault-absolute (join with vaultPath).
- *   4. Anything else                  → relative to `dirname(currentFile)`.
+ *   1. `http(s):` / `data:` / `marvin:` → external, passthrough.
+ *   2. `wikilink-image:` sentinel       → resolve name via palette index.
+ *   3. `/`-prefix                       → vault-absolute (join with vaultPath).
+ *   4. Anything else                    → relative to `dirname(currentFile)`.
  *
  * The inside-vault check is **lexical only** — purely to render the broken
  * placeholder without a network round-trip when the path obviously escapes.
