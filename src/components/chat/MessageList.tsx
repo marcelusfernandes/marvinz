@@ -7,7 +7,6 @@ import type { SessionId } from '../../lib/chat/types'
 
 type Props = {
   sessionId: SessionId
-  vaultPath?: string
   onRewind?: (turnId: string) => void
 }
 
@@ -18,7 +17,7 @@ type Props = {
  *
  * Virtualization deferred to Sprint 9 (per design doc §8.4).
  */
-export function MessageList({ sessionId, vaultPath, onRewind }: Props) {
+export function MessageList({ sessionId, onRewind }: Props) {
   const scrollRef = useRef<HTMLElement | null>(null)
   const ordering = useChatStore((s) => s.sessions[sessionId]?.ordering)
   const isStreaming = useChatStore(
@@ -55,7 +54,6 @@ export function MessageList({ sessionId, vaultPath, onRewind }: Props) {
           key={mid}
           sessionId={sessionId}
           messageId={mid}
-          vaultPath={vaultPath}
           onRewind={onRewind}
         />
       ))}
@@ -66,12 +64,10 @@ export function MessageList({ sessionId, vaultPath, onRewind }: Props) {
 function MessageRow({
   sessionId,
   messageId,
-  vaultPath,
   onRewind,
 }: {
   sessionId: SessionId
   messageId: string
-  vaultPath?: string
   onRewind?: (turnId: string) => void
 }) {
   const message = useChatStore(
@@ -92,11 +88,7 @@ function MessageRow({
   if (message.role === 'assistant') {
     return (
       <li className="chat-message-row assistant" aria-busy={!message.done}>
-        <AssistantMessageCard
-          sessionId={sessionId}
-          message={message}
-          vaultPath={vaultPath}
-        />
+        <AssistantMessageCard sessionId={sessionId} message={message} />
       </li>
     )
   }

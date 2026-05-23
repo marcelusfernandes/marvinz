@@ -15,7 +15,6 @@ function EditCardImpl({
   result,
   snapshotSaved,
   snapshotTurnId,
-  vaultPath,
   onOpenFile,
 }: ToolBodyProps) {
   const path = readPath(input)
@@ -33,11 +32,13 @@ function EditCardImpl({
     if (!showDiff || !canToggleDiff) return
     if (!snapshotTurnId || !path) return
     if (snapshotOldText !== null) return
-    const relPath = toRelPath(path, vaultPath)
-    if (!relPath) return
     let cancelled = false
     ;(async () => {
       try {
+        const vaultRoot = await window.marvin.vault.current()
+        if (cancelled) return
+        const relPath = toRelPath(path, vaultRoot)
+        if (!relPath) return
         const res = await window.marvin.snapshot.read(snapshotTurnId, relPath)
         if (cancelled) return
         if (res.ok) setSnapshotOldText(res.data)
@@ -48,7 +49,7 @@ function EditCardImpl({
     return () => {
       cancelled = true
     }
-  }, [showDiff, canToggleDiff, snapshotTurnId, path, vaultPath, snapshotOldText])
+  }, [showDiff, canToggleDiff, snapshotTurnId, path, snapshotOldText])
 
   const handlePillClick = () => {
     if (canOpen && path) onOpenFile!(path)
@@ -113,10 +114,10 @@ function EditCardImpl({
  * relative (no leading slash), pass it through. Returns null when the path
  * lies outside the vault — the diff falls back to `old_string` from the input.
  */
-function toRelPath(absOrRel: string, vaultPath: string | undefined): string | null {
+function toRelPath(absOrRel: string, vaultRoot: string | null): string | null {
   if (!absOrRel.startsWith('/')) return absOrRel
-  if (!vaultPath) return null
-  const prefix = vaultPath.endsWith('/') ? vaultPath : `${vaultPath}/`
+  if (!vaultRoot) return null
+  const prefix = vaultRoot.endsWith('/') ? vaultRoot : `${vaultRoot}/`
   if (absOrRel.startsWith(prefix)) return absOrRel.slice(prefix.length)
   return null
 }
