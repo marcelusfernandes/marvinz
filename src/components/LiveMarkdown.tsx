@@ -4,6 +4,8 @@ import { Milkdown, MilkdownProvider, useEditor } from '@milkdown/react'
 import { commonmark } from '@milkdown/preset-commonmark'
 import { gfm } from '@milkdown/preset-gfm'
 import { listener, listenerCtx } from '@milkdown/plugin-listener'
+import { imageNodeView } from '../lib/imageNodeView'
+import type { PaletteItem } from '../lib/paletteRanker'
 import { parseWikilinks, unparseWikilinks } from '../lib/wikilinks'
 
 type Props = {
@@ -13,6 +15,12 @@ type Props = {
   onChange: (markdown: string) => void
   /** Click handler for `<a>` elements rendered inside the editor. */
   onLinkClick: (href: string, modifier: 'replace' | 'newTab') => void
+  /** Absolute path of the file being edited — base for relative image resolution. */
+  filePath: string
+  /** Vault root, used for `/`-prefix image paths and the inside-vault check. */
+  vaultPath: string
+  /** Palette index used to resolve `![[name]]` embed wikilinks. */
+  paletteItems: PaletteItem[]
   /**
    * A key that changes when we want to fully remount the editor and reset
    * its content (e.g., switching files or external file change while open).
@@ -28,7 +36,14 @@ export function LiveMarkdown(props: Props) {
   )
 }
 
-function LiveMarkdownInner({ body, onChange, onLinkClick }: Props) {
+function LiveMarkdownInner({
+  body,
+  onChange,
+  onLinkClick,
+  filePath,
+  vaultPath,
+  paletteItems,
+}: Props) {
   // Refs avoid re-creating the editor on every change of these props.
   const onChangeRef = useRef(onChange)
   const onLinkClickRef = useRef(onLinkClick)
@@ -49,6 +64,14 @@ function LiveMarkdownInner({ body, onChange, onLinkClick }: Props) {
   // ^ intentional: only first body matters for initialization
   // (eslint-disable-next-line react-hooks/exhaustive-deps)
 
+  // Built once per mount. `remountKey` (the file path) drives remounts on
+  // file switches, so the closure here is always for the active file.
+  const imageView = useMemo(
+    () => imageNodeView({ filePath, vaultPath, paletteItems }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  )
+
   useEditor((root) => {
     return MilkdownEditor.make()
       .config((ctx) => {
@@ -65,6 +88,7 @@ function LiveMarkdownInner({ body, onChange, onLinkClick }: Props) {
       .use(commonmark)
       .use(gfm)
       .use(listener)
+      .use(imageView)
   }, [])
 
   // Single delegated click handler for the editor surface — intercepts

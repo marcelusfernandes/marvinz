@@ -2039,6 +2039,18 @@ button {
   border-radius: var(--radius-md);
 }
 
+.md-image-broken {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  font-size: 12px;
+  color: var(--text-tertiary);
+  background: var(--surface-2);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+}
+
 .md-preview-inner input[type='checkbox'] {
   margin-right: 6px;
   vertical-align: middle;
