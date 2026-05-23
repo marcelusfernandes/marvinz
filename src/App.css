@@ -100,6 +100,12 @@
   --font-weight-semibold: 600;
   --font-weight-bold: 700;
 
+  /* Shell wash — translucent tint that sits over macOS BrowserWindow vibrancy.
+     Tuned for the 'fullscreen-ui' material; intentionally not derived from
+     --surface-1 because the wash is chosen to read well over OS vibrancy,
+     not over a flat surface. */
+  --shell-wash: rgba(246, 246, 246, 0.7);
+
   /* Pills / chips — generic list items + warm wash for tags. Tag colors
      derive from --accent-claude so theme switches stay coherent. */
   --pill-bg: var(--surface-3);
@@ -203,6 +209,10 @@
   --code-tag: #569cd6;
   --code-operator: var(--text-primary);
 
+  /* Shell wash (dark) — slightly more opaque so text stays readable over
+     vibrancy, near-black tint mirrors a darker surface-1. */
+  --shell-wash: rgba(15, 15, 15, 0.75);
+
   /* Elevation — heavier in dark so shadows stay visible */
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.15);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.25);
@@ -302,17 +312,11 @@ button {
   flex-direction: column;
   height: 100vh;
   width: 100%;
-  background: rgba(246, 246, 246, 0.7);
+  background: var(--shell-wash);
   padding: var(--space-3);
-  border-radius: 16px;
+  border-radius: var(--radius-xl);
   overflow: hidden;
   -webkit-app-region: drag;
-}
-
-[data-theme='dark'] .shell {
-  /* Slightly more opaque than light (0.55) — dark surfaces need more body
-     to stay readable through vibrancy. Hex 1c/1c/1e mirrors surface-1. */
-  background: rgba(15, 15, 15, 0.75);
 }
 
 .sidebar-search {
