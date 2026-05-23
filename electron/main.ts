@@ -836,6 +836,10 @@ ipcMain.handle('agent:detect', async (_e, name: string) => {
   const detected = detectBinary(name)
   if (detected) {
     registerDetectedAgent(detected)
+    // Also register on the pty allowlist so users can open the agent in the
+    // legacy xterm terminal via pty:spawn (the chat panel uses child_process.spawn,
+    // but the terminal panel uses pty.spawn and needs the binary allowlisted).
+    registerDynamicShell(detected)
   }
   return detected
 })
