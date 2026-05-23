@@ -34,37 +34,46 @@ function buildImageNodeView({
   paletteItems: PaletteItem[]
 }): NodeViewConstructor {
   return (node) => {
-    const dom = document.createElement('img')
+    // A wrapper is required as the node view's root `dom`: ProseMirror owns
+    // that element and any `replaceWith` on it would be reverted on the next
+    // reconciliation pass. Mutating the wrapper's *children* is safe.
+    const dom = document.createElement('span')
+    dom.className = 'md-image'
+
     const src = String(node.attrs.src ?? '')
     const alt = String(node.attrs.alt ?? '')
     const title = String(node.attrs.title ?? '')
 
-    if (alt) dom.setAttribute('alt', alt)
-    if (title) dom.setAttribute('title', title)
-    dom.dataset.rawSrc = src
+    const img = document.createElement('img')
+    if (alt) img.setAttribute('alt', alt)
+    if (title) img.setAttribute('title', title)
+    img.dataset.rawSrc = src
+
+    const showPlaceholder = () => {
+      if (dom.firstChild === img) {
+        dom.replaceChild(buildPlaceholder(src), img)
+      }
+    }
 
     const resolved = resolveImageSrc(src, filePath, vaultPath, paletteItems)
     if (resolved.kind === 'missing') {
-      replaceWithPlaceholder(dom, src)
+      dom.appendChild(buildPlaceholder(src))
     } else {
-      dom.setAttribute('src', resolved.url)
-      dom.addEventListener(
-        'error',
-        () => replaceWithPlaceholder(dom, src),
-        { once: true },
-      )
+      img.addEventListener('error', showPlaceholder, { once: true })
+      img.setAttribute('src', resolved.url)
+      dom.appendChild(img)
     }
 
     return { dom }
   }
 }
 
-function replaceWithPlaceholder(img: HTMLImageElement, rawSrc: string): void {
+function buildPlaceholder(rawSrc: string): HTMLSpanElement {
   const placeholder = document.createElement('span')
   placeholder.className = 'md-image-broken'
   placeholder.setAttribute('role', 'img')
   placeholder.setAttribute('aria-label', `Missing image: ${rawSrc}`)
   placeholder.title = rawSrc || 'Missing image'
   placeholder.textContent = '⛌ image not found'
-  img.replaceWith(placeholder)
+  return placeholder
 }
