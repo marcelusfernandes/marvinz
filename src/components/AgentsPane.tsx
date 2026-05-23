@@ -2,9 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AgentTerminal, type AgentDef, type AgentStatus } from './AgentTerminal'
 import { ContextMenu, type MenuItem } from './ContextMenu'
 import { Icon } from './Icon'
+import { InputDialog } from './InputDialog'
 import { ChatPanel, type TurnSummary } from './chat/ChatPanel'
 import { useSetting } from '../lib/settingsStore'
 import type { Provider } from '../lib/chat/types'
+import type { MenuItemSpec } from '../types'
 
 type Props = {
   agents: AgentDef[]
@@ -18,7 +20,14 @@ type Props = {
 }
 
 type TabMode = 'chat' | 'terminal'
-type AgentTab = { id: string; agentId: string; num: number; mode: TabMode }
+type AgentTab = {
+  id: string
+  agentId: string
+  num: number
+  mode: TabMode
+  /** User-supplied label from the Rename action. Falls back to "<agent> <num>". */
+  displayLabel?: string
+}
 type CtxState = { x: number; y: number; items: MenuItem[] } | null
 type StatusEntry = { status: AgentStatus; exitCode: number | null }
 
@@ -57,6 +66,7 @@ export function AgentsPane({
   )
   const [statuses, setStatuses] = useState<Record<string, StatusEntry>>({})
   const [ctxMenu, setCtxMenu] = useState<CtxState>(null)
+  const [renameTarget, setRenameTarget] = useState<AgentTab | null>(null)
   const counterRef = useRef<Record<string, number>>({})
   const newButtonRef = useRef<HTMLDivElement>(null)
 
@@ -79,6 +89,15 @@ export function AgentsPane({
   const findAgent = useCallback(
     (id: string) => agents.find((a) => a.id === id),
     [agents],
+  )
+
+  const tabLabel = useCallback(
+    (t: AgentTab) => {
+      if (t.displayLabel) return t.displayLabel
+      const a = findAgent(t.agentId)
+      return a ? `${a.name} ${t.num}` : t.agentId
+    },
+    [findAgent],
   )
 
   const addTab = useCallback(
@@ -141,6 +160,83 @@ export function AgentsPane({
       addTab(agentId)
     },
     [addTab],
+  )
+
+  const renameTab = useCallback((id: string, label: string) => {
+    setTabs((prev) => {
+      const idx = prev.findIndex((t) => t.id === id)
+      if (idx === -1) return prev
+      const trimmed = label.trim()
+      const next = prev.slice()
+      // Empty label clears the override → fall back to default "<agent> <num>".
+      next[idx] = { ...next[idx], displayLabel: trimmed || undefined }
+      return next
+    })
+  }, [])
+
+  const restartTab = useCallback(
+    (id: string) => {
+      const target = tabs.find((t) => t.id === id)
+      if (!target) return
+      removeTab(id)
+      addTab(target.agentId)
+    },
+    [tabs, removeTab, addTab],
+  )
+
+  const closeOthers = useCallback(
+    (keepId: string) => {
+      setTabs((prev) => {
+        const keep = prev.find((t) => t.id === keepId)
+        if (!keep) return prev
+        return [keep]
+      })
+      setActiveId(keepId)
+      setStatuses((prev) => {
+        if (keepId in prev) return { [keepId]: prev[keepId] }
+        return {}
+      })
+    },
+    [],
+  )
+
+  const handleTabContextMenu = useCallback(
+    async (e: React.MouseEvent, tabId: string) => {
+      e.preventDefault()
+      e.stopPropagation()
+      const otherCount = tabs.filter((t) => t.id !== tabId).length
+      const items: MenuItemSpec[] = [
+        { kind: 'item', id: 'close', label: 'Close' },
+        {
+          kind: 'item',
+          id: 'closeOthers',
+          label: 'Close Others',
+          enabled: otherCount > 0,
+        },
+        { kind: 'separator' },
+        { kind: 'item', id: 'restart', label: 'Restart' },
+        { kind: 'item', id: 'rename', label: 'Rename…' },
+      ]
+      const action = await window.marvin.app.showContextMenu(items)
+      if (!action) return
+      switch (action) {
+        case 'close':
+          removeTab(tabId)
+          break
+        case 'closeOthers':
+          closeOthers(tabId)
+          break
+        case 'restart':
+          restartTab(tabId)
+          break
+        case 'rename': {
+          const target = tabs.find((t) => t.id === tabId)
+          if (target) setRenameTarget(target)
+          break
+        }
+      }
+    },
+    [tabs, removeTab, closeOthers, restartTab],
   )
 
   const buildMenu = useCallback(
@@ -206,11 +302,6 @@ export function AgentsPane({
     [],
   )
 
-  const tabLabel = (t: AgentTab) => {
-    const a = findAgent(t.agentId)
-    return a ? `${a.name} ${t.num}` : t.agentId
-  }
-
   return (
     <div className="agents-pane-inner">
       <div className="agent-tabs" role="tablist">
@@ -222,6 +313,7 @@ export function AgentsPane({
               key={t.id}
               className={`agent-tab${activeId === t.id ? ' active' : ''}`}
               data-agent={t.agentId}
+              onContextMenu={(e) => handleTabContextMenu(e, t.id)}
             >
               <button
                 type="button"
@@ -302,6 +394,18 @@ export function AgentsPane({
           y={ctxMenu.y}
           items={ctxMenu.items}
           onClose={() => setCtxMenu(null)}
+        />
+      )}
+      {renameTarget && (
+        <InputDialog
+          title="Rename tab"
+          initialValue={tabLabel(renameTarget)}
+          submitLabel="Rename"
+          onSubmit={(value) => {
+            renameTab(renameTarget.id, value)
+            setRenameTarget(null)
+          }}
+          onCancel={() => setRenameTarget(null)}
         />
       )}
     </div>
