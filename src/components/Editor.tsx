@@ -49,6 +49,29 @@ const codeHighlightStyle = HighlightStyle.define([
   { tag: t.meta, color: 'var(--text-tertiary)' },
 ])
 
+const legacyCodeHighlightStyle = HighlightStyle.define([
+  // Language tokens (TS/JS/JSON/etc.)
+  { tag: t.keyword, color: 'var(--code-keyword)' },
+  { tag: [t.controlKeyword, t.moduleKeyword, t.definitionKeyword], color: 'var(--code-keyword)' },
+  { tag: [t.string, t.special(t.string)], color: 'var(--code-string)' },
+  { tag: [t.number, t.bool, t.null, t.atom], color: 'var(--code-number)' },
+  { tag: [t.function(t.variableName), t.function(t.propertyName)], color: 'var(--code-function)' },
+  { tag: [t.propertyName, t.definition(t.propertyName)], color: 'var(--code-property)' },
+  { tag: [t.comment, t.lineComment, t.blockComment], color: 'var(--code-comment)', fontStyle: 'italic' },
+  { tag: [t.tagName, t.attributeName], color: 'var(--code-tag)' },
+  { tag: t.operator, color: 'var(--code-operator)' },
+
+  // Markdown-specific — single t.heading rule (legacy style, no per-level sizes).
+  { tag: t.heading, fontWeight: 'bold', color: 'var(--text-primary)' },
+  { tag: t.strong, fontWeight: 'bold' },
+  { tag: t.emphasis, fontStyle: 'italic' },
+  { tag: [t.link, t.url], color: 'var(--accent)' },
+  { tag: t.monospace, color: 'var(--code-string)' },
+  { tag: t.quote, color: 'var(--text-secondary)', fontStyle: 'italic' },
+  { tag: t.processingInstruction, color: 'var(--text-tertiary)' },
+  { tag: t.contentSeparator, color: 'var(--text-tertiary)' },
+])
+
 type Props = {
   filePath: string
   vaultPath: string
@@ -125,15 +148,16 @@ export function Editor({
   }, [filePath])
 
   const extensions = useMemo(() => {
+    const style = visualStyle === 'legacy' ? legacyCodeHighlightStyle : codeHighlightStyle
     const base = [
       search(),
       bracketMatching(),
       indentUnit.of('  '),
       EditorView.lineWrapping,
-      syntaxHighlighting(codeHighlightStyle),
+      syntaxHighlighting(style),
     ]
     return langExt ? [...base, langExt] : base
-  }, [langExt])
+  }, [langExt, visualStyle])
 
   useEffect(() => {
     setValue(initialContent)
@@ -316,7 +340,11 @@ export function Editor({
             highlightActiveLine: true,
             highlightActiveLineGutter: true,
           }}
-          className={`cm-host ${isMd ? 'cm-host-prose' : 'cm-host-code'}`}
+          className={
+            visualStyle === 'legacy'
+              ? 'cm-host'
+              : `cm-host ${isMd ? 'cm-host-prose' : 'cm-host-code'}`
+          }
         />
       ) : isCsv ? (
         <CsvEditor
