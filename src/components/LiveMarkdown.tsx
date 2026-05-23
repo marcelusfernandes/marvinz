@@ -4,15 +4,16 @@ import {
   defaultValueCtx,
   editorViewCtx,
   editorViewOptionsCtx,
+  prosePluginsCtx,
   rootCtx,
 } from '@milkdown/core'
 import { Milkdown, MilkdownProvider, useEditor } from '@milkdown/react'
 import { commonmark } from '@milkdown/preset-commonmark'
 import { gfm } from '@milkdown/preset-gfm'
-import { history } from '@milkdown/plugin-history'
 import { listener, listenerCtx } from '@milkdown/plugin-listener'
 import { selectAll } from 'prosemirror-commands'
-import { redo, redoDepth, undo, undoDepth } from 'prosemirror-history'
+import { history as pmHistory, redo, redoDepth, undo, undoDepth } from 'prosemirror-history'
+import { keymap } from 'prosemirror-keymap'
 import { imageNodeView } from '../lib/imageNodeView'
 import type { PaletteItem } from '../lib/paletteRanker'
 import { parseWikilinks, unparseWikilinks } from '../lib/wikilinks'
@@ -90,13 +91,20 @@ function LiveMarkdownInner({
           ...prev,
           attributes: { class: 'milkdown-host' },
         }))
+        // Use prosemirror-history directly via prosePluginsCtx. Avoids the
+        // @milkdown/plugin-history path that broke the editor's SchemaReady
+        // timer in our setup. Keymap registers Cmd/Ctrl+Z + Shift+Cmd/Ctrl+Z.
+        ctx.update(prosePluginsCtx, (prev) => [
+          ...prev,
+          pmHistory(),
+          keymap({ 'Mod-z': undo, 'Mod-Shift-z': redo, 'Mod-y': redo }),
+        ])
         ctx.get(listenerCtx).markdownUpdated((_ctx, markdown, prevMarkdown) => {
           if (markdown !== prevMarkdown) onChangeRef.current(unparseWikilinks(markdown))
         })
       })
       .use(commonmark)
       .use(gfm)
-      .use(history)
       .use(listener)
       .use(imageView)
   }, [])
@@ -135,8 +143,6 @@ function LiveMarkdownInner({
       } catch {
         return
       }
-      // Only intercept right-clicks on the ProseMirror content surface.
-      if (!view.dom.contains(e.target as Node)) return
       e.preventDefault()
       const state = view.state
       const action = await window.marvin.editor.showContextMenu({
@@ -159,10 +165,14 @@ function LiveMarkdownInner({
         case 'cut': {
           // Synthetic ClipboardEvent has isTrusted=false and Chromium blocks
           // access to the system clipboard for such events. Use the Electron
-          // clipboard module via IPC instead.
+          // clipboard module via IPC instead. Trim leading/trailing newlines so
+          // a single-paragraph copy never carries a trailing block separator
+          // that would force a paragraph split on paste.
           const selection = view.state.selection
           if (selection.empty) break
-          const text = view.state.doc.textBetween(selection.from, selection.to, '\n', '\n')
+          const text = view.state.doc
+            .textBetween(selection.from, selection.to, '\n', '\n')
+            .replace(/^\n+|\n+$/g, '')
           await window.marvin.editor.writeClipboard(text)
           if (action === 'cut') view.dispatch(view.state.tr.deleteSelection())
           break
