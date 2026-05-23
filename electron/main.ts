@@ -380,6 +380,8 @@ async function readVaultTree(root: string, current = root): Promise<FileNode[]> 
   return nodes
 }
 
+ipcMain.handle('vault:current', () => activeVaultPath)
+
 ipcMain.handle('vault:tree', async () => {
   if (!activeVaultPath || !existsSync(activeVaultPath)) return []
   return readVaultTree(activeVaultPath)
