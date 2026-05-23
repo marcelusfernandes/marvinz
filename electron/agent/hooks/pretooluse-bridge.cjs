@@ -92,6 +92,7 @@ process.stdin.on('end', () => {
       const reason = typeof parsed.reason === 'string' ? parsed.reason : 'approved by marvin'
       process.stdout.write(JSON.stringify({
         hookSpecificOutput: {
+          hookEventName: 'PreToolUse',
           permissionDecision: 'allow',
           permissionDecisionReason: reason,
         },
