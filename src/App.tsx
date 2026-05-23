@@ -17,12 +17,14 @@ import { SettingsModal } from './components/SettingsModal'
 import { seedFromMain } from './lib/settingsStore'
 import { useColorTheme } from './lib/colorTheme'
 import { useVisualStyle } from './lib/visualStyle'
+import { TopBar } from './components/TopBar'
 import { SnapshotPanel } from './components/SnapshotPanel'
 import { SnapshotToast } from './components/SnapshotToast'
 import { ExternalChangeBanner } from './components/ExternalChangeBanner'
 import type { PaletteItem } from './lib/paletteRanker'
 import type { LayoutMode } from './components/LayoutToggle'
 import './App.css'
+import './styles/legacy.css'
 
 const LAYOUT_STORAGE_KEY = 'marvin:layoutMode'
 const SIDEBAR_WIDTH_KEY = 'marvin:sidebarWidth'
@@ -237,7 +239,7 @@ function humanizeError(err: unknown): string {
 
 export default function App() {
   useColorTheme()
-  useVisualStyle()
+  const visualStyle = useVisualStyle()
   const [vaultPath, setVaultPath] = useState<string | null>(null)
   const [tree, setTree] = useState<FileNode[]>([])
   const [tabs, setTabs] = useState<Tab[]>([])

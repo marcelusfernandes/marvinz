@@ -3397,7 +3397,6 @@ button.prop-bool {
   flex-direction: column;
   height: 100%;
   min-height: 0;
-  background: var(--surface-2);
   color: var(--text-primary);
 }
 
@@ -3418,7 +3417,6 @@ button.prop-bool {
 .chat-header {
   flex: none;
   border-bottom: 1px solid var(--border);
-  background: var(--surface-2);
 }
 
 .chat-header-top-row {
@@ -3764,7 +3762,7 @@ button.prop-bool {
 /* Composer -------------------------------------------------------- */
 
 .chat-composer {
-  background: var(--surface-1);
+  background: var(--surface-3);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: 10px 12px;
