@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { FileChangeSource, FileNode } from './types'
+import type { FileChangeSource, FileNode, MenuItemSpec } from './types'
 import { FileTree } from './components/FileTree'
 import { Editor } from './components/Editor'
 import { AgentsPane } from './components/AgentsPane'
@@ -8,7 +8,6 @@ import { BrowserPane } from './components/BrowserPane'
 import { Splitter } from './components/Splitter'
 import { ImageViewer } from './components/ImageViewer'
 import { InputDialog } from './components/InputDialog'
-import { ContextMenu, type MenuItem } from './components/ContextMenu'
 import { FileTreeToolbar } from './components/FileTreeToolbar'
 import { Icon } from './components/Icon'
 import { TabBar } from './components/TabBar'
@@ -112,12 +111,6 @@ type Dialog =
   | { kind: 'newFolder'; parentDir: string }
   | { kind: 'rename'; target: string; isDir: boolean }
   | null
-
-type ContextState = {
-  x: number
-  y: number
-  items: MenuItem[]
-} | null
 
 let tabCounter = 0
 const newTabId = () => `tab-${++tabCounter}`
@@ -247,7 +240,6 @@ export default function App() {
   const [agents, setAgents] = useState<AgentDef[]>([])
   const [bootstrapped, setBootstrapped] = useState(false)
   const [dialog, setDialog] = useState<Dialog>(null)
-  const [ctx, setCtx] = useState<ContextState>(null)
   const [error, setError] = useState<string | null>(null)
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -919,7 +911,7 @@ export default function App() {
 
   // Hide all browser views while any React modal/popover is open, so they
   // don't paint over the modal (WebContentsView is always above the renderer).
-  const modalOpen = paletteOpen || settingsOpen || dialog != null || ctx != null || error != null
+  const modalOpen = paletteOpen || settingsOpen || dialog != null || error != null
   useEffect(() => {
     void window.marvin.browser.setAllHidden(modalOpen)
   }, [modalOpen])
@@ -1192,59 +1184,54 @@ export default function App() {
     }
   }
 
-  const handleNodeContextMenu = (e: React.MouseEvent, node: FileNode) => {
+  const handleNodeContextMenu = async (e: React.MouseEvent, node: FileNode) => {
     e.preventDefault()
     e.stopPropagation()
-    const items: MenuItem[] = []
+    const items: MenuItemSpec[] = []
     if (node.isDir) {
       items.push(
-        {
-          kind: 'item',
-          label: 'New note here',
-          icon: 'new-file',
-          onClick: () => setDialog({ kind: 'newNote', parentDir: node.path }),
-        },
-        {
-          kind: 'item',
-          label: 'New folder here',
-          icon: 'new-folder',
-          onClick: () => setDialog({ kind: 'newFolder', parentDir: node.path }),
-        },
+        { kind: 'item', id: 'new-note', label: 'New note here' },
+        { kind: 'item', id: 'new-folder', label: 'New folder here' },
         { kind: 'separator' },
       )
     }
     items.push(
-      {
-        kind: 'item',
-        label: 'Rename',
-        icon: 'edit',
-        onClick: () => setDialog({ kind: 'rename', target: node.path, isDir: node.isDir }),
-      },
-      {
-        kind: 'item',
-        label: 'Reveal in Finder',
-        icon: 'go-to-file',
-        onClick: () => void window.marvin.shell.reveal(node.path),
-      },
+      { kind: 'item', id: 'rename', label: 'Rename' },
+      { kind: 'item', id: 'reveal', label: 'Reveal in Finder' },
     )
     if (!node.isDir) {
-      items.push({
-        kind: 'item',
-        label: 'View versions…',
-        onClick: () => void openSnapshotPanel(node.path),
-      })
+      items.push({ kind: 'item', id: 'versions', label: 'View versions…' })
     }
     items.push(
       { kind: 'separator' },
       {
         kind: 'item',
+        id: 'trash',
         label: node.isDir ? 'Move folder to Trash' : 'Move file to Trash',
-        icon: 'trash',
-        danger: true,
-        onClick: () => handleTrash(node.path),
       },
     )
-    setCtx({ x: e.clientX, y: e.clientY, items })
+    const action = await window.marvin.app.showContextMenu(items)
+    if (!action) return
+    switch (action) {
+      case 'new-note':
+        setDialog({ kind: 'newNote', parentDir: node.path })
+        break
+      case 'new-folder':
+        setDialog({ kind: 'newFolder', parentDir: node.path })
+        break
+      case 'rename':
+        setDialog({ kind: 'rename', target: node.path, isDir: node.isDir })
+        break
+      case 'reveal':
+        void window.marvin.shell.reveal(node.path)
+        break
+      case 'versions':
+        void openSnapshotPanel(node.path)
+        break
+      case 'trash':
+        await handleTrash(node.path)
+        break
+    }
   }
 
   if (!bootstrapped) {
@@ -1492,15 +1479,6 @@ export default function App() {
           submitLabel={dialogConfig.submit}
           onSubmit={handleCreate}
           onCancel={() => setDialog(null)}
-        />
-      )}
-
-      {ctx && (
-        <ContextMenu
-          x={ctx.x}
-          y={ctx.y}
-          items={ctx.items}
-          onClose={() => setCtx(null)}
         />
       )}
 
