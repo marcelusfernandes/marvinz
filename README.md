@@ -77,6 +77,8 @@ The live preview resolves four image-source shapes, each routed through the `mar
 
 When an image cannot be resolved (path escapes the vault, wikilink target missing, file not found at load time), the preview renders an inline `image not found` placeholder showing the original `src` in its `title`. The on-disk markdown is never rewritten — switch to `Edit` mode to see the raw syntax.
 
+> External `http(s)` image URLs are loaded directly — Marvin doesn't proxy or cache them. Be cautious with notes from untrusted sources.
+
 ## Workflow
 
 See [`.claude/rules/git-workflow.md`](.claude/rules/git-workflow.md) for the branch model and PR workflow.
