@@ -115,6 +115,14 @@ const fakeAgent: AgentDef = {
   binaryPath: '/usr/local/bin/claude',
 }
 
+const fakeAgentCodex: AgentDef = {
+  id: 'codex',
+  name: 'Codex',
+  binaryPath: '/usr/local/bin/codex',
+}
+
+const twoAgents = [fakeAgent, fakeAgentCodex]
+
 // ---------------------------------------------------------------------------
 // Default props
 // ---------------------------------------------------------------------------
@@ -440,5 +448,61 @@ describe('AgentsPane — null action (dismissed menu)', () => {
       await new Promise((r) => setTimeout(r, 30))
     })
     expect(container.querySelector('[data-testid="input-dialog"]')).toBeNull()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Agent picker chevron
+// ---------------------------------------------------------------------------
+
+function clickChevron(container: HTMLElement) {
+  const btn = container.querySelector('.agent-new-chevron') as HTMLElement
+  if (!btn) throw new Error('No .agent-new-chevron found — chevron not rendered')
+  fireEvent.click(btn)
+}
+
+describe('AgentsPane — agent picker chevron', () => {
+  it('calls showContextMenu with the two picker items when chevron is clicked', async () => {
+    const { container } = render(<AgentsPane {...defaultProps(twoAgents)} />)
+    await act(async () => {
+      clickChevron(container)
+      await new Promise((r) => setTimeout(r, 30))
+    })
+    expect(showContextMenuMock).toHaveBeenCalledWith([
+      { kind: 'item', id: 'claude', label: 'Claude Code' },
+      { kind: 'item', id: 'codex', label: 'Codex' },
+    ])
+  })
+
+  it('adds a claude tab when picker resolves "claude"', async () => {
+    showContextMenuMock.mockResolvedValue('claude')
+    const { container } = render(<AgentsPane {...defaultProps(twoAgents)} />)
+    await act(async () => {
+      clickChevron(container)
+      await new Promise((r) => setTimeout(r, 30))
+    })
+    const tabs = container.querySelectorAll('.agent-tab[data-agent="claude"]')
+    expect(tabs.length).toBe(1)
+  })
+
+  it('adds a codex tab when picker resolves "codex"', async () => {
+    showContextMenuMock.mockResolvedValue('codex')
+    const { container } = render(<AgentsPane {...defaultProps(twoAgents)} />)
+    await act(async () => {
+      clickChevron(container)
+      await new Promise((r) => setTimeout(r, 30))
+    })
+    const tabs = container.querySelectorAll('.agent-tab[data-agent="codex"]')
+    expect(tabs.length).toBe(1)
+  })
+
+  it('adds no tab when picker resolves null', async () => {
+    showContextMenuMock.mockResolvedValue(null)
+    const { container } = render(<AgentsPane {...defaultProps(twoAgents)} />)
+    await act(async () => {
+      clickChevron(container)
+      await new Promise((r) => setTimeout(r, 30))
+    })
+    expect(container.querySelectorAll('.agent-tab').length).toBe(0)
   })
 })
