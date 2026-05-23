@@ -363,7 +363,7 @@ describe('useStickToBottom', () => {
   it('handles null ref gracefully without throwing', () => {
     const ref = { current: null }
     expect(() => {
-      renderHook(() => useStickToBottom(ref as React.RefObject<HTMLElement>, true))
+      renderHook(() => useStickToBottom(ref as unknown as React.RefObject<HTMLElement>, true))
     }).not.toThrow()
   })
 })
