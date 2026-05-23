@@ -290,7 +290,11 @@ export async function spawnAgent(
 
   // Send the initial prompt as a stream-json input event on stdin.
   if (proc.stdin) {
-    const inputEvent = JSON.stringify({ type: 'user', message: req.prompt }) + '\n'
+    const inputEvent =
+      JSON.stringify({
+        type: 'user',
+        message: { role: 'user', content: req.prompt },
+      }) + '\n'
     proc.stdin.write(inputEvent)
     proc.stdin.end()
   }
