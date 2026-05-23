@@ -16,12 +16,15 @@ import { CommandPalette } from './components/CommandPalette'
 import { SettingsModal } from './components/SettingsModal'
 import { seedFromMain } from './lib/settingsStore'
 import { useColorTheme } from './lib/colorTheme'
+import { useVisualStyle } from './lib/visualStyle'
+import { TopBar } from './components/TopBar'
 import { SnapshotPanel } from './components/SnapshotPanel'
 import { SnapshotToast } from './components/SnapshotToast'
 import { ExternalChangeBanner } from './components/ExternalChangeBanner'
 import type { PaletteItem } from './lib/paletteRanker'
 import type { LayoutMode } from './components/LayoutToggle'
 import './App.css'
+import './styles/legacy.css'
 
 const LAYOUT_STORAGE_KEY = 'marvin:layoutMode'
 const SIDEBAR_WIDTH_KEY = 'marvin:sidebarWidth'
@@ -236,6 +239,7 @@ function humanizeError(err: unknown): string {
 
 export default function App() {
   useColorTheme()
+  const visualStyle = useVisualStyle()
   const [vaultPath, setVaultPath] = useState<string | null>(null)
   const [tree, setTree] = useState<FileNode[]>([])
   const [tabs, setTabs] = useState<Tab[]>([])
@@ -1253,6 +1257,14 @@ export default function App() {
 
   return (
     <div className="shell">
+      {visualStyle === 'legacy' && (
+        <TopBar
+          onOpenPalette={() => setPaletteOpen(true)}
+          onOpenSettings={() => setSettingsOpen(true)}
+          layoutMode={layoutMode}
+          onLayoutChange={setLayoutMode}
+        />
+      )}
       <div
         className="app"
         data-layout={layoutMode}
@@ -1264,28 +1276,34 @@ export default function App() {
         }
       >
       <aside className="sidebar">
-        <div className="sidebar-search">
-          <button
-            type="button"
-            className="sidebar-search-btn"
-            onClick={() => setPaletteOpen(true)}
-            aria-label="Search (⌘P)"
-          >
-            <Icon name="search" size={14} />
-            <span className="sidebar-search-placeholder">Search…</span>
-            <span className="sidebar-search-kbd">⌘P</span>
-          </button>
-        </div>
-        <div className="sidebar-header">
-          <div className="sidebar-project-info">
-            <div className="sidebar-project-text">
-              <span className="sidebar-project-name">{vaultPath.split('/').pop()}</span>
-              <span className="sidebar-branch-name">
-                <Icon name="git-branch" size={14} />
-                main
-              </span>
-            </div>
+        {visualStyle === 'modern' && (
+          <div className="sidebar-search">
+            <button
+              type="button"
+              className="sidebar-search-btn"
+              onClick={() => setPaletteOpen(true)}
+              aria-label="Search (⌘P)"
+            >
+              <Icon name="search" size={14} />
+              <span className="sidebar-search-placeholder">Search…</span>
+              <span className="sidebar-search-kbd">⌘P</span>
+            </button>
           </div>
+        )}
+        <div className="sidebar-header">
+          {visualStyle === 'legacy' ? (
+            <span className="vault-name">{vaultPath.split('/').pop()}</span>
+          ) : (
+            <div className="sidebar-project-info">
+              <div className="sidebar-project-text">
+                <span className="sidebar-project-name">{vaultPath.split('/').pop()}</span>
+                <span className="sidebar-branch-name">
+                  <Icon name="git-branch" size={14} />
+                  main
+                </span>
+              </div>
+            </div>
+          )}
           <FileTreeToolbar
             isAnyOpen={openPaths.size > 0}
             onNewFile={() => setDialog({ kind: 'newNote', parentDir: vaultPath })}
@@ -1316,22 +1334,30 @@ export default function App() {
           onMove={handleDropMove}
         />
         <div className="sidebar-footer">
-          <button
-            type="button"
-            className="sidebar-footer-btn"
-            onClick={handlePickVault}
-          >
-            <Icon name="folder" size={16} />
-            <span>Switch Folder</span>
-          </button>
-          <button
-            type="button"
-            className="sidebar-footer-btn"
-            onClick={() => setSettingsOpen(true)}
-          >
-            <Icon name="gear" size={16} />
-            <span>Settings</span>
-          </button>
+          {visualStyle === 'legacy' ? (
+            <button type="button" className="text-btn" onClick={handlePickVault}>
+              Switch vault
+            </button>
+          ) : (
+            <>
+              <button
+                type="button"
+                className="sidebar-footer-btn"
+                onClick={handlePickVault}
+              >
+                <Icon name="folder" size={16} />
+                <span>Switch Folder</span>
+              </button>
+              <button
+                type="button"
+                className="sidebar-footer-btn"
+                onClick={() => setSettingsOpen(true)}
+              >
+                <Icon name="gear" size={16} />
+                <span>Settings</span>
+              </button>
+            </>
+          )}
         </div>
       </aside>
 

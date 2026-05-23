@@ -19,6 +19,7 @@ export function SettingsModal({ onClose, layoutMode, onLayoutChange }: Props) {
 
   const iconTheme = useSetting('iconTheme') ?? 'codicon'
   const colorTheme = useSetting('colorTheme') ?? 'system'
+  const visualStyle = useSetting('visualStyle') ?? 'modern'
   const terminalModeEnabled = useSetting('terminalModeEnabled') ?? false
 
   return (
@@ -95,6 +96,38 @@ export function SettingsModal({ onClose, layoutMode, onLayoutChange }: Props) {
                 onClick={() => void setSetting('iconTheme', 'material')}
               >
                 Material
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <section className="modal-section">
+          <div className="modal-section-header">Visual style</div>
+          <div className="modal-section-row">
+            <div>
+              <div className="modal-section-label">Interface style</div>
+              <div className="modal-section-hint">
+                Switch between the legacy look and the redesigned interface.
+              </div>
+            </div>
+            <div className="segmented" role="radiogroup" aria-label="Visual style">
+              <button
+                type="button"
+                role="radio"
+                aria-checked={visualStyle === 'modern'}
+                className={`segmented-btn${visualStyle === 'modern' ? ' active' : ''}`}
+                onClick={() => void setSetting('visualStyle', 'modern')}
+              >
+                Modern
+              </button>
+              <button
+                type="button"
+                role="radio"
+                aria-checked={visualStyle === 'legacy'}
+                className={`segmented-btn${visualStyle === 'legacy' ? ' active' : ''}`}
+                onClick={() => void setSetting('visualStyle', 'legacy')}
+              >
+                Legacy
               </button>
             </div>
           </div>
