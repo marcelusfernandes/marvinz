@@ -76,7 +76,7 @@ function MessageRow({
   if (message.role === 'assistant') {
     return (
       <li className="chat-message-row assistant" aria-busy={!message.done}>
-        <AssistantMessageCard message={message} />
+        <AssistantMessageCard sessionId={sessionId} message={message} />
       </li>
     )
   }

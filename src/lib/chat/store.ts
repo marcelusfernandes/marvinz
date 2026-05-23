@@ -17,6 +17,7 @@ import type {
   Mention,
   Message,
   MessageId,
+  PermissionMode,
   Provider,
   Session,
   SessionId,
@@ -39,6 +40,7 @@ type ChatStore = {
   approveTool: (sid: SessionId, toolCallId: ToolCallId, approved: boolean) => void
   setComposerDraft: (sid: SessionId, draft: string) => void
   setComposerMentions: (sid: SessionId, mentions: Mention[]) => void
+  setPermissionMode: (sid: SessionId, mode: PermissionMode) => void
 }
 
 function emptySession(
@@ -56,6 +58,7 @@ function emptySession(
     turnState: 'idle',
     tokenUsage: { inputTokens: 0, outputTokens: 0 },
     composer: { draft: '', mentions: [] },
+    permissionMode: 'default',
   }
 }
 
@@ -209,6 +212,13 @@ export const useChatStore = create<ChatStore>((set) => ({
         composer: { ...s.composer, mentions },
       })),
     ),
+
+  setPermissionMode: (sid, mode) =>
+    set((state) =>
+      withSession(state, sid, (s) =>
+        s.permissionMode === mode ? s : { ...s, permissionMode: mode },
+      ),
+    ),
 }))
 
 // ---------- event reducer ----------
@@ -292,14 +302,16 @@ function applyEvent(s: Session, ev: ChatStreamEvent): Session {
       const lastId = s.ordering[s.ordering.length - 1]
       const last = lastId ? s.messages[lastId] : undefined
       if (!last || last.role !== 'assistant') return s
+      const deadline =
+        typeof ev.timeoutMs === 'number' ? Date.now() + ev.timeoutMs : undefined
       const existing = last.blocks.find(
         (b) => b.kind === 'tool_use' && b.id === ev.toolUseId,
       )
       const updated = existing
         ? updateToolBlock(last, ev.toolUseId, (b) =>
-            b.status === 'pending_approval'
+            b.status === 'pending_approval' && b.approvalDeadlineAt === deadline
               ? b
-              : { ...b, status: 'pending_approval' },
+              : { ...b, status: 'pending_approval', approvalDeadlineAt: deadline },
           )
         : appendBlock(last, {
             kind: 'tool_use',
@@ -307,6 +319,7 @@ function applyEvent(s: Session, ev: ChatStreamEvent): Session {
             tool: ev.toolName,
             input: ev.input,
             status: 'pending_approval',
+            approvalDeadlineAt: deadline,
           })
       const pendingApprovals = s.pendingApprovals.includes(ev.toolUseId)
         ? s.pendingApprovals

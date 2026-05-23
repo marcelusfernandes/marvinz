@@ -1,0 +1,10 @@
+{"type":"system","subtype":"init","cwd":"/vault","session_id":"mock-session-001","model":"claude-test","tools":["Write"],"mcp_servers":[]}
+{"type":"stream_event","event":{"type":"message_start","message":{"id":"msg-ask-001","role":"assistant","content":[],"stop_reason":null,"usage":{"input_tokens":5,"output_tokens":0}}},"session_id":"mock-session-001"}
+{"type":"stream_event","event":{"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}},"session_id":"mock-session-001"}
+{"type":"stream_event","event":{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"I'll write a note for you."}},"session_id":"mock-session-001"}
+{"type":"stream_event","event":{"type":"content_block_stop","index":0},"session_id":"mock-session-001"}
+{"type":"stream_event","event":{"type":"content_block_start","index":1,"content_block":{"type":"tool_use","id":"toolu_write_001","name":"Write","input":{}}},"session_id":"mock-session-001"}
+{"type":"stream_event","event":{"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"{\"file_path\":\"/vault/test-note.md\",\"content\":\"# Test Note\\nCreated by mock CLI.\"}"}},"session_id":"mock-session-001"}
+{"type":"stream_event","event":{"type":"content_block_stop","index":1},"session_id":"mock-session-001"}
+{"type":"stream_event","event":{"type":"message_delta","delta":{"stop_reason":"tool_use","stop_sequence":null},"usage":{"output_tokens":30}},"session_id":"mock-session-001"}
+{"type":"stream_event","event":{"type":"message_stop"},"session_id":"mock-session-001"}

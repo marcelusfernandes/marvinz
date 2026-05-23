@@ -4,12 +4,18 @@
 
 import { spawn, type ChildProcess } from 'node:child_process'
 import fs from 'node:fs/promises'
+import { existsSync } from 'node:fs'
 import path from 'node:path'
 import { homedir } from 'node:os'
 import { NdjsonStream } from './ndjson.js'
 import { adaptClaudeObj, makeAdapterState, type AdapterState } from './adapter-claude.js'
 import { adaptCodexObj, makeCodexAdapterState, type CodexAdapterState } from './adapter-codex.js'
-import { evaluatePermission, recordDecision, clearSessionRules } from './permissions.js'
+import {
+  clearSessionRules,
+  resolveApproval,
+  cancelPendingApprovals,
+} from './permissions.js'
+import { createApprovalServer, type ApprovalServer } from './approval-socket.js'
 import type { AgentEvent, AgentRequest, Provider, PermissionMode } from './protocol.js'
 
 export type AgentChild = {
@@ -20,9 +26,11 @@ export type AgentChild = {
   proc: ChildProcess
   adapterState: AdapterState | CodexAdapterState
   startedAt: number
-  // pending approval callbacks keyed by toolUseId
-  pendingApprovals: Map<string, (decision: AgentEvent) => void>
-  // maps toolUseId → toolName so handleApproval can key recordDecision by toolName
+  // Unix domain socket server for the --permission-prompt-tool hook bridge.
+  approvalServer: ApprovalServer | null
+  // toolUseIds currently awaiting approval (for cancellation on kill/cancel)
+  pendingApprovalIds: Set<string>
+  // maps toolUseId → toolName; owned by approval-socket.ts connection handlers
   pendingToolNames: Map<string, string>
   // text-delta coalescing ring buffer keyed by messageId
   deltaBuffers: Map<string, string[]>
@@ -68,12 +76,50 @@ async function killAgent(child: AgentChild): Promise<void> {
   if (!dead) child.proc.kill('SIGKILL')
 }
 
+// Resolve the hook bridge script path.
+// Dev/unpackaged: dist-electron/pretooluse-bridge.cjs (copied by vite.config.ts).
+// Packaged (ASAR): process.resourcesPath/app/electron/agent/hooks/pretooluse-bridge.cjs
+//   — the bridge must be listed as an extraResource in electron-builder config.
+function resolveBridgePath(): string | null {
+  const candidates = [
+    // Dev + unpackaged prod: vite copies bridge alongside main.cjs
+    path.join(__dirname, 'pretooluse-bridge.cjs'),
+    // Packaged (electron-builder extraResources)
+    path.join(process.resourcesPath ?? '', 'app', 'electron', 'agent', 'hooks', 'pretooluse-bridge.cjs'),
+  ]
+  return candidates.find(existsSync) ?? null
+}
+
+// Build the --settings JSON value for hook injection.
+// Returns null if the bridge script is not present (graceful degradation).
+function buildHookSettings(bridgePath: string): string {
+  const settings = {
+    hooks: {
+      PreToolUse: [
+        {
+          matcher: '*',
+          hooks: [
+            {
+              type: 'command',
+              command: bridgePath,
+              // 310s = 300s approval timeout + 10s margin for socket round-trip.
+              timeout: 310,
+            },
+          ],
+        },
+      ],
+    },
+  }
+  return JSON.stringify(settings)
+}
+
 function buildClaudeArgs(req: Extract<AgentRequest, { type: 'start' }>): string[] {
   const args: string[] = [
     '--output-format', 'stream-json',
     '--input-format', 'stream-json',
     '--verbose',
     '--include-partial-messages',
+    '--include-hook-events',
   ]
 
   if (req.resumeFromSessionId) {
@@ -88,9 +134,15 @@ function buildClaudeArgs(req: Extract<AgentRequest, { type: 'start' }>): string[
     default: 'default',
     acceptEdits: 'acceptEdits',
     plan: 'plan',
-    auto: 'bypassPermissions',
+    auto: 'default',
   }
   args.push('--permission-mode', permissionFlag[req.permissionMode])
+
+  // Inject PreToolUse hook via --settings if the bridge script is present.
+  const bridgePath = resolveBridgePath()
+  if (bridgePath) {
+    args.push('--settings', buildHookSettings(bridgePath))
+  }
 
   // Prompt is passed via stdin (stream-json input format) rather than as a CLI arg.
   // The caller writes the initial prompt to proc.stdin after spawn.
@@ -194,14 +246,35 @@ export async function spawnAgent(
   const binary = isCodex ? (bins.codex ?? 'codex') : bins.claude
   const args = isCodex ? buildCodexArgs(req) : buildClaudeArgs(req)
 
+  // Create approval socket server before spawning so the env var is ready.
+  // Codex does not use the hook bridge — skip for Codex sessions.
+  const pendingApprovalIds = new Set<string>()
+  const pendingToolNames = new Map<string, string>()
+
+  let approvalServer: ApprovalServer | null = null
+  if (!isCodex) {
+    approvalServer = await createApprovalServer(
+      req.sessionId,
+      { sessionId: req.sessionId, permissionMode: req.permissionMode, vaultRoot: req.vaultRoot },
+      pendingApprovalIds,
+      pendingToolNames,
+      emit,
+    )
+  }
+
   let proc: ChildProcess
   try {
     proc = spawn(binary, args, {
       cwd: req.vaultRoot,
       stdio: ['pipe', 'pipe', 'pipe'],
-      env: { ...process.env, TERM: 'dumb' },
+      env: {
+        ...process.env,
+        TERM: 'dumb',
+        ...(approvalServer ? { MARVIN_APPROVAL_SOCKET: approvalServer.socketPath } : {}),
+      },
     })
   } catch (err) {
+    await approvalServer?.close()
     const message = err instanceof Error ? err.message : String(err)
     if (message.includes('ENOENT')) {
       emit(`agent:event:${req.sessionId}`, {
@@ -224,8 +297,9 @@ export async function spawnAgent(
     proc,
     adapterState,
     startedAt: Date.now(),
-    pendingApprovals: new Map(),
-    pendingToolNames: new Map(),
+    approvalServer,
+    pendingApprovalIds,
+    pendingToolNames,
     deltaBuffers: new Map(),
     flushTimer: null,
   }
@@ -248,49 +322,9 @@ export async function spawnAgent(
         ? adaptCodexObj(obj, adapterState as ReturnType<typeof makeCodexAdapterState>)
         : adaptClaudeObj(obj, adapterState as ReturnType<typeof makeAdapterState>)
       for (const event of events) {
-        if (event.type === 'tool-use') {
-          // Evaluate permissions before forwarding to renderer.
-          const result = evaluatePermission({
-            sessionId: req.sessionId,
-            toolUseId: event.toolUseId,
-            toolName: event.name,
-            input: event.input,
-            permissionMode: req.permissionMode,
-            vaultRoot: req.vaultRoot,
-          })
-          if (result.action === 'allow') {
-            dispatchEvent(child, event, emit)
-          } else if (result.action === 'deny') {
-            // Synthesize a denial tool-result so the CLI can continue.
-            dispatchEvent(child, event, emit)
-            const denial: AgentEvent = {
-              type: 'tool-result',
-              sessionId: req.sessionId,
-              toolUseId: event.toolUseId,
-              output: `Denied: ${result.reason}`,
-              isError: true,
-              durationMs: 0,
-            }
-            dispatchEvent(child, denial, emit)
-          } else {
-            // Request user approval — record toolName for handleApproval lookup,
-            // then emit tool-use and permission-request.
-            child.pendingToolNames.set(event.toolUseId, event.name)
-            dispatchEvent(child, event, emit)
-            const permReq: AgentEvent = {
-              type: 'permission-request',
-              sessionId: req.sessionId,
-              toolUseId: event.toolUseId,
-              toolName: event.name,
-              input: event.input,
-              risk: 'safe',
-              suggestion: 'review',
-            }
-            dispatchEvent(child, permReq, emit)
-          }
-        } else {
-          dispatchEvent(child, event, emit)
-        }
+        // tool-use events are forwarded as-is; the approval socket server is the
+        // real gate. The hook bridge blocks the CLI until a decision is sent back.
+        dispatchEvent(child, event, emit)
       }
     },
     async (line, err) => {
@@ -354,8 +388,10 @@ export async function spawnAgent(
     }
 
     streamEnded = true
+    cancelPendingApprovals([...child.pendingApprovalIds])
     agentChildren.delete(req.sessionId)
     clearSessionRules(req.sessionId)
+    void child.approvalServer?.close()
 
     if (code !== 0 && code !== null) {
       emit(`agent:event:${req.sessionId}`, {
@@ -373,6 +409,7 @@ export async function spawnAgent(
 export async function cancelAgent(sessionId: string): Promise<void> {
   const child = agentChildren.get(sessionId)
   if (!child) return
+  cancelPendingApprovals([...child.pendingApprovalIds])
   child.proc.kill('SIGINT')
 }
 
@@ -381,39 +418,18 @@ export async function killAgentSession(sessionId: string): Promise<void> {
   if (!child) return
   agentChildren.delete(sessionId)
   clearSessionRules(sessionId)
-  await killAgent(child)
+  cancelPendingApprovals([...child.pendingApprovalIds])
+  await Promise.all([killAgent(child), child.approvalServer?.close()])
 }
 
 export function handleApproval(
-  sessionId: string,
+  _sessionId: string,
   toolUseId: string,
   decision: Extract<AgentRequest, { type: 'approval' }>['decision'],
-  emit: EventEmitter,
 ): void {
-  const child = agentChildren.get(sessionId)
-  if (!child) return
-
-  const toolName = child.pendingToolNames.get(toolUseId)
-  child.pendingToolNames.delete(toolUseId)
-
-  if (toolName) {
-    if (decision.kind === 'allow' && decision.remember) {
-      recordDecision(sessionId, toolName, decision)
-    } else if (decision.kind === 'deny') {
-      recordDecision(sessionId, toolName, decision)
-    }
-  }
-
-  // Emit tool-result back to renderer so the UI can update.
-  const toolResult: AgentEvent = {
-    type: 'tool-result',
-    sessionId,
-    toolUseId,
-    output: decision.kind === 'deny' ? `Denied: ${decision.reason ?? ''}` : null,
-    isError: decision.kind === 'deny',
-    durationMs: 0,
-  }
-  emit(`agent:event:${sessionId}`, toolResult)
+  // Resolves the pending approval in approval-socket.ts so the hook connection
+  // can respond to the CLI. No-op if already timed out or unknown toolUseId.
+  resolveApproval(toolUseId, decision)
 }
 
 export async function killAllAgents(): Promise<void> {
