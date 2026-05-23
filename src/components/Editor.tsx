@@ -253,11 +253,17 @@ export function Editor({
     e.preventDefault()
     const state = view.state
     const hasSelection = state.selection.ranges.some((r) => !r.empty)
-    const action = await window.marvin.editor.showContextMenu({
-      hasSelection,
-      canUndo: undoDepth(state) > 0,
-      canRedo: redoDepth(state) > 0,
-    })
+    const canPaste = await window.marvin.app.canPaste()
+    const action = await window.marvin.app.showContextMenu([
+      { kind: 'item', id: 'cut', label: 'Cut', accelerator: 'CmdOrCtrl+X', enabled: hasSelection },
+      { kind: 'item', id: 'copy', label: 'Copy', accelerator: 'CmdOrCtrl+C', enabled: hasSelection },
+      { kind: 'item', id: 'paste', label: 'Paste', accelerator: 'CmdOrCtrl+V', enabled: canPaste },
+      { kind: 'separator' },
+      { kind: 'item', id: 'selectAll', label: 'Select All', accelerator: 'CmdOrCtrl+A' },
+      { kind: 'separator' },
+      { kind: 'item', id: 'undo', label: 'Undo', accelerator: 'CmdOrCtrl+Z', enabled: undoDepth(state) > 0 },
+      { kind: 'item', id: 'redo', label: 'Redo', accelerator: 'CmdOrCtrl+Shift+Z', enabled: redoDepth(state) > 0 },
+    ])
     if (!action) return
     switch (action) {
       case 'selectAll':

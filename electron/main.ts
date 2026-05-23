@@ -768,29 +768,38 @@ ipcMain.handle('shell:reveal', async (_e, target: string) => {
   shell.showItemInFolder(safe)
 })
 
-type EditorMenuRequest = { hasSelection: boolean; canUndo: boolean; canRedo: boolean }
-type EditorMenuAction = 'cut' | 'copy' | 'paste' | 'selectAll' | 'undo' | 'redo' | null
+type MenuItemSpec =
+  | { kind: 'item'; id: string; label: string; accelerator?: string; enabled?: boolean }
+  | { kind: 'separator' }
 
-ipcMain.handle('editor:show-context-menu', (e, req: EditorMenuRequest): Promise<EditorMenuAction> => {
-  const canPaste = clipboard.availableFormats().some(f => f.startsWith('text/') || f === 'text')
-  return new Promise<EditorMenuAction>(resolve => {
-    // Capture the chosen action in a closure; menu.popup's callback fires AFTER
-    // any click handler, so click handlers set `chosen` and the callback resolves
-    // with whatever was set (or `null` if the menu was dismissed without a click).
-    let chosen: EditorMenuAction = null
+function showContextMenu(e: Electron.IpcMainInvokeEvent, items: MenuItemSpec[]): Promise<string | null> {
+  return new Promise<string | null>(resolve => {
+    let chosen: string | null = null
     const menu = new Menu()
-    menu.append(new MenuItem({ label: 'Cut', accelerator: 'CmdOrCtrl+X', enabled: req.hasSelection, click: () => { chosen = 'cut' } }))
-    menu.append(new MenuItem({ label: 'Copy', accelerator: 'CmdOrCtrl+C', enabled: req.hasSelection, click: () => { chosen = 'copy' } }))
-    menu.append(new MenuItem({ label: 'Paste', accelerator: 'CmdOrCtrl+V', enabled: canPaste, click: () => { chosen = 'paste' } }))
-    menu.append(new MenuItem({ type: 'separator' }))
-    menu.append(new MenuItem({ label: 'Select All', accelerator: 'CmdOrCtrl+A', click: () => { chosen = 'selectAll' } }))
-    menu.append(new MenuItem({ type: 'separator' }))
-    menu.append(new MenuItem({ label: 'Undo', accelerator: 'CmdOrCtrl+Z', enabled: req.canUndo, click: () => { chosen = 'undo' } }))
-    menu.append(new MenuItem({ label: 'Redo', accelerator: 'CmdOrCtrl+Shift+Z', enabled: req.canRedo, click: () => { chosen = 'redo' } }))
+    for (const spec of items) {
+      if (spec.kind === 'separator') {
+        menu.append(new MenuItem({ type: 'separator' }))
+      } else {
+        menu.append(new MenuItem({
+          label: spec.label,
+          accelerator: spec.accelerator,
+          enabled: spec.enabled ?? true,
+          click: () => { chosen = spec.id },
+        }))
+      }
+    }
     const win = BrowserWindow.fromWebContents(e.sender)
     menu.popup({ window: win ?? undefined, callback: () => resolve(chosen) })
   })
+}
+
+ipcMain.handle('app:show-context-menu', (e, items: MenuItemSpec[]): Promise<string | null> => {
+  return showContextMenu(e, items)
 })
+
+ipcMain.handle('app:can-paste', (): boolean =>
+  clipboard.availableFormats().some(f => f.startsWith('text/') || f === 'text')
+)
 
 ipcMain.handle('editor:clipboard-read', (): string => {
   return clipboard.readText()

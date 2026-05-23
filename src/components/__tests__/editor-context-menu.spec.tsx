@@ -192,19 +192,24 @@ import { Editor } from '../Editor'
 // ---------------------------------------------------------------------------
 
 let showContextMenuMock: ReturnType<typeof vi.fn>
+let canPasteMock: ReturnType<typeof vi.fn>
 let writeClipboardMock: ReturnType<typeof vi.fn>
 let readClipboardMock: ReturnType<typeof vi.fn>
 
 function setupMarvinMock() {
   showContextMenuMock = vi.fn()
+  canPasteMock = vi.fn().mockResolvedValue(false)
   writeClipboardMock = vi.fn().mockResolvedValue(undefined)
   readClipboardMock = vi.fn().mockResolvedValue('')
   Object.defineProperty(globalThis, 'window', {
     value: {
       ...(typeof window !== 'undefined' ? window : {}),
       marvin: {
-        editor: {
+        app: {
           showContextMenu: showContextMenuMock,
+          canPaste: canPasteMock,
+        },
+        editor: {
           writeClipboard: writeClipboardMock,
           readClipboard: readClipboardMock,
         },
@@ -277,7 +282,7 @@ afterEach(() => {
 // ---------------------------------------------------------------------------
 
 describe('Editor — context menu triggers IPC with correct payload', () => {
-  it('calls showContextMenu with hasSelection=false when no text is selected', async () => {
+  it('calls showContextMenu once with an items array', async () => {
     currentCMView = makeCMView({ hasSelection: false })
     showContextMenuMock.mockResolvedValue(null)
     const { container } = render(<Editor {...defaultProps()} />)
@@ -285,69 +290,130 @@ describe('Editor — context menu triggers IPC with correct payload', () => {
       rightClickCMEditor(container)
     })
     expect(showContextMenuMock).toHaveBeenCalledTimes(1)
-    expect(showContextMenuMock).toHaveBeenCalledWith(
-      expect.objectContaining({ hasSelection: false }),
-    )
+    const [items] = showContextMenuMock.mock.calls[0] as [Array<{ kind: string; id?: string; label?: string; enabled?: boolean }>]
+    expect(Array.isArray(items)).toBe(true)
   })
 
-  it('calls showContextMenu with hasSelection=true when text is selected', async () => {
+  it('Cut item is disabled when no text is selected', async () => {
+    currentCMView = makeCMView({ hasSelection: false })
+    showContextMenuMock.mockResolvedValue(null)
+    const { container } = render(<Editor {...defaultProps()} />)
+    await act(async () => {
+      rightClickCMEditor(container)
+    })
+    const [items] = showContextMenuMock.mock.calls[0] as [Array<{ kind: string; id?: string; label?: string; enabled?: boolean }>]
+    const cut = items.find(i => i.id === 'cut')
+    expect(cut?.enabled).toBe(false)
+  })
+
+  it('Cut item is enabled when text is selected', async () => {
     currentCMView = makeCMView({ hasSelection: true })
     showContextMenuMock.mockResolvedValue(null)
     const { container } = render(<Editor {...defaultProps()} />)
     await act(async () => {
       rightClickCMEditor(container)
     })
-    expect(showContextMenuMock).toHaveBeenCalledWith(
-      expect.objectContaining({ hasSelection: true }),
-    )
+    const [items] = showContextMenuMock.mock.calls[0] as [Array<{ kind: string; id?: string; label?: string; enabled?: boolean }>]
+    const cut = items.find(i => i.id === 'cut')
+    expect(cut?.enabled).toBe(true)
   })
 
-  it('calls showContextMenu with canUndo=false when undoDepth is 0', async () => {
+  it('Copy item is disabled when no text is selected', async () => {
+    currentCMView = makeCMView({ hasSelection: false })
+    showContextMenuMock.mockResolvedValue(null)
+    const { container } = render(<Editor {...defaultProps()} />)
+    await act(async () => {
+      rightClickCMEditor(container)
+    })
+    const [items] = showContextMenuMock.mock.calls[0] as [Array<{ kind: string; id?: string; label?: string; enabled?: boolean }>]
+    const copy = items.find(i => i.id === 'copy')
+    expect(copy?.enabled).toBe(false)
+  })
+
+  it('Copy item is enabled when text is selected', async () => {
+    currentCMView = makeCMView({ hasSelection: true })
+    showContextMenuMock.mockResolvedValue(null)
+    const { container } = render(<Editor {...defaultProps()} />)
+    await act(async () => {
+      rightClickCMEditor(container)
+    })
+    const [items] = showContextMenuMock.mock.calls[0] as [Array<{ kind: string; id?: string; label?: string; enabled?: boolean }>]
+    const copy = items.find(i => i.id === 'copy')
+    expect(copy?.enabled).toBe(true)
+  })
+
+  it('Undo item is disabled when undoDepth is 0', async () => {
     currentCMView = makeCMView({ undoDepth: 0 })
     showContextMenuMock.mockResolvedValue(null)
     const { container } = render(<Editor {...defaultProps()} />)
     await act(async () => {
       rightClickCMEditor(container)
     })
-    expect(showContextMenuMock).toHaveBeenCalledWith(
-      expect.objectContaining({ canUndo: false }),
-    )
+    const [items] = showContextMenuMock.mock.calls[0] as [Array<{ kind: string; id?: string; label?: string; enabled?: boolean }>]
+    const undo = items.find(i => i.id === 'undo')
+    expect(undo?.enabled).toBe(false)
   })
 
-  it('calls showContextMenu with canUndo=true when undoDepth > 0', async () => {
+  it('Undo item is enabled when undoDepth > 0', async () => {
     currentCMView = makeCMView({ undoDepth: 2 })
     showContextMenuMock.mockResolvedValue(null)
     const { container } = render(<Editor {...defaultProps()} />)
     await act(async () => {
       rightClickCMEditor(container)
     })
-    expect(showContextMenuMock).toHaveBeenCalledWith(
-      expect.objectContaining({ canUndo: true }),
-    )
+    const [items] = showContextMenuMock.mock.calls[0] as [Array<{ kind: string; id?: string; label?: string; enabled?: boolean }>]
+    const undo = items.find(i => i.id === 'undo')
+    expect(undo?.enabled).toBe(true)
   })
 
-  it('calls showContextMenu with canRedo=false when redoDepth is 0', async () => {
+  it('Redo item is disabled when redoDepth is 0', async () => {
     currentCMView = makeCMView({ redoDepth: 0 })
     showContextMenuMock.mockResolvedValue(null)
     const { container } = render(<Editor {...defaultProps()} />)
     await act(async () => {
       rightClickCMEditor(container)
     })
-    expect(showContextMenuMock).toHaveBeenCalledWith(
-      expect.objectContaining({ canRedo: false }),
-    )
+    const [items] = showContextMenuMock.mock.calls[0] as [Array<{ kind: string; id?: string; label?: string; enabled?: boolean }>]
+    const redo = items.find(i => i.id === 'redo')
+    expect(redo?.enabled).toBe(false)
   })
 
-  it('calls showContextMenu with canRedo=true when redoDepth > 0', async () => {
+  it('Redo item is enabled when redoDepth > 0', async () => {
     currentCMView = makeCMView({ redoDepth: 1 })
     showContextMenuMock.mockResolvedValue(null)
     const { container } = render(<Editor {...defaultProps()} />)
     await act(async () => {
       rightClickCMEditor(container)
     })
-    expect(showContextMenuMock).toHaveBeenCalledWith(
-      expect.objectContaining({ canRedo: true }),
-    )
+    const [items] = showContextMenuMock.mock.calls[0] as [Array<{ kind: string; id?: string; label?: string; enabled?: boolean }>]
+    const redo = items.find(i => i.id === 'redo')
+    expect(redo?.enabled).toBe(true)
+  })
+
+  it('Paste item is disabled when canPaste returns false', async () => {
+    currentCMView = makeCMView()
+    canPasteMock.mockResolvedValue(false)
+    showContextMenuMock.mockResolvedValue(null)
+    const { container } = render(<Editor {...defaultProps()} />)
+    await act(async () => {
+      rightClickCMEditor(container)
+    })
+    const [items] = showContextMenuMock.mock.calls[0] as [Array<{ kind: string; id?: string; label?: string; enabled?: boolean }>]
+    const paste = items.find(i => i.id === 'paste')
+    expect(paste?.enabled).toBe(false)
+  })
+
+  it('Paste item is enabled when canPaste returns true', async () => {
+    currentCMView = makeCMView()
+    canPasteMock.mockResolvedValue(true)
+    showContextMenuMock.mockResolvedValue(null)
+    const { container } = render(<Editor {...defaultProps()} />)
+    await act(async () => {
+      rightClickCMEditor(container)
+    })
+    const [items] = showContextMenuMock.mock.calls[0] as [Array<{ kind: string; id?: string; label?: string; enabled?: boolean }>]
+    const paste = items.find(i => i.id === 'paste')
+    expect(paste?.enabled).toBe(true)
   })
 })
 
