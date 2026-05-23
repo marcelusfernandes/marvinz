@@ -78,14 +78,17 @@ async function killAgent(child: AgentChild): Promise<void> {
 
 // Resolve the hook bridge script path.
 // Dev/unpackaged: dist-electron/pretooluse-bridge.cjs (copied by vite.config.ts).
-// Packaged (ASAR): process.resourcesPath/app/electron/agent/hooks/pretooluse-bridge.cjs
-//   — the bridge must be listed as an extraResource in electron-builder config.
+// Packaged (ASAR): bridge must be in asarUnpack in electron-builder config so it
+//   lands at app.asar.unpacked/electron/agent/hooks/pretooluse-bridge.cjs and can
+//   be executed directly by Node (scripts inside asar are not executable).
+//   TODO: add `asarUnpack: ["electron/agent/hooks/pretooluse-bridge.cjs"]` to
+//   electron-builder config when packaging is wired.
 function resolveBridgePath(): string | null {
   const candidates = [
     // Dev + unpackaged prod: vite copies bridge alongside main.cjs
     path.join(__dirname, 'pretooluse-bridge.cjs'),
-    // Packaged (electron-builder extraResources)
-    path.join(process.resourcesPath ?? '', 'app', 'electron', 'agent', 'hooks', 'pretooluse-bridge.cjs'),
+    // Packaged — script must be in asarUnpack so it is executable
+    path.join(process.resourcesPath ?? '', 'app.asar.unpacked', 'electron', 'agent', 'hooks', 'pretooluse-bridge.cjs'),
   ]
   return candidates.find(existsSync) ?? null
 }
