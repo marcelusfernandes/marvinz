@@ -116,6 +116,8 @@ function AssistantMessageCardImpl({ sessionId, message }: Props) {
               result={block.result}
               errorMessage={block.errorMessage}
               durationMs={block.durationMs}
+              snapshotSaved={block.snapshotSaved}
+              snapshotTurnId={block.snapshotTurnId}
             />
             {block.status === 'pending_approval' && (
               <ToolApprovalGate

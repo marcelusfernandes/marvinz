@@ -87,6 +87,8 @@ export type AgentEvent =
       name: string
       input: unknown
       messageId: string
+      snapshotSaved?: boolean
+      snapshotTurnId?: string
     }
   | {
       type: 'tool-result'
@@ -105,6 +107,22 @@ export type AgentEvent =
       risk: 'safe' | 'destructive' | 'network'
       suggestion: 'allow' | 'review'
       timeoutMs?: number
+      snapshotSaved?: boolean
+      snapshotTurnId?: string
+    }
+  | {
+      type: 'snapshot-warning'
+      sessionId: string
+      toolUseId: string
+      filePath: string
+      reason: string
+    }
+  | {
+      type: 'turn-snapshot-summary'
+      sessionId: string
+      turnId: string
+      fileCount: number
+      fileNames: string[]
     }
   | {
       type: 'message-end'

@@ -3780,6 +3780,115 @@ button.prop-bool {
   flex-wrap: wrap;
 }
 
+/* Edit tool card (Sprint 4) --------------------------------------- */
+
+.chat-tool-card-edit {
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.chat-tool-card-edit-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.chat-tool-pill-button {
+  cursor: pointer;
+  font: inherit;
+}
+
+.chat-tool-pill-button:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+
+.chat-tool-pill-button:disabled {
+  cursor: default;
+}
+
+.chat-tool-pill-button:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.chat-tool-saved-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px var(--space-2);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-success);
+  background: var(--bg-success-subtle);
+  border: 1px solid var(--border-success);
+  border-radius: var(--radius-pill);
+  cursor: help;
+}
+
+.chat-tool-edit-diff-toggle {
+  margin-left: auto;
+}
+
+/* DiffCard — lazy MergeView container (Sprint 4) */
+
+.chat-diff-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  overflow: hidden;
+}
+
+.chat-diff-card-view {
+  overflow: auto;
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-sm);
+}
+
+.chat-diff-card-view .cm-mergeView {
+  height: 100%;
+}
+
+.chat-diff-card-view .cm-editor {
+  background: var(--surface-1);
+  color: var(--text-primary);
+}
+
+.chat-diff-card-view .cm-editor.cm-focused {
+  outline: none;
+}
+
+.chat-diff-card-view .cm-scroller {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+}
+
+.chat-diff-card-view .cm-gutters {
+  background: var(--surface-2);
+  color: var(--text-tertiary);
+  border-right: 1px solid var(--border-subtle);
+}
+
+.chat-diff-card-view .cm-changedLine {
+  background: var(--bg-success-subtle);
+}
+
+.chat-diff-card-view .cm-deletedChunk {
+  background: var(--bg-error-subtle);
+}
+
+.chat-diff-card-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  border-top: 1px solid var(--border-subtle);
+  background: var(--surface-1);
+}
+
 .chat-tool-subline {
   font-size: var(--font-size-xs);
   color: var(--text-tertiary);

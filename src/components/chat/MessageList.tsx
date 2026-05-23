@@ -7,6 +7,7 @@ import type { SessionId } from '../../lib/chat/types'
 
 type Props = {
   sessionId: SessionId
+  onRewind?: (turnId: string) => void
 }
 
 /**
@@ -16,7 +17,7 @@ type Props = {
  *
  * Virtualization deferred to Sprint 9 (per design doc §8.4).
  */
-export function MessageList({ sessionId }: Props) {
+export function MessageList({ sessionId, onRewind }: Props) {
   const scrollRef = useRef<HTMLElement | null>(null)
   const ordering = useChatStore((s) => s.sessions[sessionId]?.ordering)
   const isStreaming = useChatStore(
@@ -49,7 +50,12 @@ export function MessageList({ sessionId }: Props) {
       aria-atomic="false"
     >
       {ordering.map((mid) => (
-        <MessageRow key={mid} sessionId={sessionId} messageId={mid} />
+        <MessageRow
+          key={mid}
+          sessionId={sessionId}
+          messageId={mid}
+          onRewind={onRewind}
+        />
       ))}
     </ol>
   )
@@ -58,9 +64,11 @@ export function MessageList({ sessionId }: Props) {
 function MessageRow({
   sessionId,
   messageId,
+  onRewind,
 }: {
   sessionId: SessionId
   messageId: string
+  onRewind?: (turnId: string) => void
 }) {
   const message = useChatStore(
     (s) => s.sessions[sessionId]?.messages[messageId],
@@ -69,7 +77,11 @@ function MessageRow({
   if (message.role === 'user') {
     return (
       <li className="chat-message-row user">
-        <UserBubble text={message.text} />
+        <UserBubble
+          text={message.text}
+          turnId={message.turnId}
+          onRewind={onRewind}
+        />
       </li>
     )
   }
