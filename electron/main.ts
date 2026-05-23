@@ -138,6 +138,9 @@ const SETTINGS_FILE = () => path.join(app.getPath('userData'), 'settings.json')
 type Settings = {
   vaultPath?: string
   iconTheme?: 'codicon' | 'material'
+  colorTheme?: 'light' | 'dark' | 'system'
+  visualStyle?: 'modern' | 'legacy'
+  terminalModeEnabled?: boolean
 }
 
 async function readSettings(): Promise<Settings> {

@@ -45,6 +45,9 @@ type AgentEvent = {
 type Settings = {
   vaultPath?: string
   iconTheme?: 'codicon' | 'material'
+  colorTheme?: 'light' | 'dark' | 'system'
+  visualStyle?: 'modern' | 'legacy'
+  terminalModeEnabled?: boolean
 }
 
 const api = {
