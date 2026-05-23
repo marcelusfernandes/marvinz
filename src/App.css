@@ -1982,62 +1982,6 @@ button {
   font-style: italic;
 }
 
-.ctx-menu {
-  position: fixed;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  padding: var(--space-1);
-  min-width: 200px;
-  z-index: var(--z-toast);
-  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
-  display: flex;
-  flex-direction: column;
-}
-
-.ctx-item {
-  text-align: left;
-  font-size: 13px;
-  padding: 6px var(--space-3);
-  border-radius: var(--radius-sm);
-  color: var(--text-primary);
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-.ctx-item-icon {
-  flex-shrink: 0;
-  color: var(--text-tertiary);
-}
-
-.ctx-item:hover .ctx-item-icon {
-  color: var(--text-secondary);
-}
-
-.ctx-item.danger .ctx-item-icon {
-  color: inherit;
-}
-
-.ctx-item:hover {
-  background: var(--surface-3);
-}
-
-.ctx-item.danger {
-  color: var(--text-error);
-}
-
-.ctx-item.danger:hover {
-  background: #4a1f1a;
-  color: #ff8a78;
-}
-
-.ctx-sep {
-  height: 1px;
-  background: var(--border);
-  margin: var(--space-1) 0;
-}
-
 .error-toast {
   position: fixed;
   bottom: var(--space-4);
