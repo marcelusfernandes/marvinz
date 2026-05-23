@@ -91,11 +91,7 @@ export function ChatPanel({
     <div className="chat-panel">
       <ChatHeader provider={provider} />
       <div className="chat-panel-body">
-        <MessageList
-          sessionId={sessionId}
-          vaultPath={vaultPath}
-          onRewind={onRewind}
-        />
+        <MessageList sessionId={sessionId} onRewind={onRewind} />
       </div>
       <div className="chat-panel-composer">
         <Composer

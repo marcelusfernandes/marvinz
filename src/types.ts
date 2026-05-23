@@ -64,6 +64,7 @@ export type MarvinAPI = {
   }
   vault: {
     pick: () => Promise<string | null>
+    current: () => Promise<string | null>
     tree: (vaultPath: string) => Promise<FileNode[]>
     watch: (vaultPath: string) => Promise<void>
     onChanged: (cb: () => void) => () => void
