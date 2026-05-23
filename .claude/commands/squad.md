@@ -18,6 +18,26 @@ Você é o **lead** desta missão. A flag `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=
 - **Refira-se a teammates pelo nome**, nunca por UUID.
 - **Inglês em tudo que vai pro GitHub** — commit messages, PR title/body, comments em PRs e issues, issue title/body (incluindo follow-ups). Coordenação interna (mensagens entre teammates, este chat com o usuário) segue em PT-BR. Detalhes: `.claude/rules/git-workflow.md`.
 
+## Passo 0 — Issue gate (BLOQUEANTE)
+
+Antes de classificar perfil, criar time, ou qualquer outra coisa:
+
+1. **Se a entrada do `/squad` é uma URL/número de issue** (ex: `#119`, `https://github.com/.../issues/119`) → siga pro Passo 1.
+2. **Se a entrada é descrição livre** ("fazer X", "implementar Y"): **PARE**. Antes de qualquer spawn:
+   - Busque issue relacionada: `gh issue list --repo marcelusfernandes/marvinz --search "<keywords-da-entrada>"`.
+   - Se encontrar, confirme com o usuário se é essa.
+   - Se não encontrar, invoque `/issues:create` com a descrição da entrada e aguarde a issue ser criada. Só então retome `/squad` apontando pra issue recém-criada.
+3. **Se a issue tem tamanho M ou L** no header do body (ou se você projeta diff > 2k LOC excluindo lockfiles/snapshots/fixtures): **PARE**. Notifique o usuário:
+   > "Issue #N tem tamanho `M/L`. Pela regra de governança, precisa virar milestone com sub-issues `S` antes do squad rodar."
+   Crie um milestone no GitHub (`gh api repos/:owner/:repo/milestones -f title="..."`) e decomponha via `/issues:create` em loop até cada sub-issue ser `S`. Vincule cada sub-issue ao milestone. Depois rode `/squad` apontando pra primeira sub-issue.
+
+**Esta etapa não tem override por pedido do usuário.** Se ele pedir pra pular ("não precisa de issue", "depois eu crio"), o lead do squad sinaliza o gate e cumpre — não inicia trabalho.
+
+**Exceções** (vão direto pro Passo 1 sem issue):
+- Typo fixes
+- Single-file edits < 50 LOC com baixa cognitive load
+- Comandos read-only/exploratórios
+
 ## Passo 1 — Triagem (decida sem perguntar)
 
 Classifique a entrada em um perfil. Em dúvida entre dois, prefira o menor.

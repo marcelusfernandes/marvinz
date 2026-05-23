@@ -1,5 +1,25 @@
 # Git Workflow
 
+## Issue-first workflow
+
+Toda branch de feature/refactor/bug fix não-trivial deve traçar de volta a uma issue no GitHub. Sem issue, não começa.
+
+Fluxo obrigatório antes de criar branch ou começar a implementar:
+
+1. **Buscar** issue existente: `gh issue list --repo marcelusfernandes/marvinz --search "<keywords>"`.
+2. **Sem match → criar** via `/issues:create` (a skill enforce o template de seções).
+3. **Se a issue é M ou L** (ou se o diff projetado > 2k LOC excluindo lockfiles/snapshots/fixtures): **NÃO** começar. Converter em milestone do GitHub e decompor em sub-issues menores — cada uma com User Story + ACs próprios, cada uma lançando uma PR separada.
+4. **Branch a partir da issue**: `gh issue develop <num> --base develop --name <type>/<slug> --checkout` — vínculo automático ao painel **Development** da issue.
+
+A regra é não-negociável. Se o usuário pedir pra pular ("é só uma mudança pequena", "depois eu crio a issue"), o assistente sinaliza o gate ("criando issue de tracking #N primeiro") e cumpre. Selective enforcement vira nenhum enforcement.
+
+**PR body sempre tem `Closes #N` em texto puro** — sem bold (`Closes **#N**`) ou itálico (`Closes _#N_`). O parser de auto-close do GitHub falha com formatação no `#N` (ver drift histórico em #63).
+
+**Exceções** (não precisam de issue prévia):
+- Typo fixes
+- Single-file edits < 50 LOC com baixa cognitive load
+- Comandos read-only/exploratórios ("explica X", "mostra Y", status reports)
+
 ## Branch model
 
 - `main` → produção. Atualizado **somente** via PR aprovada de `develop`.
@@ -34,6 +54,8 @@ Exemplos: `feat/wikilinks`, `fix/pty-spawn-race`, `refactor/file-tree`, `chore/u
 
 ## Regras invioláveis
 
+- **Nunca começar trabalho sem issue rastreável** (ver "Issue-first workflow" acima; exceções na mesma seção)
+- **Nunca usar bold/italic em `Closes #N`** — o parser do GitHub falha em `Closes **#N**`, deixando a issue aberta após merge
 - **Nunca** committar direto em `main` ou `develop`
 - **Nunca** abrir PR para `main` (apenas `develop` → `main`, e essa decisão é do usuário)
 - **Nunca** fazer merge de PR — usuário sempre revisa
