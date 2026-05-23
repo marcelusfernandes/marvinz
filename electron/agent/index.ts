@@ -100,7 +100,9 @@ function buildClaudeArgs(req: Extract<AgentRequest, { type: 'start' }>): string[
 function buildCodexArgs(req: Extract<AgentRequest, { type: 'start' }>): string[] {
   // codex exec is non-interactive, one-shot per turn.
   // Prompt is passed as a positional argument; no stdin writes needed.
-  return ['exec', '--json', req.prompt]
+  // --skip-git-repo-check allows running in vault dirs that aren't git repos
+  // (Marvin vaults are notes directories, not necessarily git-tracked).
+  return ['exec', '--json', '--skip-git-repo-check', req.prompt]
 }
 
 function flushDeltaBuffers(child: AgentChild, emit: EventEmitter): void {
