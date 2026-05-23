@@ -27,6 +27,7 @@ import {
   killAllAgents,
 } from './agent/index.js'
 import type { AgentRequest, AgentEvent } from './agent/protocol.js'
+import { importExternal } from './fs-import-external.js'
 
 process.env.APP_ROOT = path.join(__dirname, '..')
 
@@ -809,6 +810,11 @@ ipcMain.handle('file:exportPdf', async (_e, filePath: string) => {
     exportWin.destroy()
     await fs.unlink(tmpPath).catch(() => {})
   }
+})
+
+ipcMain.handle('fs:importExternal', (_e, sources: string[], destDir: string) => {
+  if (!activeVaultPath) throw new Error('MARVIN_OUTSIDE_VAULT')
+  return importExternal(activeVaultPath, sources, destDir)
 })
 
 ipcMain.handle('shell:reveal', async (_e, target: string) => {
