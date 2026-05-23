@@ -1,5 +1,7 @@
+import { useCallback } from 'react'
 import { Icon } from './Icon'
 import { fileIconFor } from '../lib/fileIcons'
+import type { MenuItemSpec } from '../types'
 
 type NoteTab = {
   type: 'note'
@@ -53,6 +55,47 @@ function basename(p: string): string {
 }
 
 export function TabBar({ tabs, activeId, onActivate, onClose, onNewBrowserTab }: Props) {
+  const handleContextMenu = useCallback(
+    async (e: React.MouseEvent, tabId: string) => {
+      e.preventDefault()
+      e.stopPropagation()
+      const idx = tabs.findIndex((t) => t.id === tabId)
+      if (idx === -1) return
+      const target = tabs[idx]
+      const others = tabs.filter((t) => t.id !== tabId)
+      const toRight = tabs.slice(idx + 1)
+      const revealPath = target.type === 'browser' ? null : target.path
+      const items: MenuItemSpec[] = [
+        { kind: 'item', id: 'close', label: 'Close' },
+        { kind: 'item', id: 'closeOthers', label: 'Close Others', enabled: others.length > 0 },
+        { kind: 'item', id: 'closeRight', label: 'Close to the Right', enabled: toRight.length > 0 },
+        { kind: 'item', id: 'closeAll', label: 'Close All' },
+        { kind: 'separator' },
+        { kind: 'item', id: 'reveal', label: 'Reveal in Finder', enabled: revealPath !== null },
+      ]
+      const action = await window.marvin.app.showContextMenu(items)
+      if (!action) return
+      switch (action) {
+        case 'close':
+          onClose(tabId)
+          break
+        case 'closeOthers':
+          for (const t of others) onClose(t.id)
+          break
+        case 'closeRight':
+          for (const t of toRight) onClose(t.id)
+          break
+        case 'closeAll':
+          for (const t of tabs) onClose(t.id)
+          break
+        case 'reveal':
+          if (revealPath) void window.marvin.shell.reveal(revealPath)
+          break
+      }
+    },
+    [tabs, onClose],
+  )
+
   return (
     <div className="tab-bar">
       {tabs.map((t) => {
@@ -77,6 +120,7 @@ export function TabBar({ tabs, activeId, onActivate, onClose, onNewBrowserTab }:
                 onActivate(t.id)
               }
             }}
+            onContextMenu={(e) => handleContextMenu(e, t.id)}
             title={tooltip}
           >
             <TabIcon
