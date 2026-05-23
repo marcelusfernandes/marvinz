@@ -21,7 +21,7 @@ export function imageNodeView(deps: {
   vaultPath: string
   paletteItems: PaletteItem[]
 }) {
-  return $view(imageSchema, () => buildImageNodeView(deps))
+  return $view(imageSchema.node, () => buildImageNodeView(deps))
 }
 
 function buildImageNodeView({
