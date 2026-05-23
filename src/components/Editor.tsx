@@ -14,7 +14,6 @@ import {
 } from '../lib/frontmatter'
 import { Properties } from './Properties'
 import { LiveMarkdown } from './LiveMarkdown'
-import { useColorTheme } from '../lib/colorTheme'
 import { CsvEditor } from './CsvEditor'
 import { HtmlPreview } from './HtmlPreview'
 import { PathSuggest } from './PathSuggest'
@@ -34,15 +33,19 @@ const codeHighlightStyle = HighlightStyle.define([
   { tag: [t.tagName, t.attributeName], color: 'var(--code-tag)' },
   { tag: t.operator, color: 'var(--code-operator)' },
 
-  // Markdown-specific
-  { tag: t.heading, fontWeight: 'bold', color: 'var(--text-primary)' },
-  { tag: t.strong, fontWeight: 'bold' },
-  { tag: t.emphasis, fontStyle: 'italic' },
+  // Markdown-specific — heading scale mirrors a typical editor (Obsidian/Bear).
+  { tag: t.heading1, fontWeight: '700', fontSize: '1.428em', color: 'var(--text-primary)' },
+  { tag: t.heading2, fontWeight: '700', fontSize: '1.143em', color: 'var(--text-primary)' },
+  { tag: [t.heading3, t.heading4, t.heading5, t.heading6], fontWeight: '600', color: 'var(--text-primary)' },
+  { tag: t.strong, fontWeight: '700', color: 'var(--text-primary)' },
+  { tag: t.emphasis, fontStyle: 'italic', color: 'var(--text-primary)' },
   { tag: [t.link, t.url], color: 'var(--accent)' },
   { tag: t.monospace, color: 'var(--code-string)' },
   { tag: t.quote, color: 'var(--text-secondary)', fontStyle: 'italic' },
+  // Markup characters (#, **, _, ~, ---) — kept subtle so they fade beside content.
   { tag: t.processingInstruction, color: 'var(--text-tertiary)' },
   { tag: t.contentSeparator, color: 'var(--text-tertiary)' },
+  { tag: t.meta, color: 'var(--text-tertiary)' },
 ])
 
 type Props = {
@@ -93,12 +96,7 @@ export function Editor({
   onSave,
   onBufferChange,
   onNavigate,
-  canBack,
-  canForward,
-  onBack,
-  onForward,
 }: Props) {
-  const resolvedTheme = useColorTheme()
   const [value, setValue] = useState(initialContent)
   const [mode, setMode] = useState<Mode>('preview')
   const [saving, setSaving] = useState(false)
@@ -241,26 +239,6 @@ export function Editor({
     <div className="editor">
       <div className="editor-header">
         <div className="editor-header-left">
-          <button
-            type="button"
-            className="nav-btn"
-            disabled={!canBack}
-            onClick={onBack}
-            title="Back"
-            aria-label="Back"
-          >
-            <Icon name="chevron-left"/>
-          </button>
-          <button
-            type="button"
-            className="nav-btn"
-            disabled={!canForward}
-            onClick={onForward}
-            title="Forward"
-            aria-label="Forward"
-          >
-            <Icon name="chevron-right"/>
-          </button>
           <PathSuggest
             value={relativePath}
             items={paletteItems}
@@ -299,16 +277,16 @@ export function Editor({
         <CodeMirror
           value={value}
           height="100%"
-          theme={resolvedTheme}
+          theme="none"
           extensions={extensions}
           onChange={handleSourceChange}
           basicSetup={{
             lineNumbers: true,
             foldGutter: false,
-            highlightActiveLine: false,
-            highlightActiveLineGutter: false,
+            highlightActiveLine: true,
+            highlightActiveLineGutter: true,
           }}
-          className="cm-host"
+          className={`cm-host ${isMd ? 'cm-host-prose' : 'cm-host-code'}`}
         />
       ) : isCsv ? (
         <CsvEditor

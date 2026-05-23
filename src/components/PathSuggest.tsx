@@ -22,7 +22,6 @@ type Props = {
 }
 
 const ERROR_FLASH_MS = 1400
-const MAX_DROPDOWN_WIDTH = 520
 const MAX_DROPDOWN_HEIGHT = 320
 const DROPDOWN_LIMIT = 12
 
@@ -58,8 +57,7 @@ export function PathSuggest({ value, items, onCommit, placeholder }: Props) {
     const el = inputRef.current
     if (!el) return
     const rect = el.getBoundingClientRect()
-    const width = Math.min(Math.max(rect.width, 280), MAX_DROPDOWN_WIDTH)
-    setAnchor({ left: rect.left, top: rect.bottom + 4, width })
+    setAnchor({ left: rect.left, top: rect.bottom + 4, width: rect.width })
   }, [])
 
   useLayoutEffect(() => {

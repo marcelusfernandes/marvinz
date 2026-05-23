@@ -1253,18 +1253,6 @@ export default function App() {
 
   return (
     <div className="shell">
-      <div className="shell-topbar">
-        <button
-          type="button"
-          className="shell-search-btn"
-          onClick={() => setPaletteOpen(true)}
-          aria-label="Search (⌘P)"
-        >
-          <Icon name="search" size={14} />
-          <span className="shell-search-placeholder">Search…</span>
-          <span className="shell-search-kbd">⌘P</span>
-        </button>
-      </div>
       <div
         className="app"
         data-layout={layoutMode}
@@ -1276,19 +1264,26 @@ export default function App() {
         }
       >
       <aside className="sidebar">
+        <div className="sidebar-search">
+          <button
+            type="button"
+            className="sidebar-search-btn"
+            onClick={() => setPaletteOpen(true)}
+            aria-label="Search (⌘P)"
+          >
+            <Icon name="search" size={14} />
+            <span className="sidebar-search-placeholder">Search…</span>
+            <span className="sidebar-search-kbd">⌘P</span>
+          </button>
+        </div>
         <div className="sidebar-header">
           <div className="sidebar-project-info">
-            <div className="sidebar-avatar">
-              {(vaultPath.split('/').pop() ?? '')
-                .split(/[\s\-_]+/)
-                .filter(Boolean)
-                .slice(0, 2)
-                .map((w) => w[0].toUpperCase())
-                .join('')}
-            </div>
             <div className="sidebar-project-text">
               <span className="sidebar-project-name">{vaultPath.split('/').pop()}</span>
-              <span className="sidebar-branch-name">main</span>
+              <span className="sidebar-branch-name">
+                <Icon name="git-branch" size={14} />
+                main
+              </span>
             </div>
           </div>
           <FileTreeToolbar
@@ -1324,13 +1319,18 @@ export default function App() {
           <button
             type="button"
             className="sidebar-footer-btn"
+            onClick={handlePickVault}
+          >
+            <Icon name="folder" size={16} />
+            <span>Switch Folder</span>
+          </button>
+          <button
+            type="button"
+            className="sidebar-footer-btn"
             onClick={() => setSettingsOpen(true)}
           >
             <Icon name="gear" size={16} />
             <span>Settings</span>
-          </button>
-          <button type="button" className="text-btn" onClick={handlePickVault}>
-            Switch vault
           </button>
         </div>
       </aside>

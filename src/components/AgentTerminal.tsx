@@ -12,7 +12,8 @@ function readCssVar(name: string): string {
 
 function xtermThemeFromCss() {
   return {
-    background: readCssVar('--surface-2'),
+    // Transparent so the terminal inherits the claude-pane surface.
+    background: 'rgba(0, 0, 0, 0)',
     foreground: readCssVar('--text-primary'),
     cursor: readCssVar('--text-primary'),
     black: readCssVar('--surface-1'),
@@ -69,6 +70,7 @@ export function AgentTerminal({ agent, ptyId, vaultPath, isActive, onStatusChang
       fontSize: 13,
       cursorBlink: true,
       theme: xtermThemeFromCss(),
+      allowTransparency: true,
       convertEol: true,
       scrollback: 5000,
       allowProposedApi: true,

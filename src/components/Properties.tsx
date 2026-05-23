@@ -6,7 +6,17 @@ import {
   type Frontmatter,
   type PropertyType,
 } from '../lib/frontmatter'
-import { Icon } from './Icon'
+import { Icon, type IconName } from './Icon'
+import { ContextMenu, type MenuItem } from './ContextMenu'
+
+const PROP_TYPES_FOR_PICKER: Array<{ type: PropertyType; label: string; icon: IconName }> = [
+  { type: 'string', label: 'Text', icon: 'symbol-string' },
+  { type: 'number', label: 'Number', icon: 'symbol-numeric' },
+  { type: 'boolean', label: 'Checkbox', icon: 'symbol-boolean' },
+  { type: 'date', label: 'Date', icon: 'calendar' },
+  { type: 'tags', label: 'Tags', icon: 'tag' },
+  { type: 'list', label: 'List', icon: 'list-unordered' },
+]
 
 type Props = {
   data: Frontmatter
@@ -81,7 +91,8 @@ export function Properties({ data, onChange }: Props) {
         />
       ) : (
         <button type="button" className="props-add" onClick={() => setAdding(true)}>
-          + Add property
+          <Icon name="add" size={14} />
+          <span>Add property</span>
         </button>
       )}
     </div>
@@ -452,12 +463,30 @@ function AddPropertyRow({
 }) {
   const [name, setName] = useState('')
   const [type, setType] = useState<PropertyType>('string')
+  const [menuPos, setMenuPos] = useState<{ x: number; y: number } | null>(null)
+
+  const currentTypeMeta =
+    PROP_TYPES_FOR_PICKER.find((t) => t.type === type) ?? PROP_TYPES_FOR_PICKER[0]
 
   const submit = () => {
     const key = name.trim()
     if (!key || existingKeys.has(key)) return
     onSubmit(key, type)
   }
+
+  const openTypeMenu = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    const rect = e.currentTarget.getBoundingClientRect()
+    setMenuPos({ x: rect.left, y: rect.bottom + 4 })
+  }
+
+  const menuItems: MenuItem[] = PROP_TYPES_FOR_PICKER.map((t) => ({
+    kind: 'item' as const,
+    label: t.label,
+    icon: t.icon,
+    onClick: () => setType(t.type),
+  }))
 
   return (
     <div className="props-add-row">
@@ -472,24 +501,30 @@ function AddPropertyRow({
           if (e.key === 'Escape') onCancel()
         }}
       />
-      <select
-        className="prop-type-select"
-        value={type}
-        onChange={(e) => setType(e.target.value as PropertyType)}
+      <button
+        type="button"
+        className="prop-type-picker"
+        onClick={openTypeMenu}
+        title="Property type"
       >
-        <option value="string">Text</option>
-        <option value="number">Number</option>
-        <option value="boolean">Checkbox</option>
-        <option value="date">Date</option>
-        <option value="tags">Tags</option>
-        <option value="list">List</option>
-      </select>
+        <Icon name={currentTypeMeta.icon} size={14} />
+        <span>{currentTypeMeta.label}</span>
+        <Icon name="chevron-down" size={12} />
+      </button>
       <button type="button" className="props-add-btn primary" onClick={submit}>
         Add
       </button>
       <button type="button" className="props-add-btn ghost" onClick={onCancel}>
         Cancel
       </button>
+      {menuPos && (
+        <ContextMenu
+          x={menuPos.x}
+          y={menuPos.y}
+          items={menuItems}
+          onClose={() => setMenuPos(null)}
+        />
+      )}
     </div>
   )
 }
