@@ -1,7 +1,9 @@
 /* Legacy visual style overrides.
    Every selector is scoped to [data-style='legacy'] so Modern is the baseline
    and these rules only activate when the user has selected the pre-redesign look.
-   Delete this file (and the @import in App.css) when legacy support is retired. */
+   Loaded via `import './styles/legacy.css'` in src/App.tsx (after App.css so
+   legacy rules win the cascade when their selectors match).
+   Delete this file (and the import in App.tsx) when legacy support is retired. */
 
 /* ─── Design tokens ────────────────────────────────────────────────────────── */
 
