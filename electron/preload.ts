@@ -142,6 +142,9 @@ const api = {
       ipcRenderer.invoke('editor:show-context-menu', req) as Promise<
         'cut' | 'copy' | 'paste' | 'selectAll' | 'undo' | 'redo' | null
       >,
+    readClipboard: () => ipcRenderer.invoke('editor:clipboard-read') as Promise<string>,
+    writeClipboard: (text: string) =>
+      ipcRenderer.invoke('editor:clipboard-write', text) as Promise<void>,
   },
   snapshot: {
     listTurns: () => ipcRenderer.invoke('snapshot:listTurns'),

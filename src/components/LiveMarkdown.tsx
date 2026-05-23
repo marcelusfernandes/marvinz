@@ -9,6 +9,7 @@ import {
 import { Milkdown, MilkdownProvider, useEditor } from '@milkdown/react'
 import { commonmark } from '@milkdown/preset-commonmark'
 import { gfm } from '@milkdown/preset-gfm'
+import { history } from '@milkdown/plugin-history'
 import { listener, listenerCtx } from '@milkdown/plugin-listener'
 import { selectAll } from 'prosemirror-commands'
 import { redo, redoDepth, undo, undoDepth } from 'prosemirror-history'
@@ -95,6 +96,7 @@ function LiveMarkdownInner({
       })
       .use(commonmark)
       .use(gfm)
+      .use(history)
       .use(listener)
       .use(imageView)
   }, [])
@@ -153,13 +155,23 @@ function LiveMarkdownInner({
         case 'redo':
           redo(view.state, view.dispatch)
           break
-        case 'cut':
         case 'copy':
-        case 'paste':
-          view.dom.dispatchEvent(
-            new ClipboardEvent(action, { bubbles: true, cancelable: true, clipboardData: null }),
-          )
+        case 'cut': {
+          // Synthetic ClipboardEvent has isTrusted=false and Chromium blocks
+          // access to the system clipboard for such events. Use the Electron
+          // clipboard module via IPC instead.
+          const selection = view.state.selection
+          if (selection.empty) break
+          const text = view.state.doc.textBetween(selection.from, selection.to, '\n', '\n')
+          await window.marvin.editor.writeClipboard(text)
+          if (action === 'cut') view.dispatch(view.state.tr.deleteSelection())
           break
+        }
+        case 'paste': {
+          const text = await window.marvin.editor.readClipboard()
+          if (text) view.dispatch(view.state.tr.insertText(text))
+          break
+        }
       }
       view.focus()
     },

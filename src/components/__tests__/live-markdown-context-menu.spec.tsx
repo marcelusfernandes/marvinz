@@ -32,16 +32,31 @@ if (typeof globalThis.ClipboardEvent === 'undefined') {
 // ---------------------------------------------------------------------------
 
 type FakePMState = {
-  selection: { empty: boolean }
+  selection: { empty: boolean; from: number; to: number }
   _undoDepth: number
   _redoDepth: number
+  doc: { textBetween: (from: number, to: number, blockSep?: string, leafText?: string) => string }
+  tr: {
+    deleteSelection: () => { _kind: 'delete' }
+    insertText: (text: string) => { _kind: 'insertText'; _text: string }
+  }
 }
 
-function makePMState(overrides: Partial<{ hasSelection: boolean; undoDepth: number; redoDepth: number }> = {}): FakePMState {
+function makePMState(overrides: Partial<{ hasSelection: boolean; undoDepth: number; redoDepth: number; docText: string; selectionFrom: number; selectionTo: number }> = {}): FakePMState {
+  const docText = overrides.docText ?? 'hello world'
+  const from = overrides.selectionFrom ?? 0
+  const to = overrides.selectionTo ?? (overrides.hasSelection ? 5 : 0)
   return {
-    selection: { empty: !overrides.hasSelection },
+    selection: { empty: !overrides.hasSelection, from, to },
     _undoDepth: overrides.undoDepth ?? 0,
     _redoDepth: overrides.redoDepth ?? 0,
+    doc: {
+      textBetween: (f: number, t: number) => docText.slice(f, t),
+    },
+    tr: {
+      deleteSelection: () => ({ _kind: 'delete' }),
+      insertText: (text: string) => ({ _kind: 'insertText', _text: text }),
+    },
   }
 }
 
@@ -50,22 +65,16 @@ type FakePMView = {
   dom: HTMLElement
   focus: ReturnType<typeof vi.fn>
   dispatch: ReturnType<typeof vi.fn>
-  _dispatchedClipboard: ClipboardEvent[]
 }
 
 function makePMView(stateOverrides?: Parameters<typeof makePMState>[0]): FakePMView {
   const dom = document.createElement('div')
   dom.setAttribute('data-pm-content', 'true')
-  const dispatched: ClipboardEvent[] = []
-  dom.addEventListener('cut', (e) => dispatched.push(e as ClipboardEvent))
-  dom.addEventListener('copy', (e) => dispatched.push(e as ClipboardEvent))
-  dom.addEventListener('paste', (e) => dispatched.push(e as ClipboardEvent))
   return {
     state: makePMState(stateOverrides),
     dom,
     focus: vi.fn(),
     dispatch: vi.fn(),
-    _dispatchedClipboard: dispatched,
   }
 }
 
@@ -155,6 +164,7 @@ vi.mock('@milkdown/plugin-listener', () => ({
   listener: {},
   listenerCtx: Symbol('listenerCtx'),
 }))
+vi.mock('@milkdown/plugin-history', () => ({ history: [] }))
 vi.mock('@milkdown/utils', () => ({ $view: () => ({}) }))
 vi.mock('@milkdown/prose/view', () => ({}))
 
@@ -179,14 +189,22 @@ import { LiveMarkdown } from '../LiveMarkdown'
 // ---------------------------------------------------------------------------
 
 let showContextMenuMock: ReturnType<typeof vi.fn>
+let writeClipboardMock: ReturnType<typeof vi.fn>
+let readClipboardMock: ReturnType<typeof vi.fn>
 
 function setupMarvinMock() {
   showContextMenuMock = vi.fn()
+  writeClipboardMock = vi.fn().mockResolvedValue(undefined)
+  readClipboardMock = vi.fn().mockResolvedValue('')
   Object.defineProperty(globalThis, 'window', {
     value: {
       ...(typeof window !== 'undefined' ? window : {}),
       marvin: {
-        editor: { showContextMenu: showContextMenuMock },
+        editor: {
+          showContextMenu: showContextMenuMock,
+          writeClipboard: writeClipboardMock,
+          readClipboard: readClipboardMock,
+        },
         shell: { openExternal: vi.fn() },
       },
     },
@@ -370,34 +388,48 @@ describe('LiveMarkdown — context menu action dispatch', () => {
     expect(mockPMRedo).toHaveBeenCalledWith(currentPMView.state, currentPMView.dispatch)
   })
 
-  it('dispatches a cut ClipboardEvent on view.dom when action is cut', async () => {
-    currentPMView = makePMView({ hasSelection: true })
+  it('writes selected text to clipboard when action is cut, then dispatches deleteSelection', async () => {
+    currentPMView = makePMView({ hasSelection: true, docText: 'hello world', selectionFrom: 0, selectionTo: 5 })
     showContextMenuMock.mockResolvedValue('cut')
     const { container } = render(<LiveMarkdown {...defaultProps()} />)
     await act(async () => {
       rightClickLiveMD(container)
     })
-    expect(currentPMView._dispatchedClipboard.some(e => e.type === 'cut')).toBe(true)
+    expect(writeClipboardMock).toHaveBeenCalledWith('hello')
+    expect(currentPMView.dispatch).toHaveBeenCalledWith({ _kind: 'delete' })
   })
 
-  it('dispatches a copy ClipboardEvent on view.dom when action is copy', async () => {
-    currentPMView = makePMView({ hasSelection: true })
+  it('writes selected text to clipboard when action is copy, without dispatching', async () => {
+    currentPMView = makePMView({ hasSelection: true, docText: 'hello world', selectionFrom: 0, selectionTo: 5 })
     showContextMenuMock.mockResolvedValue('copy')
     const { container } = render(<LiveMarkdown {...defaultProps()} />)
     await act(async () => {
       rightClickLiveMD(container)
     })
-    expect(currentPMView._dispatchedClipboard.some(e => e.type === 'copy')).toBe(true)
+    expect(writeClipboardMock).toHaveBeenCalledWith('hello')
+    expect(currentPMView.dispatch).not.toHaveBeenCalled()
   })
 
-  it('dispatches a paste ClipboardEvent on view.dom when action is paste', async () => {
+  it('reads clipboard and dispatches insertText when action is paste', async () => {
     currentPMView = makePMView()
+    readClipboardMock.mockResolvedValue('pasted text')
     showContextMenuMock.mockResolvedValue('paste')
     const { container } = render(<LiveMarkdown {...defaultProps()} />)
     await act(async () => {
       rightClickLiveMD(container)
     })
-    expect(currentPMView._dispatchedClipboard.some(e => e.type === 'paste')).toBe(true)
+    expect(readClipboardMock).toHaveBeenCalled()
+    expect(currentPMView.dispatch).toHaveBeenCalledWith({ _kind: 'insertText', _text: 'pasted text' })
+  })
+
+  it('does not write clipboard when cut/copy has empty selection', async () => {
+    currentPMView = makePMView({ hasSelection: false })
+    showContextMenuMock.mockResolvedValue('cut')
+    const { container } = render(<LiveMarkdown {...defaultProps()} />)
+    await act(async () => {
+      rightClickLiveMD(container)
+    })
+    expect(writeClipboardMock).not.toHaveBeenCalled()
   })
 
   it('calls view.focus() after any action', async () => {

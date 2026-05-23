@@ -142,6 +142,8 @@ export type MarvinAPI = {
   }
   editor: {
     showContextMenu: (req: EditorMenuRequest) => Promise<EditorMenuAction>
+    readClipboard: () => Promise<string>
+    writeClipboard: (text: string) => Promise<void>
   }
 }
 

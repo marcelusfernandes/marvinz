@@ -30,22 +30,17 @@ type MenuItemOptions = {
 
 // Captured state per test
 let capturedItems: MenuItemOptions[] = []
-let capturedOnce: { event: string; handler: () => void } | null = null
-let capturedPopupArg: unknown = undefined
+let capturedPopupArg: { window?: unknown; callback?: () => void } | undefined = undefined
 
 function makeMenuMock() {
   capturedItems = []
-  capturedOnce = null
   capturedPopupArg = undefined
 
   return {
     append: vi.fn((item: MenuItemOptions) => {
       capturedItems.push(item)
     }),
-    once: vi.fn((event: string, handler: () => void) => {
-      capturedOnce = { event, handler }
-    }),
-    popup: vi.fn((arg?: unknown) => {
+    popup: vi.fn((arg?: { window?: unknown; callback?: () => void }) => {
       capturedPopupArg = arg
     }),
   }
@@ -57,7 +52,6 @@ vi.mock('electron', () => {
   return {
     Menu: vi.fn(function (this: Record<string, unknown>) {
       this.append = menuInstance.append
-      this.once = menuInstance.once
       this.popup = menuInstance.popup
     }),
     MenuItem: vi.fn(function (this: MenuItemOptions, opts: MenuItemOptions) {
@@ -87,18 +81,18 @@ function buildEditorMenu(
 ): Promise<EditorMenuAction> {
   const canPaste = clipboard.availableFormats().some(f => f.startsWith('text/') || f === 'text')
   return new Promise<EditorMenuAction>(resolve => {
+    let chosen: EditorMenuAction = null
     const menu = new Menu()
-    menu.append(new MenuItem({ label: 'Cut', accelerator: 'CmdOrCtrl+X', enabled: req.hasSelection, click: () => resolve('cut') }))
-    menu.append(new MenuItem({ label: 'Copy', accelerator: 'CmdOrCtrl+C', enabled: req.hasSelection, click: () => resolve('copy') }))
-    menu.append(new MenuItem({ label: 'Paste', accelerator: 'CmdOrCtrl+V', enabled: canPaste, click: () => resolve('paste') }))
+    menu.append(new MenuItem({ label: 'Cut', accelerator: 'CmdOrCtrl+X', enabled: req.hasSelection, click: () => { chosen = 'cut' } }))
+    menu.append(new MenuItem({ label: 'Copy', accelerator: 'CmdOrCtrl+C', enabled: req.hasSelection, click: () => { chosen = 'copy' } }))
+    menu.append(new MenuItem({ label: 'Paste', accelerator: 'CmdOrCtrl+V', enabled: canPaste, click: () => { chosen = 'paste' } }))
     menu.append(new MenuItem({ type: 'separator' }))
-    menu.append(new MenuItem({ label: 'Select All', accelerator: 'CmdOrCtrl+A', click: () => resolve('selectAll') }))
+    menu.append(new MenuItem({ label: 'Select All', accelerator: 'CmdOrCtrl+A', click: () => { chosen = 'selectAll' } }))
     menu.append(new MenuItem({ type: 'separator' }))
-    menu.append(new MenuItem({ label: 'Undo', accelerator: 'CmdOrCtrl+Z', enabled: req.canUndo, click: () => resolve('undo') }))
-    menu.append(new MenuItem({ label: 'Redo', accelerator: 'CmdOrCtrl+Shift+Z', enabled: req.canRedo, click: () => resolve('redo') }))
-    menu.once('menu-will-close', () => resolve(null))
+    menu.append(new MenuItem({ label: 'Undo', accelerator: 'CmdOrCtrl+Z', enabled: req.canUndo, click: () => { chosen = 'undo' } }))
+    menu.append(new MenuItem({ label: 'Redo', accelerator: 'CmdOrCtrl+Shift+Z', enabled: req.canRedo, click: () => { chosen = 'redo' } }))
     const win = BrowserWindow.fromWebContents(sender as Parameters<typeof BrowserWindow.fromWebContents>[0])
-    menu.popup({ window: win ?? undefined })
+    menu.popup({ window: win ?? undefined, callback: () => resolve(chosen) })
   })
 }
 
@@ -322,17 +316,19 @@ describe('editor:show-context-menu — menu.popup', () => {
     expect(menuInstance.popup).toHaveBeenCalledTimes(1)
   })
 
-  it('passes { window: null } when BrowserWindow.fromWebContents returns null', () => {
+  it('passes window=undefined when BrowserWindow.fromWebContents returns null', () => {
     ;(BrowserWindow.fromWebContents as ReturnType<typeof vi.fn>).mockReturnValue(null)
     buildEditorMenu(null, req())
-    expect(capturedPopupArg).toEqual({ window: undefined })
+    expect(capturedPopupArg?.window).toBeUndefined()
+    expect(typeof capturedPopupArg?.callback).toBe('function')
   })
 
-  it('passes { window: win } when BrowserWindow.fromWebContents returns a window', () => {
+  it('passes window=win when BrowserWindow.fromWebContents returns a window', () => {
     const fakeWin = { id: 1 }
     ;(BrowserWindow.fromWebContents as ReturnType<typeof vi.fn>).mockReturnValue(fakeWin)
     buildEditorMenu({} as Parameters<typeof BrowserWindow.fromWebContents>[0], req())
-    expect(capturedPopupArg).toEqual({ window: fakeWin })
+    expect(capturedPopupArg?.window).toEqual(fakeWin)
+    expect(typeof capturedPopupArg?.callback).toBe('function')
   })
 })
 
@@ -341,65 +337,72 @@ describe('editor:show-context-menu — menu.popup', () => {
 // ---------------------------------------------------------------------------
 
 describe('editor:show-context-menu — resolves to action on click', () => {
-  it('resolves to "cut" when Cut item click is triggered', async () => {
+  it('resolves to "cut" when Cut item click is triggered then popup callback fires', async () => {
     const promise = buildEditorMenu(null, req({ hasSelection: true }))
-    const cutItem = itemByLabel('Cut')
-    cutItem?.click?.()
+    itemByLabel('Cut')?.click?.()
+    capturedPopupArg?.callback?.()
     await expect(promise).resolves.toBe('cut')
   })
 
-  it('resolves to "copy" when Copy item click is triggered', async () => {
+  it('resolves to "copy" when Copy item click is triggered then popup callback fires', async () => {
     const promise = buildEditorMenu(null, req({ hasSelection: true }))
     itemByLabel('Copy')?.click?.()
+    capturedPopupArg?.callback?.()
     await expect(promise).resolves.toBe('copy')
   })
 
-  it('resolves to "paste" when Paste item click is triggered', async () => {
+  it('resolves to "paste" when Paste item click is triggered then popup callback fires', async () => {
     ;(clipboard.availableFormats as ReturnType<typeof vi.fn>).mockReturnValue(['text/plain'])
     const promise = buildEditorMenu(null, req())
     itemByLabel('Paste')?.click?.()
+    capturedPopupArg?.callback?.()
     await expect(promise).resolves.toBe('paste')
   })
 
-  it('resolves to "selectAll" when Select All click is triggered', async () => {
+  it('resolves to "selectAll" when Select All click is triggered then popup callback fires', async () => {
     const promise = buildEditorMenu(null, req())
     itemByLabel('Select All')?.click?.()
+    capturedPopupArg?.callback?.()
     await expect(promise).resolves.toBe('selectAll')
   })
 
-  it('resolves to "undo" when Undo click is triggered', async () => {
+  it('resolves to "undo" when Undo click is triggered then popup callback fires', async () => {
     const promise = buildEditorMenu(null, req({ canUndo: true }))
     itemByLabel('Undo')?.click?.()
+    capturedPopupArg?.callback?.()
     await expect(promise).resolves.toBe('undo')
   })
 
-  it('resolves to "redo" when Redo click is triggered', async () => {
+  it('resolves to "redo" when Redo click is triggered then popup callback fires', async () => {
     const promise = buildEditorMenu(null, req({ canRedo: true }))
     itemByLabel('Redo')?.click?.()
+    capturedPopupArg?.callback?.()
     await expect(promise).resolves.toBe('redo')
   })
 })
 
 // ---------------------------------------------------------------------------
-// 6. Resolves to null when menu is closed without selection
+// 6. Resolves to null when popup dismisses without a click (menu callback pattern)
 // ---------------------------------------------------------------------------
 
-describe('editor:show-context-menu — resolves to null on menu-will-close', () => {
-  it('registers a menu-will-close listener', () => {
+describe('editor:show-context-menu — popup callback fires once, click before callback wins', () => {
+  it('passes a callback to menu.popup', () => {
     buildEditorMenu(null, req())
-    expect(capturedOnce?.event).toBe('menu-will-close')
+    expect(typeof capturedPopupArg?.callback).toBe('function')
   })
 
-  it('resolves to null when menu-will-close fires without a click', async () => {
+  it('resolves to null when popup callback fires with no click', async () => {
     const promise = buildEditorMenu(null, req())
-    capturedOnce?.handler()
+    capturedPopupArg?.callback?.()
     await expect(promise).resolves.toBeNull()
   })
 
-  it('only resolves once — second resolve (from close after click) is ignored', async () => {
+  it('click handler runs before popup callback, so chosen wins', async () => {
+    // Verifies the race-condition fix from PR #164 follow-up: clicking an item
+    // sets `chosen` BEFORE the popup callback resolves the promise with `chosen`.
     const promise = buildEditorMenu(null, req({ hasSelection: true }))
     itemByLabel('Cut')?.click?.()
-    capturedOnce?.handler()
+    capturedPopupArg?.callback?.()
     await expect(promise).resolves.toBe('cut')
   })
 })

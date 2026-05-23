@@ -37,16 +37,29 @@ if (typeof globalThis.ClipboardEvent === 'undefined') {
 
 type FakeRange = { empty: boolean }
 type FakeCMState = {
-  selection: { ranges: FakeRange[] }
+  selection: { ranges: FakeRange[]; main: { from: number; to: number } }
   _undoDepth: number
   _redoDepth: number
+  _docText: string
+  sliceDoc: (from: number, to: number) => string
+  replaceSelection: (text: string) => { _replacementText: string }
 }
 
-function makeCMState(overrides: Partial<{ hasSelection: boolean; undoDepth: number; redoDepth: number }> = {}): FakeCMState {
+function makeCMState(overrides: Partial<{ hasSelection: boolean; undoDepth: number; redoDepth: number; docText: string; selectionFrom: number; selectionTo: number }> = {}): FakeCMState {
+  const docText = overrides.docText ?? 'hello world'
+  const from = overrides.selectionFrom ?? 0
+  const to = overrides.selectionTo ?? (overrides.hasSelection ? 5 : 0)
   return {
-    selection: { ranges: [{ empty: !overrides.hasSelection }] },
+    selection: { ranges: [{ empty: !overrides.hasSelection }], main: { from, to } },
     _undoDepth: overrides.undoDepth ?? 0,
     _redoDepth: overrides.redoDepth ?? 0,
+    _docText: docText,
+    sliceDoc(f: number, t: number) {
+      return docText.slice(f, t)
+    },
+    replaceSelection(text: string) {
+      return { _replacementText: text }
+    },
   }
 }
 
@@ -55,7 +68,6 @@ type FakeCMView = {
   contentDOM: HTMLElement
   focus: ReturnType<typeof vi.fn>
   dispatch: ReturnType<typeof vi.fn>
-  _dispatchedClipboard: ClipboardEvent[]
 }
 
 function makeContentDOM(): HTMLElement {
@@ -65,17 +77,11 @@ function makeContentDOM(): HTMLElement {
 }
 
 function makeCMView(stateOverrides?: Parameters<typeof makeCMState>[0]): FakeCMView {
-  const contentDOM = makeContentDOM()
-  const dispatched: ClipboardEvent[] = []
-  contentDOM.addEventListener('cut', (e) => dispatched.push(e as ClipboardEvent))
-  contentDOM.addEventListener('copy', (e) => dispatched.push(e as ClipboardEvent))
-  contentDOM.addEventListener('paste', (e) => dispatched.push(e as ClipboardEvent))
   return {
     state: makeCMState(stateOverrides),
-    contentDOM,
+    contentDOM: makeContentDOM(),
     focus: vi.fn(),
     dispatch: vi.fn(),
-    _dispatchedClipboard: dispatched,
   }
 }
 
@@ -186,14 +192,22 @@ import { Editor } from '../Editor'
 // ---------------------------------------------------------------------------
 
 let showContextMenuMock: ReturnType<typeof vi.fn>
+let writeClipboardMock: ReturnType<typeof vi.fn>
+let readClipboardMock: ReturnType<typeof vi.fn>
 
 function setupMarvinMock() {
   showContextMenuMock = vi.fn()
+  writeClipboardMock = vi.fn().mockResolvedValue(undefined)
+  readClipboardMock = vi.fn().mockResolvedValue('')
   Object.defineProperty(globalThis, 'window', {
     value: {
       ...(typeof window !== 'undefined' ? window : {}),
       marvin: {
-        editor: { showContextMenu: showContextMenuMock },
+        editor: {
+          showContextMenu: showContextMenuMock,
+          writeClipboard: writeClipboardMock,
+          readClipboard: readClipboardMock,
+        },
         shell: { openExternal: vi.fn() },
       },
     },
@@ -368,34 +382,49 @@ describe('Editor — context menu action dispatch', () => {
     expect(mockRedo).toHaveBeenCalledWith(currentCMView)
   })
 
-  it('dispatches a cut ClipboardEvent on contentDOM when action is cut', async () => {
-    currentCMView = makeCMView({ hasSelection: true })
+  it('writes selected text to clipboard when action is cut, then clears selection via dispatch', async () => {
+    currentCMView = makeCMView({ hasSelection: true, docText: 'hello world', selectionFrom: 0, selectionTo: 5 })
     showContextMenuMock.mockResolvedValue('cut')
     const { container } = render(<Editor {...defaultProps()} />)
     await act(async () => {
       rightClickCMEditor(container)
     })
-    expect(currentCMView._dispatchedClipboard.some(e => e.type === 'cut')).toBe(true)
+    expect(writeClipboardMock).toHaveBeenCalledWith('hello')
+    // cut additionally dispatches a transaction (the replaceSelection('') call)
+    expect(currentCMView.dispatch).toHaveBeenCalledWith({ _replacementText: '' })
   })
 
-  it('dispatches a copy ClipboardEvent on contentDOM when action is copy', async () => {
-    currentCMView = makeCMView({ hasSelection: true })
+  it('writes selected text to clipboard when action is copy, without altering selection', async () => {
+    currentCMView = makeCMView({ hasSelection: true, docText: 'hello world', selectionFrom: 0, selectionTo: 5 })
     showContextMenuMock.mockResolvedValue('copy')
     const { container } = render(<Editor {...defaultProps()} />)
     await act(async () => {
       rightClickCMEditor(container)
     })
-    expect(currentCMView._dispatchedClipboard.some(e => e.type === 'copy')).toBe(true)
+    expect(writeClipboardMock).toHaveBeenCalledWith('hello')
+    expect(currentCMView.dispatch).not.toHaveBeenCalled()
   })
 
-  it('dispatches a paste ClipboardEvent on contentDOM when action is paste', async () => {
-    currentCMView = makeCMView()
+  it('reads clipboard and inserts text via dispatch when action is paste', async () => {
+    currentCMView = makeCMView({ hasSelection: false, selectionFrom: 0, selectionTo: 0 })
+    readClipboardMock.mockResolvedValue('pasted text')
     showContextMenuMock.mockResolvedValue('paste')
     const { container } = render(<Editor {...defaultProps()} />)
     await act(async () => {
       rightClickCMEditor(container)
     })
-    expect(currentCMView._dispatchedClipboard.some(e => e.type === 'paste')).toBe(true)
+    expect(readClipboardMock).toHaveBeenCalled()
+    expect(currentCMView.dispatch).toHaveBeenCalledWith({ _replacementText: 'pasted text' })
+  })
+
+  it('does not write clipboard when cut/copy has empty selection', async () => {
+    currentCMView = makeCMView({ hasSelection: false, selectionFrom: 0, selectionTo: 0 })
+    showContextMenuMock.mockResolvedValue('cut')
+    const { container } = render(<Editor {...defaultProps()} />)
+    await act(async () => {
+      rightClickCMEditor(container)
+    })
+    expect(writeClipboardMock).not.toHaveBeenCalled()
   })
 
   it('calls view.focus() after dispatching any action', async () => {

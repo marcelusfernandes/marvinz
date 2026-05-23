@@ -269,13 +269,23 @@ export function Editor({
       case 'redo':
         redo(view)
         break
-      case 'cut':
       case 'copy':
-      case 'paste':
-        view.contentDOM.dispatchEvent(
-          new ClipboardEvent(action, { bubbles: true, cancelable: true, clipboardData: null }),
-        )
+      case 'cut': {
+        // Synthetic ClipboardEvent has isTrusted=false and Chromium blocks
+        // access to the system clipboard for such events. Use the Electron
+        // clipboard module via IPC instead.
+        const { from, to } = view.state.selection.main
+        if (from === to) break
+        const text = view.state.sliceDoc(from, to)
+        await window.marvin.editor.writeClipboard(text)
+        if (action === 'cut') view.dispatch(view.state.replaceSelection(''))
         break
+      }
+      case 'paste': {
+        const text = await window.marvin.editor.readClipboard()
+        if (text) view.dispatch(view.state.replaceSelection(text))
+        break
+      }
     }
     view.focus()
   }, [])
