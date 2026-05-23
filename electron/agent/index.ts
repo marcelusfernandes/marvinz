@@ -1,6 +1,6 @@
 // Agent spawn lifecycle, child map, and request router.
-// Analogous to ptyProcesses + pty:spawn in electron/main.ts, but for
-// `claude --output-format stream-json` piped child processes.
+// Supports Claude (--output-format stream-json NDJSON) and
+// Codex (codex exec --json, one-shot per turn) providers.
 
 import { spawn, type ChildProcess } from 'node:child_process'
 import fs from 'node:fs/promises'
@@ -8,6 +8,7 @@ import path from 'node:path'
 import { homedir } from 'node:os'
 import { NdjsonStream } from './ndjson.js'
 import { adaptClaudeObj, makeAdapterState, type AdapterState } from './adapter-claude.js'
+import { adaptCodexObj, makeCodexAdapterState, type CodexAdapterState } from './adapter-codex.js'
 import { evaluatePermission, recordDecision, clearSessionRules } from './permissions.js'
 import type { AgentEvent, AgentRequest, Provider, PermissionMode } from './protocol.js'
 
@@ -17,7 +18,7 @@ export type AgentChild = {
   permissionMode: PermissionMode
   vaultRoot: string
   proc: ChildProcess
-  adapterState: AdapterState
+  adapterState: AdapterState | CodexAdapterState
   startedAt: number
   // pending approval callbacks keyed by toolUseId
   pendingApprovals: Map<string, (decision: AgentEvent) => void>
@@ -96,6 +97,14 @@ function buildClaudeArgs(req: Extract<AgentRequest, { type: 'start' }>): string[
   return args
 }
 
+function buildCodexArgs(req: Extract<AgentRequest, { type: 'start' }>): string[] {
+  // codex exec is non-interactive, one-shot per turn.
+  // Prompt is passed as a positional argument; no stdin writes needed.
+  // --skip-git-repo-check allows running in vault dirs that aren't git repos
+  // (Marvin vaults are notes directories, not necessarily git-tracked).
+  return ['exec', '--json', '--skip-git-repo-check', req.prompt]
+}
+
 function flushDeltaBuffers(child: AgentChild, emit: EventEmitter): void {
   child.flushTimer = null
   for (const [messageId, deltas] of child.deltaBuffers) {
@@ -153,25 +162,41 @@ function dispatchEvent(child: AgentChild, event: AgentEvent, emit: EventEmitter)
   emit(`agent:event:${child.sessionId}`, event)
 }
 
+export type AgentBinaries = {
+  claude: string
+  codex?: string
+}
+
 export async function spawnAgent(
   req: Extract<AgentRequest, { type: 'start' }>,
-  claudeBinary: string,
+  binaries: AgentBinaries | string,
   emit: EventEmitter,
 ): Promise<void> {
+  // Accept legacy string form (claudeBinary) for backward compatibility.
+  const bins: AgentBinaries =
+    typeof binaries === 'string' ? { claude: binaries } : binaries
+
   const existing = agentChildren.get(req.sessionId)
   if (existing) {
     await killAgent(existing)
     agentChildren.delete(req.sessionId)
   }
 
-  const adapterState = makeAdapterState(req.sessionId)
-  adapterState.cwd = req.vaultRoot
+  const isCodex = req.provider === 'codex'
+  const adapterState = isCodex
+    ? makeCodexAdapterState(req.sessionId)
+    : makeAdapterState(req.sessionId)
 
-  const args = buildClaudeArgs(req)
+  if (!isCodex) {
+    (adapterState as ReturnType<typeof makeAdapterState>).cwd = req.vaultRoot
+  }
+
+  const binary = isCodex ? (bins.codex ?? 'codex') : bins.claude
+  const args = isCodex ? buildCodexArgs(req) : buildClaudeArgs(req)
 
   let proc: ChildProcess
   try {
-    proc = spawn(claudeBinary, args, {
+    proc = spawn(binary, args, {
       cwd: req.vaultRoot,
       stdio: ['pipe', 'pipe', 'pipe'],
       env: { ...process.env, TERM: 'dumb' },
@@ -183,7 +208,7 @@ export async function spawnAgent(
         type: 'error',
         sessionId: req.sessionId,
         code: 'AGENT_NOT_FOUND',
-        message: 'claude binary not found',
+        message: `${isCodex ? 'codex' : 'claude'} binary not found`,
         recoverable: false,
       })
       return
@@ -206,13 +231,22 @@ export async function spawnAgent(
   }
   agentChildren.set(req.sessionId, child)
 
+  // For Codex: prompt is passed as argv to `codex exec --json`.
+  // No stdin writes needed — leave stdin closed.
+  if (isCodex && proc.stdin) {
+    proc.stdin.end()
+  }
+
   let malformedCount = 0
   let streamEnded = false
 
   const ndjson = new NdjsonStream(
     (obj) => {
       malformedCount = 0
-      const events = adaptClaudeObj(obj, adapterState)
+
+      const events = isCodex
+        ? adaptCodexObj(obj, adapterState as ReturnType<typeof makeCodexAdapterState>)
+        : adaptClaudeObj(obj, adapterState as ReturnType<typeof makeAdapterState>)
       for (const event of events) {
         if (event.type === 'tool-use') {
           // Evaluate permissions before forwarding to renderer.
@@ -288,8 +322,8 @@ export async function spawnAgent(
     },
   )
 
-  // Send the initial prompt as a stream-json input event on stdin.
-  if (proc.stdin) {
+  // For Claude: send the initial prompt as a stream-json input event on stdin.
+  if (!isCodex && proc.stdin) {
     const inputEvent =
       JSON.stringify({
         type: 'user',
