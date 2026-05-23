@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { Icon } from '../Icon'
 import { useChatStore } from '../../lib/chat/store'
-import type { SessionId } from '../../lib/chat/types'
+import type { PermissionMode, SessionId } from '../../lib/chat/types'
+import { ModePill, MODE_OPTIONS } from './ModePill'
+import { ModesPicker } from './ModesPicker'
 
 type Props = {
   sessionId: SessionId
@@ -26,9 +28,15 @@ export function Composer({
   disabled = false,
 }: Props) {
   const draft = useChatStore((s) => s.sessions[sessionId]?.composer.draft ?? '')
+  const permissionMode = useChatStore(
+    (s) => s.sessions[sessionId]?.permissionMode ?? 'default',
+  )
   const setDraft = useChatStore((s) => s.setComposerDraft)
+  const setPermissionMode = useChatStore((s) => s.setPermissionMode)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const modePillRef = useRef<HTMLButtonElement>(null)
   const [composing, setComposing] = useState(false)
+  const [modesOpen, setModesOpen] = useState(false)
 
   // Auto-grow textarea: clamp to a max of ~200px (design spec).
   useEffect(() => {
@@ -48,14 +56,30 @@ export function Composer({
     })
   }, [draft, disabled, onSend, sessionId, setDraft])
 
+  const cyclePermissionMode = useCallback(() => {
+    const ix = MODE_OPTIONS.findIndex((m) => m.value === permissionMode)
+    const next = MODE_OPTIONS[(ix + 1) % MODE_OPTIONS.length]
+    if (next) setPermissionMode(sessionId, next.value)
+  }, [permissionMode, sessionId, setPermissionMode])
+
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLTextAreaElement>) => {
+      if (e.key === 'Tab' && e.shiftKey) {
+        e.preventDefault()
+        cyclePermissionMode()
+        return
+      }
       if (e.key === 'Enter' && !e.shiftKey && !composing) {
         e.preventDefault()
         submit()
       }
     },
-    [composing, submit],
+    [composing, cyclePermissionMode, submit],
+  )
+
+  const handleSelectMode = useCallback(
+    (mode: PermissionMode) => setPermissionMode(sessionId, mode),
+    [sessionId, setPermissionMode],
   )
 
   const empty = draft.trim().length === 0
@@ -106,6 +130,23 @@ export function Composer({
           >
             <Icon name="circle-slash" size={14} />
           </button>
+          <div className="chat-composer-mode">
+            <ModePill
+              ref={modePillRef}
+              mode={permissionMode}
+              expanded={modesOpen}
+              disabled={disabled}
+              onClick={() => setModesOpen((v) => !v)}
+            />
+            {modesOpen && (
+              <ModesPicker
+                mode={permissionMode}
+                anchorRef={modePillRef}
+                onSelect={handleSelectMode}
+                onClose={() => setModesOpen(false)}
+              />
+            )}
+          </div>
         </div>
         <div className="right">
           <button

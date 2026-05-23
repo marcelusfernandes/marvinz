@@ -9,7 +9,6 @@ export type PermissionMode = 'default' | 'acceptEdits' | 'plan' | 'auto'
 export type ApprovalDecision =
   | { kind: 'allow'; remember?: 'session' | 'always' }
   | { kind: 'deny'; reason?: string }
-  | { kind: 'modify'; patchedInput: unknown }
 
 export type AgentRequest =
   | {
@@ -105,6 +104,7 @@ export type AgentEvent =
       input: unknown
       risk: 'safe' | 'destructive' | 'network'
       suggestion: 'allow' | 'review'
+      timeoutMs?: number
     }
   | {
       type: 'message-end'

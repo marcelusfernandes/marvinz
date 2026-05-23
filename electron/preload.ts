@@ -23,7 +23,6 @@ type PermissionMode = 'default' | 'acceptEdits' | 'plan' | 'auto'
 type ApprovalDecision =
   | { kind: 'allow'; remember?: 'session' | 'always' }
   | { kind: 'deny'; reason?: string }
-  | { kind: 'modify'; patchedInput: unknown }
 
 type AgentRequest =
   | { type: 'start'; sessionId: string; provider: Provider; prompt: string;
@@ -95,6 +94,13 @@ const api = {
     detect: (name: string) => ipcRenderer.invoke('agent:detect', name) as Promise<string | null>,
     request: (req: AgentRequest) =>
       ipcRenderer.invoke('agent:request', req) as Promise<{ ok: true } | { ok: false; error: string }>,
+    approve: (sessionId: string, toolUseId: string, decision: ApprovalDecision) =>
+      ipcRenderer.invoke('agent:request', {
+        type: 'approval',
+        sessionId,
+        toolUseId,
+        decision,
+      } as AgentRequest) as Promise<{ ok: true } | { ok: false; error: string }>,
     onEvent: (sessionId: string, cb: (event: AgentEvent) => void) => {
       const channel = `agent:event:${sessionId}`
       const listener = (_: unknown, event: AgentEvent) => cb(event)

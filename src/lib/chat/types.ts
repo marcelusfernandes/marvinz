@@ -28,6 +28,8 @@ export type AssistantBlock =
       result?: unknown
       errorMessage?: string
       durationMs?: number
+      /** Wall-clock ms when the approval window expires (status=pending_approval only). */
+      approvalDeadlineAt?: number
     }
 
 export type Mention = { path: string; line?: number; range?: [number, number] }
@@ -80,6 +82,8 @@ export type Session = {
   turnState: TurnState
   tokenUsage: TokenUsage
   composer: { draft: string; mentions: Mention[] }
+  /** Currently-selected permission mode for the next turn (PRD AC6). */
+  permissionMode: PermissionMode
   cliSessionId?: string
 }
 
@@ -139,6 +143,8 @@ export type ChatStreamEvent =
       input: unknown
       risk: 'safe' | 'destructive' | 'network'
       suggestion: 'allow' | 'review'
+      /** ms until main times out the approval; renderer drives countdown UI. */
+      timeoutMs?: number
     }
   | {
       type: 'message-end'

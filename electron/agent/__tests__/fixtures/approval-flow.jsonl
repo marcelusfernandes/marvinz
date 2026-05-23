@@ -1,0 +1,8 @@
+{"type":"system","subtype":"init","cwd":"/vault","session_id":"test-approval-cli-session","model":"claude-test","tools":["Bash","Read","Write"],"mcp_servers":[],"permissionMode":"default"}
+{"type":"assistant","message":{"id":"msg-approval-001","model":"claude-test","role":"assistant","content":[{"type":"text","text":"I'll help you with that. Let me check the file first."}],"stop_reason":null,"usage":{"input_tokens":10,"output_tokens":15}},"session_id":"test-approval-cli-session"}
+{"type":"stream_event","event":{"type":"message_start","message":{"id":"msg-approval-002","role":"assistant","content":[],"stop_reason":null,"usage":{"input_tokens":10,"output_tokens":0}}},"session_id":"test-approval-cli-session"}
+{"type":"stream_event","event":{"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"toolu_approval_01","name":"Write","input":{}}},"session_id":"test-approval-cli-session"}
+{"type":"stream_event","event":{"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"{\"file_path\":\"/vault/test.md\",\"content\":\"hello\"}"}},"session_id":"test-approval-cli-session"}
+{"type":"stream_event","event":{"type":"content_block_stop","index":0},"session_id":"test-approval-cli-session"}
+{"type":"stream_event","event":{"type":"message_delta","delta":{"stop_reason":"tool_use","stop_sequence":null},"usage":{"output_tokens":25}},"session_id":"test-approval-cli-session"}
+{"type":"stream_event","event":{"type":"message_stop"},"session_id":"test-approval-cli-session"}

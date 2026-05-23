@@ -13,7 +13,15 @@ import type {
   PermissionMode,
   Session,
   SessionId,
+  ToolCallId,
 } from './types'
+
+export type ApprovalDecisionKind = 'allow' | 'deny'
+export type ApprovalRemember = 'session' | 'always'
+export type ApprovalDecision = {
+  kind: ApprovalDecisionKind
+  remember?: ApprovalRemember
+}
 
 type ChatAgentRequest =
   | {
@@ -29,6 +37,12 @@ type ChatAgentRequest =
   | { type: 'cancel'; sessionId: SessionId }
   | { type: 'kill'; sessionId: SessionId }
   | { type: 'input'; sessionId: SessionId; content: string }
+  | {
+      type: 'approval'
+      sessionId: SessionId
+      toolUseId: ToolCallId
+      decision: ApprovalDecision
+    }
 
 type ChatAgentApi = {
   request?: (
@@ -97,13 +111,16 @@ export function useChatSession(sessionId: SessionId): UseChatSessionResult {
       store.appendUserMessage(sessionId, trimmed)
       const api = getAgentApi()
       if (!api?.request) return
+      // PRD AC6: each turn uses the mode that was active at send time. The
+      // session.permissionMode is the source of truth; opts.permissionMode
+      // exists as an override for explicit per-call control.
       await api.request({
         type: 'start',
         sessionId,
         provider: current.agentId,
         prompt: trimmed,
         vaultRoot: current.vaultPath,
-        permissionMode: opts?.permissionMode ?? 'default',
+        permissionMode: opts?.permissionMode ?? current.permissionMode,
       })
     },
     [sessionId],
