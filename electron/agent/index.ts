@@ -13,6 +13,13 @@ import { adaptCodexObj, makeCodexAdapterState, type CodexAdapterState } from './
 import { evaluatePermission, recordDecision, clearSessionRules } from './permissions.js'
 import type { AgentEvent, AgentRequest, Provider, PermissionMode } from './protocol.js'
 
+// Codex JSON-RPC handshake state machine:
+// 'init'   — initialize sent, waiting for id:1 response
+// 'thread' — thread/start sent, waiting for thread/started notification
+// 'turn'   — turn/start sent (real threadId used), handshake complete
+// 'ready'  — handshake complete, streaming in progress
+type CodexHandshakeState = 'init' | 'thread' | 'turn' | 'ready'
+
 export type AgentChild = {
   sessionId: string
   provider: Provider
@@ -28,6 +35,8 @@ export type AgentChild = {
   // text-delta coalescing ring buffer keyed by messageId
   deltaBuffers: Map<string, string[]>
   flushTimer: ReturnType<typeof setImmediate> | null
+  // Codex-only: tracks event-driven handshake stage
+  codexHandshakeState: CodexHandshakeState | null
 }
 
 // Emitter callback: main.ts passes win.webContents.send bound to the window.
@@ -244,10 +253,13 @@ export async function spawnAgent(
     pendingToolNames: new Map(),
     deltaBuffers: new Map(),
     flushTimer: null,
+    codexHandshakeState: isCodex ? 'init' : null,
   }
   agentChildren.set(req.sessionId, child)
 
-  // For Codex: send the JSON-RPC initialize handshake then thread/start.
+  // For Codex: send only the initialize message now.
+  // thread/start and turn/start are sent event-driven in the NDJSON onLine callback
+  // once we receive the responses that give us the real threadId.
   if (isCodex && proc.stdin) {
     const version = readAppVersion()
     const initMsg =
@@ -257,46 +269,13 @@ export async function spawnAgent(
         method: 'initialize',
         params: {
           clientInfo: { name: 'marvin', title: 'Marvin', version },
-          capabilities: null,
+          // Empty object per JSON-RPC convention (null is not valid here).
+          capabilities: {},
         },
       }) + '\n'
     proc.stdin.write(initMsg)
-
-    const threadStartMsg =
-      JSON.stringify({
-        jsonrpc: '2.0',
-        id: 2,
-        method: 'thread/start',
-        params: {
-          cwd: req.vaultRoot,
-          model: req.model ?? null,
-          approvalPolicy: 'never',
-        },
-      }) + '\n'
-    proc.stdin.write(threadStartMsg)
-
-    // The thread/started notification gives us the threadId; we can't know it
-    // until that fires. So we write the first turn immediately after thread/start,
-    // using a small delay to allow the server to respond. In production Zed
-    // integration this is done event-driven; for our adapter we rely on the
-    // server buffering the turn/start until the thread is ready.
-    // We use a dummy threadId placeholder that gets replaced by state.currentThreadId
-    // once thread/started fires.  A proper integration would wait for thread/started
-    // before sending turn/start; this simplified version sends immediately.
-    const turnStartMsg =
-      JSON.stringify({
-        jsonrpc: '2.0',
-        id: 3,
-        method: 'turn/start',
-        params: {
-          threadId: '__pending__',
-          input: [{ type: 'text', text: req.prompt, text_elements: [] }],
-          cwd: req.vaultRoot,
-          approvalPolicy: 'never',
-        },
-      }) + '\n'
-    proc.stdin.write(turnStartMsg)
-    proc.stdin.end()
+    // stdin stays open — thread/start and turn/start follow event-driven below.
+    // It also remains open for future multi-turn input (#114).
   }
 
   let malformedCount = 0
@@ -305,6 +284,63 @@ export async function spawnAgent(
   const ndjson = new NdjsonStream(
     (obj) => {
       malformedCount = 0
+
+      // Codex event-driven handshake state machine.
+      // Intercept JSON-RPC responses/notifications to drive the three-step
+      // initialization sequence before handing off to the adapter.
+      if (isCodex && child.codexHandshakeState !== 'ready' && proc.stdin) {
+        const raw = obj as Record<string, unknown>
+
+        if (child.codexHandshakeState === 'init') {
+          // Waiting for the initialize response (id:1).
+          if ('id' in raw && raw.id === 1 && 'result' in raw) {
+            child.codexHandshakeState = 'thread'
+            const threadStartMsg =
+              JSON.stringify({
+                jsonrpc: '2.0',
+                id: 2,
+                method: 'thread/start',
+                params: {
+                  cwd: req.vaultRoot,
+                  model: req.model ?? null,
+                  approvalPolicy: 'auto-edit',
+                },
+              }) + '\n'
+            proc.stdin.write(threadStartMsg)
+            // The initialize response itself produces no AgentEvent; let adapter handle it.
+          }
+        } else if (child.codexHandshakeState === 'thread') {
+          // Waiting for thread/started notification to get the real threadId.
+          if (
+            'method' in raw &&
+            raw.method === 'thread/started' &&
+            raw.params &&
+            typeof raw.params === 'object'
+          ) {
+            const params = raw.params as Record<string, unknown>
+            const thread = params.thread as Record<string, unknown> | undefined
+            const threadId = thread?.id as string | undefined
+            if (threadId) {
+              child.codexHandshakeState = 'turn'
+              const turnStartMsg =
+                JSON.stringify({
+                  jsonrpc: '2.0',
+                  id: 3,
+                  method: 'turn/start',
+                  params: {
+                    threadId,
+                    input: [{ type: 'text', text: req.prompt, text_elements: [] }],
+                    cwd: req.vaultRoot,
+                    approvalPolicy: 'auto-edit',
+                  },
+                }) + '\n'
+              proc.stdin.write(turnStartMsg)
+              child.codexHandshakeState = 'ready'
+            }
+          }
+        }
+      }
+
       const events = isCodex
         ? adaptCodexObj(obj, adapterState as ReturnType<typeof makeCodexAdapterState>)
         : adaptClaudeObj(obj, adapterState as ReturnType<typeof makeAdapterState>)
