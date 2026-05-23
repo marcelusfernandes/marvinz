@@ -21,6 +21,10 @@ type BrowserEvent =
 
 type FileChangeSource = 'agent' | 'external'
 
+type MenuItemSpec =
+  | { kind: 'item'; id: string; label: string; accelerator?: string; enabled?: boolean }
+  | { kind: 'separator' }
+
 type Settings = {
   vaultPath?: string
   iconTheme?: 'codicon' | 'material'
@@ -125,13 +129,14 @@ const api = {
     reveal: (target: string) => ipcRenderer.invoke('shell:reveal', target) as Promise<void>,
   },
   editor: {
-    showContextMenu: (req: { hasSelection: boolean; canUndo: boolean; canRedo: boolean }) =>
-      ipcRenderer.invoke('editor:show-context-menu', req) as Promise<
-        'cut' | 'copy' | 'paste' | 'selectAll' | 'undo' | 'redo' | null
-      >,
     readClipboard: () => ipcRenderer.invoke('editor:clipboard-read') as Promise<string>,
     writeClipboard: (text: string) =>
       ipcRenderer.invoke('editor:clipboard-write', text) as Promise<void>,
+  },
+  app: {
+    showContextMenu: (items: MenuItemSpec[]) =>
+      ipcRenderer.invoke('app:show-context-menu', items) as Promise<string | null>,
+    canPaste: () => ipcRenderer.invoke('app:can-paste') as Promise<boolean>,
   },
   snapshot: {
     listTurns: () => ipcRenderer.invoke('snapshot:listTurns'),
