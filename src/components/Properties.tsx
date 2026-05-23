@@ -6,8 +6,8 @@ import {
   type Frontmatter,
   type PropertyType,
 } from '../lib/frontmatter'
+import type { MenuItemSpec } from '../types'
 import { Icon, type IconName } from './Icon'
-import { ContextMenu, type MenuItem } from './ContextMenu'
 
 const PROP_TYPES_FOR_PICKER: Array<{ type: PropertyType; label: string; icon: IconName }> = [
   { type: 'string', label: 'Text', icon: 'symbol-string' },
@@ -463,7 +463,6 @@ function AddPropertyRow({
 }) {
   const [name, setName] = useState('')
   const [type, setType] = useState<PropertyType>('string')
-  const [menuPos, setMenuPos] = useState<{ x: number; y: number } | null>(null)
 
   const currentTypeMeta =
     PROP_TYPES_FOR_PICKER.find((t) => t.type === type) ?? PROP_TYPES_FOR_PICKER[0]
@@ -474,19 +473,20 @@ function AddPropertyRow({
     onSubmit(key, type)
   }
 
-  const openTypeMenu = (e: React.MouseEvent<HTMLButtonElement>) => {
+  const openTypeMenu = async (e: React.MouseEvent<HTMLButtonElement>) => {
     e.preventDefault()
     e.stopPropagation()
-    const rect = e.currentTarget.getBoundingClientRect()
-    setMenuPos({ x: rect.left, y: rect.bottom + 4 })
+    const items: MenuItemSpec[] = PROP_TYPES_FOR_PICKER.map((t) => ({
+      kind: 'item' as const,
+      id: t.type,
+      label: t.label,
+      enabled: type !== t.type,
+    }))
+    const choice = await window.marvin.app.showContextMenu(items)
+    if (!choice) return
+    const match = PROP_TYPES_FOR_PICKER.find((t) => t.type === choice)
+    if (match) setType(match.type)
   }
-
-  const menuItems: MenuItem[] = PROP_TYPES_FOR_PICKER.map((t) => ({
-    kind: 'item' as const,
-    label: t.label,
-    icon: t.icon,
-    onClick: () => setType(t.type),
-  }))
 
   return (
     <div className="props-add-row">
@@ -517,14 +517,6 @@ function AddPropertyRow({
       <button type="button" className="props-add-btn ghost" onClick={onCancel}>
         Cancel
       </button>
-      {menuPos && (
-        <ContextMenu
-          x={menuPos.x}
-          y={menuPos.y}
-          items={menuItems}
-          onClose={() => setMenuPos(null)}
-        />
-      )}
     </div>
   )
 }
