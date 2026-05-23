@@ -12,6 +12,7 @@ A minimal Obsidian-style Markdown editor with **Claude Code** running as a sideb
 - **Tabs** — clicking a note opens a new tab (or focuses the existing tab if the path is already open). Each tab has its own back/forward history; clicking a link inside a preview navigates within the same tab.
 - **CodeMirror 6 editor** with Markdown highlighting, line wrap, and debounced autosave.
 - **Live preview** rendered with `react-markdown` + GFM (tables, task lists, strikethrough). Internal `.md` links resolve relative to the note; external `https://` / `mailto:` links open in the system browser.
+- **Image previews** — `![alt](path)` and `![[name]]` render inline using a custom `marvin://` protocol that enforces the vault boundary. See [Image syntax](#image-syntax) for the supported forms.
 - **External-edit hot reload** — `chokidar` watches the vault; when Claude (or anything else) edits a file open in a tab, the tab updates without losing your unrelated tabs. The watcher distinguishes our own saves from external writes by content equality.
 - **Claude Code sidebar** — `xterm.js` + `node-pty` running the `claude` CLI with `cwd = vault` and an inherited shell environment (so `git`, `node`, `ripgrep`, etc. are on `PATH`). The CLI's native `@`-mention completion sees every note in your vault.
 - **Restart button** when Claude exits (logout / crash) — re-spawns without reloading the window.
@@ -62,6 +63,19 @@ scripts/
 .claude/
   rules/            project-local rules consumed by Claude Code agents
 ```
+
+## Image syntax
+
+The live preview resolves four image-source shapes, each routed through the `marvin://` protocol so the renderer cannot escape the active vault:
+
+| Form | Example | Resolution |
+|---|---|---|
+| Relative path | `![diagram](./assets/diagram.png)` | Resolved against the directory of the current note. `..` segments are allowed but cannot escape the vault. |
+| Vault-absolute | `![logo](/assets/logo.png)` | Joined with the vault root. The leading `/` does **not** mean the OS filesystem root. |
+| Embed wikilink | `![[cover.png]]` or `![[cover.png\|cover alt]]` | Looked up by filename across the vault (basename match, same-folder preference on ambiguity). |
+| External | `![banner](https://example.com/banner.png)` or `data:image/...` | Passed through unchanged. |
+
+When an image cannot be resolved (path escapes the vault, wikilink target missing, file not found at load time), the preview renders an inline `image not found` placeholder showing the original `src` in its `title`. The on-disk markdown is never rewritten — switch to `Edit` mode to see the raw syntax.
 
 ## Workflow
 
