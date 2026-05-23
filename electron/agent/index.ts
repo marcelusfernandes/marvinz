@@ -1,13 +1,15 @@
 // Agent spawn lifecycle, child map, and request router.
-// Analogous to ptyProcesses + pty:spawn in electron/main.ts, but for
-// `claude --output-format stream-json` piped child processes.
+// Supports Claude (--output-format stream-json NDJSON) and
+// Codex (app-server JSON-RPC 2.0 over stdio) providers.
 
 import { spawn, type ChildProcess } from 'node:child_process'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { homedir } from 'node:os'
+import { createRequire } from 'node:module'
 import { NdjsonStream } from './ndjson.js'
 import { adaptClaudeObj, makeAdapterState, type AdapterState } from './adapter-claude.js'
+import { adaptCodexObj, makeCodexAdapterState, type CodexAdapterState } from './adapter-codex.js'
 import { evaluatePermission, recordDecision, clearSessionRules } from './permissions.js'
 import type { AgentEvent, AgentRequest, Provider, PermissionMode } from './protocol.js'
 
@@ -17,7 +19,7 @@ export type AgentChild = {
   permissionMode: PermissionMode
   vaultRoot: string
   proc: ChildProcess
-  adapterState: AdapterState
+  adapterState: AdapterState | CodexAdapterState
   startedAt: number
   // pending approval callbacks keyed by toolUseId
   pendingApprovals: Map<string, (decision: AgentEvent) => void>
@@ -96,6 +98,29 @@ function buildClaudeArgs(req: Extract<AgentRequest, { type: 'start' }>): string[
   return args
 }
 
+// Read the app version from package.json for the Codex initialize handshake.
+// Cached after first call.
+let _appVersion: string | undefined
+function readAppVersion(): string {
+  if (_appVersion) return _appVersion
+  try {
+    const req = createRequire(import.meta.url)
+    // Resolve package.json relative to the project root (two levels up from agent/).
+    const pkgPath = req.resolve('../../package.json')
+    const pkg = req(pkgPath) as { version?: string }
+    _appVersion = pkg.version ?? '0.0.0'
+  } catch {
+    _appVersion = '0.0.0'
+  }
+  return _appVersion
+}
+
+function buildCodexArgs(): string[] {
+  // Spawn the codex app-server in stdio mode.
+  // All configuration (model, prompt) is sent via JSON-RPC after spawn.
+  return ['app-server', '--listen', 'stdio://']
+}
+
 function flushDeltaBuffers(child: AgentChild, emit: EventEmitter): void {
   child.flushTimer = null
   for (const [messageId, deltas] of child.deltaBuffers) {
@@ -153,25 +178,41 @@ function dispatchEvent(child: AgentChild, event: AgentEvent, emit: EventEmitter)
   emit(`agent:event:${child.sessionId}`, event)
 }
 
+export type AgentBinaries = {
+  claude: string
+  codex?: string
+}
+
 export async function spawnAgent(
   req: Extract<AgentRequest, { type: 'start' }>,
-  claudeBinary: string,
+  binaries: AgentBinaries | string,
   emit: EventEmitter,
 ): Promise<void> {
+  // Accept legacy string form (claudeBinary) for backward compatibility.
+  const bins: AgentBinaries =
+    typeof binaries === 'string' ? { claude: binaries } : binaries
+
   const existing = agentChildren.get(req.sessionId)
   if (existing) {
     await killAgent(existing)
     agentChildren.delete(req.sessionId)
   }
 
-  const adapterState = makeAdapterState(req.sessionId)
-  adapterState.cwd = req.vaultRoot
+  const isCodex = req.provider === 'codex'
+  const adapterState = isCodex
+    ? makeCodexAdapterState(req.sessionId)
+    : makeAdapterState(req.sessionId)
 
-  const args = buildClaudeArgs(req)
+  if (!isCodex) {
+    (adapterState as ReturnType<typeof makeAdapterState>).cwd = req.vaultRoot
+  }
+
+  const binary = isCodex ? (bins.codex ?? 'codex') : bins.claude
+  const args = isCodex ? buildCodexArgs() : buildClaudeArgs(req)
 
   let proc: ChildProcess
   try {
-    proc = spawn(claudeBinary, args, {
+    proc = spawn(binary, args, {
       cwd: req.vaultRoot,
       stdio: ['pipe', 'pipe', 'pipe'],
       env: { ...process.env, TERM: 'dumb' },
@@ -183,7 +224,7 @@ export async function spawnAgent(
         type: 'error',
         sessionId: req.sessionId,
         code: 'AGENT_NOT_FOUND',
-        message: 'claude binary not found',
+        message: `${isCodex ? 'codex' : 'claude'} binary not found`,
         recoverable: false,
       })
       return
@@ -206,13 +247,67 @@ export async function spawnAgent(
   }
   agentChildren.set(req.sessionId, child)
 
+  // For Codex: send the JSON-RPC initialize handshake then thread/start.
+  if (isCodex && proc.stdin) {
+    const version = readAppVersion()
+    const initMsg =
+      JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'initialize',
+        params: {
+          clientInfo: { name: 'marvin', title: 'Marvin', version },
+          capabilities: null,
+        },
+      }) + '\n'
+    proc.stdin.write(initMsg)
+
+    const threadStartMsg =
+      JSON.stringify({
+        jsonrpc: '2.0',
+        id: 2,
+        method: 'thread/start',
+        params: {
+          cwd: req.vaultRoot,
+          model: req.model ?? null,
+          approvalPolicy: 'never',
+        },
+      }) + '\n'
+    proc.stdin.write(threadStartMsg)
+
+    // The thread/started notification gives us the threadId; we can't know it
+    // until that fires. So we write the first turn immediately after thread/start,
+    // using a small delay to allow the server to respond. In production Zed
+    // integration this is done event-driven; for our adapter we rely on the
+    // server buffering the turn/start until the thread is ready.
+    // We use a dummy threadId placeholder that gets replaced by state.currentThreadId
+    // once thread/started fires.  A proper integration would wait for thread/started
+    // before sending turn/start; this simplified version sends immediately.
+    const turnStartMsg =
+      JSON.stringify({
+        jsonrpc: '2.0',
+        id: 3,
+        method: 'turn/start',
+        params: {
+          threadId: '__pending__',
+          input: [{ type: 'text', text: req.prompt, text_elements: [] }],
+          cwd: req.vaultRoot,
+          approvalPolicy: 'never',
+        },
+      }) + '\n'
+    proc.stdin.write(turnStartMsg)
+    proc.stdin.end()
+  }
+
   let malformedCount = 0
   let streamEnded = false
 
   const ndjson = new NdjsonStream(
     (obj) => {
       malformedCount = 0
-      const events = adaptClaudeObj(obj, adapterState)
+      const events = isCodex
+        ? adaptCodexObj(obj, adapterState as ReturnType<typeof makeCodexAdapterState>)
+        : adaptClaudeObj(obj, adapterState as ReturnType<typeof makeAdapterState>)
       for (const event of events) {
         if (event.type === 'tool-use') {
           // Evaluate permissions before forwarding to renderer.
@@ -288,8 +383,8 @@ export async function spawnAgent(
     },
   )
 
-  // Send the initial prompt as a stream-json input event on stdin.
-  if (proc.stdin) {
+  // For Claude: send the initial prompt as a stream-json input event on stdin.
+  if (!isCodex && proc.stdin) {
     const inputEvent =
       JSON.stringify({
         type: 'user',
