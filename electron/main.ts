@@ -1,4 +1,4 @@
-import { app, BrowserWindow, WebContentsView, ipcMain, dialog, protocol, shell } from 'electron'
+import { app, BrowserWindow, WebContentsView, ipcMain, dialog, protocol, shell, Menu, MenuItem, clipboard } from 'electron'
 import path from 'node:path'
 import fs from 'node:fs/promises'
 import { existsSync, statSync } from 'node:fs'
@@ -766,6 +766,26 @@ ipcMain.handle('shell:reveal', async (_e, target: string) => {
   shell.showItemInFolder(safe)
 })
 
+type EditorMenuRequest = { hasSelection: boolean; canUndo: boolean; canRedo: boolean }
+type EditorMenuAction = 'cut' | 'copy' | 'paste' | 'selectAll' | 'undo' | 'redo' | null
+
+ipcMain.handle('editor:show-context-menu', (e, req: EditorMenuRequest): Promise<EditorMenuAction> => {
+  const canPaste = clipboard.availableFormats().some(f => f.startsWith('text/') || f === 'text')
+  return new Promise<EditorMenuAction>(resolve => {
+    const menu = new Menu()
+    menu.append(new MenuItem({ label: 'Cut', accelerator: 'CmdOrCtrl+X', enabled: req.hasSelection, click: () => resolve('cut') }))
+    menu.append(new MenuItem({ label: 'Copy', accelerator: 'CmdOrCtrl+C', enabled: req.hasSelection, click: () => resolve('copy') }))
+    menu.append(new MenuItem({ label: 'Paste', accelerator: 'CmdOrCtrl+V', enabled: canPaste, click: () => resolve('paste') }))
+    menu.append(new MenuItem({ type: 'separator' }))
+    menu.append(new MenuItem({ label: 'Select All', accelerator: 'CmdOrCtrl+A', click: () => resolve('selectAll') }))
+    menu.append(new MenuItem({ type: 'separator' }))
+    menu.append(new MenuItem({ label: 'Undo', accelerator: 'CmdOrCtrl+Z', enabled: req.canUndo, click: () => resolve('undo') }))
+    menu.append(new MenuItem({ label: 'Redo', accelerator: 'CmdOrCtrl+Shift+Z', enabled: req.canRedo, click: () => resolve('redo') }))
+    menu.once('menu-will-close', () => resolve(null))
+    const win = BrowserWindow.fromWebContents(e.sender)
+    menu.popup({ window: win ?? undefined })
+  })
+})
 
 function detectBinary(name: string): string | null {
   // Defensive: only allow simple binary names — no path traversal or shell.

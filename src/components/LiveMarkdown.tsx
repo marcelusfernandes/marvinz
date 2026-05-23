@@ -1,9 +1,17 @@
-import { useEffect, useMemo, useRef } from 'react'
-import { Editor as MilkdownEditor, defaultValueCtx, editorViewOptionsCtx, rootCtx } from '@milkdown/core'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
+import {
+  Editor as MilkdownEditor,
+  defaultValueCtx,
+  editorViewCtx,
+  editorViewOptionsCtx,
+  rootCtx,
+} from '@milkdown/core'
 import { Milkdown, MilkdownProvider, useEditor } from '@milkdown/react'
 import { commonmark } from '@milkdown/preset-commonmark'
 import { gfm } from '@milkdown/preset-gfm'
 import { listener, listenerCtx } from '@milkdown/plugin-listener'
+import { selectAll } from 'prosemirror-commands'
+import { redo, redoDepth, undo, undoDepth } from 'prosemirror-history'
 import { imageNodeView } from '../lib/imageNodeView'
 import type { PaletteItem } from '../lib/paletteRanker'
 import { parseWikilinks, unparseWikilinks } from '../lib/wikilinks'
@@ -72,7 +80,7 @@ function LiveMarkdownInner({
     [],
   )
 
-  useEditor((root) => {
+  const editorInfo = useEditor((root) => {
     return MilkdownEditor.make()
       .config((ctx) => {
         ctx.set(rootCtx, root)
@@ -115,8 +123,51 @@ function LiveMarkdownInner({
     return () => el.removeEventListener('click', onClick)
   }, [])
 
+  const handleContextMenu = useCallback(
+    async (e: React.MouseEvent<HTMLDivElement>) => {
+      const editor = editorInfo.get()
+      if (!editor) return
+      let view
+      try {
+        view = editor.ctx.get(editorViewCtx)
+      } catch {
+        return
+      }
+      // Only intercept right-clicks on the ProseMirror content surface.
+      if (!view.dom.contains(e.target as Node)) return
+      e.preventDefault()
+      const state = view.state
+      const action = await window.marvin.editor.showContextMenu({
+        hasSelection: !state.selection.empty,
+        canUndo: undoDepth(state) > 0,
+        canRedo: redoDepth(state) > 0,
+      })
+      if (!action) return
+      switch (action) {
+        case 'selectAll':
+          selectAll(view.state, view.dispatch, view)
+          break
+        case 'undo':
+          undo(view.state, view.dispatch)
+          break
+        case 'redo':
+          redo(view.state, view.dispatch)
+          break
+        case 'cut':
+        case 'copy':
+        case 'paste':
+          view.dom.dispatchEvent(
+            new ClipboardEvent(action, { bubbles: true, cancelable: true, clipboardData: null }),
+          )
+          break
+      }
+      view.focus()
+    },
+    [editorInfo],
+  )
+
   return (
-    <div ref={containerRef} className="live-md">
+    <div ref={containerRef} className="live-md" onContextMenu={handleContextMenu}>
       <Milkdown />
     </div>
   )

@@ -3,6 +3,7 @@ import CodeMirror from '@uiw/react-codemirror'
 import { EditorView } from '@codemirror/view'
 import { search } from '@codemirror/search'
 import { bracketMatching, indentUnit, HighlightStyle, syntaxHighlighting } from '@codemirror/language'
+import { redo, redoDepth, selectAll, undo, undoDepth } from '@codemirror/commands'
 import { tags as t } from '@lezer/highlight'
 import type { Extension } from '@codemirror/state'
 import { languageIdFor, loadLanguage } from '../lib/cmLanguage'
@@ -133,6 +134,7 @@ export function Editor({
   const [langExt, setLangExt] = useState<Extension | null>(null)
   const timer = useRef<number | null>(null)
   const latestValue = useRef(initialContent)
+  const viewRef = useRef<EditorView | null>(null)
 
   useEffect(() => {
     setLangExt(null)
@@ -242,6 +244,42 @@ export function Editor({
     [filePath, vaultPath, paletteItems, onNavigate],
   )
 
+  const handleContextMenu = useCallback(async (e: React.MouseEvent<HTMLDivElement>) => {
+    const view = viewRef.current
+    if (!view) return
+    // Only handle right-clicks inside the editor's content surface; let the
+    // browser show its default menu for clicks on gutters or other chrome.
+    if (!view.contentDOM.contains(e.target as Node)) return
+    e.preventDefault()
+    const state = view.state
+    const hasSelection = state.selection.ranges.some((r) => !r.empty)
+    const action = await window.marvin.editor.showContextMenu({
+      hasSelection,
+      canUndo: undoDepth(state) > 0,
+      canRedo: redoDepth(state) > 0,
+    })
+    if (!action) return
+    switch (action) {
+      case 'selectAll':
+        selectAll(view)
+        break
+      case 'undo':
+        undo(view)
+        break
+      case 'redo':
+        redo(view)
+        break
+      case 'cut':
+      case 'copy':
+      case 'paste':
+        view.contentDOM.dispatchEvent(
+          new ClipboardEvent(action, { bubbles: true, cancelable: true, clipboardData: null }),
+        )
+        break
+    }
+    view.focus()
+  }, [])
+
   const isMd = /\.(md|markdown)$/i.test(filePath)
   const isCsv = /\.(csv|tsv)$/i.test(filePath)
   const isHtml = /\.(html|htm)$/i.test(filePath)
@@ -334,6 +372,10 @@ export function Editor({
           theme="none"
           extensions={extensions}
           onChange={handleSourceChange}
+          onContextMenu={handleContextMenu}
+          onCreateEditor={(view) => {
+            viewRef.current = view
+          }}
           basicSetup={{
             lineNumbers: true,
             foldGutter: false,
