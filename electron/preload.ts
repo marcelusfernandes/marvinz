@@ -55,6 +55,8 @@ const api = {
     read: (filePath: string) => ipcRenderer.invoke('file:read', filePath) as Promise<string>,
     write: (filePath: string, content: string) =>
       ipcRenderer.invoke('file:write', filePath, content) as Promise<void>,
+    exportPdf: (filePath: string) =>
+      ipcRenderer.invoke('file:exportPdf', filePath) as Promise<void>,
     create: (parentDir: string, name: string) =>
       ipcRenderer.invoke('file:create', parentDir, name) as Promise<string>,
     onChanged: (cb: (filePath: string, source: FileChangeSource) => void) => {

@@ -1208,6 +1208,9 @@ export default function App() {
     if (!node.isDir) {
       items.push({ kind: 'item', id: 'versions', label: 'View versions…' })
     }
+    if (!node.isDir && node.path.endsWith('.md')) {
+      items.push({ kind: 'item', id: 'export-pdf', label: 'Export as PDF…' })
+    }
     items.push(
       { kind: 'separator' },
       {
@@ -1233,6 +1236,9 @@ export default function App() {
         break
       case 'versions':
         void openSnapshotPanel(node.path)
+        break
+      case 'export-pdf':
+        await window.marvin.file.exportPdf(node.path)
         break
       case 'trash':
         await handleTrash(node.path)

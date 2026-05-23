@@ -84,6 +84,7 @@ export type MarvinAPI = {
   file: {
     read: (filePath: string) => Promise<string>
     write: (filePath: string, content: string) => Promise<void>
+    exportPdf: (filePath: string) => Promise<void>
     create: (parentDir: string, name: string) => Promise<string>
     onChanged: (cb: (filePath: string, source: FileChangeSource) => void) => () => void
   }
