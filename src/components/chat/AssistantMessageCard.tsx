@@ -5,6 +5,8 @@ import { ToolBody } from './tool-bodies'
 import { basename, readPath } from './tool-bodies/types'
 import { ToolApprovalGate, type ApprovalDecision } from './ToolApprovalGate'
 import { useToolApproval } from '../../lib/chat/useToolApproval'
+import { useChatStore } from '../../lib/chat/store'
+import type { MenuItemSpec } from '../../types'
 import type {
   AssistantBlock,
   AssistantMessage,
@@ -75,13 +77,64 @@ function formatDuration(ms: number): string {
   return `${(ms / 1000).toFixed(1)}s`
 }
 
+function messageText(message: AssistantMessage): string {
+  return message.blocks
+    .filter((b) => b.kind === 'text')
+    .map((b) => (b as Extract<AssistantBlock, { kind: 'text' }>).text)
+    .join('\n\n')
+    .trim()
+}
+
 function AssistantMessageCardImpl({ sessionId, message }: Props) {
   const { decide } = useToolApproval(sessionId)
   const onDecide = (toolUseId: ToolCallId, decision: ApprovalDecision) => {
     void decide(toolUseId, decision)
   }
+  const handleContextMenu = async (e: React.MouseEvent<HTMLOListElement>) => {
+    e.preventDefault()
+    const selection = window.getSelection()?.toString() ?? ''
+    const hasSelection = selection.length > 0
+    const items: MenuItemSpec[] = [
+      {
+        kind: 'item',
+        id: 'copy',
+        label: hasSelection ? 'Copy Selection' : 'Copy Message',
+      },
+      { kind: 'item', id: 'quote', label: 'Quote in Reply' },
+      { kind: 'separator' },
+      {
+        kind: 'item',
+        id: 'rewind',
+        label: 'Rewind to Here',
+        enabled: false,
+      },
+    ]
+    const action = await window.marvin.app.showContextMenu(items)
+    if (!action) return
+    const payload = hasSelection ? selection : messageText(message)
+    switch (action) {
+      case 'copy':
+        await window.marvin.editor.writeClipboard(payload)
+        break
+      case 'quote': {
+        const quoted = payload
+          .split('\n')
+          .map((line) => `> ${line}`)
+          .join('\n')
+        const store = useChatStore.getState()
+        const current = store.sessions[sessionId]?.composer.draft ?? ''
+        const next = current ? `${quoted}\n\n${current}` : `${quoted}\n\n`
+        store.setComposerDraft(sessionId, next)
+        break
+      }
+    }
+  }
   return (
-    <ol className="chat-timeline" role="presentation">
+    <ol
+      className="chat-timeline"
+      role="presentation"
+      onContextMenu={handleContextMenu}
+    >
       {message.blocks.map((block) => {
         if (block.kind === 'thinking') {
           return (

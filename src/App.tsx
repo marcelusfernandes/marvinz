@@ -1234,6 +1234,40 @@ export default function App() {
     }
   }
 
+  const handleSidebarContextMenu = async (e: React.MouseEvent<HTMLElement>) => {
+    if (!vaultPath) return
+    const target = e.target as HTMLElement
+    // Only fire on empty space — bail when the click lands on a file row, the
+    // search bar, the header, the footer, or any interactive child.
+    if (
+      target.closest(
+        '.file-tree-row, .sidebar-search, .sidebar-header, .sidebar-footer, button, input, a',
+      )
+    ) {
+      return
+    }
+    e.preventDefault()
+    const items: MenuItemSpec[] = [
+      { kind: 'item', id: 'new-file', label: 'New File' },
+      { kind: 'item', id: 'new-folder', label: 'New Folder' },
+      { kind: 'separator' },
+      { kind: 'item', id: 'refresh', label: 'Refresh' },
+    ]
+    const action = await window.marvin.app.showContextMenu(items)
+    if (!action) return
+    switch (action) {
+      case 'new-file':
+        setDialog({ kind: 'newNote', parentDir: vaultPath })
+        break
+      case 'new-folder':
+        setDialog({ kind: 'newFolder', parentDir: vaultPath })
+        break
+      case 'refresh':
+        void loadTree(vaultPath)
+        break
+    }
+  }
+
   if (!bootstrapped) {
     return <div className="bootstrap">Loading…</div>
   }
@@ -1286,7 +1320,7 @@ export default function App() {
           } as React.CSSProperties
         }
       >
-      <aside className="sidebar">
+      <aside className="sidebar" onContextMenu={handleSidebarContextMenu}>
         {visualStyle === 'modern' && (
           <div className="sidebar-search">
             <button
