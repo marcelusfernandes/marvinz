@@ -1,6 +1,25 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import electron from 'vite-plugin-electron/simple'
+import { copyFileSync, mkdirSync, chmodSync } from 'node:fs'
+import { resolve } from 'node:path'
+import type { Plugin } from 'vite'
+
+// Copy the hook bridge script (plain CJS, no build step) into dist-electron/
+// so it lands alongside main.cjs and __dirname resolves in resolveBridgePath().
+function copyBridgePlugin(): Plugin {
+  return {
+    name: 'copy-bridge-cjs',
+    closeBundle() {
+      const src = resolve(__dirname, 'electron/agent/hooks/pretooluse-bridge.cjs')
+      const dest = resolve(__dirname, 'dist-electron/pretooluse-bridge.cjs')
+      mkdirSync(resolve(__dirname, 'dist-electron'), { recursive: true })
+      copyFileSync(src, dest)
+      // claude CLI spawns the hook via execve — needs +x on the script itself.
+      chmodSync(dest, 0o755)
+    },
+  }
+}
 
 export default defineConfig({
   // Electron loads the production renderer via file://, so asset URLs must
@@ -11,6 +30,7 @@ export default defineConfig({
   base: './',
   plugins: [
     react(),
+    copyBridgePlugin(),
     electron({
       main: {
         entry: 'electron/main.ts',

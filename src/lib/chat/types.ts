@@ -28,6 +28,13 @@ export type AssistantBlock =
       result?: unknown
       errorMessage?: string
       durationMs?: number
+      /** Wall-clock ms when the approval window expires (status=pending_approval only). */
+      approvalDeadlineAt?: number
+      /** Pre-edit snapshot outcome for Edit/Write tools (A4 snapshot integration). */
+      snapshotSaved?: boolean
+      /** Snapshot turn id — pass to `snapshot.read(turnId, relPath)` for the
+       *  pre-edit content. Present alongside `snapshotSaved` for SNAPSHOT_TOOLS. */
+      snapshotTurnId?: string
     }
 
 export type Mention = { path: string; line?: number; range?: [number, number] }
@@ -44,6 +51,10 @@ export type UserMessage = {
   role: 'user'
   text: string
   createdAt: number
+  /** Agent turn id assigned by main after the first turn-snapshot-summary
+   * arrives for this turn. Used by the Rewind button to open SnapshotPanel
+   * pre-selected to the snapshot taken at the start of this user turn. */
+  turnId?: string
 }
 
 export type AssistantMessage = {
@@ -80,6 +91,8 @@ export type Session = {
   turnState: TurnState
   tokenUsage: TokenUsage
   composer: { draft: string; mentions: Mention[] }
+  /** Currently-selected permission mode for the next turn (PRD AC6). */
+  permissionMode: PermissionMode
   cliSessionId?: string
 }
 
@@ -122,6 +135,10 @@ export type ChatStreamEvent =
       name: string
       input: unknown
       messageId: MessageId
+      /** Pre-edit snapshot outcome — present only for SNAPSHOT_TOOLS (A4). */
+      snapshotSaved?: boolean
+      /** Snapshot turn id — present only for SNAPSHOT_TOOLS (A4). */
+      snapshotTurnId?: string
     }
   | {
       type: 'tool-result'
@@ -139,6 +156,26 @@ export type ChatStreamEvent =
       input: unknown
       risk: 'safe' | 'destructive' | 'network'
       suggestion: 'allow' | 'review'
+      /** ms until main times out the approval; renderer drives countdown UI. */
+      timeoutMs?: number
+      /** Pre-edit snapshot outcome — present only for Edit/Write tools (A4). */
+      snapshotSaved?: boolean
+      /** Snapshot turn id — present only for Edit/Write tools (A4). */
+      snapshotTurnId?: string
+    }
+  | {
+      type: 'snapshot-warning'
+      sessionId: SessionId
+      toolUseId: ToolCallId
+      filePath: string
+      reason: string
+    }
+  | {
+      type: 'turn-snapshot-summary'
+      sessionId: SessionId
+      turnId: string
+      fileCount: number
+      fileNames: string[]
     }
   | {
       type: 'message-end'

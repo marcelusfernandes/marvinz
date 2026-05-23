@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AgentTerminal, type AgentDef, type AgentStatus } from './AgentTerminal'
 import { ContextMenu, type MenuItem } from './ContextMenu'
 import { Icon } from './Icon'
-import { ChatPanel } from './chat/ChatPanel'
+import { ChatPanel, type TurnSummary } from './chat/ChatPanel'
 import { useSetting } from '../lib/settingsStore'
 import type { Provider } from '../lib/chat/types'
 
@@ -11,6 +11,10 @@ type Props = {
   vaultPath: string
   /** Increments to request opening a new tab (Cmd+Shift+T from App). */
   newTabTick: number
+  /** Open the SnapshotPanel pre-selected to this turn id (from UserBubble). */
+  onRewind?: (turnId: string) => void
+  /** Fires when a chat turn finishes with >=1 Edit/Write — drives SnapshotToast. */
+  onTurnSummary?: (summary: TurnSummary) => void
 }
 
 type TabMode = 'chat' | 'terminal'
@@ -34,7 +38,13 @@ function readStoredDefault(agents: AgentDef[]): string | null {
   return null
 }
 
-export function AgentsPane({ agents, vaultPath, newTabTick }: Props) {
+export function AgentsPane({
+  agents,
+  vaultPath,
+  newTabTick,
+  onRewind,
+  onTurnSummary,
+}: Props) {
   const installed = useMemo(
     () => agents.filter((a) => a.binaryPath != null),
     [agents],
@@ -267,6 +277,8 @@ export function AgentsPane({ agents, vaultPath, newTabTick }: Props) {
                     sessionId={t.id}
                     provider={t.agentId}
                     vaultPath={vaultPath}
+                    onRewind={onRewind}
+                    onTurnSummary={onTurnSummary}
                   />
                 </div>
               )

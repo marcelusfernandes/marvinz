@@ -390,6 +390,8 @@ async function readVaultTree(root: string, current = root): Promise<FileNode[]> 
   return nodes
 }
 
+ipcMain.handle('vault:current', () => activeVaultPath)
+
 ipcMain.handle('vault:tree', async () => {
   if (!activeVaultPath || !existsSync(activeVaultPath)) return []
   return readVaultTree(activeVaultPath)
@@ -1267,9 +1269,25 @@ ipcMain.handle('snapshot:saveExternalChange', async (_e, relPath: unknown, conte
 
 type AgentResponse = { ok: true } | { ok: false; error: string }
 
+// L2: sessionId must be alphanumeric + dash/underscore only — no path traversal.
+const SESSION_ID_RE = /^[a-zA-Z0-9_-]+$/
+
 function requireAgentRequest(raw: unknown): AgentRequest {
   if (!raw || typeof raw !== 'object' || !('type' in raw)) {
     throw new Error('AGENT_INVALID_REQUEST')
+  }
+  const obj = raw as Record<string, unknown>
+  if ('sessionId' in obj) {
+    if (typeof obj.sessionId !== 'string' || !SESSION_ID_RE.test(obj.sessionId)) {
+      throw new Error('AGENT_INVALID_REQUEST')
+    }
+  }
+  // M3: validate decision.kind for approval requests.
+  if (obj.type === 'approval') {
+    const d = obj.decision as Record<string, unknown> | undefined
+    if (!d || (d.kind !== 'allow' && d.kind !== 'deny')) {
+      throw new Error('AGENT_INVALID_REQUEST')
+    }
   }
   return raw as AgentRequest
 }
@@ -1289,7 +1307,18 @@ ipcMain.handle('agent:request', async (e, raw: unknown): Promise<AgentResponse> 
     }
 
     if (req.type === 'start') {
-      const binary = detectBinary('claude')
+      // C2: vaultRoot must be an allowed vault path (opened via dialog or settings).
+      let resolvedVault: string
+      try {
+        resolvedVault = await fs.realpath(path.resolve(req.vaultRoot))
+      } catch {
+        throw new Error('MARVIN_VAULT_NOT_ALLOWED')
+      }
+      assertAllowedVault(resolvedVault, allowedVaultPaths)
+
+      const binary = (process.env.NODE_ENV === 'test' && process.env.MOCK_CLAUDE_BIN)
+        ? process.env.MOCK_CLAUDE_BIN
+        : detectBinary('claude')
       if (!binary) {
         senderSend(`agent:event:${req.sessionId}`, {
           type: 'error',
@@ -1302,7 +1331,7 @@ ipcMain.handle('agent:request', async (e, raw: unknown): Promise<AgentResponse> 
       }
       // Register the binary so pty-spawn-guard validates it if ever needed.
       registerDynamicShell(binary)
-      await spawnAgent(req, binary, senderSend)
+      await spawnAgent({ ...req, vaultRoot: resolvedVault }, binary, senderSend)
       return { ok: true }
     }
 
@@ -1317,7 +1346,7 @@ ipcMain.handle('agent:request', async (e, raw: unknown): Promise<AgentResponse> 
     }
 
     if (req.type === 'approval') {
-      handleApproval(req.sessionId, req.toolUseId, req.decision, senderSend)
+      handleApproval(req.sessionId, req.toolUseId, req.decision)
       return { ok: true }
     }
 

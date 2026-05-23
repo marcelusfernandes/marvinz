@@ -9,7 +9,6 @@ export type PermissionMode = 'default' | 'acceptEdits' | 'plan' | 'auto'
 export type ApprovalDecision =
   | { kind: 'allow'; remember?: 'session' | 'always' }
   | { kind: 'deny'; reason?: string }
-  | { kind: 'modify'; patchedInput: unknown }
 
 export type AgentRequest =
   | {
@@ -88,6 +87,8 @@ export type AgentEvent =
       name: string
       input: unknown
       messageId: string
+      snapshotSaved?: boolean
+      snapshotTurnId?: string
     }
   | {
       type: 'tool-result'
@@ -105,6 +106,23 @@ export type AgentEvent =
       input: unknown
       risk: 'safe' | 'destructive' | 'network'
       suggestion: 'allow' | 'review'
+      timeoutMs?: number
+      snapshotSaved?: boolean
+      snapshotTurnId?: string
+    }
+  | {
+      type: 'snapshot-warning'
+      sessionId: string
+      toolUseId: string
+      filePath: string
+      reason: string
+    }
+  | {
+      type: 'turn-snapshot-summary'
+      sessionId: string
+      turnId: string
+      fileCount: number
+      fileNames: string[]
     }
   | {
       type: 'message-end'
