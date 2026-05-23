@@ -20,6 +20,7 @@ import { PathSuggest } from './PathSuggest'
 import type { PaletteItem } from '../lib/paletteRanker'
 import { isWikilinkHref, resolveWikilink } from '../lib/wikilinks'
 import { Icon } from './Icon'
+import { useVisualStyle } from '../lib/visualStyle'
 
 const codeHighlightStyle = HighlightStyle.define([
   // Language tokens (TS/JS/JSON/etc.)
@@ -96,7 +97,12 @@ export function Editor({
   onSave,
   onBufferChange,
   onNavigate,
+  canBack,
+  canForward,
+  onBack,
+  onForward,
 }: Props) {
+  const visualStyle = useVisualStyle()
   const [value, setValue] = useState(initialContent)
   const [mode, setMode] = useState<Mode>('preview')
   const [saving, setSaving] = useState(false)
@@ -239,6 +245,30 @@ export function Editor({
     <div className="editor">
       <div className="editor-header">
         <div className="editor-header-left">
+          {visualStyle === 'legacy' && (
+            <>
+              <button
+                type="button"
+                className="nav-btn"
+                disabled={!canBack}
+                onClick={onBack}
+                title="Back"
+                aria-label="Back"
+              >
+                <Icon name="chevron-left" />
+              </button>
+              <button
+                type="button"
+                className="nav-btn"
+                disabled={!canForward}
+                onClick={onForward}
+                title="Forward"
+                aria-label="Forward"
+              >
+                <Icon name="chevron-right" />
+              </button>
+            </>
+          )}
           <PathSuggest
             value={relativePath}
             items={paletteItems}
