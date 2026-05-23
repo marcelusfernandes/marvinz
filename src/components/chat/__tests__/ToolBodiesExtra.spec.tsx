@@ -274,11 +274,18 @@ describe('ToolBody resolver', () => {
     expect(container.querySelector('.chat-tool-card-write')).toBeInTheDocument()
   })
 
-  it('renders WriteCard for tool="Edit"', () => {
+  it('renders EditCard for tool="Edit"', () => {
     const { container } = render(
       <ToolBody toolUseId="tu1" tool="Edit" input={{ file_path: '/vault/a.md' }} status="running" />,
     )
-    expect(container.querySelector('.chat-tool-card-write')).toBeInTheDocument()
+    expect(container.querySelector('.chat-tool-card-edit')).toBeInTheDocument()
+  })
+
+  it('renders EditCard for tool="edit_file"', () => {
+    const { container } = render(
+      <ToolBody toolUseId="tu1" tool="edit_file" input={{ file_path: '/vault/a.md' }} status="running" />,
+    )
+    expect(container.querySelector('.chat-tool-card-edit')).toBeInTheDocument()
   })
 
   it('renders AgentCard for tool="Agent"', () => {

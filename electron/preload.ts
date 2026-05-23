@@ -54,6 +54,7 @@ const api = {
   },
   vault: {
     pick: () => ipcRenderer.invoke('vault:pick') as Promise<string | null>,
+    current: () => ipcRenderer.invoke('vault:current') as Promise<string | null>,
     tree: (vaultPath: string) =>
       ipcRenderer.invoke('vault:tree', vaultPath) as Promise<FileNode[]>,
     watch: (vaultPath: string) => ipcRenderer.invoke('vault:watch', vaultPath),

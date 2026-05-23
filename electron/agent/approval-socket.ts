@@ -18,6 +18,7 @@ import {
   APPROVAL_TIMEOUT_MS,
   type PermissionContext,
 } from './permissions.js'
+import { writeSnapshot } from '../snapshot.js'
 import type { AgentEvent, ApprovalDecision } from './protocol.js'
 
 export type SocketEmitter = (channel: string, payload: AgentEvent) => void
@@ -52,6 +53,66 @@ function parseHookMessage(raw: string): HookMessage | null {
   return null
 }
 
+// Tools that edit files and warrant a pre-edit snapshot.
+const SNAPSHOT_TOOLS = new Set(['Edit', 'Write', 'NotebookEdit', 'MultiEdit'])
+
+/** Returns true if the named tool should trigger a pre-edit snapshot. */
+export function shouldTriggerSnapshot(toolName: string): boolean {
+  return SNAPSHOT_TOOLS.has(toolName)
+}
+
+function extractFilePath(input: unknown): string | null {
+  if (!input || typeof input !== 'object') return null
+  const obj = input as Record<string, unknown>
+  for (const key of ['file_path', 'notebook_path', 'path']) {
+    const val = obj[key]
+    if (typeof val === 'string' && val) return val
+  }
+  return null
+}
+
+// Take a pre-edit snapshot of the file before it is modified.
+// Returns true if snapshot was saved, false on failure or skip.
+// Non-blocking: logs on failure but never throws.
+async function snapshotBeforeEdit(
+  vaultRoot: string,
+  turnId: string,
+  _toolUseId: string,
+  toolName: string,
+  input: unknown,
+  sessionId: string,
+  _emit: SocketEmitter,
+): Promise<boolean> {
+  const rawPath = extractFilePath(input)
+  if (!rawPath) return false
+
+  const absPath = path.isAbsolute(rawPath) ? rawPath : path.resolve(vaultRoot, rawPath)
+  const relPath = path.relative(vaultRoot, absPath)
+
+  // Guard: only snapshot files inside the vault.
+  if (relPath.startsWith('..') || path.isAbsolute(relPath)) return false
+
+  // Read the current file content; use empty string for new files (Write creates them).
+  let content: string
+  try {
+    content = await fs.readFile(absPath, 'utf8')
+  } catch {
+    content = ''
+  }
+
+  try {
+    const saved = await writeSnapshot(vaultRoot, turnId, relPath, content, 'file:write', sessionId)
+    if (saved === false) {
+      // Binary/oversized — still report failure but don't emit yet; caller emits warning after permission-request.
+      return false
+    }
+    return true
+  } catch (err) {
+    console.error('[snapshot] pre-edit snapshot failed', { toolName, relPath, turnId, err })
+    return false
+  }
+}
+
 // Handle a single hook connection: read one JSON message, evaluate, respond.
 async function handleConnection(
   socket: net.Socket,
@@ -60,6 +121,9 @@ async function handleConnection(
   pendingToolNames: Map<string, string>,
   emit: SocketEmitter,
   sessionId: string,
+  agentTurnId: { current: string },
+  touchedFiles: Set<string>,
+  snapshotResults: Map<string, Promise<{ saved: boolean; turnId: string }>>,
 ): Promise<void> {
   let buf = ''
 
@@ -81,6 +145,42 @@ async function handleConnection(
         return
       }
 
+      const isFileEditTool = SNAPSHOT_TOOLS.has(msg.toolName)
+      const snapshotTurnId = agentTurnId.current
+
+      // Snapshot BEFORE permission evaluation so even denied edits have a prior-state record.
+      const snapshotPromise: Promise<boolean> = isFileEditTool
+        ? snapshotBeforeEdit(
+            ctx.vaultRoot,
+            snapshotTurnId,
+            msg.toolUseId,
+            msg.toolName,
+            msg.input,
+            sessionId,
+            emit,
+          )
+        : Promise.resolve(false)
+
+      // Store the snapshot promise so dispatchEvent can augment the tool-use event.
+      if (isFileEditTool) {
+        snapshotResults.set(
+          msg.toolUseId,
+          snapshotPromise.then((saved) => ({ saved, turnId: snapshotTurnId })),
+        )
+      }
+
+      // Track touched file for turn-snapshot-summary (fire-and-forget; resolved later).
+      if (isFileEditTool) {
+        const rawPath = extractFilePath(msg.input)
+        if (rawPath) {
+          const absPath = path.isAbsolute(rawPath) ? rawPath : path.resolve(ctx.vaultRoot, rawPath)
+          const relPath = path.relative(ctx.vaultRoot, absPath)
+          if (!relPath.startsWith('..') && !path.isAbsolute(relPath)) {
+            touchedFiles.add(relPath)
+          }
+        }
+      }
+
       const fullCtx: PermissionContext = { ...ctx, ...msg }
       const result = evaluatePermission(fullCtx)
 
@@ -100,22 +200,53 @@ async function handleConnection(
         return
       }
 
-      // action === 'request': emit permission-request to renderer, then await user.
+      // action === 'request': wait for snapshot result, then emit permission-request with snapshotSaved.
       pendingApprovalIds.add(msg.toolUseId)
       pendingToolNames.set(msg.toolUseId, msg.toolName)
 
       const risk = classifyToolRisk(msg.toolName)
-      const permReq: AgentEvent = {
-        type: 'permission-request',
-        sessionId,
-        toolUseId: msg.toolUseId,
-        toolName: msg.toolName,
-        input: msg.input,
-        risk,
-        suggestion: risk === 'safe' ? 'allow' : 'review',
-        timeoutMs: APPROVAL_TIMEOUT_MS,
-      }
-      emit(`agent:event:${sessionId}`, permReq)
+
+      // snapshotBeforeEdit always resolves (never rejects — errors are caught internally).
+      snapshotPromise.then((snapshotSaved) => {
+        const permReq: AgentEvent = {
+          type: 'permission-request',
+          sessionId,
+          toolUseId: msg.toolUseId,
+          toolName: msg.toolName,
+          input: msg.input,
+          risk,
+          suggestion: risk === 'safe' ? 'allow' : 'review',
+          timeoutMs: APPROVAL_TIMEOUT_MS,
+          ...(isFileEditTool ? { snapshotSaved } : {}),
+        }
+        emit(`agent:event:${sessionId}`, permReq)
+
+        // Emit snapshot-warning AFTER permission-request so event ordering is predictable.
+        if (isFileEditTool && !snapshotSaved) {
+          const rawPath = extractFilePath(msg.input)
+          emit(`agent:event:${sessionId}`, {
+            type: 'snapshot-warning',
+            sessionId,
+            toolUseId: msg.toolUseId,
+            filePath: rawPath ? path.relative(ctx.vaultRoot, path.isAbsolute(rawPath) ? rawPath : path.resolve(ctx.vaultRoot, rawPath)) : '',
+            reason: 'Snapshot failed or skipped',
+          })
+        }
+      }).catch(() => {
+        // snapshotBeforeEdit shouldn't reject, but guard defensively.
+        const permReq: AgentEvent = {
+          type: 'permission-request',
+          sessionId,
+          toolUseId: msg.toolUseId,
+          toolName: msg.toolName,
+          input: msg.input,
+          risk,
+          suggestion: risk === 'safe' ? 'allow' : 'review',
+          timeoutMs: APPROVAL_TIMEOUT_MS,
+          ...(isFileEditTool ? { snapshotSaved: false } : {}),
+        }
+        emit(`agent:event:${sessionId}`, permReq)
+      })
 
       // Await the renderer decision (resolveApproval resolves this promise).
       awaitApproval(msg.toolUseId).then(
@@ -171,6 +302,9 @@ export async function createApprovalServer(
   pendingApprovalIds: Set<string>,
   pendingToolNames: Map<string, string>,
   emit: SocketEmitter,
+  agentTurnId: { current: string } = { current: '' },
+  touchedFiles: Set<string> = new Set(),
+  snapshotResults: Map<string, Promise<{ saved: boolean; turnId: string }>> = new Map(),
 ): Promise<ApprovalServer> {
   const socketPath = approvalSocketPath(sessionId)
 
@@ -178,7 +312,7 @@ export async function createApprovalServer(
   try { await fs.unlink(socketPath) } catch { /* not present — fine */ }
 
   const server = net.createServer((socket) => {
-    void handleConnection(socket, ctx, pendingApprovalIds, pendingToolNames, emit, sessionId)
+    void handleConnection(socket, ctx, pendingApprovalIds, pendingToolNames, emit, sessionId, agentTurnId, touchedFiles, snapshotResults)
   })
 
   await new Promise<void>((resolve, reject) => {

@@ -36,10 +36,16 @@ describe('UserBubble — rendering', () => {
     expect(btn).toBeDisabled()
   })
 
-  it('rewind button is enabled when onRewind prop is provided', () => {
-    render(<UserBubble text="Hello" onRewind={() => {}} />)
+  it('rewind button is enabled when onRewind prop is provided with a turnId', () => {
+    render(<UserBubble text="Hello" turnId="t1" onRewind={() => {}} />)
     const btn = screen.getByRole('button', { name: /rewind to this message/i })
     expect(btn).not.toBeDisabled()
+  })
+
+  it('rewind button is disabled when onRewind is provided but turnId is missing', () => {
+    render(<UserBubble text="Hello" onRewind={() => {}} />)
+    const btn = screen.getByRole('button', { name: /rewind to this message/i })
+    expect(btn).toBeDisabled()
   })
 
   it('uses chat-bubble-user class on the container', () => {
@@ -115,10 +121,18 @@ describe('UserBubble — show more/less', () => {
 // ---------------------------------------------------------------------------
 
 describe('UserBubble — rewind', () => {
-  it('calls onRewind when rewind button is clicked', () => {
-    let called = false
-    render(<UserBubble text="Hello" onRewind={() => { called = true }} />)
+  it('calls onRewind with the turnId when rewind button is clicked', () => {
+    let receivedTurn: string | undefined
+    render(
+      <UserBubble
+        text="Hello"
+        turnId="turn-123"
+        onRewind={(turnId) => {
+          receivedTurn = turnId
+        }}
+      />,
+    )
     fireEvent.click(screen.getByRole('button', { name: /rewind to this message/i }))
-    expect(called).toBe(true)
+    expect(receivedTurn).toBe('turn-123')
   })
 })

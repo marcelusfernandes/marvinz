@@ -98,6 +98,26 @@ function updateToolBlock(
   return { ...msg, blocks }
 }
 
+/**
+ * Walk ordering newest → oldest and tag the most recent user message that
+ * doesn't yet have a turnId. Returns the same `messages` reference if no
+ * change is needed (so callers can shallow-compare for early-out).
+ */
+function backfillUserTurnId(
+  ordering: MessageId[],
+  messages: Record<MessageId, Message>,
+  turnId: string,
+): Record<MessageId, Message> {
+  for (let i = ordering.length - 1; i >= 0; i--) {
+    const mid = ordering[i]
+    const m = messages[mid]
+    if (!m || m.role !== 'user') continue
+    if (m.turnId) return messages
+    return { ...messages, [mid]: { ...m, turnId } }
+  }
+  return messages
+}
+
 export const useChatStore = create<ChatStore>((set) => ({
   sessions: {},
   activeSessionId: null,
@@ -265,11 +285,14 @@ function applyEvent(s: Session, ev: ChatStreamEvent): Session {
         tool: ev.name,
         input: ev.input,
         status: 'running',
+        snapshotSaved: ev.snapshotSaved,
+        snapshotTurnId: ev.snapshotTurnId,
       }
-      return {
-        ...s,
-        messages: { ...s.messages, [ev.messageId]: appendBlock(target, block) },
-      }
+      const messages = { ...s.messages, [ev.messageId]: appendBlock(target, block) }
+      const withTurnId = ev.snapshotTurnId
+        ? backfillUserTurnId(s.ordering, messages, ev.snapshotTurnId)
+        : messages
+      return { ...s, messages: withTurnId }
     }
 
     case 'tool-result': {
@@ -309,9 +332,18 @@ function applyEvent(s: Session, ev: ChatStreamEvent): Session {
       )
       const updated = existing
         ? updateToolBlock(last, ev.toolUseId, (b) =>
-            b.status === 'pending_approval' && b.approvalDeadlineAt === deadline
+            b.status === 'pending_approval' &&
+            b.approvalDeadlineAt === deadline &&
+            b.snapshotSaved === ev.snapshotSaved &&
+            b.snapshotTurnId === ev.snapshotTurnId
               ? b
-              : { ...b, status: 'pending_approval', approvalDeadlineAt: deadline },
+              : {
+                  ...b,
+                  status: 'pending_approval',
+                  approvalDeadlineAt: deadline,
+                  snapshotSaved: ev.snapshotSaved,
+                  snapshotTurnId: ev.snapshotTurnId,
+                },
           )
         : appendBlock(last, {
             kind: 'tool_use',
@@ -320,13 +352,19 @@ function applyEvent(s: Session, ev: ChatStreamEvent): Session {
             input: ev.input,
             status: 'pending_approval',
             approvalDeadlineAt: deadline,
+            snapshotSaved: ev.snapshotSaved,
+            snapshotTurnId: ev.snapshotTurnId,
           })
       const pendingApprovals = s.pendingApprovals.includes(ev.toolUseId)
         ? s.pendingApprovals
         : [...s.pendingApprovals, ev.toolUseId]
+      const baseMessages = { ...s.messages, [last.id]: updated }
+      const messages = ev.snapshotTurnId
+        ? backfillUserTurnId(s.ordering, baseMessages, ev.snapshotTurnId)
+        : baseMessages
       return {
         ...s,
-        messages: { ...s.messages, [last.id]: updated },
+        messages,
         pendingApprovals,
         turnState: 'awaiting_approval',
       }
@@ -348,6 +386,18 @@ function applyEvent(s: Session, ev: ChatStreamEvent): Session {
         turnState,
       }
     }
+
+    case 'turn-snapshot-summary': {
+      // Idempotent fallback — usually the tool-use event has already tagged
+      // the user message via backfillUserTurnId. Keep this so non-Edit turns
+      // that still touch files (rare) still get the Rewind affordance.
+      const messages = backfillUserTurnId(s.ordering, s.messages, ev.turnId)
+      return messages === s.messages ? s : { ...s, messages }
+    }
+
+    case 'snapshot-warning':
+      // Surfaced via toast in ChatPanel, not reduced into session state.
+      return s
 
     case 'turn-result':
       return {

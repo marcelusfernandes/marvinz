@@ -502,6 +502,30 @@ export default function App() {
     [vaultPath, tabs],
   )
 
+  const handleRewindToTurn = useCallback(
+    async (turnId: string) => {
+      if (!vaultPath) return
+      try {
+        const res = await window.marvin.snapshot.listTurns()
+        if (!res.ok) {
+          setError('Failed to load snapshot turns')
+          return
+        }
+        const turn = res.data.find((t) => t.turnId === turnId)
+        if (!turn || turn.files.length === 0) {
+          setError('No saved files for this turn')
+          return
+        }
+        const firstRel = turn.files[0].relPath
+        const absPath = `${vaultPath}/${firstRel}`
+        await openSnapshotPanel(absPath, turnId)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to open versions panel')
+      }
+    },
+    [vaultPath, openSnapshotPanel],
+  )
+
   const handleSnapshotRestored = useCallback(
     async (filePath: string) => {
       try {
@@ -1400,6 +1424,10 @@ export default function App() {
           agents={agents}
           vaultPath={vaultPath}
           newTabTick={newAgentTabTick}
+          onRewind={handleRewindToTurn}
+          onTurnSummary={(summary) =>
+            setTurnToast({ turnId: summary.turnId, files: summary.fileNames })
+          }
         />
       </aside>
 
