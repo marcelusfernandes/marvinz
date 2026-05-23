@@ -423,3 +423,79 @@ describe('LiveMarkdown — context menu action dispatch', () => {
     expect(currentPMView.focus).not.toHaveBeenCalled()
   })
 })
+
+// ---------------------------------------------------------------------------
+// LiveMarkdown — state changes after context menu action
+// ---------------------------------------------------------------------------
+
+describe('LiveMarkdown — state changes after context menu action', () => {
+  it('undo decreases undoDepth by 1', async () => {
+    currentPMView = makePMView({ undoDepth: 3, redoDepth: 0 })
+    showContextMenuMock.mockResolvedValue('undo')
+    const { container } = render(<LiveMarkdown {...defaultProps()} />)
+    await act(async () => {
+      rightClickLiveMD(container)
+    })
+    expect(currentPMView.state._undoDepth).toBe(2)
+  })
+
+  it('undo increases redoDepth by 1', async () => {
+    currentPMView = makePMView({ undoDepth: 2, redoDepth: 0 })
+    showContextMenuMock.mockResolvedValue('undo')
+    const { container } = render(<LiveMarkdown {...defaultProps()} />)
+    await act(async () => {
+      rightClickLiveMD(container)
+    })
+    expect(currentPMView.state._redoDepth).toBe(1)
+  })
+
+  it('undo does not change depth when undoDepth is already 0', async () => {
+    currentPMView = makePMView({ undoDepth: 0 })
+    showContextMenuMock.mockResolvedValue('undo')
+    const { container } = render(<LiveMarkdown {...defaultProps()} />)
+    await act(async () => {
+      rightClickLiveMD(container)
+    })
+    expect(currentPMView.state._undoDepth).toBe(0)
+  })
+
+  it('redo decreases redoDepth by 1', async () => {
+    currentPMView = makePMView({ undoDepth: 0, redoDepth: 2 })
+    showContextMenuMock.mockResolvedValue('redo')
+    const { container } = render(<LiveMarkdown {...defaultProps()} />)
+    await act(async () => {
+      rightClickLiveMD(container)
+    })
+    expect(currentPMView.state._redoDepth).toBe(1)
+  })
+
+  it('redo increases undoDepth by 1', async () => {
+    currentPMView = makePMView({ undoDepth: 1, redoDepth: 1 })
+    showContextMenuMock.mockResolvedValue('redo')
+    const { container } = render(<LiveMarkdown {...defaultProps()} />)
+    await act(async () => {
+      rightClickLiveMD(container)
+    })
+    expect(currentPMView.state._undoDepth).toBe(2)
+  })
+
+  it('selectAll makes selection non-empty (covers whole doc)', async () => {
+    currentPMView = makePMView({ hasSelection: false })
+    showContextMenuMock.mockResolvedValue('selectAll')
+    const { container } = render(<LiveMarkdown {...defaultProps()} />)
+    await act(async () => {
+      rightClickLiveMD(container)
+    })
+    expect(currentPMView.state.selection.empty).toBe(false)
+  })
+
+  it('null action leaves undoDepth unchanged', async () => {
+    currentPMView = makePMView({ undoDepth: 2 })
+    showContextMenuMock.mockResolvedValue(null)
+    const { container } = render(<LiveMarkdown {...defaultProps()} />)
+    await act(async () => {
+      rightClickLiveMD(container)
+    })
+    expect(currentPMView.state._undoDepth).toBe(2)
+  })
+})
