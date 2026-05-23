@@ -172,6 +172,7 @@ function createWindow() {
     frame: process.platform !== 'darwin',
     backgroundColor: process.platform === 'darwin' ? '#00000000' : '#1e1e1e',
     vibrancy: process.platform === 'darwin' ? 'fullscreen-ui' : undefined,
+    visualEffectState: process.platform === 'darwin' ? 'active' : undefined,
     webPreferences: {
       preload: path.join(__dirname, 'preload.mjs'),
       contextIsolation: true,
