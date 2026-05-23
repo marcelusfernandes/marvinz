@@ -909,9 +909,15 @@ export default function App() {
     void window.marvin.browser.setActive(activeBrowserId)
   }, [activeTab])
 
+  useEffect(() => {
+    if (!error) return
+    const id = window.setTimeout(() => setError(null), 5000)
+    return () => window.clearTimeout(id)
+  }, [error])
+
   // Hide all browser views while any React modal/popover is open, so they
   // don't paint over the modal (WebContentsView is always above the renderer).
-  const modalOpen = paletteOpen || settingsOpen || dialog != null || error != null
+  const modalOpen = paletteOpen || settingsOpen || dialog != null
   useEffect(() => {
     void window.marvin.browser.setAllHidden(modalOpen)
   }, [modalOpen])
