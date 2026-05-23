@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AgentTerminal, type AgentDef, type AgentStatus } from './AgentTerminal'
-import { ContextMenu, type MenuItem } from './ContextMenu'
 import { Icon } from './Icon'
 import { InputDialog } from './InputDialog'
 import { ChatPanel, type TurnSummary } from './chat/ChatPanel'
@@ -28,8 +27,12 @@ type AgentTab = {
   /** User-supplied label from the Rename action. Falls back to "<agent> <num>". */
   displayLabel?: string
 }
-type CtxState = { x: number; y: number; items: MenuItem[] } | null
 type StatusEntry = { status: AgentStatus; exitCode: number | null }
+
+const PICKER_ITEMS: MenuItemSpec[] = [
+  { kind: 'item', id: 'claude', label: 'Claude Code' },
+  { kind: 'item', id: 'codex', label: 'Codex' },
+]
 
 const DEFAULT_AGENT_KEY = 'marvin:defaultAgent'
 
@@ -65,7 +68,6 @@ export function AgentsPane({
     readStoredDefault(agents),
   )
   const [statuses, setStatuses] = useState<Record<string, StatusEntry>>({})
-  const [ctxMenu, setCtxMenu] = useState<CtxState>(null)
   const [renameTarget, setRenameTarget] = useState<AgentTab | null>(null)
   const counterRef = useRef<Record<string, number>>({})
   const newButtonRef = useRef<HTMLDivElement>(null)
@@ -239,24 +241,7 @@ export function AgentsPane({
     [tabs, removeTab, closeOthers, restartTab],
   )
 
-  const buildMenu = useCallback(
-    (): MenuItem[] =>
-      installed.map((a) => ({
-        kind: 'item' as const,
-        label: a.name,
-        onClick: () => pickAndOpen(a.id),
-      })),
-    [installed, pickAndOpen],
-  )
-
-  const openMenuAtRect = useCallback(
-    (rect: DOMRect) => {
-      setCtxMenu({ x: rect.left, y: rect.bottom + 4, items: buildMenu() })
-    },
-    [buildMenu],
-  )
-
-  const handlePlus = useCallback(() => {
+  const handlePlus = useCallback(async () => {
     if (installed.length === 0) return
     if (defaultAgentId) {
       addTab(defaultAgentId)
@@ -266,19 +251,19 @@ export function AgentsPane({
       pickAndOpen(installed[0].id)
       return
     }
-    if (newButtonRef.current) {
-      openMenuAtRect(newButtonRef.current.getBoundingClientRect())
-    }
-  }, [installed, defaultAgentId, addTab, pickAndOpen, openMenuAtRect])
+    const action = await window.marvin.app.showContextMenu(PICKER_ITEMS)
+    if (action === 'claude' || action === 'codex') pickAndOpen(action)
+  }, [installed, defaultAgentId, addTab, pickAndOpen])
 
   const handleChevron = useCallback(
-    (e: React.MouseEvent<HTMLButtonElement>) => {
+    async (e: React.MouseEvent<HTMLButtonElement>) => {
       e.preventDefault()
       e.stopPropagation()
       if (installed.length === 0) return
-      openMenuAtRect(e.currentTarget.getBoundingClientRect())
+      const action = await window.marvin.app.showContextMenu(PICKER_ITEMS)
+      if (action === 'claude' || action === 'codex') addTab(action)
     },
-    [installed, openMenuAtRect],
+    [installed, addTab],
   )
 
   // React to Cmd+Shift+T from the App-level shortcut.
@@ -388,14 +373,6 @@ export function AgentsPane({
           })
         )}
       </div>
-      {ctxMenu && (
-        <ContextMenu
-          x={ctxMenu.x}
-          y={ctxMenu.y}
-          items={ctxMenu.items}
-          onClose={() => setCtxMenu(null)}
-        />
-      )}
       {renameTarget && (
         <InputDialog
           title="Rename tab"
