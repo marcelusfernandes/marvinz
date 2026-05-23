@@ -155,11 +155,12 @@
 [data-theme='dark'] {
   /* Surface scale inverted from light: in dark, "elevated" surfaces are
      LIGHTER (more luminance). surface-2 = recessed inputs/search,
-     surface-3 = raised hover/inactive tabs. */
+     surface-3 = raised hover/inactive tabs.
+     Hex values are R=G=B (neutral gray) by design — no blue/warm bias. */
   --bg-app: #0e0e0e;
-  --surface-1: #26262a;
-  --surface-2: #2e2e32;
-  --surface-3: #36363a;
+  --surface-1: #262626;
+  --surface-2: #2e2e2e;
+  --surface-3: #363636;
 
   --border-subtle: rgba(255, 255, 255, 0.06);
   --border: #38383a;
