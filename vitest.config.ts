@@ -7,10 +7,13 @@ export default defineConfig({
         test: {
           name: 'electron',
           environment: 'node',
-          include: ['electron/__tests__/**/*.spec.ts'],
+          include: [
+            'electron/__tests__/**/*.spec.ts',
+            'src/lib/__tests__/**/*.spec.ts',
+          ],
           coverage: {
             provider: 'v8',
-            include: ['electron/snapshot.ts'],
+            include: ['electron/snapshot.ts', 'src/lib/marvinUrl.ts'],
             reporter: ['text', 'lcov'],
             thresholds: { lines: 80, functions: 80, branches: 80 },
           },

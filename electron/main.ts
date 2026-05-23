@@ -202,6 +202,9 @@ const MIME_BY_EXT: Record<string, string> = {
   gif: 'image/gif',
   webp: 'image/webp',
   bmp: 'image/bmp',
+  // SVGs may only be embedded via `<img>`; `<object>/<iframe>/<embed>` would
+  // enable script execution. The CSP header on the response is the second line
+  // of defence — see the handler below.
   svg: 'image/svg+xml',
   ico: 'image/x-icon',
   avif: 'image/avif',
@@ -254,7 +257,15 @@ app.whenReady().then(() => {
       // Buffer is a Uint8Array subclass; Response accepts BodyInit which
       // includes ArrayBuffer / Uint8Array — cast to satisfy TS.
       return new Response(data as unknown as Uint8Array, {
-        headers: { 'Content-Type': mimeFor(safePath) },
+        headers: {
+          'Content-Type': mimeFor(safePath),
+          // Defense-in-depth: SVGs served here may carry inline `<script>`.
+          // Chromium already blocks script execution when SVG is loaded via
+          // `<img>` (secure animation mode); this CSP locks the response down
+          // unconditionally so a future regression in the embed path cannot
+          // enable script or plugin execution.
+          'Content-Security-Policy': "script-src 'none'; object-src 'none'",
+        },
       })
     } catch (err) {
       console.error('[marvin] handler failed', request.url, err)
