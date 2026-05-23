@@ -19,6 +19,12 @@ function readFromLocalStorage(): Settings {
     if (colorTheme === 'light' || colorTheme === 'dark' || colorTheme === 'system') {
       out.colorTheme = colorTheme
     }
+    const terminalModeEnabled = window.localStorage.getItem(
+      `${LS_PREFIX}terminalModeEnabled`,
+    )
+    if (terminalModeEnabled === 'true' || terminalModeEnabled === 'false') {
+      out.terminalModeEnabled = terminalModeEnabled === 'true'
+    }
   } catch {
     // ignore
   }

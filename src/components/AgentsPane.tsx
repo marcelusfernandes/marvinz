@@ -2,6 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AgentTerminal, type AgentDef, type AgentStatus } from './AgentTerminal'
 import { ContextMenu, type MenuItem } from './ContextMenu'
 import { Icon } from './Icon'
+import { ChatPanel } from './chat/ChatPanel'
+import { useSetting } from '../lib/settingsStore'
+import type { Provider } from '../lib/chat/types'
 
 type Props = {
   agents: AgentDef[]
@@ -10,11 +13,16 @@ type Props = {
   newTabTick: number
 }
 
-type AgentTab = { id: string; agentId: string; num: number }
+type TabMode = 'chat' | 'terminal'
+type AgentTab = { id: string; agentId: string; num: number; mode: TabMode }
 type CtxState = { x: number; y: number; items: MenuItem[] } | null
 type StatusEntry = { status: AgentStatus; exitCode: number | null }
 
 const DEFAULT_AGENT_KEY = 'marvin:defaultAgent'
+
+function isChatProvider(id: string): id is Provider {
+  return id === 'claude' || id === 'codex'
+}
 
 function readStoredDefault(agents: AgentDef[]): string | null {
   try {
@@ -31,6 +39,7 @@ export function AgentsPane({ agents, vaultPath, newTabTick }: Props) {
     () => agents.filter((a) => a.binaryPath != null),
     [agents],
   )
+  const terminalModeDefault = useSetting('terminalModeEnabled') ?? false
   const [tabs, setTabs] = useState<AgentTab[]>([])
   const [activeId, setActiveId] = useState<string>('')
   const [defaultAgentId, setDefaultAgentId] = useState<string | null>(() =>
@@ -66,8 +75,9 @@ export function AgentsPane({ agents, vaultPath, newTabTick }: Props) {
     (agentId: string) => {
       const a = findAgent(agentId)
       if (!a || a.binaryPath == null) return
-      // Monotonic counter for the PTY id so killed/spawned PTYs never share
-      // a backing id (avoids races in the main-process pty map).
+      // Monotonic counter for the PTY/session id so killed/spawned PTYs
+      // never share a backing id (avoids races in the main-process pty map
+      // and gives chat sessions a stable Zustand key).
       const ptySeq = (counterRef.current[agentId] ?? 0) + 1
       counterRef.current[agentId] = ptySeq
       // Display number reuses the lowest free slot — closing tab N frees N
@@ -77,11 +87,20 @@ export function AgentsPane({ agents, vaultPath, newTabTick }: Props) {
       )
       let num = 1
       while (used.has(num)) num++
-      const tab: AgentTab = { id: `${agentId}-${ptySeq}`, agentId, num }
+      // Default to chat for native-chat-eligible providers unless the user
+      // opted into terminal mode.
+      const mode: TabMode =
+        !terminalModeDefault && isChatProvider(agentId) ? 'chat' : 'terminal'
+      const tab: AgentTab = {
+        id: `${agentId}-${ptySeq}`,
+        agentId,
+        num,
+        mode,
+      }
       setTabs((prev) => [...prev, tab])
       setActiveId(tab.id)
     },
-    [findAgent, tabs],
+    [findAgent, tabs, terminalModeDefault],
   )
 
   const removeTab = useCallback(
@@ -233,13 +252,31 @@ export function AgentsPane({ agents, vaultPath, newTabTick }: Props) {
           tabs.map((t) => {
             const a = findAgent(t.agentId)
             if (!a) return null
+            const isActive = activeId === t.id
+            if (t.mode === 'chat' && isChatProvider(t.agentId)) {
+              // Keep mounted but hidden when inactive so streaming state and
+              // composer drafts survive tab switches.
+              return (
+                <div
+                  key={t.id}
+                  className="agent-stack-pane"
+                  style={{ display: isActive ? 'flex' : 'none' }}
+                >
+                  <ChatPanel
+                    sessionId={t.id}
+                    provider={t.agentId}
+                    vaultPath={vaultPath}
+                  />
+                </div>
+              )
+            }
             return (
               <AgentTerminal
                 key={t.id}
                 agent={a}
                 ptyId={t.id}
                 vaultPath={vaultPath}
-                isActive={activeId === t.id}
+                isActive={isActive}
                 onStatusChange={handleStatusChange}
               />
             )
