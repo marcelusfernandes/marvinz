@@ -1,24 +1,16 @@
 // Agent spawn lifecycle, child map, and request router.
 // Supports Claude (--output-format stream-json NDJSON) and
-// Codex (app-server JSON-RPC 2.0 over stdio) providers.
+// Codex (codex exec --json, one-shot per turn) providers.
 
 import { spawn, type ChildProcess } from 'node:child_process'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { homedir } from 'node:os'
-import { createRequire } from 'node:module'
 import { NdjsonStream } from './ndjson.js'
 import { adaptClaudeObj, makeAdapterState, type AdapterState } from './adapter-claude.js'
 import { adaptCodexObj, makeCodexAdapterState, type CodexAdapterState } from './adapter-codex.js'
 import { evaluatePermission, recordDecision, clearSessionRules } from './permissions.js'
 import type { AgentEvent, AgentRequest, Provider, PermissionMode } from './protocol.js'
-
-// Codex JSON-RPC handshake state machine:
-// 'init'   — initialize sent, waiting for id:1 response
-// 'thread' — thread/start sent, waiting for thread/started notification
-// 'turn'   — turn/start sent (real threadId used), handshake complete
-// 'ready'  — handshake complete, streaming in progress
-type CodexHandshakeState = 'init' | 'thread' | 'turn' | 'ready'
 
 export type AgentChild = {
   sessionId: string
@@ -35,8 +27,6 @@ export type AgentChild = {
   // text-delta coalescing ring buffer keyed by messageId
   deltaBuffers: Map<string, string[]>
   flushTimer: ReturnType<typeof setImmediate> | null
-  // Codex-only: tracks event-driven handshake stage
-  codexHandshakeState: CodexHandshakeState | null
 }
 
 // Emitter callback: main.ts passes win.webContents.send bound to the window.
@@ -107,27 +97,10 @@ function buildClaudeArgs(req: Extract<AgentRequest, { type: 'start' }>): string[
   return args
 }
 
-// Read the app version from package.json for the Codex initialize handshake.
-// Cached after first call.
-let _appVersion: string | undefined
-function readAppVersion(): string {
-  if (_appVersion) return _appVersion
-  try {
-    const req = createRequire(import.meta.url)
-    // Resolve package.json relative to the project root (two levels up from agent/).
-    const pkgPath = req.resolve('../../package.json')
-    const pkg = req(pkgPath) as { version?: string }
-    _appVersion = pkg.version ?? '0.0.0'
-  } catch {
-    _appVersion = '0.0.0'
-  }
-  return _appVersion
-}
-
-function buildCodexArgs(): string[] {
-  // Spawn the codex app-server in stdio mode.
-  // All configuration (model, prompt) is sent via JSON-RPC after spawn.
-  return ['app-server', '--listen', 'stdio://']
+function buildCodexArgs(req: Extract<AgentRequest, { type: 'start' }>): string[] {
+  // codex exec is non-interactive, one-shot per turn.
+  // Prompt is passed as a positional argument; no stdin writes needed.
+  return ['exec', '--json', req.prompt]
 }
 
 function flushDeltaBuffers(child: AgentChild, emit: EventEmitter): void {
@@ -217,7 +190,7 @@ export async function spawnAgent(
   }
 
   const binary = isCodex ? (bins.codex ?? 'codex') : bins.claude
-  const args = isCodex ? buildCodexArgs() : buildClaudeArgs(req)
+  const args = isCodex ? buildCodexArgs(req) : buildClaudeArgs(req)
 
   let proc: ChildProcess
   try {
@@ -253,29 +226,13 @@ export async function spawnAgent(
     pendingToolNames: new Map(),
     deltaBuffers: new Map(),
     flushTimer: null,
-    codexHandshakeState: isCodex ? 'init' : null,
   }
   agentChildren.set(req.sessionId, child)
 
-  // For Codex: send only the initialize message now.
-  // thread/start and turn/start are sent event-driven in the NDJSON onLine callback
-  // once we receive the responses that give us the real threadId.
+  // For Codex: prompt is passed as argv to `codex exec --json`.
+  // No stdin writes needed — leave stdin closed.
   if (isCodex && proc.stdin) {
-    const version = readAppVersion()
-    const initMsg =
-      JSON.stringify({
-        jsonrpc: '2.0',
-        id: 1,
-        method: 'initialize',
-        params: {
-          clientInfo: { name: 'marvin', title: 'Marvin', version },
-          // Empty object per JSON-RPC convention (null is not valid here).
-          capabilities: {},
-        },
-      }) + '\n'
-    proc.stdin.write(initMsg)
-    // stdin stays open — thread/start and turn/start follow event-driven below.
-    // It also remains open for future multi-turn input (#114).
+    proc.stdin.end()
   }
 
   let malformedCount = 0
@@ -284,62 +241,6 @@ export async function spawnAgent(
   const ndjson = new NdjsonStream(
     (obj) => {
       malformedCount = 0
-
-      // Codex event-driven handshake state machine.
-      // Intercept JSON-RPC responses/notifications to drive the three-step
-      // initialization sequence before handing off to the adapter.
-      if (isCodex && child.codexHandshakeState !== 'ready' && proc.stdin) {
-        const raw = obj as Record<string, unknown>
-
-        if (child.codexHandshakeState === 'init') {
-          // Waiting for the initialize response (id:1).
-          if ('id' in raw && raw.id === 1 && 'result' in raw) {
-            child.codexHandshakeState = 'thread'
-            const threadStartMsg =
-              JSON.stringify({
-                jsonrpc: '2.0',
-                id: 2,
-                method: 'thread/start',
-                params: {
-                  cwd: req.vaultRoot,
-                  model: req.model ?? null,
-                  approvalPolicy: 'auto-edit',
-                },
-              }) + '\n'
-            proc.stdin.write(threadStartMsg)
-            // The initialize response itself produces no AgentEvent; let adapter handle it.
-          }
-        } else if (child.codexHandshakeState === 'thread') {
-          // Waiting for thread/started notification to get the real threadId.
-          if (
-            'method' in raw &&
-            raw.method === 'thread/started' &&
-            raw.params &&
-            typeof raw.params === 'object'
-          ) {
-            const params = raw.params as Record<string, unknown>
-            const thread = params.thread as Record<string, unknown> | undefined
-            const threadId = thread?.id as string | undefined
-            if (threadId) {
-              child.codexHandshakeState = 'turn'
-              const turnStartMsg =
-                JSON.stringify({
-                  jsonrpc: '2.0',
-                  id: 3,
-                  method: 'turn/start',
-                  params: {
-                    threadId,
-                    input: [{ type: 'text', text: req.prompt, text_elements: [] }],
-                    cwd: req.vaultRoot,
-                    approvalPolicy: 'auto-edit',
-                  },
-                }) + '\n'
-              proc.stdin.write(turnStartMsg)
-              child.codexHandshakeState = 'ready'
-            }
-          }
-        }
-      }
 
       const events = isCodex
         ? adaptCodexObj(obj, adapterState as ReturnType<typeof makeCodexAdapterState>)
