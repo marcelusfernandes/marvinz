@@ -1,4 +1,9 @@
 import { contextBridge, ipcRenderer } from 'electron'
+import type {
+  ApprovalDecision,
+  AgentRequest,
+  AgentEvent,
+} from '../src/shared/agent-protocol.js'
 
 type FileNode = {
   name: string
@@ -15,31 +20,6 @@ type BrowserEvent =
   | { id: string; kind: 'load-error'; url: string; message: string }
 
 type FileChangeSource = 'agent' | 'external'
-
-// Agent types (mirrors electron/agent/protocol.ts — kept in sync manually to
-// avoid importing Node-only modules into the renderer context).
-type Provider = 'claude' | 'codex'
-type PermissionMode = 'default' | 'acceptEdits' | 'plan' | 'auto'
-type ApprovalDecision =
-  | { kind: 'allow'; remember?: 'session' | 'always' }
-  | { kind: 'deny'; reason?: string }
-
-type AgentRequest =
-  | { type: 'start'; sessionId: string; provider: Provider; prompt: string;
-      vaultRoot: string; resumeFromSessionId?: string; model?: string;
-      permissionMode: PermissionMode }
-  | { type: 'cancel'; sessionId: string }
-  | { type: 'kill'; sessionId: string }
-  | { type: 'approval'; sessionId: string; toolUseId: string; decision: ApprovalDecision }
-  | { type: 'input'; sessionId: string; content: string }
-  | { type: 'list-sessions'; vaultRoot: string }
-  | { type: 'load-session'; sessionId: string }
-
-type AgentEvent = {
-  type: string
-  sessionId: string
-  [key: string]: unknown
-}
 
 type Settings = {
   vaultPath?: string
