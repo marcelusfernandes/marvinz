@@ -81,6 +81,7 @@ function MessageRow({
           text={message.text}
           turnId={message.turnId}
           onRewind={onRewind}
+          sessionId={sessionId}
         />
       </li>
     )
