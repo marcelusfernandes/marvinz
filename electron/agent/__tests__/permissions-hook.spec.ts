@@ -115,8 +115,9 @@ describe('bridge script — unit', () => {
       )
       expect(exitCode).toBe(0)
       const parsed = JSON.parse(stdout.trim()) as {
-        hookSpecificOutput: { permissionDecision: string; permissionDecisionReason: string }
+        hookSpecificOutput: { hookEventName: string; permissionDecision: string; permissionDecisionReason: string }
       }
+      expect(parsed.hookSpecificOutput.hookEventName).toBe('PreToolUse')
       expect(parsed.hookSpecificOutput.permissionDecision).toBe('allow')
       expect(typeof parsed.hookSpecificOutput.permissionDecisionReason).toBe('string')
     } finally {
@@ -230,8 +231,9 @@ describe('bridge script — renderer decision round-trip', () => {
       const { exitCode, stdout } = await bridgePromise
       expect(exitCode).toBe(0)
       const parsed = JSON.parse(stdout.trim()) as {
-        hookSpecificOutput: { permissionDecision: string; permissionDecisionReason: string }
+        hookSpecificOutput: { hookEventName: string; permissionDecision: string; permissionDecisionReason: string }
       }
+      expect(parsed.hookSpecificOutput.hookEventName).toBe('PreToolUse')
       expect(parsed.hookSpecificOutput.permissionDecision).toBe('allow')
     } finally {
       await server.close()
