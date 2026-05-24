@@ -2282,8 +2282,7 @@ button {
 }
 
 .prop-pill-hash {
-  color: inherit;
-  font-weight: var(--font-weight-semibold);
+  color: var(--text-secondary);
   margin-right: 1px;
 }
 
