@@ -64,6 +64,13 @@ const RENDERER_DIST = path.join(process.env.APP_ROOT, 'dist')
 let win: BrowserWindow | null = null
 let vaultWatcher: FSWatcher | null = null
 let activeVaultPath: string | null = null
+
+// Push a tree-refresh signal to the renderer. Mutation handlers call this
+// after their op so the UI doesn't depend on chokidar/fsevents catching a
+// rapid unlink+add sequence (which it sometimes coalesces on macOS).
+const notifyTree = (): void => {
+  win?.webContents.send('vault:changed')
+}
 // Allowlist of vault paths that were opened via OS dialog (vault:pick) or loaded
 // from the persisted settings file. vault:watch only accepts paths in this set.
 const allowedVaultPaths = new Set<string>()
@@ -424,7 +431,6 @@ ipcMain.handle('vault:watch', async (_e, vaultPath: string) => {
     ignoreInitial: true,
     persistent: true,
   })
-  const notifyTree = () => win?.webContents.send('vault:changed')
   const notifyFile = (filePath: string, source: 'agent' | 'external') =>
     win?.webContents.send('file:changed', filePath, source)
 
@@ -543,6 +549,7 @@ ipcMain.handle('file:create', async (_e, parentDir: string, name: string) => {
   if (existsSync(safe)) throw new Error('File already exists')
   await fs.mkdir(path.dirname(safe), { recursive: true })
   await fs.writeFile(safe, '', 'utf8')
+  notifyTree()
   return safe
 })
 
@@ -551,6 +558,7 @@ ipcMain.handle('folder:create', async (_e, parentDir: string, name: string) => {
   const safe = await assertInVault(full)
   if (existsSync(safe)) throw new Error('Folder already exists')
   await fs.mkdir(safe, { recursive: false })
+  notifyTree()
   return safe
 })
 
@@ -756,12 +764,14 @@ ipcMain.handle('path:rename', async (_e, oldPath: string, newPath: string) => {
       console.error('[rewriteLinksAfterMove] failed', err)
     }
   }
+  notifyTree()
   return safeNew
 })
 
 ipcMain.handle('path:trash', async (_e, target: string) => {
   const safe = await assertInVault(target)
   await shell.trashItem(safe)
+  notifyTree()
 })
 
 ipcMain.handle('file:exportPdf', async (_e, filePath: string) => {
@@ -812,9 +822,11 @@ ipcMain.handle('file:exportPdf', async (_e, filePath: string) => {
   }
 })
 
-ipcMain.handle('fs:importExternal', (_e, sources: string[], destDir: string) => {
+ipcMain.handle('fs:importExternal', async (_e, sources: string[], destDir: string) => {
   if (!activeVaultPath) throw new Error('MARVIN_OUTSIDE_VAULT')
-  return importExternal(activeVaultPath, sources, destDir)
+  const result = await importExternal(activeVaultPath, sources, destDir)
+  notifyTree()
+  return result
 })
 
 ipcMain.handle('shell:reveal', async (_e, target: string) => {
@@ -1293,6 +1305,7 @@ ipcMain.handle('snapshot:restore', async (_e, turnId: unknown, relPath: unknown)
     // Invalidate cache so the next file:read picks up the restored content
     const absPath = path.join(vault, rel)
     fileContentCache.delete(absPath)
+    notifyTree()
     return ok({ preTurnId })
   } catch (e) {
     return err(e)
