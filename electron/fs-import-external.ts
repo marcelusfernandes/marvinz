@@ -1,7 +1,7 @@
 import path from 'node:path'
 import os from 'node:os'
 import { lstat, realpath, readdir, cp } from 'node:fs/promises'
-import { assertInsideVaultAsync } from './vault-boundary.js'
+import { assertCwdInsideVaultAsync } from './vault-boundary.js'
 import { resolveImportName } from './fs-import-names.js'
 
 type ImportResult = {
@@ -68,7 +68,7 @@ export async function importExternal(
   sources: string[],
   destDir: string,
 ): Promise<ImportResult> {
-  const safeDestDir = await assertInsideVaultAsync(activeVaultPath, destDir)
+  const safeDestDir = await assertCwdInsideVaultAsync(activeVaultPath, destDir)
 
   const entries = await readdir(safeDestDir)
   const namesSet = new Set(entries.map(n => n.normalize('NFC')))

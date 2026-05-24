@@ -51,6 +51,17 @@ describe('importExternal — simple file copy', () => {
     const content = await fs.readFile(dest, 'utf8')
     expect(content).toBe('# Hello')
   })
+
+  it('accepts destDir equal to vault root (drop on tree root)', async () => {
+    const src = path.join(outside, 'root-drop.md')
+    await fs.writeFile(src, '# Root', 'utf8')
+
+    const result = await importExternal(vault, [src], vault)
+
+    expect(result.skipped).toHaveLength(0)
+    expect(result.imported).toHaveLength(1)
+    expect(result.imported[0]).toBe(path.join(vault, 'root-drop.md'))
+  })
 })
 
 // ---------------------------------------------------------------------------

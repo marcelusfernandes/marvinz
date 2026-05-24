@@ -1246,6 +1246,36 @@ export default function App() {
     }
   }
 
+  const handleSidebarPaste = (e: React.ClipboardEvent<HTMLElement>) => {
+    if (!vaultPath) return
+    const target = e.target as HTMLElement
+    if (
+      target.tagName === 'INPUT' ||
+      target.tagName === 'TEXTAREA' ||
+      target.isContentEditable
+    ) {
+      return
+    }
+    const files = Array.from(e.clipboardData?.files ?? [])
+    if (files.length === 0) return
+    e.preventDefault()
+    const paths: string[] = []
+    for (const file of files) {
+      const p = window.marvin.fs.getPathForFile(file)
+      if (p) paths.push(p)
+    }
+    if (paths.length === 0) return
+    const destDir =
+      activeTab && isNoteTab(activeTab) ? dirOf(activeTab.path) : vaultPath
+    void window.marvin.fs
+      .importExternal(paths, destDir)
+      .then((result) => {
+        // TODO(#195): toast
+        console.log('paste import', result)
+      })
+      .catch((err) => console.error('import failed', err))
+  }
+
   const handleSidebarContextMenu = async (e: React.MouseEvent<HTMLElement>) => {
     if (!vaultPath) return
     const target = e.target as HTMLElement
@@ -1332,7 +1362,11 @@ export default function App() {
           } as React.CSSProperties
         }
       >
-      <aside className="sidebar" onContextMenu={handleSidebarContextMenu}>
+      <aside
+        className="sidebar"
+        onContextMenu={handleSidebarContextMenu}
+        onPaste={handleSidebarPaste}
+      >
         {visualStyle === 'modern' && (
           <div className="sidebar-search">
             <button

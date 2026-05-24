@@ -40,21 +40,41 @@ export function FileTree({
   const [rootHover, setRootHover] = useState(false)
 
   const handleRootDragOver = (e: React.DragEvent) => {
-    if (!e.dataTransfer.types.includes(DRAG_MIME)) return
+    const types = e.dataTransfer.types
+    const isInternal = types.includes(DRAG_MIME)
+    const isExternal = !isInternal && types.includes('Files')
+    if (!isInternal && !isExternal) return
     // Skip if we're already over a folder/file row (they handle their own drop).
     if ((e.target as HTMLElement).closest('.file-tree-row')) return
     e.preventDefault()
-    e.dataTransfer.dropEffect = 'move'
+    e.dataTransfer.dropEffect = isExternal ? 'copy' : 'move'
     setRootHover(true)
   }
 
   const handleRootDrop = (e: React.DragEvent) => {
+    // Always suppress Electron's default page-replace before any early return.
+    e.preventDefault()
     setRootHover(false)
     if ((e.target as HTMLElement).closest('.file-tree-row')) return
     const src = e.dataTransfer.getData(DRAG_MIME)
-    if (!src) return
-    e.preventDefault()
-    onMove(src, vaultPath)
+    if (src) {
+      onMove(src, vaultPath)
+      return
+    }
+    if (e.dataTransfer.files.length === 0) return
+    const paths: string[] = []
+    for (const file of Array.from(e.dataTransfer.files)) {
+      const p = window.marvin.fs.getPathForFile(file)
+      if (p) paths.push(p)
+    }
+    if (paths.length === 0) return
+    void window.marvin.fs
+      .importExternal(paths, vaultPath)
+      .then((result) => {
+        // TODO(#195): toast
+        console.log('drop import', result)
+      })
+      .catch((err) => console.error('import failed', err))
   }
 
   return (
@@ -114,20 +134,40 @@ function FileTreeNode({
 
   if (node.isDir) {
     const handleDragOver = (e: React.DragEvent) => {
-      if (!e.dataTransfer.types.includes(DRAG_MIME)) return
+      const types = e.dataTransfer.types
+      const isInternal = types.includes(DRAG_MIME)
+      const isExternal = !isInternal && types.includes('Files')
+      if (!isInternal && !isExternal) return
       e.preventDefault()
       e.stopPropagation()
-      e.dataTransfer.dropEffect = 'move'
+      e.dataTransfer.dropEffect = isExternal ? 'copy' : 'move'
       setHovered(true)
     }
     const handleDrop = (e: React.DragEvent) => {
-      setHovered(false)
-      const src = e.dataTransfer.getData(DRAG_MIME)
-      if (!src) return
+      // Always suppress Electron's default and stop bubbling before any early return.
       e.preventDefault()
       e.stopPropagation()
-      if (isDescendantOf(node.path, src)) return
-      onMove(src, node.path)
+      setHovered(false)
+      const src = e.dataTransfer.getData(DRAG_MIME)
+      if (src) {
+        if (isDescendantOf(node.path, src)) return
+        onMove(src, node.path)
+        return
+      }
+      if (e.dataTransfer.files.length === 0) return
+      const paths: string[] = []
+      for (const file of Array.from(e.dataTransfer.files)) {
+        const p = window.marvin.fs.getPathForFile(file)
+        if (p) paths.push(p)
+      }
+      if (paths.length === 0) return
+      void window.marvin.fs
+        .importExternal(paths, node.path)
+        .then((result) => {
+          // TODO(#195): toast
+          console.log('drop import', result)
+        })
+        .catch((err) => console.error('import failed', err))
     }
 
     return (
