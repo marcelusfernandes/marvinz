@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { FileNode, ImportExternalResult } from '../types'
 import { Icon } from './Icon'
 import { MaterialIcon } from './MaterialIcon'
@@ -9,17 +9,26 @@ export type ImportOutcome =
   | { ok: true; result: ImportExternalResult; destDir: string }
   | { ok: false; error: string }
 
+export type CreatingIn = { parentDir: string; kind: 'file' | 'folder' }
+
 type Props = {
   nodes: FileNode[]
   vaultPath: string
   selectedPath: string | null
+  selectedFolderPath?: string | null
   openPaths: Set<string>
+  creatingIn?: CreatingIn | null
   onToggleOpen: (path: string) => void
   onSelect: (node: FileNode) => void
+  onSelectFolder?: (path: string | null) => void
+  onCreatingInChange?: (value: CreatingIn | null) => void
   onContextMenu: (e: React.MouseEvent, node: FileNode) => void
   onMove: (srcPath: string, destDir: string) => void
   onImportResult?: (outcome: ImportOutcome) => void
 }
+
+const noopSelectFolder: (path: string | null) => void = () => {}
+const noopCreatingInChange: (value: CreatingIn | null) => void = () => {}
 
 const DRAG_MIME = 'application/x-marvin-path'
 
@@ -36,14 +45,26 @@ export function FileTree({
   nodes,
   vaultPath,
   selectedPath,
+  selectedFolderPath = null,
   openPaths,
+  creatingIn = null,
   onToggleOpen,
   onSelect,
+  onSelectFolder = noopSelectFolder,
+  onCreatingInChange = noopCreatingInChange,
   onContextMenu,
   onMove,
   onImportResult,
 }: Props) {
   const [rootHover, setRootHover] = useState(false)
+
+  // Auto-expand the parent folder when an inline create starts in a closed one.
+  useEffect(() => {
+    if (!creatingIn) return
+    if (creatingIn.parentDir === vaultPath) return
+    if (openPaths.has(creatingIn.parentDir)) return
+    onToggleOpen(creatingIn.parentDir)
+  }, [creatingIn, openPaths, vaultPath, onToggleOpen])
 
   const handleRootDragOver = (e: React.DragEvent) => {
     const types = e.dataTransfer.types
@@ -88,19 +109,34 @@ export function FileTree({
   return (
     <ul
       className={`file-tree${rootHover ? ' drop-root' : ''}`}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onSelectFolder(null)
+      }}
       onDragOver={handleRootDragOver}
       onDragLeave={() => setRootHover(false)}
       onDrop={handleRootDrop}
     >
+      {creatingIn && creatingIn.parentDir === vaultPath && (
+        <InlineCreateRow
+          depth={0}
+          kind={creatingIn.kind}
+          parentDir={creatingIn.parentDir}
+          onCreatingInChange={onCreatingInChange}
+        />
+      )}
       {nodes.map((node) => (
         <FileTreeNode
           key={node.path}
           node={node}
           depth={0}
           selectedPath={selectedPath}
+          selectedFolderPath={selectedFolderPath}
           openPaths={openPaths}
+          creatingIn={creatingIn}
           onToggleOpen={onToggleOpen}
           onSelect={onSelect}
+          onSelectFolder={onSelectFolder}
+          onCreatingInChange={onCreatingInChange}
           onContextMenu={onContextMenu}
           onMove={onMove}
           onImportResult={onImportResult}
@@ -114,9 +150,13 @@ function FileTreeNode({
   node,
   depth,
   selectedPath,
+  selectedFolderPath,
   openPaths,
+  creatingIn,
   onToggleOpen,
   onSelect,
+  onSelectFolder,
+  onCreatingInChange,
   onContextMenu,
   onMove,
   onImportResult,
@@ -124,9 +164,13 @@ function FileTreeNode({
   node: FileNode
   depth: number
   selectedPath: string | null
+  selectedFolderPath: string | null
   openPaths: Set<string>
+  creatingIn: CreatingIn | null
   onToggleOpen: (path: string) => void
   onSelect: (node: FileNode) => void
+  onSelectFolder: (path: string | null) => void
+  onCreatingInChange: (value: CreatingIn | null) => void
   onContextMenu: (e: React.MouseEvent, node: FileNode) => void
   onMove: (srcPath: string, destDir: string) => void
   onImportResult?: (outcome: ImportOutcome) => void
@@ -135,6 +179,7 @@ function FileTreeNode({
   const [hovered, setHovered] = useState(false)
   const iconTheme = useSetting('iconTheme') ?? 'codicon'
   const isSelected = selectedPath === node.path
+  const isFolderSelected = node.isDir && selectedFolderPath === node.path
   const padding = 8 + depth * 14
 
   const handleDragStart = (e: React.DragEvent) => {
@@ -183,18 +228,24 @@ function FileTreeNode({
         })
     }
 
+    const showInlineHere = creatingIn?.parentDir === node.path
+    const hasVisibleChildren = (node.children && node.children.length > 0) || showInlineHere
+
     return (
       <li>
         <button
           type="button"
-          className={`file-tree-row dir${hovered ? ' drop-target' : ''}`}
+          className={`file-tree-row dir${hovered ? ' drop-target' : ''}${isFolderSelected ? ' folder-selected' : ''}`}
           style={{ paddingLeft: padding }}
           draggable
           onDragStart={handleDragStart}
           onDragOver={handleDragOver}
           onDragLeave={() => setHovered(false)}
           onDrop={handleDrop}
-          onClick={() => onToggleOpen(node.path)}
+          onClick={() => {
+            onSelectFolder(node.path)
+            onToggleOpen(node.path)
+          }}
           onContextMenu={(e) => onContextMenu(e, node)}
         >
           <span className="chev">
@@ -215,17 +266,29 @@ function FileTreeNode({
           )}
           <span className="name">{node.name}</span>
         </button>
-        {open && node.children && node.children.length > 0 && (
+        {open && hasVisibleChildren && (
           <ul>
-            {node.children.map((child) => (
+            {showInlineHere && (
+              <InlineCreateRow
+                depth={depth + 1}
+                kind={creatingIn!.kind}
+                parentDir={node.path}
+                onCreatingInChange={onCreatingInChange}
+              />
+            )}
+            {node.children?.map((child) => (
               <FileTreeNode
                 key={child.path}
                 node={child}
                 depth={depth + 1}
                 selectedPath={selectedPath}
+                selectedFolderPath={selectedFolderPath}
                 openPaths={openPaths}
+                creatingIn={creatingIn}
                 onToggleOpen={onToggleOpen}
                 onSelect={onSelect}
+                onSelectFolder={onSelectFolder}
+                onCreatingInChange={onCreatingInChange}
                 onContextMenu={onContextMenu}
                 onMove={onMove}
                 onImportResult={onImportResult}
@@ -258,6 +321,94 @@ function FileTreeNode({
         )}
         <span className="name">{displayName}</span>
       </button>
+    </li>
+  )
+}
+
+function InlineCreateRow({
+  depth,
+  kind,
+  parentDir,
+  onCreatingInChange,
+}: {
+  depth: number
+  kind: 'file' | 'folder'
+  parentDir: string
+  onCreatingInChange: (value: CreatingIn | null) => void
+}) {
+  const [value, setValue] = useState('')
+  const [error, setError] = useState(false)
+  const submittingRef = useRef(false)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const padding = 8 + depth * 14 + (kind === 'file' ? 20 : 0)
+
+  useEffect(() => {
+    inputRef.current?.focus()
+  }, [])
+
+  const submit = async () => {
+    const trimmed = value.trim()
+    if (!trimmed) return
+    const finalName =
+      kind === 'file' && !/\.[^/]+$/.test(trimmed) ? `${trimmed}.md` : trimmed
+    submittingRef.current = true
+    try {
+      if (kind === 'file') {
+        await window.marvin.file.create(parentDir, finalName)
+      } else {
+        await window.marvin.folder.create(parentDir, finalName)
+      }
+      onCreatingInChange(null)
+    } catch {
+      setError(true)
+      submittingRef.current = false
+      inputRef.current?.focus()
+    }
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      void submit()
+    } else if (e.key === 'Escape') {
+      e.preventDefault()
+      onCreatingInChange(null)
+    }
+  }
+
+  const handleBlur = () => {
+    if (submittingRef.current) return
+    onCreatingInChange(null)
+  }
+
+  return (
+    <li
+      className={`file-tree-row inline-edit ${kind}`}
+      style={{ paddingLeft: padding }}
+    >
+      {kind === 'folder' ? (
+        <>
+          <span className="chev" />
+          <Icon name="folder" className="folder-icon" />
+        </>
+      ) : (
+        <Icon name="new-file" className="file-icon" />
+      )}
+      <input
+        ref={inputRef}
+        type="text"
+        className={error ? 'input-error' : undefined}
+        aria-label={`New ${kind} name`}
+        aria-invalid={error || undefined}
+        value={value}
+        autoFocus
+        onChange={(e) => {
+          setValue(e.target.value)
+          if (error) setError(false)
+        }}
+        onKeyDown={handleKeyDown}
+        onBlur={handleBlur}
+      />
     </li>
   )
 }

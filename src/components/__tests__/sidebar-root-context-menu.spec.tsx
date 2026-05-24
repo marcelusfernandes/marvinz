@@ -19,8 +19,16 @@ import { render, act } from '@testing-library/react'
 // Stub heavy components that App imports
 // ---------------------------------------------------------------------------
 
+let lastFileTreeProps: Record<string, unknown> = {}
 vi.mock('../FileTree', () => ({
-  FileTree: () => <div data-testid="file-tree"><div className="file-tree-row">row</div></div>,
+  FileTree: (props: Record<string, unknown>) => {
+    lastFileTreeProps = props
+    return (
+      <div data-testid="file-tree">
+        <div className="file-tree-row">row</div>
+      </div>
+    )
+  },
 }))
 vi.mock('../Editor', () => ({ Editor: () => null }))
 vi.mock('../FileTreeToolbar', () => ({ FileTreeToolbar: () => null }))
@@ -265,7 +273,7 @@ describe('Sidebar root — bails on file tree row clicks', () => {
 // ---------------------------------------------------------------------------
 
 describe('Sidebar root — new-file action', () => {
-  it('opens new note dialog when "new-file" action is returned', async () => {
+  it('starts inline file create at vault root when "new-file" action is returned', async () => {
     showContextMenuMock.mockResolvedValue('new-file')
     const { container } = await renderApp()
     await act(async () => {
@@ -274,9 +282,7 @@ describe('Sidebar root — new-file action', () => {
       )
       await new Promise((r) => setTimeout(r, 50))
     })
-    const dialog = container.querySelector('[data-testid="input-dialog"]')
-    expect(dialog).toBeInTheDocument()
-    expect((dialog as HTMLElement).dataset.title).toMatch(/new note/i)
+    expect(lastFileTreeProps.creatingIn).toEqual({ parentDir: '/vault', kind: 'file' })
   })
 })
 
@@ -285,7 +291,7 @@ describe('Sidebar root — new-file action', () => {
 // ---------------------------------------------------------------------------
 
 describe('Sidebar root — new-folder action', () => {
-  it('opens new folder dialog when "new-folder" action is returned', async () => {
+  it('starts inline folder create at vault root when "new-folder" action is returned', async () => {
     showContextMenuMock.mockResolvedValue('new-folder')
     const { container } = await renderApp()
     await act(async () => {
@@ -294,9 +300,7 @@ describe('Sidebar root — new-folder action', () => {
       )
       await new Promise((r) => setTimeout(r, 50))
     })
-    const dialog = container.querySelector('[data-testid="input-dialog"]')
-    expect(dialog).toBeInTheDocument()
-    expect((dialog as HTMLElement).dataset.title).toMatch(/new folder/i)
+    expect(lastFileTreeProps.creatingIn).toEqual({ parentDir: '/vault', kind: 'folder' })
   })
 })
 

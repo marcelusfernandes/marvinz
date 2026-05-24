@@ -20,7 +20,7 @@ import { TopBar } from './components/TopBar'
 import { SnapshotPanel } from './components/SnapshotPanel'
 import { SnapshotToast } from './components/SnapshotToast'
 import { ImportToast, type ImportToastState } from './components/ImportToast'
-import type { ImportOutcome } from './components/FileTree'
+import type { CreatingIn, ImportOutcome } from './components/FileTree'
 import { ExternalChangeBanner } from './components/ExternalChangeBanner'
 import type { PaletteItem } from './lib/paletteRanker'
 import { flattenTree } from './lib/paletteItems'
@@ -110,8 +110,6 @@ const isBrowserTab = (t: Tab): t is BrowserTabState => t.type === 'browser'
 const isImageTab = (t: Tab): t is ImageTab => t.type === 'image'
 
 type Dialog =
-  | { kind: 'newNote'; parentDir: string }
-  | { kind: 'newFolder'; parentDir: string }
   | { kind: 'rename'; target: string; isDir: boolean }
   | null
 
@@ -226,6 +224,8 @@ export default function App() {
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [openPaths, setOpenPaths] = useState<Set<string>>(() => new Set())
+  const [selectedFolderPath, setSelectedFolderPath] = useState<string | null>(null)
+  const [creatingIn, setCreatingIn] = useState<CreatingIn | null>(null)
   const [snapshotPanel, setSnapshotPanel] = useState<
     | {
         filePath: string
@@ -555,6 +555,8 @@ export default function App() {
     setTree([])
     setTabs([])
     setActiveTabId(null)
+    setSelectedFolderPath(null)
+    setCreatingIn(null)
     lastDiskContentRef.current.clear()
     bufferContentRef.current.clear()
     // The useEffect on `vaultPath` is the single trigger for loadTree —
@@ -1134,14 +1136,7 @@ export default function App() {
     const d = dialog
     setDialog(null)
     try {
-      if (d.kind === 'newNote') {
-        const newPath = await window.marvin.file.create(d.parentDir, name)
-        await loadTree(vaultPath)
-        await openInTab(newPath)
-      } else if (d.kind === 'newFolder') {
-        await window.marvin.folder.create(d.parentDir, name)
-        await loadTree(vaultPath)
-      } else if (d.kind === 'rename') {
+      if (d.kind === 'rename') {
         const newPath = `${dirOf(d.target)}/${name}`
         await window.marvin.path.rename(d.target, newPath)
         renameInTabs(d.target, newPath)
@@ -1213,10 +1208,10 @@ export default function App() {
     if (!action) return
     switch (action) {
       case 'new-note':
-        setDialog({ kind: 'newNote', parentDir: node.path })
+        setCreatingIn({ parentDir: node.path, kind: 'file' })
         break
       case 'new-folder':
-        setDialog({ kind: 'newFolder', parentDir: node.path })
+        setCreatingIn({ parentDir: node.path, kind: 'folder' })
         break
       case 'rename':
         setDialog({ kind: 'rename', target: node.path, isDir: node.isDir })
@@ -1330,10 +1325,10 @@ export default function App() {
     if (!action) return
     switch (action) {
       case 'new-file':
-        setDialog({ kind: 'newNote', parentDir: vaultPath })
+        setCreatingIn({ parentDir: vaultPath, kind: 'file' })
         break
       case 'new-folder':
-        setDialog({ kind: 'newFolder', parentDir: vaultPath })
+        setCreatingIn({ parentDir: vaultPath, kind: 'folder' })
         break
       case 'refresh':
         void loadTree(vaultPath)
@@ -1359,12 +1354,6 @@ export default function App() {
 
   const dialogConfig = (() => {
     if (!dialog) return null
-    if (dialog.kind === 'newNote') {
-      return { title: 'New note', placeholder: 'note-name', submit: 'Create', initial: '' }
-    }
-    if (dialog.kind === 'newFolder') {
-      return { title: 'New folder', placeholder: 'folder-name', submit: 'Create', initial: '' }
-    }
     return {
       title: dialog.isDir ? 'Rename folder' : 'Rename file',
       placeholder: '',
@@ -1428,8 +1417,12 @@ export default function App() {
           )}
           <FileTreeToolbar
             isAnyOpen={openPaths.size > 0}
-            onNewFile={() => setDialog({ kind: 'newNote', parentDir: vaultPath })}
-            onNewFolder={() => setDialog({ kind: 'newFolder', parentDir: vaultPath })}
+            onNewFile={() =>
+              setCreatingIn({ parentDir: selectedFolderPath ?? vaultPath, kind: 'file' })
+            }
+            onNewFolder={() =>
+              setCreatingIn({ parentDir: selectedFolderPath ?? vaultPath, kind: 'folder' })
+            }
             onRefresh={() => void loadTree(vaultPath)}
             onToggleAll={() =>
               setOpenPaths((prev) =>
@@ -1442,7 +1435,9 @@ export default function App() {
           nodes={tree}
           vaultPath={vaultPath}
           selectedPath={activeTab && isNoteTab(activeTab) ? activeTab.path : null}
+          selectedFolderPath={selectedFolderPath}
           openPaths={openPaths}
+          creatingIn={creatingIn}
           onToggleOpen={(p) =>
             setOpenPaths((prev) => {
               const next = new Set(prev)
@@ -1452,6 +1447,8 @@ export default function App() {
             })
           }
           onSelect={handleSelectFile}
+          onSelectFolder={setSelectedFolderPath}
+          onCreatingInChange={setCreatingIn}
           onContextMenu={handleNodeContextMenu}
           onMove={handleDropMove}
           onImportResult={handleImportResult}
