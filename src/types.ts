@@ -161,12 +161,28 @@ export type MarvinAPI = {
     importExternal: (sources: string[], destDir: string) => Promise<ImportExternalResult>
     getPathForFile: (file: File) => string
   }
+  search: {
+    content: (query: string) => Promise<SearchResult>
+  }
 }
 
 export type ImportExternalResult = {
   imported: string[]
   skipped: { source: string; reason: 'not-found' | 'denied' | 'fs-error' }[]
 }
+
+export type ContentHit = {
+  path: string
+  rel: string
+  name: string
+  line: number
+  lineText: string
+  matchRanges: Array<{ start: number; end: number }>
+}
+
+export type SearchResult =
+  | ContentHit[]
+  | { unavailable: true }
 
 declare global {
   interface Window {
