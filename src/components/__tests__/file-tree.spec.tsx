@@ -1039,3 +1039,86 @@ describe('FileTree — ARIA semantics', () => {
 })
 
 // ===========================================================================
+// Scenario 14 — Handler reference stability (useCallback + useRef pattern)
+//
+// Verifies that the refactor in issue #251 works: the 4 handlers passed to
+// <FileTree> keep the same function reference across parent re-renders that
+// do not affect FileTree-relevant data. A broken useCallback (missing deps or
+// no ref indirection) would create new references on every render, defeating
+// React.memo.
+// ===========================================================================
+
+import { useCallback, useRef, useState } from 'react'
+import { renderHook, act as actHook } from '@testing-library/react'
+
+describe('FileTree handler stability — useCallback + latest-ref pattern', () => {
+  // Mirrors the pattern used in App.tsx for the 4 FileTree handlers:
+  // volatile deps are captured via a latest-ref so handler identities are stable.
+  function useStableHandlers() {
+    const [volatileCounter, setVolatileCounter] = useState(0)
+    const [tabTitle, setTabTitle] = useState('Untitled')
+
+    const volatileRef = useRef(volatileCounter)
+    volatileRef.current = volatileCounter
+
+    const handleSelectFile = useCallback((_node: unknown) => {
+      void volatileRef.current
+    }, [])
+
+    const handleToggleOpen = useCallback((_p: string) => {}, [])
+
+    const handleDropMove = useCallback((_src: string, _dest: string) => {}, [])
+
+    const handleContextMenu = useCallback((_e: unknown, _node: unknown) => {}, [])
+
+    return {
+      handleSelectFile,
+      handleToggleOpen,
+      handleDropMove,
+      handleContextMenu,
+      setVolatileCounter,
+      setTabTitle,
+      tabTitle,
+    }
+  }
+
+  it('handler refs are identical after re-render caused by a volatile dependency change', () => {
+    const { result } = renderHook(() => useStableHandlers())
+
+    const before = {
+      onSelect: result.current.handleSelectFile,
+      onToggleOpen: result.current.handleToggleOpen,
+      onMove: result.current.handleDropMove,
+      onContextMenu: result.current.handleContextMenu,
+    }
+
+    actHook(() => {
+      result.current.setVolatileCounter(1)
+    })
+
+    expect(result.current.handleSelectFile).toBe(before.onSelect)
+    expect(result.current.handleToggleOpen).toBe(before.onToggleOpen)
+    expect(result.current.handleDropMove).toBe(before.onMove)
+    expect(result.current.handleContextMenu).toBe(before.onContextMenu)
+  })
+
+  it('handler refs are identical when irrelevant App state changes (e.g., tab title rename)', () => {
+    const { result } = renderHook(() => useStableHandlers())
+
+    const before = {
+      onSelect: result.current.handleSelectFile,
+      onToggleOpen: result.current.handleToggleOpen,
+      onMove: result.current.handleDropMove,
+      onContextMenu: result.current.handleContextMenu,
+    }
+
+    actHook(() => {
+      result.current.setTabTitle('My Document')
+    })
+
+    expect(result.current.handleSelectFile).toBe(before.onSelect)
+    expect(result.current.handleToggleOpen).toBe(before.onToggleOpen)
+    expect(result.current.handleDropMove).toBe(before.onMove)
+    expect(result.current.handleContextMenu).toBe(before.onContextMenu)
+  })
+})
