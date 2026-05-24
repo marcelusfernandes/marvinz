@@ -23,6 +23,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, act, cleanup } from '@testing-library/react'
 import { Profiler, useState } from 'react'
 import type { FileNode } from '../../types'
+import { setupVirtualizerMocks } from './_virtualizerSetup'
 
 // ---------------------------------------------------------------------------
 // Mocks — registered before any FileTree import
@@ -61,8 +62,11 @@ import { FileTree } from '../FileTree'
 // window.marvin stub
 // ---------------------------------------------------------------------------
 
+let restoreVirtualizer: () => void
+
 beforeEach(() => {
   mockIconTheme = 'codicon'
+  restoreVirtualizer = setupVirtualizerMocks()
   Object.assign(window, {
     marvin: {
       fs: {
@@ -78,6 +82,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup()
   vi.restoreAllMocks()
+  restoreVirtualizer()
 })
 
 // ---------------------------------------------------------------------------
