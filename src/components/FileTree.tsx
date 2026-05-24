@@ -57,6 +57,8 @@ export function FileTree({
   onImportResult,
 }: Props) {
   const [rootHover, setRootHover] = useState(false)
+  const [hoveredPath, setHoveredPath] = useState<string | null>(null)
+  const iconTheme = useSetting('iconTheme') ?? 'codicon'
 
   // Auto-expand the parent folder when an inline create starts in a closed one.
   useEffect(() => {
@@ -137,12 +139,15 @@ export function FileTree({
           selectedFolderPath={selectedFolderPath}
           openPaths={openPaths}
           creatingIn={creatingIn}
+          hoveredPath={hoveredPath}
+          iconTheme={iconTheme}
           onToggleOpen={onToggleOpen}
           onSelect={onSelect}
           onSelectFolder={onSelectFolder}
           onCreatingInChange={onCreatingInChange}
           onContextMenu={onContextMenu}
           onMove={onMove}
+          onHoverChange={setHoveredPath}
           onImportResult={onImportResult}
         />
       ))}
@@ -159,12 +164,15 @@ function FileTreeNode({
   selectedFolderPath,
   openPaths,
   creatingIn,
+  hoveredPath,
+  iconTheme,
   onToggleOpen,
   onSelect,
   onSelectFolder,
   onCreatingInChange,
   onContextMenu,
   onMove,
+  onHoverChange,
   onImportResult,
 }: {
   node: FileNode
@@ -175,17 +183,19 @@ function FileTreeNode({
   selectedFolderPath: string | null
   openPaths: Set<string>
   creatingIn: CreatingIn | null
+  hoveredPath: string | null
+  iconTheme: string
   onToggleOpen: (path: string) => void
   onSelect: (node: FileNode) => void
   onSelectFolder: (path: string | null) => void
   onCreatingInChange: (value: CreatingIn | null) => void
   onContextMenu: (e: React.MouseEvent, node: FileNode) => void
   onMove: (srcPath: string, destDir: string) => void
+  onHoverChange: (path: string | null) => void
   onImportResult?: (outcome: ImportOutcome) => void
 }) {
   const open = openPaths.has(node.path)
-  const [hovered, setHovered] = useState(false)
-  const iconTheme = useSetting('iconTheme') ?? 'codicon'
+  const hovered = hoveredPath === node.path
   const isSelected = selectedPath === node.path
   const isFolderSelected = node.isDir && selectedFolderPath === node.path
   const padding = 8 + depth * 14
@@ -205,13 +215,13 @@ function FileTreeNode({
       e.preventDefault()
       e.stopPropagation()
       e.dataTransfer.dropEffect = isExternal ? 'copy' : 'move'
-      setHovered(true)
+      onHoverChange(node.path)
     }
     const handleDrop = (e: React.DragEvent) => {
       // Always suppress Electron's default and stop bubbling before any early return.
       e.preventDefault()
       e.stopPropagation()
-      setHovered(false)
+      onHoverChange(null)
       const src = e.dataTransfer.getData(DRAG_MIME)
       if (src) {
         if (isDescendantOf(node.path, src)) return
@@ -255,7 +265,7 @@ function FileTreeNode({
           draggable
           onDragStart={handleDragStart}
           onDragOver={handleDragOver}
-          onDragLeave={() => setHovered(false)}
+          onDragLeave={() => onHoverChange(null)}
           onDrop={handleDrop}
           onClick={() => {
             onSelectFolder(node.path)
@@ -302,12 +312,15 @@ function FileTreeNode({
                 selectedFolderPath={selectedFolderPath}
                 openPaths={openPaths}
                 creatingIn={creatingIn}
+                hoveredPath={hoveredPath}
+                iconTheme={iconTheme}
                 onToggleOpen={onToggleOpen}
                 onSelect={onSelect}
                 onSelectFolder={onSelectFolder}
                 onCreatingInChange={onCreatingInChange}
                 onContextMenu={onContextMenu}
                 onMove={onMove}
+                onHoverChange={onHoverChange}
                 onImportResult={onImportResult}
               />
             ))}
