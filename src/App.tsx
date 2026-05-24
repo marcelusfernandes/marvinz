@@ -1605,6 +1605,7 @@ export default function App() {
           items={paletteItemsBase}
           onPick={handlePalettePick}
           onClose={() => setPaletteOpen(false)}
+          vaultPath={vaultPath ?? ''}
         />
       )}
 

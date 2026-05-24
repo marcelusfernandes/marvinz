@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
+import type { SearchResult } from './search-content.js'
 import type {
   ApprovalDecision,
   AgentRequest,
@@ -164,6 +165,10 @@ const api = {
       ipcRenderer.on('snapshot:turn-completed', listener)
       return () => ipcRenderer.removeListener('snapshot:turn-completed', listener)
     },
+  },
+  search: {
+    content: (query: string) =>
+      ipcRenderer.invoke('search:content', query) as Promise<SearchResult>,
   },
   pty: {
     spawn: (opts: {

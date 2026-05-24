@@ -28,6 +28,7 @@ import {
 } from './agent/index.js'
 import type { AgentRequest, AgentEvent } from './agent/protocol.js'
 import { importExternal } from './fs-import-external.js'
+import { searchContent } from './search-content.js'
 
 process.env.APP_ROOT = path.join(__dirname, '..')
 
@@ -830,6 +831,11 @@ ipcMain.handle('fs:importExternal', async (_e, sources: string[], destDir: strin
   const result = await importExternal(activeVaultPath, sources, destDir)
   notifyTree()
   return result
+})
+
+ipcMain.handle('search:content', async (_e, query: string) => {
+  if (!activeVaultPath) return []
+  return searchContent(activeVaultPath, query)
 })
 
 ipcMain.handle('shell:reveal', async (_e, target: string) => {
