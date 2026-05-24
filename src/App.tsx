@@ -23,6 +23,7 @@ import { ImportToast, type ImportToastState } from './components/ImportToast'
 import type { ImportOutcome } from './components/FileTree'
 import { ExternalChangeBanner } from './components/ExternalChangeBanner'
 import type { PaletteItem } from './lib/paletteRanker'
+import { flattenTree } from './lib/paletteItems'
 import type { LayoutMode } from './components/LayoutToggle'
 import './App.css'
 import './styles/legacy.css'
@@ -177,27 +178,6 @@ function collectDirPaths(nodes: FileNode[]): string[] {
     if (!n.isDir) return
     out.push(n.path)
     n.children?.forEach(walk)
-  }
-  nodes.forEach(walk)
-  return out
-}
-
-function flattenTree(nodes: FileNode[], vaultPath: string): PaletteItem[] {
-  const out: PaletteItem[] = []
-  const walk = (n: FileNode) => {
-    if (n.isDir) {
-      n.children?.forEach(walk)
-      return
-    }
-    const rel = n.path.startsWith(vaultPath + '/')
-      ? n.path.slice(vaultPath.length + 1)
-      : n.path
-    out.push({
-      path: n.path,
-      rel,
-      name: n.name,
-      isMarkdown: isMarkdownPath(n.name),
-    })
   }
   nodes.forEach(walk)
   return out
@@ -546,8 +526,12 @@ export default function App() {
     [readFreshContent],
   )
 
-  const paletteItems = useMemo<PaletteItem[]>(
+  const paletteItemsBase = useMemo<PaletteItem[]>(
     () => (vaultPath ? flattenTree(tree, vaultPath) : []),
+    [tree, vaultPath],
+  )
+  const paletteItemsWithMeta = useMemo<PaletteItem[]>(
+    () => (vaultPath ? flattenTree(tree, vaultPath, { includeClaudeDir: true }) : []),
     [tree, vaultPath],
   )
 
@@ -1546,7 +1530,7 @@ export default function App() {
                 initialContent={activeTab.content}
                 version={activeTab.version}
                 geometryKey={`${layoutMode}#${sidebarWidth}#${agentsWidth}`}
-                paletteItems={paletteItems}
+                paletteItems={paletteItemsWithMeta}
                 onSave={handleSave}
                 onBufferChange={(content) => handleBufferChange(activeTab.path, content)}
                 onNavigate={navigateOrOpen}
@@ -1618,7 +1602,7 @@ export default function App() {
 
       {paletteOpen && (
         <CommandPalette
-          items={paletteItems}
+          items={paletteItemsBase}
           onPick={handlePalettePick}
           onClose={() => setPaletteOpen(false)}
         />

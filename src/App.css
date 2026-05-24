@@ -2497,7 +2497,7 @@ button.prop-bool {
 /* === Milkdown live-preview surface === */
 
 .live-md {
-  font-size: 15px;
+  font-size: 14px;
   line-height: var(--line-height-loose);
   color: var(--text-primary);
 }
@@ -2666,7 +2666,7 @@ button.prop-bool {
   background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  width: 560px;
+  width: 640px;
   max-width: 90vw;
   display: flex;
   flex-direction: column;
@@ -2679,7 +2679,7 @@ button.prop-bool {
   border: none;
   border-bottom: 1px solid var(--border);
   padding: var(--space-3) var(--space-4);
-  font-size: var(--font-size-md);
+  font-size: var(--font-size-lg);
   color: var(--text-primary);
   font-family: inherit;
   outline: none;
