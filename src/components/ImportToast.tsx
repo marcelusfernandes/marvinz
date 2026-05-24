@@ -31,6 +31,7 @@ export function ImportToast({ state, message, onDismiss, autoDismissMs }: Props)
       role="status"
       aria-live="polite"
     >
+      <StatusDot state={state} />
       <span className="import-toast-text">{message}</span>
       <button
         type="button"
@@ -42,4 +43,8 @@ export function ImportToast({ state, message, onDismiss, autoDismissMs }: Props)
       </button>
     </div>
   )
+}
+
+function StatusDot({ state }: { state: ImportToastState }) {
+  return <span className={`import-toast-dot ${state}`} aria-hidden="true" />
 }

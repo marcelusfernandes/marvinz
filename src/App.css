@@ -3214,17 +3214,28 @@ button.prop-bool {
   animation: snapshot-toast-in var(--duration-normal) var(--ease-out);
 }
 
-.import-toast.success {
-  border-left: 3px solid var(--border-success);
-}
-
-.import-toast.partial {
-  border-left: 3px solid var(--border-warning);
-}
-
 .import-toast.error {
   background: var(--bg-error-subtle);
-  border-left: 3px solid var(--border-error);
+}
+
+.import-toast-dot {
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-pill);
+  background: var(--text-tertiary);
+}
+
+.import-toast-dot.success {
+  background: var(--border-success);
+}
+
+.import-toast-dot.partial {
+  background: var(--border-warning);
+}
+
+.import-toast-dot.error {
+  background: var(--border-error);
 }
 
 .import-toast-text {
