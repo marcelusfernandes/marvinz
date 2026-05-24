@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { setSetting, useSetting } from '../lib/settingsStore'
+import { CHAT_UI_ENABLED } from '../lib/featureFlags'
 import type { LayoutMode } from './LayoutToggle'
 
 type Props = {
@@ -165,28 +166,30 @@ export function SettingsModal({ onClose, layoutMode, onLayoutChange }: Props) {
           </div>
         </section>
 
-        <section className="modal-section">
-          <div className="modal-section-header">Advanced</div>
-          <div className="modal-section-row">
-            <div>
-              <div className="modal-section-label">Enable terminal mode</div>
-              <div className="modal-section-hint">
-                New agent tabs open the legacy PTY terminal instead of the native chat panel.
+        {CHAT_UI_ENABLED && (
+          <section className="modal-section">
+            <div className="modal-section-header">Advanced</div>
+            <div className="modal-section-row">
+              <div>
+                <div className="modal-section-label">Enable terminal mode</div>
+                <div className="modal-section-hint">
+                  New agent tabs open the legacy PTY terminal instead of the native chat panel.
+                </div>
               </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={terminalModeEnabled}
+                className={`segmented-btn${terminalModeEnabled ? ' active' : ''}`}
+                onClick={() =>
+                  void setSetting('terminalModeEnabled', !terminalModeEnabled)
+                }
+              >
+                {terminalModeEnabled ? 'On' : 'Off'}
+              </button>
             </div>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={terminalModeEnabled}
-              className={`segmented-btn${terminalModeEnabled ? ' active' : ''}`}
-              onClick={() =>
-                void setSetting('terminalModeEnabled', !terminalModeEnabled)
-              }
-            >
-              {terminalModeEnabled ? 'On' : 'Off'}
-            </button>
-          </div>
-        </section>
+          </section>
+        )}
 
         <div className="modal-actions">
           <button type="button" className="modal-btn ghost" onClick={onClose}>

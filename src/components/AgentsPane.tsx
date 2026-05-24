@@ -10,6 +10,7 @@ import {
   readTabLabels,
   writeTabLabels,
 } from '../lib/chat/tabLabels'
+import { CHAT_UI_ENABLED, resolveTabMode, type TabMode } from '../lib/featureFlags'
 import type { MenuItemSpec } from '../types'
 
 type Props = {
@@ -23,7 +24,6 @@ type Props = {
   onTurnSummary?: (summary: TurnSummary) => void
 }
 
-type TabMode = 'chat' | 'terminal'
 type AgentTab = {
   id: string
   agentId: string
@@ -154,9 +154,13 @@ export function AgentsPane({
       let num = 1
       while (used.has(num)) num++
       // Default to chat for native-chat-eligible providers unless the user
-      // opted into terminal mode.
-      const mode: TabMode =
-        !terminalModeDefault && isChatProvider(agentId) ? 'chat' : 'terminal'
+      // opted into terminal mode. Gated entirely off in release builds via
+      // CHAT_UI_ENABLED (see featureFlags.ts).
+      const mode: TabMode = resolveTabMode(
+        CHAT_UI_ENABLED,
+        terminalModeDefault,
+        isChatProvider(agentId),
+      )
       const tab: AgentTab = {
         id: `${agentId}-${ptySeq}`,
         agentId,
@@ -417,7 +421,7 @@ export function AgentsPane({
             const a = findAgent(t.agentId)
             if (!a) return null
             const isActive = activeId === t.id
-            if (t.mode === 'chat' && isChatProvider(t.agentId)) {
+            if (CHAT_UI_ENABLED && t.mode === 'chat' && isChatProvider(t.agentId)) {
               // Keep mounted but hidden when inactive so streaming state and
               // composer drafts survive tab switches.
               return (
