@@ -6,7 +6,9 @@ import {
 } from '../lib/paletteRanker'
 import { HighlightedMatch } from './HighlightedMatch'
 import { Icon } from './Icon'
+import { MaterialIcon } from './MaterialIcon'
 import { fileIconFor } from '../lib/fileIcons'
+import { useSetting } from '../lib/settingsStore'
 
 export type { PaletteItem }
 
@@ -21,6 +23,7 @@ export function CommandPalette({ items, onPick, onClose }: Props) {
   const [activeIdx, setActiveIdx] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
+  const iconTheme = useSetting('iconTheme') ?? 'codicon'
 
   const results = useMemo(() => rankPaletteItems(items, query), [items, query])
 
@@ -82,7 +85,11 @@ export function CommandPalette({ items, onPick, onClose }: Props) {
                 onMouseEnter={() => setActiveIdx(i)}
                 onClick={(e) => onPick(r.item, e.metaKey || e.ctrlKey)}
               >
-                <Icon name={fileIconFor(r.item.name)} className="palette-icon" size={14} />
+                {iconTheme === 'material' ? (
+                  <MaterialIcon name={r.item.name} isDir={false} className="material-file-icon" />
+                ) : (
+                  <Icon name={fileIconFor(r.item.name)} className="palette-icon" size={14} />
+                )}
                 <span className="palette-name">
                   <HighlightedMatch text={r.item.name} matches={r.nameMatches} />
                   {!r.item.isMarkdown && <span className="palette-ext-tag">file</span>}
