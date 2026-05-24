@@ -759,10 +759,27 @@ export default function App() {
     [activeTabId],
   )
 
-  const handleSelectFile = (node: FileNode) => {
+  // Latest-ref hub for handlers passed to FileTree. We capture volatile
+  // dependencies via refs so the handler identities can stay stable, which is
+  // what React.memo on FileTree relies on to skip re-renders.
+  const openInTabRef = useRef(openInTab)
+  useEffect(() => {
+    openInTabRef.current = openInTab
+  })
+
+  const handleSelectFile = useCallback((node: FileNode) => {
     if (node.isDir) return
-    void openInTab(node.path)
-  }
+    void openInTabRef.current(node.path)
+  }, [])
+
+  const handleToggleOpen = useCallback((p: string) => {
+    setOpenPaths((prev) => {
+      const next = new Set(prev)
+      if (next.has(p)) next.delete(p)
+      else next.add(p)
+      return next
+    })
+  }, [])
 
   // Path-field navigation. `replaceCurrent` swaps the active note tab's
   // content (preserving its history); falls back to opening a new tab when
@@ -1158,78 +1175,101 @@ export default function App() {
     }
   }
 
-  // Drag-and-drop: move src into destDir via rename.
-  const handleDropMove = async (srcPath: string, destDir: string) => {
-    if (!vaultPath) return
-    if (srcPath === destDir) return
-    if (destDir.startsWith(`${srcPath}/`) || destDir === srcPath) return // dest is descendant of src
-    const baseName = srcPath.split('/').pop() ?? srcPath
-    const newPath = `${destDir}/${baseName}`
-    if (newPath === srcPath) return // same parent
-    try {
-      await window.marvin.path.rename(srcPath, newPath)
-      renameInTabs(srcPath, newPath)
-      await loadTree(vaultPath)
-    } catch (err) {
-      reportError(err)
-    }
-  }
+  // Latest-ref hub for plain functions and volatile callbacks captured by
+  // FileTree handlers. Refs are reassigned after every render so the handlers
+  // below can read fresh values while keeping a stable identity for React.memo.
+  const renameInTabsRef = useRef(renameInTabs)
+  const reportErrorRef = useRef(reportError)
+  const openSnapshotPanelRef = useRef(openSnapshotPanel)
+  const handleTrashRef = useRef(handleTrash)
+  const vaultPathRef = useRef(vaultPath)
+  useEffect(() => {
+    renameInTabsRef.current = renameInTabs
+    reportErrorRef.current = reportError
+    openSnapshotPanelRef.current = openSnapshotPanel
+    handleTrashRef.current = handleTrash
+    vaultPathRef.current = vaultPath
+  })
 
-  const handleNodeContextMenu = async (e: React.MouseEvent, node: FileNode) => {
-    e.preventDefault()
-    e.stopPropagation()
-    const items: MenuItemSpec[] = []
-    if (node.isDir) {
+  // Drag-and-drop: move src into destDir via rename.
+  const handleDropMove = useCallback(
+    async (srcPath: string, destDir: string) => {
+      const vp = vaultPathRef.current
+      if (!vp) return
+      if (srcPath === destDir) return
+      if (destDir.startsWith(`${srcPath}/`) || destDir === srcPath) return // dest is descendant of src
+      const baseName = srcPath.split('/').pop() ?? srcPath
+      const newPath = `${destDir}/${baseName}`
+      if (newPath === srcPath) return // same parent
+      try {
+        await window.marvin.path.rename(srcPath, newPath)
+        renameInTabsRef.current(srcPath, newPath)
+        await loadTree(vp)
+      } catch (err) {
+        reportErrorRef.current(err)
+      }
+    },
+    [loadTree],
+  )
+
+  const handleNodeContextMenu = useCallback(
+    async (e: React.MouseEvent, node: FileNode) => {
+      e.preventDefault()
+      e.stopPropagation()
+      const items: MenuItemSpec[] = []
+      if (node.isDir) {
+        items.push(
+          { kind: 'item', id: 'new-note', label: 'New note here' },
+          { kind: 'item', id: 'new-folder', label: 'New folder here' },
+          { kind: 'separator' },
+        )
+      }
       items.push(
-        { kind: 'item', id: 'new-note', label: 'New note here' },
-        { kind: 'item', id: 'new-folder', label: 'New folder here' },
-        { kind: 'separator' },
+        { kind: 'item', id: 'rename', label: 'Rename' },
+        { kind: 'item', id: 'reveal', label: 'Reveal in Finder' },
       )
-    }
-    items.push(
-      { kind: 'item', id: 'rename', label: 'Rename' },
-      { kind: 'item', id: 'reveal', label: 'Reveal in Finder' },
-    )
-    if (!node.isDir) {
-      items.push({ kind: 'item', id: 'versions', label: 'View versions…' })
-    }
-    if (!node.isDir && node.path.endsWith('.md')) {
-      items.push({ kind: 'item', id: 'export-pdf', label: 'Export as PDF…' })
-    }
-    items.push(
-      { kind: 'separator' },
-      {
-        kind: 'item',
-        id: 'trash',
-        label: node.isDir ? 'Move folder to Trash' : 'Move file to Trash',
-      },
-    )
-    const action = await window.marvin.app.showContextMenu(items)
-    if (!action) return
-    switch (action) {
-      case 'new-note':
-        setCreatingIn({ parentDir: node.path, kind: 'file' })
-        break
-      case 'new-folder':
-        setCreatingIn({ parentDir: node.path, kind: 'folder' })
-        break
-      case 'rename':
-        setDialog({ kind: 'rename', target: node.path, isDir: node.isDir })
-        break
-      case 'reveal':
-        void window.marvin.shell.reveal(node.path)
-        break
-      case 'versions':
-        void openSnapshotPanel(node.path)
-        break
-      case 'export-pdf':
-        await window.marvin.file.exportPdf(node.path)
-        break
-      case 'trash':
-        await handleTrash(node.path)
-        break
-    }
-  }
+      if (!node.isDir) {
+        items.push({ kind: 'item', id: 'versions', label: 'View versions…' })
+      }
+      if (!node.isDir && node.path.endsWith('.md')) {
+        items.push({ kind: 'item', id: 'export-pdf', label: 'Export as PDF…' })
+      }
+      items.push(
+        { kind: 'separator' },
+        {
+          kind: 'item',
+          id: 'trash',
+          label: node.isDir ? 'Move folder to Trash' : 'Move file to Trash',
+        },
+      )
+      const action = await window.marvin.app.showContextMenu(items)
+      if (!action) return
+      switch (action) {
+        case 'new-note':
+          setCreatingIn({ parentDir: node.path, kind: 'file' })
+          break
+        case 'new-folder':
+          setCreatingIn({ parentDir: node.path, kind: 'folder' })
+          break
+        case 'rename':
+          setDialog({ kind: 'rename', target: node.path, isDir: node.isDir })
+          break
+        case 'reveal':
+          void window.marvin.shell.reveal(node.path)
+          break
+        case 'versions':
+          void openSnapshotPanelRef.current(node.path)
+          break
+        case 'export-pdf':
+          await window.marvin.file.exportPdf(node.path)
+          break
+        case 'trash':
+          await handleTrashRef.current(node.path)
+          break
+      }
+    },
+    [],
+  )
 
   const handleImportResult = useCallback(
     (outcome: ImportOutcome) => {
@@ -1438,14 +1478,7 @@ export default function App() {
           selectedFolderPath={selectedFolderPath}
           openPaths={openPaths}
           creatingIn={creatingIn}
-          onToggleOpen={(p) =>
-            setOpenPaths((prev) => {
-              const next = new Set(prev)
-              if (next.has(p)) next.delete(p)
-              else next.add(p)
-              return next
-            })
-          }
+          onToggleOpen={handleToggleOpen}
           onSelect={handleSelectFile}
           onSelectFolder={setSelectedFolderPath}
           onCreatingInChange={setCreatingIn}
