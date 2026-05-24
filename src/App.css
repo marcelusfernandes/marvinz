@@ -550,6 +550,7 @@ button {
   color: var(--text-primary);
   gap: var(--space-1);
   border-radius: var(--radius-md);
+  contain: layout style;
 }
 
 .file-tree-row:hover {
