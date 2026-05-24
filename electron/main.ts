@@ -367,7 +367,10 @@ type FileNode = {
   children?: FileNode[]
 }
 
-const NOISY_DIRS = new Set(['.git', 'node_modules', '.DS_Store', '.svn', '.hg', '.idea', '.marvin'])
+const NOISY_DIRS = new Set([
+  '.git', 'node_modules', '.DS_Store', '.svn', '.hg', '.idea', '.marvin',
+  '.next', 'dist', 'build', 'out', 'target', '.turbo', '.cache',
+])
 const NOISY_FILES = new Set(['.DS_Store', 'Thumbs.db'])
 
 function isNoisy(name: string, isDir: boolean): boolean {
