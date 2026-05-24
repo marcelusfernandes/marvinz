@@ -158,12 +158,14 @@ export type MarvinAPI = {
     canPaste: () => Promise<boolean>
   }
   fs: {
-    importExternal: (sources: string[], destDir: string) => Promise<{
-      imported: string[]
-      skipped: { source: string; reason: 'not-found' | 'denied' | 'fs-error' }[]
-    }>
+    importExternal: (sources: string[], destDir: string) => Promise<ImportExternalResult>
     getPathForFile: (file: File) => string
   }
+}
+
+export type ImportExternalResult = {
+  imported: string[]
+  skipped: { source: string; reason: 'not-found' | 'denied' | 'fs-error' }[]
 }
 
 declare global {

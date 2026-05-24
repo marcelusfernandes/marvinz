@@ -1,9 +1,13 @@
 import { useState } from 'react'
-import type { FileNode } from '../types'
+import type { FileNode, ImportExternalResult } from '../types'
 import { Icon } from './Icon'
 import { MaterialIcon } from './MaterialIcon'
 import { fileIconFor } from '../lib/fileIcons'
 import { useSetting } from '../lib/settingsStore'
+
+export type ImportOutcome =
+  | { ok: true; result: ImportExternalResult; destDir: string }
+  | { ok: false; error: string }
 
 type Props = {
   nodes: FileNode[]
@@ -14,6 +18,7 @@ type Props = {
   onSelect: (node: FileNode) => void
   onContextMenu: (e: React.MouseEvent, node: FileNode) => void
   onMove: (srcPath: string, destDir: string) => void
+  onImportResult?: (outcome: ImportOutcome) => void
 }
 
 const DRAG_MIME = 'application/x-marvin-path'
@@ -36,6 +41,7 @@ export function FileTree({
   onSelect,
   onContextMenu,
   onMove,
+  onImportResult,
 }: Props) {
   const [rootHover, setRootHover] = useState(false)
 
@@ -71,10 +77,12 @@ export function FileTree({
     void window.marvin.fs
       .importExternal(paths, vaultPath)
       .then((result) => {
-        // TODO(#195): toast
-        console.log('drop import', result)
+        onImportResult?.({ ok: true, result, destDir: vaultPath })
       })
-      .catch((err) => console.error('import failed', err))
+      .catch((err: unknown) => {
+        const message = err instanceof Error ? err.message : String(err)
+        onImportResult?.({ ok: false, error: message })
+      })
   }
 
   return (
@@ -95,6 +103,7 @@ export function FileTree({
           onSelect={onSelect}
           onContextMenu={onContextMenu}
           onMove={onMove}
+          onImportResult={onImportResult}
         />
       ))}
     </ul>
@@ -110,6 +119,7 @@ function FileTreeNode({
   onSelect,
   onContextMenu,
   onMove,
+  onImportResult,
 }: {
   node: FileNode
   depth: number
@@ -119,6 +129,7 @@ function FileTreeNode({
   onSelect: (node: FileNode) => void
   onContextMenu: (e: React.MouseEvent, node: FileNode) => void
   onMove: (srcPath: string, destDir: string) => void
+  onImportResult?: (outcome: ImportOutcome) => void
 }) {
   const open = openPaths.has(node.path)
   const [hovered, setHovered] = useState(false)
@@ -164,10 +175,12 @@ function FileTreeNode({
       void window.marvin.fs
         .importExternal(paths, node.path)
         .then((result) => {
-          // TODO(#195): toast
-          console.log('drop import', result)
+          onImportResult?.({ ok: true, result, destDir: node.path })
         })
-        .catch((err) => console.error('import failed', err))
+        .catch((err: unknown) => {
+          const message = err instanceof Error ? err.message : String(err)
+          onImportResult?.({ ok: false, error: message })
+        })
     }
 
     return (
@@ -215,6 +228,7 @@ function FileTreeNode({
                 onSelect={onSelect}
                 onContextMenu={onContextMenu}
                 onMove={onMove}
+                onImportResult={onImportResult}
               />
             ))}
           </ul>

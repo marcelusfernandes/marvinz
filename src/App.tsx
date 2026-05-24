@@ -19,6 +19,8 @@ import { useVisualStyle } from './lib/visualStyle'
 import { TopBar } from './components/TopBar'
 import { SnapshotPanel } from './components/SnapshotPanel'
 import { SnapshotToast } from './components/SnapshotToast'
+import { ImportToast, type ImportToastState } from './components/ImportToast'
+import type { ImportOutcome } from './components/FileTree'
 import { ExternalChangeBanner } from './components/ExternalChangeBanner'
 import type { PaletteItem } from './lib/paletteRanker'
 import type { LayoutMode } from './components/LayoutToggle'
@@ -257,6 +259,10 @@ export default function App() {
   const [externalToast, setExternalToast] = useState<{
     filePath: string
     source: FileChangeSource
+  } | null>(null)
+  const [importToast, setImportToast] = useState<{
+    state: ImportToastState
+    message: string
   } | null>(null)
   const [layoutMode, setLayoutModeState] = useState<LayoutMode>(() => readStoredLayout())
   const [urlBarFocusTick, setUrlBarFocusTick] = useState(0)
@@ -1246,6 +1252,45 @@ export default function App() {
     }
   }
 
+  const handleImportResult = useCallback(
+    (outcome: ImportOutcome) => {
+      if (!outcome.ok) {
+        setImportToast({ state: 'error', message: `Import failed: ${outcome.error}` })
+        return
+      }
+      const { imported, skipped } = outcome.result
+      if (imported.length === 0 && skipped.length === 0) return
+      let relDest = outcome.destDir
+      if (vaultPath) {
+        if (outcome.destDir === vaultPath) relDest = '/'
+        else if (outcome.destDir.startsWith(vaultPath + '/'))
+          relDest = outcome.destDir.slice(vaultPath.length)
+      }
+      const fileWord = (n: number) => (n === 1 ? 'file' : 'files')
+      if (imported.length === 0) {
+        const reason = skipped[0]?.reason ?? 'unknown'
+        setImportToast({
+          state: 'error',
+          message: `Import failed: ${skipped.length} ${fileWord(skipped.length)} skipped (${reason}).`,
+        })
+        return
+      }
+      if (skipped.length > 0) {
+        const reason = skipped[0]?.reason ?? 'unknown'
+        setImportToast({
+          state: 'partial',
+          message: `Imported ${imported.length} of ${imported.length + skipped.length} files. ${skipped.length} skipped (${reason}).`,
+        })
+        return
+      }
+      setImportToast({
+        state: 'success',
+        message: `Imported ${imported.length} ${fileWord(imported.length)} to ${relDest}`,
+      })
+    },
+    [vaultPath],
+  )
+
   const handleSidebarPaste = (e: React.ClipboardEvent<HTMLElement>) => {
     if (!vaultPath) return
     const target = e.target as HTMLElement
@@ -1270,10 +1315,12 @@ export default function App() {
     void window.marvin.fs
       .importExternal(paths, destDir)
       .then((result) => {
-        // TODO(#195): toast
-        console.log('paste import', result)
+        handleImportResult({ ok: true, result, destDir })
       })
-      .catch((err) => console.error('import failed', err))
+      .catch((err: unknown) => {
+        const message = err instanceof Error ? err.message : String(err)
+        handleImportResult({ ok: false, error: message })
+      })
   }
 
   const handleSidebarContextMenu = async (e: React.MouseEvent<HTMLElement>) => {
@@ -1423,6 +1470,7 @@ export default function App() {
           onSelect={handleSelectFile}
           onContextMenu={handleNodeContextMenu}
           onMove={handleDropMove}
+          onImportResult={handleImportResult}
         />
         <div className="sidebar-footer">
           {visualStyle === 'legacy' ? (
@@ -1622,6 +1670,14 @@ export default function App() {
             setExternalToast(null)
           }}
           onDismiss={() => setExternalToast(null)}
+        />
+      )}
+
+      {importToast && (
+        <ImportToast
+          state={importToast.state}
+          message={importToast.message}
+          onDismiss={() => setImportToast(null)}
         />
       )}
       </div>
