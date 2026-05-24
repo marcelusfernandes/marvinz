@@ -2769,6 +2769,14 @@ button.prop-bool {
   font-size: 13px;
 }
 
+.palette-section-header {
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: var(--space-2) var(--space-3) var(--space-1);
+}
+
 .palette-footer {
   display: flex;
   flex-wrap: wrap;
