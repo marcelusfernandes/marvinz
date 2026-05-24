@@ -36,6 +36,8 @@ const noopCreatingInChange: (value: CreatingIn | null) => void = () => {}
 const DRAG_MIME = 'application/x-marvin-path'
 const ROW_HEIGHT = 28
 const OVERSCAN = 10
+const EDGE_ZONE = 50
+const SCROLL_SPEED = 12
 
 // Discriminated row used by the virtualizer: a real tree node OR the inline
 // create input. The create row is injected into the flat list so the virtualizer
@@ -124,6 +126,67 @@ export function FileTree({
     overscan: OVERSCAN,
   })
 
+  // Auto-scroll on drag-near-edge state. rafIdRef holds the pending frame id
+  // (null when no frame is scheduled). scrollDeltaRef is the per-frame pixel
+  // delta (negative=up, positive=down, 0=cursor outside edge zones).
+  const rafIdRef = useRef<number | null>(null)
+  const scrollDeltaRef = useRef(0)
+
+  const cancelAutoScroll = () => {
+    if (rafIdRef.current !== null) {
+      cancelAnimationFrame(rafIdRef.current)
+      rafIdRef.current = null
+    }
+    scrollDeltaRef.current = 0
+  }
+
+  const tickAutoScroll = () => {
+    rafIdRef.current = null
+    const el = scrollRef.current
+    const delta = scrollDeltaRef.current
+    if (!el || delta === 0) return
+    el.scrollTop += delta
+  }
+
+  const maybeAutoScroll = (clientY: number) => {
+    const el = scrollRef.current
+    if (!el) return
+    const rect = el.getBoundingClientRect()
+    const distFromTop = clientY - rect.top
+    const distFromBottom = rect.bottom - clientY
+    let delta = 0
+    if (distFromTop >= 0 && distFromTop < EDGE_ZONE) {
+      delta = -SCROLL_SPEED
+    } else if (distFromBottom >= 0 && distFromBottom < EDGE_ZONE) {
+      delta = SCROLL_SPEED
+    }
+    scrollDeltaRef.current = delta
+    if (delta !== 0 && rafIdRef.current === null) {
+      rafIdRef.current = requestAnimationFrame(tickAutoScroll)
+    }
+  }
+
+  // Capture-phase listener so we still see dragover events even when child
+  // rows call stopPropagation in their bubble-phase onDragOver handlers.
+  const handleRootDragOverCapture = (e: React.DragEvent) => {
+    const types = e.dataTransfer.types
+    if (!types.includes(DRAG_MIME) && !types.includes('Files')) return
+    maybeAutoScroll(e.clientY)
+  }
+
+  // Cancel auto-scroll on any drag termination signal. dragend on the source
+  // element doesn't necessarily bubble here, so we also listen on window.
+  useEffect(() => {
+    const onDragEnd = () => cancelAutoScroll()
+    window.addEventListener('dragend', onDragEnd)
+    window.addEventListener('drop', onDragEnd)
+    return () => {
+      window.removeEventListener('dragend', onDragEnd)
+      window.removeEventListener('drop', onDragEnd)
+      cancelAutoScroll()
+    }
+  }, [])
+
   const handleRootDragOver = (e: React.DragEvent) => {
     const types = e.dataTransfer.types
     const isInternal = types.includes(DRAG_MIME)
@@ -140,6 +203,7 @@ export function FileTree({
     // Always suppress Electron's default page-replace before any early return.
     e.preventDefault()
     setRootHover(false)
+    cancelAutoScroll()
     if ((e.target as HTMLElement).closest('.file-tree-row')) return
     const src = e.dataTransfer.getData(DRAG_MIME)
     if (src) {
@@ -176,8 +240,17 @@ export function FileTree({
       onClick={(e) => {
         if (e.target === e.currentTarget) onSelectFolder(null)
       }}
+      onDragOverCapture={handleRootDragOverCapture}
       onDragOver={handleRootDragOver}
-      onDragLeave={() => setRootHover(false)}
+      onDragLeave={(e) => {
+        setRootHover(false)
+        // Only cancel auto-scroll when the cursor actually leaves the tree
+        // container (relatedTarget is null or outside scrollRef).
+        const related = e.relatedTarget as Node | null
+        if (!related || !scrollRef.current?.contains(related)) {
+          cancelAutoScroll()
+        }
+      }}
       onDrop={handleRootDrop}
     >
       <div

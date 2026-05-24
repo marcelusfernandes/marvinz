@@ -1262,3 +1262,126 @@ describe('FileTree — iconTheme lift (single useSetting call at root)', () => {
     expect(container.querySelectorAll('span[data-testid^="icon-"]').length).toBeGreaterThan(0)
   })
 })
+
+// ===========================================================================
+// Drag and drop — auto-scroll
+// ===========================================================================
+//
+// The file tree uses onDragOverCapture to detect drag proximity to the top or
+// bottom edge (EDGE_ZONE = 50px) and schedules a requestAnimationFrame loop
+// that adjusts scrollRef.current.scrollTop each frame.
+//
+// Key testing constraints:
+// - fireEvent.dragOver does not trigger React's capture-phase handler in jsdom.
+//   We must use ul.dispatchEvent(new Event('dragover', { bubbles: true })) so
+//   the native event propagates through capture before React's synthetic one.
+// - getBoundingClientRect must be set as a direct method assignment on the
+//   element instance (not Object.defineProperty) to override the prototype shim
+//   installed by _virtualizerSetup.
+// - rAF callbacks are collected and flushed manually so we control timing.
+// ===========================================================================
+
+describe('Drag and drop — auto-scroll', () => {
+  const VIEWPORT_HEIGHT = 600 // matches setupVirtualizerMocks default
+  const EDGE_ZONE = 50
+
+  function makeDragEvent(clientY: number): Event {
+    const dt = {
+      types: [DRAG_MIME],
+      dropEffect: '',
+      effectAllowed: '',
+      getData: () => '',
+      setData: vi.fn(),
+      files: [],
+    }
+    const event = new MouseEvent('dragover', { bubbles: true, cancelable: true, clientY })
+    Object.defineProperty(event, 'dataTransfer', { value: dt })
+    return event
+  }
+
+  function setupScrollEl(ul: HTMLElement, initialScrollTop = 0) {
+    // Override getBoundingClientRect as a direct method so it takes precedence
+    // over the HTMLElement.prototype shim from _virtualizerSetup.
+    ul.getBoundingClientRect = () =>
+      ({ top: 0, bottom: VIEWPORT_HEIGHT, left: 0, right: 0, width: 0, height: VIEWPORT_HEIGHT, x: 0, y: 0, toJSON: () => ({}) } as DOMRect)
+
+    let scrollTop = initialScrollTop
+    Object.defineProperty(ul, 'scrollTop', {
+      configurable: true,
+      get: () => scrollTop,
+      set: (v: number) => { scrollTop = v },
+    })
+    return { getScrollTop: () => scrollTop }
+  }
+
+  it('decrements scrollTop when clientY is within EDGE_ZONE of the top', () => {
+    const rafQueue: FrameRequestCallback[] = []
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
+      rafQueue.push(cb)
+      return rafQueue.length
+    })
+
+    const { container } = render(<FileTree {...baseProps()} />)
+    const ul = container.querySelector('ul.file-tree')!
+    const { getScrollTop } = setupScrollEl(ul, 200)
+
+    // clientY = 30 → within top EDGE_ZONE (distFromTop = 30 < 50)
+    ul.dispatchEvent(makeDragEvent(30))
+    expect(rafQueue).toHaveLength(1)
+
+    rafQueue.forEach(cb => cb(0))
+    expect(getScrollTop()).toBeLessThan(200)
+  })
+
+  it('increments scrollTop when clientY is within EDGE_ZONE of the bottom', () => {
+    const rafQueue: FrameRequestCallback[] = []
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
+      rafQueue.push(cb)
+      return rafQueue.length
+    })
+
+    const { container } = render(<FileTree {...baseProps()} />)
+    const ul = container.querySelector('ul.file-tree')!
+    const { getScrollTop } = setupScrollEl(ul, 0)
+
+    // clientY = 570 → within bottom EDGE_ZONE (distFromBottom = 30 < 50)
+    ul.dispatchEvent(makeDragEvent(VIEWPORT_HEIGHT - EDGE_ZONE + 20))
+    expect(rafQueue).toHaveLength(1)
+
+    rafQueue.forEach(cb => cb(0))
+    expect(getScrollTop()).toBeGreaterThan(0)
+  })
+
+  it('does not schedule rAF when clientY is in the middle of the container', () => {
+    const rafQueue: FrameRequestCallback[] = []
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
+      rafQueue.push(cb)
+      return rafQueue.length
+    })
+
+    const { container } = render(<FileTree {...baseProps()} />)
+    const ul = container.querySelector('ul.file-tree')!
+    setupScrollEl(ul, 100)
+
+    // clientY = 300 → middle, outside both edge zones
+    ul.dispatchEvent(makeDragEvent(300))
+    expect(rafQueue).toHaveLength(0)
+  })
+
+  it('cancels the rAF loop when dragend fires on window', () => {
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation(() => 99)
+    const cafSpy = vi.spyOn(window, 'cancelAnimationFrame')
+
+    const { container } = render(<FileTree {...baseProps()} />)
+    const ul = container.querySelector('ul.file-tree')!
+    setupScrollEl(ul, 0)
+
+    // Schedule a frame by dragging near the top edge
+    ul.dispatchEvent(makeDragEvent(20))
+
+    // Simulate drag termination via window event (matches the useEffect listener)
+    window.dispatchEvent(new Event('dragend'))
+
+    expect(cafSpy).toHaveBeenCalledWith(99)
+  })
+})
