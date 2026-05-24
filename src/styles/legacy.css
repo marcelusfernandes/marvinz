@@ -542,8 +542,7 @@
 }
 
 [data-style='legacy'] .prop-pill-hash {
-  color: var(--accent);
-  font-weight: 600;
+  color: var(--text-secondary);
 }
 
 [data-style='legacy'] .prop-row .prop-remove {
