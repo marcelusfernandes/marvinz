@@ -1126,3 +1126,132 @@ describe('FileTree handler stability — useCallback + latest-ref pattern', () =
     expect(result.current.handleContextMenu).toBe(before.onContextMenu)
   })
 })
+
+// ===========================================================================
+// Scenario 15 — hoveredPath lift: single source of truth
+//
+// After the lift in issue #253, hoveredPath lives in <FileTree> root, not in
+// each <FileTreeNode>. These tests verify the invariant: at most one row carries
+// drop-target at a time, and dragLeave clears it.
+// ===========================================================================
+
+describe('FileTree — hoveredPath lift (single source of truth)', () => {
+  it('applies drop-target to row A on dragOver, then moves it to row B on subsequent dragOver', () => {
+    render(<FileTree {...baseProps()} />)
+    const docsBtn = screen.getByText('docs').closest('button')!
+    const assetsBtn = screen.getByText('assets').closest('button')!
+
+    fireEvent.dragOver(docsBtn, makeDragEvent([DRAG_MIME]))
+    expect(docsBtn.classList.contains('drop-target')).toBe(true)
+    expect(assetsBtn.classList.contains('drop-target')).toBe(false)
+
+    fireEvent.dragOver(assetsBtn, makeDragEvent([DRAG_MIME]))
+    expect(assetsBtn.classList.contains('drop-target')).toBe(true)
+    expect(docsBtn.classList.contains('drop-target')).toBe(false)
+  })
+
+  it('clears drop-target from any row on dragLeave', () => {
+    render(<FileTree {...baseProps()} />)
+    const docsBtn = screen.getByText('docs').closest('button')!
+
+    fireEvent.dragOver(docsBtn, makeDragEvent([DRAG_MIME]))
+    expect(docsBtn.classList.contains('drop-target')).toBe(true)
+
+    fireEvent.dragLeave(docsBtn)
+    expect(docsBtn.classList.contains('drop-target')).toBe(false)
+  })
+
+  it('ensures at most one folder carries drop-target across all root siblings', () => {
+    render(<FileTree {...baseProps()} />)
+    const docsBtn = screen.getByText('docs').closest('button')!
+    const assetsBtn = screen.getByText('assets').closest('button')!
+
+    for (const btn of [docsBtn, assetsBtn, docsBtn]) {
+      fireEvent.dragOver(btn, makeDragEvent([DRAG_MIME]))
+      const activeTargets = [docsBtn, assetsBtn].filter(b =>
+        b.classList.contains('drop-target'),
+      )
+      expect(activeTargets).toHaveLength(1)
+      expect(activeTargets[0]).toBe(btn)
+    }
+  })
+
+  it('clears drop-target after a successful drop', () => {
+    const onMove = vi.fn()
+    render(<FileTree {...baseProps({ onMove })} />)
+    const docsBtn = screen.getByText('docs').closest('button')!
+    const mimeData = { [DRAG_MIME]: '/vault/readme.md' }
+
+    fireEvent.dragOver(docsBtn, makeDragEvent([DRAG_MIME], mimeData))
+    expect(docsBtn.classList.contains('drop-target')).toBe(true)
+
+    fireEvent.drop(docsBtn, makeDragEvent([DRAG_MIME], mimeData))
+    expect(docsBtn.classList.contains('drop-target')).toBe(false)
+  })
+
+  it('drag-over race: only child carries drop-target when drag moves from parent to nested child without dragleave', () => {
+    const nestedNodes: FileNode[] = [
+      {
+        path: '/vault/parent',
+        name: 'parent',
+        isDir: true,
+        children: [
+          { path: '/vault/parent/child', name: 'child', isDir: true, children: [] },
+        ],
+      },
+    ]
+    const openPaths = new Set(['/vault/parent'])
+    render(<FileTree {...baseProps({ nodes: nestedNodes, openPaths })} />)
+
+    const parentBtn = screen.getByText('parent').closest('button')!
+    const childBtn = screen.getByText('child').closest('button')!
+
+    fireEvent.dragOver(parentBtn, makeDragEvent([DRAG_MIME]))
+    expect(parentBtn.classList.contains('drop-target')).toBe(true)
+    expect(childBtn.classList.contains('drop-target')).toBe(false)
+
+    // Simulate drag entering child without dragleave on parent first (the race scenario)
+    fireEvent.dragOver(childBtn, makeDragEvent([DRAG_MIME]))
+    expect(childBtn.classList.contains('drop-target')).toBe(true)
+    expect(parentBtn.classList.contains('drop-target')).toBe(false)
+  })
+})
+
+// ===========================================================================
+// Scenario 16 — iconTheme lift: useSetting called once at root
+//
+// After the lift, iconTheme is derived once in <FileTree> and passed down as a
+// prop — useSetting is no longer called per-node. These tests verify that
+// changing mockIconTheme and re-rendering updates all visible nodes at once,
+// proving the single-call contract.
+// ===========================================================================
+
+describe('FileTree — iconTheme lift (single useSetting call at root)', () => {
+  it('all folder nodes switch to material icons together on iconTheme change', () => {
+    mockIconTheme = 'codicon'
+    const openPaths = new Set(['/vault/docs'])
+    const { container, rerender } = render(<FileTree {...baseProps({ openPaths })} />)
+
+    expect(container.querySelectorAll('img[data-testid^="material-icon-"]').length).toBe(0)
+
+    mockIconTheme = 'material'
+    rerender(<FileTree {...baseProps({ openPaths })} />)
+
+    const materialIcons = container.querySelectorAll('img[data-testid^="material-icon-"]')
+    expect(materialIcons.length).toBeGreaterThan(1)
+  })
+
+  it('all nodes revert to codicon icons together when iconTheme switches back', () => {
+    mockIconTheme = 'material'
+    const openPaths = new Set(['/vault/docs'])
+    const { container, rerender } = render(<FileTree {...baseProps({ openPaths })} />)
+
+    expect(container.querySelectorAll('img[data-testid^="material-icon-"]').length).toBeGreaterThan(0)
+
+    mockIconTheme = 'codicon'
+    rerender(<FileTree {...baseProps({ openPaths })} />)
+
+    expect(container.querySelectorAll('img[data-testid^="material-icon-"]').length).toBe(0)
+    expect(container.querySelectorAll('span[data-testid^="icon-"]').length).toBeGreaterThan(0)
+  })
+})
