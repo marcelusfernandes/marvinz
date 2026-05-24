@@ -2713,6 +2713,12 @@ button.prop-bool {
   color: var(--text-tertiary);
 }
 
+.palette-row .material-file-icon {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+}
+
 .palette-row.active .palette-icon {
   color: var(--text-secondary);
 }

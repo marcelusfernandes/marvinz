@@ -86,7 +86,7 @@ export function CommandPalette({ items, onPick, onClose }: Props) {
                 onClick={(e) => onPick(r.item, e.metaKey || e.ctrlKey)}
               >
                 {iconTheme === 'material' ? (
-                  <MaterialIcon name={r.item.name} isDir={false} className="palette-icon" />
+                  <MaterialIcon name={r.item.name} isDir={false} className="material-file-icon" />
                 ) : (
                   <Icon name={fileIconFor(r.item.name)} className="palette-icon" size={14} />
                 )}
