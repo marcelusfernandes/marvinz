@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { memo, useEffect, useRef, useState } from 'react'
 import type { FileNode, ImportExternalResult } from '../types'
 import { Icon } from './Icon'
 import { MaterialIcon } from './MaterialIcon'
@@ -155,26 +155,7 @@ export function FileTree({
   )
 }
 
-function FileTreeNode({
-  node,
-  depth,
-  posinset,
-  setsize,
-  selectedPath,
-  selectedFolderPath,
-  openPaths,
-  creatingIn,
-  hoveredPath,
-  iconTheme,
-  onToggleOpen,
-  onSelect,
-  onSelectFolder,
-  onCreatingInChange,
-  onContextMenu,
-  onMove,
-  onHoverChange,
-  onImportResult,
-}: {
+type FileTreeNodeProps = {
   node: FileNode
   depth: number
   posinset: number
@@ -193,7 +174,75 @@ function FileTreeNode({
   onMove: (srcPath: string, destDir: string) => void
   onHoverChange: (path: string | null) => void
   onImportResult?: (outcome: ImportOutcome) => void
-}) {
+}
+
+// Custom equality for FileTreeNode. Compares DERIVED booleans for openPaths,
+// selectedPath, selectedFolderPath, hoveredPath, and creatingIn against this
+// node's own path — not the raw values. Raw comparison would invalidate every
+// node on any hover/toggle/select, cascading O(n) re-renders on every interaction
+// (the exact trap documented in issue #266; perf goal in issue #255).
+function areEqual(prev: FileTreeNodeProps, next: FileTreeNodeProps): boolean {
+  if (prev.node !== next.node) return false
+  if (prev.depth !== next.depth) return false
+  if (prev.posinset !== next.posinset) return false
+  if (prev.setsize !== next.setsize) return false
+  if (prev.iconTheme !== next.iconTheme) return false
+
+  const prevPath = prev.node.path
+  const nextPath = next.node.path
+
+  // Derived: isOpen
+  if (prev.openPaths.has(prevPath) !== next.openPaths.has(nextPath)) return false
+  // Derived: isSelected
+  if ((prev.selectedPath === prevPath) !== (next.selectedPath === nextPath)) return false
+  // Derived: isFolderSelected
+  const prevFolderSel = prev.node.isDir && prev.selectedFolderPath === prevPath
+  const nextFolderSel = next.node.isDir && next.selectedFolderPath === nextPath
+  if (prevFolderSel !== nextFolderSel) return false
+  // Derived: isHovered
+  if ((prev.hoveredPath === prevPath) !== (next.hoveredPath === nextPath)) return false
+  // Derived: hosts the inline-create row (must also compare kind when host)
+  const prevHostsCreate = prev.creatingIn?.parentDir === prevPath
+  const nextHostsCreate = next.creatingIn?.parentDir === nextPath
+  if (prevHostsCreate !== nextHostsCreate) return false
+  if (prevHostsCreate && prev.creatingIn?.kind !== next.creatingIn?.kind) return false
+
+  // Handlers — all wrapped in useCallback at root (issue #251) or are stable
+  // setState/setLocalState refs. Identity compare is sufficient.
+  if (prev.onToggleOpen !== next.onToggleOpen) return false
+  if (prev.onSelect !== next.onSelect) return false
+  if (prev.onSelectFolder !== next.onSelectFolder) return false
+  if (prev.onCreatingInChange !== next.onCreatingInChange) return false
+  if (prev.onContextMenu !== next.onContextMenu) return false
+  if (prev.onMove !== next.onMove) return false
+  if (prev.onHoverChange !== next.onHoverChange) return false
+  if (prev.onImportResult !== next.onImportResult) return false
+
+  return true
+}
+
+const FileTreeNode = memo(FileTreeNodeImpl, areEqual)
+
+function FileTreeNodeImpl({
+  node,
+  depth,
+  posinset,
+  setsize,
+  selectedPath,
+  selectedFolderPath,
+  openPaths,
+  creatingIn,
+  hoveredPath,
+  iconTheme,
+  onToggleOpen,
+  onSelect,
+  onSelectFolder,
+  onCreatingInChange,
+  onContextMenu,
+  onMove,
+  onHoverChange,
+  onImportResult,
+}: FileTreeNodeProps) {
   const open = openPaths.has(node.path)
   const hovered = hoveredPath === node.path
   const isSelected = selectedPath === node.path
