@@ -2664,7 +2664,6 @@ button.prop-bool {
 
 .palette {
   background: var(--surface-2);
-  border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   width: 640px;
   max-width: 90vw;
@@ -2678,8 +2677,8 @@ button.prop-bool {
   background: transparent;
   border: none;
   border-bottom: 1px solid var(--border);
-  padding: var(--space-3) var(--space-4);
-  font-size: var(--font-size-lg);
+  padding: var(--space-4);
+  font-size: var(--font-size-xl);
   color: var(--text-primary);
   font-family: inherit;
   outline: none;
@@ -2698,10 +2697,10 @@ button.prop-bool {
 .palette-row {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--space-2);
   width: 100%;
   text-align: left;
-  padding: 7px var(--space-3);
+  padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-sm);
   font-size: 13px;
   color: var(--text-primary);
@@ -2714,8 +2713,8 @@ button.prop-bool {
 }
 
 .palette-row .material-file-icon {
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
   flex: 0 0 auto;
 }
 
