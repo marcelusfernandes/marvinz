@@ -318,7 +318,8 @@ button {
 
 .sidebar-search {
   -webkit-app-region: no-drag;
-  padding: var(--space-1) var(--space-2);
+  padding: var(--space-1);
+  padding-top: 0;
   /* Clear the macOS traffic lights — they sit at x=14 with ~70px width
      (so they end at ~x=84). The sidebar starts at .shell padding-left = 12px.
      Search needs to start after the lights: 84 - 12 = 72px from sidebar
@@ -1606,6 +1607,7 @@ button {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
+  height: 100%;
   padding: 0 var(--space-2) 0 var(--space-3);
   background: transparent;
   color: inherit;
@@ -1623,12 +1625,12 @@ button {
 
 .agent-tab-close {
   display: none;
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
   padding: 0;
   align-self: center;
   margin-right: 6px;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-pill);
   background: transparent;
   border: none;
   color: var(--text-tertiary);
@@ -1639,7 +1641,7 @@ button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  height: 18px;
+  height: 20px;
 }
 
 /* Dot color matches the brand accent so the dot reads as "this is Claude/Codex"
@@ -3192,6 +3194,66 @@ button.prop-bool {
 
 .snapshot-toast-btn.ghost:hover {
   background: var(--surface-3);
+  color: var(--text-primary);
+}
+
+.import-toast {
+  position: fixed;
+  bottom: var(--space-4);
+  right: var(--space-4);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  max-width: 480px;
+  padding: var(--space-2) var(--space-3);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  z-index: var(--z-toast);
+  animation: snapshot-toast-in var(--duration-normal) var(--ease-out);
+}
+
+.import-toast.success {
+  border-left: 3px solid var(--border-success);
+}
+
+.import-toast.partial {
+  border-left: 3px solid var(--border-warning);
+}
+
+.import-toast.error {
+  background: var(--bg-error-subtle);
+  border-left: 3px solid var(--border-error);
+}
+
+.import-toast-text {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+  color: var(--text-primary);
+}
+
+.import-toast.error .import-toast-text {
+  color: var(--text-error);
+}
+
+.import-toast-dismiss {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-1);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.import-toast-dismiss:hover {
+  background: var(--bg-hover);
   color: var(--text-primary);
 }
 

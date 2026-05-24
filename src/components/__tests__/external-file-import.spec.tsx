@@ -36,6 +36,7 @@ vi.mock('../SettingsModal', () => ({ SettingsModal: () => null }))
 vi.mock('../TopBar', () => ({ TopBar: () => null }))
 vi.mock('../SnapshotPanel', () => ({ SnapshotPanel: () => null }))
 vi.mock('../SnapshotToast', () => ({ SnapshotToast: () => null }))
+vi.mock('../ImportToast', () => ({ ImportToast: () => null }))
 vi.mock('../ExternalChangeBanner', () => ({ ExternalChangeBanner: () => null }))
 vi.mock('../AgentsPane', () => ({ AgentsPane: () => null }))
 vi.mock('../BrowserPane', () => ({ BrowserPane: () => null }))
@@ -194,6 +195,7 @@ const defaultTreeProps = {
   onSelect: vi.fn(),
   onContextMenu: vi.fn(),
   onMove: vi.fn(),
+  onImportResult: vi.fn(),
 }
 
 // ---------------------------------------------------------------------------
@@ -514,5 +516,56 @@ describe('Sidebar aside — paste from clipboard (issue #194)', () => {
 
     // destDir should be '/vault/subdir' (parent of the active note), not '/vault'
     expect(importExternalMock).toHaveBeenCalledWith(['/external/import.md'], '/vault/subdir')
+  })
+})
+
+// ===========================================================================
+// onImportResult callback — FileTree drop (issue #195)
+// ===========================================================================
+
+describe('FileTree — onImportResult callback after drop', () => {
+  it('calls onImportResult with ok:true and the result when importExternal resolves', async () => {
+    const file = new File([''], 'photo.png', { type: 'image/png' })
+    getPathForFileMock.mockReturnValue('/external/photo.png')
+    const importResult = { imported: ['/vault/photo.png'], skipped: [] }
+    importExternalMock.mockResolvedValue(importResult)
+    const onImportResult = vi.fn()
+
+    const { container } = render(
+      <FileTree {...defaultTreeProps} onImportResult={onImportResult} />,
+    )
+    const ul = container.querySelector('ul.file-tree')!
+    const dropEvent = makeDragEvent('drop', makeExternalDragTransfer([file]), ul)
+
+    await act(async () => {
+      ul.dispatchEvent(dropEvent)
+      await Promise.resolve()
+    })
+
+    expect(onImportResult).toHaveBeenCalledWith({
+      ok: true,
+      result: importResult,
+      destDir: '/vault',
+    })
+  })
+
+  it('calls onImportResult with ok:false when importExternal rejects', async () => {
+    const file = new File([''], 'photo.png', { type: 'image/png' })
+    getPathForFileMock.mockReturnValue('/external/photo.png')
+    importExternalMock.mockRejectedValue(new Error('disk full'))
+    const onImportResult = vi.fn()
+
+    const { container } = render(
+      <FileTree {...defaultTreeProps} onImportResult={onImportResult} />,
+    )
+    const ul = container.querySelector('ul.file-tree')!
+    const dropEvent = makeDragEvent('drop', makeExternalDragTransfer([file]), ul)
+
+    await act(async () => {
+      ul.dispatchEvent(dropEvent)
+      await Promise.resolve()
+    })
+
+    expect(onImportResult).toHaveBeenCalledWith({ ok: false, error: 'disk full' })
   })
 })
