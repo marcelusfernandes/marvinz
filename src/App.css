@@ -791,6 +791,10 @@ button {
   padding: var(--space-2);
   gap: var(--space-1);
   overflow-x: auto;
+  /* Horizontal-only scroll. overflow-x:auto promotes overflow-y to auto per
+     spec, so pin it hidden — the legacy active-tab underline (::after at
+     bottom:-1px) would otherwise trip a 1px vertical scrollbar. */
+  overflow-y: hidden;
   flex-shrink: 0;
   height: 48px;
 }
