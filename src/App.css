@@ -428,7 +428,6 @@ button {
   flex-direction: column;
   /* Transparent so the .shell's translucent tint + macOS vibrancy show through. */
   background: transparent;
-  border-radius: var(--radius-xl);
   overflow: hidden;
 }
 

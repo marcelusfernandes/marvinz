@@ -67,7 +67,8 @@ export function AgentTerminal({ agent, ptyId, vaultPath, isActive, onStatusChang
 
     const term = new Terminal({
       fontFamily: 'ui-monospace, SF Mono, Menlo, Monaco, Consolas, monospace',
-      fontSize: 13,
+      fontSize: 12,
+      lineHeight: 1.2,
       cursorBlink: true,
       theme: xtermThemeFromCss(),
       allowTransparency: true,
