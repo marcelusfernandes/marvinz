@@ -5,6 +5,7 @@ import { render, screen, fireEvent, cleanup } from '@testing-library/react'
 import { FileTree } from '../FileTree'
 import type { FileNode } from '../../types'
 import { smallTree } from './file-tree-fixtures'
+import { setupVirtualizerMocks } from './_virtualizerSetup'
 
 // ---------------------------------------------------------------------------
 // Mocks — must come before any component import that transitively uses them
@@ -106,14 +107,18 @@ function baseProps(overrides: Partial<Parameters<typeof FileTree>[0]> = {}) {
 // Setup / teardown
 // ---------------------------------------------------------------------------
 
+let restoreVirtualizer: () => void
+
 beforeEach(() => {
   mockIconTheme = undefined
+  restoreVirtualizer = setupVirtualizerMocks()
   setupMarvinMock()
 })
 
 afterEach(() => {
   cleanup()
   vi.restoreAllMocks()
+  restoreVirtualizer()
 })
 
 // ===========================================================================
@@ -125,7 +130,8 @@ describe('FileTree — render variations', () => {
     const { container } = render(<FileTree {...baseProps({ nodes: [] })} />)
     const ul = container.querySelector('ul.file-tree')
     expect(ul).not.toBeNull()
-    expect(ul!.children).toHaveLength(0)
+    // Virtualizer wraps rows in a sizing div — assert no treeitems rendered instead
+    expect(container.querySelectorAll('[role="treeitem"]')).toHaveLength(0)
   })
 
   it('renders a single file node with its display name (no extension)', () => {
@@ -937,19 +943,20 @@ describe('FileTree — ARIA semantics', () => {
     expect(items).toHaveLength(5)
   })
 
-  it('renders the children container of an open folder with role="group"', () => {
+  it('renders child treeitems at aria-level 2 when a folder is open', () => {
     const openPaths = new Set(['/vault/docs'])
-    const { container } = render(<FileTree {...baseProps({ openPaths })} />)
-    const group = container.querySelector('ul[role="group"]')
-    expect(group).not.toBeNull()
-    // Group children should be the two files under docs
-    const groupItems = group!.querySelectorAll('[role="treeitem"]')
-    expect(groupItems).toHaveLength(2)
+    render(<FileTree {...baseProps({ openPaths })} />)
+    const items = screen.getAllByRole('treeitem')
+    const level2 = items.filter((el) => el.getAttribute('aria-level') === '2')
+    // docs has 2 children: intro.md and guide.md
+    expect(level2).toHaveLength(2)
   })
 
-  it('does not render a group when the folder is closed', () => {
-    const { container } = render(<FileTree {...baseProps()} />)
-    expect(container.querySelector('ul[role="group"]')).toBeNull()
+  it('renders no treeitems at aria-level 2 when the folder is closed', () => {
+    render(<FileTree {...baseProps()} />)
+    const items = screen.queryAllByRole('treeitem')
+    const level2 = items.filter((el) => el.getAttribute('aria-level') === '2')
+    expect(level2).toHaveLength(0)
   })
 
   it('uses 1-indexed aria-level across 3 nesting depths', () => {

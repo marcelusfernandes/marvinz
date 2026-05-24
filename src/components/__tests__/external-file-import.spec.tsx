@@ -15,6 +15,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, act } from '@testing-library/react'
 import { FileTree } from '../FileTree'
+import { setupVirtualizerMocks } from './_virtualizerSetup'
 
 // ---------------------------------------------------------------------------
 // Stub heavy App-level components (only needed for paste tests that render App)
@@ -190,24 +191,32 @@ const defaultTreeProps = {
   ],
   vaultPath: '/vault',
   selectedPath: null,
+  selectedFolderPath: null,
   openPaths: new Set<string>(),
   onToggleOpen: vi.fn(),
   onSelect: vi.fn(),
+  onSelectFolder: vi.fn(),
   onContextMenu: vi.fn(),
   onMove: vi.fn(),
   onImportResult: vi.fn(),
+  creatingIn: null,
+  onCreatingInChange: vi.fn(),
 }
 
 // ---------------------------------------------------------------------------
 // Setup / teardown
 // ---------------------------------------------------------------------------
 
+let restoreVirtualizer: () => void
+
 beforeEach(() => {
+  restoreVirtualizer = setupVirtualizerMocks()
   setupMarvinMock()
 })
 
 afterEach(() => {
   vi.restoreAllMocks()
+  restoreVirtualizer()
 })
 
 // ===========================================================================

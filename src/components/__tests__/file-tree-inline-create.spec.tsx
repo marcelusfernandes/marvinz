@@ -17,6 +17,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, cleanup } from '@testing-library/react'
 import { FileTree } from '../FileTree'
 import { smallTree } from './file-tree-fixtures'
+import { setupVirtualizerMocks } from './_virtualizerSetup'
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -87,13 +88,17 @@ function baseProps(overrides: Partial<Parameters<typeof FileTree>[0]> = {}) {
   }
 }
 
+let restoreVirtualizer: () => void
+
 beforeEach(() => {
+  restoreVirtualizer = setupVirtualizerMocks()
   setupMarvinMock()
 })
 
 afterEach(() => {
   cleanup()
   vi.restoreAllMocks()
+  restoreVirtualizer()
 })
 
 // ===========================================================================
