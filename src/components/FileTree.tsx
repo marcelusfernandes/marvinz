@@ -109,6 +109,8 @@ export function FileTree({
   return (
     <ul
       className={`file-tree${rootHover ? ' drop-root' : ''}`}
+      role="tree"
+      aria-label="File tree"
       onClick={(e) => {
         if (e.target === e.currentTarget) onSelectFolder(null)
       }}
@@ -124,11 +126,13 @@ export function FileTree({
           onCreatingInChange={onCreatingInChange}
         />
       )}
-      {nodes.map((node) => (
+      {nodes.map((node, index) => (
         <FileTreeNode
           key={node.path}
           node={node}
           depth={0}
+          posinset={index + 1}
+          setsize={nodes.length}
           selectedPath={selectedPath}
           selectedFolderPath={selectedFolderPath}
           openPaths={openPaths}
@@ -149,6 +153,8 @@ export function FileTree({
 function FileTreeNode({
   node,
   depth,
+  posinset,
+  setsize,
   selectedPath,
   selectedFolderPath,
   openPaths,
@@ -163,6 +169,8 @@ function FileTreeNode({
 }: {
   node: FileNode
   depth: number
+  posinset: number
+  setsize: number
   selectedPath: string | null
   selectedFolderPath: string | null
   openPaths: Set<string>
@@ -232,7 +240,14 @@ function FileTreeNode({
     const hasVisibleChildren = (node.children && node.children.length > 0) || showInlineHere
 
     return (
-      <li>
+      <li
+        role="treeitem"
+        aria-level={depth + 1}
+        aria-expanded={open}
+        aria-selected={isSelected}
+        aria-posinset={posinset}
+        aria-setsize={setsize}
+      >
         <button
           type="button"
           className={`file-tree-row dir${hovered ? ' drop-target' : ''}${isFolderSelected ? ' folder-selected' : ''}`}
@@ -267,7 +282,7 @@ function FileTreeNode({
           <span className="name">{node.name}</span>
         </button>
         {open && hasVisibleChildren && (
-          <ul>
+          <ul role="group">
             {showInlineHere && (
               <InlineCreateRow
                 depth={depth + 1}
@@ -276,11 +291,13 @@ function FileTreeNode({
                 onCreatingInChange={onCreatingInChange}
               />
             )}
-            {node.children?.map((child) => (
+            {node.children?.map((child, childIndex) => (
               <FileTreeNode
                 key={child.path}
                 node={child}
                 depth={depth + 1}
+                posinset={childIndex + 1}
+                setsize={node.children!.length}
                 selectedPath={selectedPath}
                 selectedFolderPath={selectedFolderPath}
                 openPaths={openPaths}
@@ -304,7 +321,13 @@ function FileTreeNode({
   const displayName = md ? node.name.replace(/\.(md|markdown)$/, '') : node.name
 
   return (
-    <li>
+    <li
+      role="treeitem"
+      aria-level={depth + 1}
+      aria-selected={isSelected}
+      aria-posinset={posinset}
+      aria-setsize={setsize}
+    >
       <button
         type="button"
         className={`file-tree-row file${isSelected ? ' selected' : ''}${md ? '' : ' non-md'}`}

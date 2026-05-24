@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { computeViewBounds } from '../lib/browserBounds'
 
 type Props = {
   filePath: string
@@ -14,22 +15,6 @@ function marvinFileUrl(absPath: string, version: number): string {
   return `marvin://localhost${encoded}?v=${version}`
 }
 
-// Same DIP/CSS-pixel correction as BrowserPane: `view.setBounds` expects
-// DIPs in the window's contentView, while `getBoundingClientRect` is in the
-// renderer's CSS viewport — those diverge when zoomFactor != 1 or on
-// fractional-scale displays.
-function computeBounds(el: HTMLDivElement | null) {
-  if (!el) return null
-  const r = el.getBoundingClientRect()
-  const sx = window.innerWidth > 0 ? window.outerWidth / window.innerWidth : 1
-  const sy = window.innerHeight > 0 ? window.outerHeight / window.innerHeight : 1
-  return {
-    x: Math.round(r.left * sx),
-    y: Math.round(r.top * sy),
-    width: Math.max(0, Math.round(r.width * sx)),
-    height: Math.max(0, Math.round(r.height * sy)),
-  }
-}
 
 export function HtmlPreview({ filePath, version, geometryKey }: Props) {
   const hostRef = useRef<HTMLDivElement>(null)
@@ -41,7 +26,7 @@ export function HtmlPreview({ filePath, version, geometryKey }: Props) {
     let cancelled = false
 
     const create = async () => {
-      const bounds = computeBounds(hostRef.current)
+      const bounds = computeViewBounds(hostRef.current)
       if (!bounds) return
       try {
         await window.marvin.browser.create({
@@ -57,7 +42,7 @@ export function HtmlPreview({ filePath, version, geometryKey }: Props) {
     void create()
 
     const sync = () => {
-      const next = computeBounds(hostRef.current)
+      const next = computeViewBounds(hostRef.current)
       if (!next) return
       void window.marvin.browser.setBounds(id, next)
     }
@@ -92,7 +77,7 @@ export function HtmlPreview({ filePath, version, geometryKey }: Props) {
   // ResizeObserver. Wait one frame for CSS to settle, then push fresh bounds.
   useEffect(() => {
     const raf = requestAnimationFrame(() => {
-      const r = computeBounds(hostRef.current)
+      const r = computeViewBounds(hostRef.current)
       if (r) void window.marvin.browser.setBounds(id, r)
     })
     return () => cancelAnimationFrame(raf)
