@@ -1,4 +1,5 @@
-import { useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
+import { computeViewBounds, computeViewInsets } from '../lib/browserBounds'
 
 type Props = {
   filePath: string
@@ -14,26 +15,19 @@ function marvinFileUrl(absPath: string, version: number): string {
   return `marvin://localhost${encoded}?v=${version}`
 }
 
-// Same DIP/CSS-pixel correction as BrowserPane: `view.setBounds` expects
-// DIPs in the window's contentView, while `getBoundingClientRect` is in the
-// renderer's CSS viewport — those diverge when zoomFactor != 1 or on
-// fractional-scale displays.
-function computeBounds(el: HTMLDivElement | null) {
-  if (!el) return null
-  const r = el.getBoundingClientRect()
-  const sx = window.innerWidth > 0 ? window.outerWidth / window.innerWidth : 1
-  const sy = window.innerHeight > 0 ? window.outerHeight / window.innerHeight : 1
-  return {
-    x: Math.round(r.left * sx),
-    y: Math.round(r.top * sy),
-    width: Math.max(0, Math.round(r.width * sx)),
-    height: Math.max(0, Math.round(r.height * sy)),
-  }
-}
 
 export function HtmlPreview({ filePath, version, geometryKey }: Props) {
   const hostRef = useRef<HTMLDivElement>(null)
   const id = `html-preview-${filePath}`
+
+  // Push absolute bounds (panel drags + create) and the geometry descriptor
+  // (lets main recompute during OS window resize, #259) together.
+  const pushGeometry = useCallback(() => {
+    const bounds = computeViewBounds(hostRef.current)
+    if (bounds) void window.marvin.browser.setBounds(id, bounds)
+    const insets = computeViewInsets(hostRef.current, window.innerWidth, window.innerHeight)
+    if (insets) void window.marvin.browser.setGeometry(id, insets)
+  }, [id])
 
   // Create the WebContentsView on mount; close on unmount. Re-creates when
   // `filePath` changes because `id` is derived from it.
@@ -41,7 +35,7 @@ export function HtmlPreview({ filePath, version, geometryKey }: Props) {
     let cancelled = false
 
     const create = async () => {
-      const bounds = computeBounds(hostRef.current)
+      const bounds = computeViewBounds(hostRef.current)
       if (!bounds) return
       try {
         await window.marvin.browser.create({
@@ -50,17 +44,20 @@ export function HtmlPreview({ filePath, version, geometryKey }: Props) {
           bounds,
         })
         if (cancelled) return
+        // Register the descriptor so main can recompute on the first OS resize.
+        const insets = computeViewInsets(
+          hostRef.current,
+          window.innerWidth,
+          window.innerHeight,
+        )
+        if (insets) void window.marvin.browser.setGeometry(id, insets)
       } catch (err) {
         console.error('[HtmlPreview] create failed', err)
       }
     }
     void create()
 
-    const sync = () => {
-      const next = computeBounds(hostRef.current)
-      if (!next) return
-      void window.marvin.browser.setBounds(id, next)
-    }
+    const sync = () => pushGeometry()
     const ro = new ResizeObserver(sync)
     if (hostRef.current) ro.observe(hostRef.current)
     window.addEventListener('resize', sync)
@@ -91,12 +88,9 @@ export function HtmlPreview({ filePath, version, geometryKey }: Props) {
   // Pure-position shifts (layout-mode swap, sidebar resize) don't trigger
   // ResizeObserver. Wait one frame for CSS to settle, then push fresh bounds.
   useEffect(() => {
-    const raf = requestAnimationFrame(() => {
-      const r = computeBounds(hostRef.current)
-      if (r) void window.marvin.browser.setBounds(id, r)
-    })
+    const raf = requestAnimationFrame(() => pushGeometry())
     return () => cancelAnimationFrame(raf)
-  }, [geometryKey, id])
+  }, [geometryKey, pushGeometry])
 
   return <div ref={hostRef} className="html-preview-host" />
 }

@@ -116,6 +116,10 @@ const api = {
     stop: (id: string) => ipcRenderer.invoke('browser:stop', id) as Promise<void>,
     setBounds: (id: string, bounds: { x: number; y: number; width: number; height: number }) =>
       ipcRenderer.invoke('browser:setBounds', id, bounds) as Promise<void>,
+    setGeometry: (
+      id: string,
+      geometry: { leftInset: number; topInset: number; rightInset: number; bottomInset: number },
+    ) => ipcRenderer.invoke('browser:setGeometry', id, geometry) as Promise<void>,
     setActive: (id: string | null) =>
       ipcRenderer.invoke('browser:setActive', id) as Promise<void>,
     setAllHidden: (hidden: boolean) =>

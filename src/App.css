@@ -562,6 +562,31 @@ button {
   color: var(--text-primary);
 }
 
+.file-tree-row.dir.folder-selected {
+  color: var(--accent);
+  /* font-weight: var(--font-weight-semibold); */
+}
+
+.file-tree-row.inline-edit {
+  gap: var(--space-1);
+}
+
+.file-tree-row.inline-edit input {
+  flex: 1 1 auto;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  outline: none;
+  font: inherit;
+  color: var(--text-primary);
+  padding: 0;
+}
+
+.file-tree-row.inline-edit input.input-error {
+  color: var(--text-error);
+  box-shadow: inset 0 -1px 0 var(--border-error);
+}
+
 .file-tree-row.dir.drop-target {
   background: var(--accent-bg);
   outline: 1px solid var(--accent);
