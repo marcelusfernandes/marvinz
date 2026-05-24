@@ -15,9 +15,6 @@
   --pill-bg: var(--surface-3);
   --pill-border: var(--border);
   --pill-text: var(--text-primary);
-  --pill-tag-bg: rgba(196, 105, 31, 0.12);
-  --pill-tag-border: rgba(196, 105, 31, 0.35);
-  --pill-tag-text: #e6a06b;
 }
 
 [data-style='legacy'][data-theme='dark'] {
@@ -542,12 +539,6 @@
   color: var(--text-primary);
   padding: 2px 8px;
   border: 1px solid var(--border);
-}
-
-[data-style='legacy'] .prop-pill-tag {
-  background: rgba(196, 105, 31, 0.12);
-  border-color: rgba(196, 105, 31, 0.35);
-  color: #e6a06b;
 }
 
 [data-style='legacy'] .prop-pill-hash {

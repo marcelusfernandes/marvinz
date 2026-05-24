@@ -364,7 +364,7 @@ function TagsEditor({
   return (
     <span className="prop-pills editable">
       {tags.map((tag, i) => (
-        <span key={`${tag}-${i}`} className="prop-pill prop-pill-tag">
+        <span key={`${tag}-${i}`} className="prop-pill">
           <span className="prop-pill-hash">#</span>
           {tag}
           <button
