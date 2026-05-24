@@ -88,15 +88,19 @@ export function FileTree({
   return (
     <ul
       className={`file-tree${rootHover ? ' drop-root' : ''}`}
+      role="tree"
+      aria-label="File tree"
       onDragOver={handleRootDragOver}
       onDragLeave={() => setRootHover(false)}
       onDrop={handleRootDrop}
     >
-      {nodes.map((node) => (
+      {nodes.map((node, index) => (
         <FileTreeNode
           key={node.path}
           node={node}
           depth={0}
+          posinset={index + 1}
+          setsize={nodes.length}
           selectedPath={selectedPath}
           openPaths={openPaths}
           onToggleOpen={onToggleOpen}
@@ -113,6 +117,8 @@ export function FileTree({
 function FileTreeNode({
   node,
   depth,
+  posinset,
+  setsize,
   selectedPath,
   openPaths,
   onToggleOpen,
@@ -123,6 +129,8 @@ function FileTreeNode({
 }: {
   node: FileNode
   depth: number
+  posinset: number
+  setsize: number
   selectedPath: string | null
   openPaths: Set<string>
   onToggleOpen: (path: string) => void
@@ -184,7 +192,14 @@ function FileTreeNode({
     }
 
     return (
-      <li>
+      <li
+        role="treeitem"
+        aria-level={depth + 1}
+        aria-expanded={open}
+        aria-selected={isSelected}
+        aria-posinset={posinset}
+        aria-setsize={setsize}
+      >
         <button
           type="button"
           className={`file-tree-row dir${hovered ? ' drop-target' : ''}`}
@@ -216,12 +231,14 @@ function FileTreeNode({
           <span className="name">{node.name}</span>
         </button>
         {open && node.children && node.children.length > 0 && (
-          <ul>
-            {node.children.map((child) => (
+          <ul role="group">
+            {node.children.map((child, childIndex) => (
               <FileTreeNode
                 key={child.path}
                 node={child}
                 depth={depth + 1}
+                posinset={childIndex + 1}
+                setsize={node.children!.length}
                 selectedPath={selectedPath}
                 openPaths={openPaths}
                 onToggleOpen={onToggleOpen}
@@ -241,7 +258,13 @@ function FileTreeNode({
   const displayName = md ? node.name.replace(/\.(md|markdown)$/, '') : node.name
 
   return (
-    <li>
+    <li
+      role="treeitem"
+      aria-level={depth + 1}
+      aria-selected={isSelected}
+      aria-posinset={posinset}
+      aria-setsize={setsize}
+    >
       <button
         type="button"
         className={`file-tree-row file${isSelected ? ' selected' : ''}${md ? '' : ' non-md'}`}

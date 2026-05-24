@@ -874,3 +874,168 @@ describe('FileTree — external drop on folder', () => {
     expect(onImportResult).toHaveBeenCalledWith({ ok: false, error: 'no space' })
   })
 })
+
+// ===========================================================================
+// Scenario 13 — ARIA semantics (tree / treeitem / group, level, expanded,
+// selected, posinset, setsize). Follows W3C ARIA APG Tree View pattern.
+// ===========================================================================
+
+describe('FileTree — ARIA semantics', () => {
+  // Mixed-depth fixture: root has 3 siblings (folder, folder, file).
+  // /vault/docs (folder, open) → 2 children: intro.md (file), nested (folder, open) → 1 child: deep.md
+  // /vault/assets (folder, closed) → not expanded
+  // /vault/readme.md (file)
+  const mixedNodes: FileNode[] = [
+    {
+      path: '/vault/docs',
+      name: 'docs',
+      isDir: true,
+      children: [
+        { path: '/vault/docs/intro.md', name: 'intro.md', isDir: false, children: [] },
+        {
+          path: '/vault/docs/nested',
+          name: 'nested',
+          isDir: true,
+          children: [
+            { path: '/vault/docs/nested/deep.md', name: 'deep.md', isDir: false, children: [] },
+          ],
+        },
+      ],
+    },
+    {
+      path: '/vault/assets',
+      name: 'assets',
+      isDir: true,
+      children: [
+        { path: '/vault/assets/logo.png', name: 'logo.png', isDir: false, children: [] },
+      ],
+    },
+    { path: '/vault/readme.md', name: 'readme.md', isDir: false, children: [] },
+  ]
+
+  // Helper to find a treeitem by its visible name.
+  function itemByName(name: string): HTMLElement {
+    return screen.getByText(name).closest('[role="treeitem"]') as HTMLElement
+  }
+
+  it('exposes the root list as role="tree" with an accessible name', () => {
+    render(<FileTree {...baseProps()} />)
+    const tree = screen.getByRole('tree')
+    expect(tree.tagName).toBe('UL')
+    expect(tree.getAttribute('aria-label')).toBe('File tree')
+  })
+
+  it('exposes every node as role="treeitem"', () => {
+    const openPaths = new Set(['/vault/docs'])
+    render(<FileTree {...baseProps({ openPaths })} />)
+    // smallTree open at /vault/docs: docs, assets, readme + intro, guide = 5 items
+    const items = screen.getAllByRole('treeitem')
+    expect(items).toHaveLength(5)
+  })
+
+  it('renders the children container of an open folder with role="group"', () => {
+    const openPaths = new Set(['/vault/docs'])
+    const { container } = render(<FileTree {...baseProps({ openPaths })} />)
+    const group = container.querySelector('ul[role="group"]')
+    expect(group).not.toBeNull()
+    // Group children should be the two files under docs
+    const groupItems = group!.querySelectorAll('[role="treeitem"]')
+    expect(groupItems).toHaveLength(2)
+  })
+
+  it('does not render a group when the folder is closed', () => {
+    const { container } = render(<FileTree {...baseProps()} />)
+    expect(container.querySelector('ul[role="group"]')).toBeNull()
+  })
+
+  it('uses 1-indexed aria-level across 3 nesting depths', () => {
+    const openPaths = new Set(['/vault/docs', '/vault/docs/nested'])
+    render(<FileTree {...baseProps({ nodes: mixedNodes, openPaths })} />)
+
+    // Markdown files render with the .md extension stripped from display text.
+    expect(itemByName('docs').getAttribute('aria-level')).toBe('1')
+    expect(itemByName('readme').getAttribute('aria-level')).toBe('1')
+    expect(itemByName('intro').getAttribute('aria-level')).toBe('2')
+    expect(itemByName('nested').getAttribute('aria-level')).toBe('2')
+    expect(itemByName('deep').getAttribute('aria-level')).toBe('3')
+  })
+
+  it('sets aria-expanded="true" on open folders', () => {
+    const openPaths = new Set(['/vault/docs'])
+    render(<FileTree {...baseProps({ openPaths })} />)
+    expect(itemByName('docs').getAttribute('aria-expanded')).toBe('true')
+  })
+
+  it('sets aria-expanded="false" on closed folders', () => {
+    render(<FileTree {...baseProps()} />)
+    expect(itemByName('docs').getAttribute('aria-expanded')).toBe('false')
+    expect(itemByName('assets').getAttribute('aria-expanded')).toBe('false')
+  })
+
+  it('omits aria-expanded on file treeitems', () => {
+    render(<FileTree {...baseProps()} />)
+    const fileItem = itemByName('readme')
+    expect(fileItem.hasAttribute('aria-expanded')).toBe(false)
+  })
+
+  it('sets aria-selected="true" on the selected node and "false" on others', () => {
+    const openPaths = new Set(['/vault/docs'])
+    render(
+      <FileTree
+        {...baseProps({ openPaths, selectedPath: '/vault/docs/intro.md' })}
+      />,
+    )
+    expect(itemByName('intro').getAttribute('aria-selected')).toBe('true')
+    expect(itemByName('docs').getAttribute('aria-selected')).toBe('false')
+    expect(itemByName('readme').getAttribute('aria-selected')).toBe('false')
+  })
+
+  it('marks folder treeitems as selected when selectedPath matches them', () => {
+    render(<FileTree {...baseProps({ selectedPath: '/vault/docs' })} />)
+    expect(itemByName('docs').getAttribute('aria-selected')).toBe('true')
+    expect(itemByName('assets').getAttribute('aria-selected')).toBe('false')
+  })
+
+  it('sets aria-posinset (1-indexed) and aria-setsize at root level', () => {
+    render(<FileTree {...baseProps({ nodes: mixedNodes })} />)
+    // 3 root siblings: docs, assets, readme
+    expect(itemByName('docs').getAttribute('aria-posinset')).toBe('1')
+    expect(itemByName('docs').getAttribute('aria-setsize')).toBe('3')
+    expect(itemByName('assets').getAttribute('aria-posinset')).toBe('2')
+    expect(itemByName('assets').getAttribute('aria-setsize')).toBe('3')
+    expect(itemByName('readme').getAttribute('aria-posinset')).toBe('3')
+    expect(itemByName('readme').getAttribute('aria-setsize')).toBe('3')
+  })
+
+  it('sets aria-posinset and aria-setsize on children inside an open group', () => {
+    const openPaths = new Set(['/vault/docs'])
+    render(<FileTree {...baseProps({ nodes: mixedNodes, openPaths })} />)
+    // docs has 2 children: intro.md (1), nested (2). intro.md displays as 'intro'.
+    expect(itemByName('intro').getAttribute('aria-posinset')).toBe('1')
+    expect(itemByName('intro').getAttribute('aria-setsize')).toBe('2')
+    expect(itemByName('nested').getAttribute('aria-posinset')).toBe('2')
+    expect(itemByName('nested').getAttribute('aria-setsize')).toBe('2')
+  })
+
+  it('counts setsize across mixed file+folder siblings (no filtering by type)', () => {
+    // The fixture has docs (folder), assets (folder), readme (file) at root.
+    // setsize must include all three regardless of type.
+    render(<FileTree {...baseProps({ nodes: mixedNodes })} />)
+    const items = screen.getAllByRole('treeitem')
+    const rootItems = items.filter((el) => el.getAttribute('aria-level') === '1')
+    expect(rootItems).toHaveLength(3)
+    for (const el of rootItems) {
+      expect(el.getAttribute('aria-setsize')).toBe('3')
+    }
+  })
+
+  it('sets posinset=1/setsize=1 for a lone child in a deeply nested group', () => {
+    const openPaths = new Set(['/vault/docs', '/vault/docs/nested'])
+    render(<FileTree {...baseProps({ nodes: mixedNodes, openPaths })} />)
+    // /vault/docs/nested has a single child: deep.md (displays as 'deep')
+    expect(itemByName('deep').getAttribute('aria-posinset')).toBe('1')
+    expect(itemByName('deep').getAttribute('aria-setsize')).toBe('1')
+  })
+})
+
+// ===========================================================================
