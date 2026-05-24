@@ -8,6 +8,8 @@
   "scripts": {
     "dev": "ELECTRON_RUN_AS_NODE= vite",
     "build": "tsc -b && vite build",
+    "start": "ELECTRON_RUN_AS_NODE= electron .",
+    "preview:app": "npm run build && ELECTRON_RUN_AS_NODE= electron .",
     "lint": "eslint .",
     "preview": "vite preview",
     "postinstall": "node scripts/fix-node-pty.cjs",
