@@ -372,7 +372,6 @@ describe('Memoization — render counts', () => {
     const { rerender } = render(<App selectedPath={null} />)
 
     const readmeBase = counts['readme-subtree'] ?? 0
-    const assetsBase = counts['assets-subtree'] ?? 0
 
     rerender(<App selectedPath="/vault/readme.md" />)
 
