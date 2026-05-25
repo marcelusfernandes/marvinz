@@ -356,12 +356,13 @@ export function Editor({
           {isMd && (
             <button
               type="button"
-              className="icon-btn"
+              className="btn btn--ghost"
               onClick={() => void window.marvin.file.exportPdf(filePath)}
               title="Export as PDF"
               aria-label="Export as PDF"
             >
-              <Icon name="file-pdf" size={16} />
+              <Icon name="file-pdf" size={14} />
+              Export PDF
             </button>
           )}
           {hasPreview && (

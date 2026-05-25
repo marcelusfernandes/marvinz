@@ -75,6 +75,7 @@
   --space-5: 24px;
   --space-6: 32px;
   --space-7: 48px;
+  --space-8: 64px;
 
   /* Radius — sm chrome → md inputs → lg modals → xl layout panels → pill badges */
   --radius-sm: 4px;
@@ -239,6 +240,13 @@ body,
   font-family: var(--font-family-sans);
   font-size: 14px;
   overflow: hidden;
+}
+
+/* Global text selection — brand accent wash. Scoped overrides (CodeMirror)
+   handle their own selection layers separately. */
+::selection {
+  background: var(--accent-bg);
+  color: var(--text-primary);
 }
 
 button {
@@ -641,6 +649,14 @@ button {
   color: #ffffff;
 }
 
+.btn--ghost {
+  background: transparent;
+}
+
+.btn--ghost:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+
 .file-tree-toolbar {
   display: inline-flex;
   align-items: center;
@@ -820,8 +836,8 @@ button {
   align-items: center;
   justify-content: space-between;
   padding: var(--space-2) var(--space-4);
-  border-bottom: 1px solid var(--border);
-  height: 38px;
+  /* border-bottom: 1px solid var(--border); */
+  height: 40px;
   gap: var(--space-3);
 }
 
@@ -869,6 +885,7 @@ button {
   font-weight: var(--font-weight-medium);
   font-family: inherit;
   outline: none;
+  border: 1px solid var(--border);
 }
 
 .path-input::placeholder {
@@ -1190,7 +1207,7 @@ button {
 .editor-header-right {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--space-1);
   flex-shrink: 0;
 }
 
@@ -2161,7 +2178,7 @@ button {
 .md-preview-inner {
   max-width: 760px;
   margin: 0 auto;
-  padding: 32px 48px 80px;
+  padding: var(--space-8) var(--space-6) var(--space-6);
   font-size: 15px;
   line-height: var(--line-height-loose);
   color: var(--text-primary);
