@@ -604,7 +604,7 @@
   display: none;
 }
 
-[data-style='legacy'] .props-add-btn {
+[data-style='legacy'] .props-add-row .btn {
   font-size: 12px;
   padding: 4px 10px;
 }
