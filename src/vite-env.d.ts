@@ -7,3 +7,7 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv
 }
+
+// Fontsource packages ship only CSS via side-effect imports; no .d.ts upstream.
+declare module '@fontsource-variable/geist'
+declare module '@fontsource-variable/geist-mono'
