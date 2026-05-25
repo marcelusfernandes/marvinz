@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import CodeMirror from '@uiw/react-codemirror'
 import { EditorView, keymap } from '@codemirror/view'
 import { search, searchKeymap } from '@codemirror/search'
+import { justReplacedField } from '../lib/cmJustReplacedHighlight'
 import { bracketMatching, indentUnit, HighlightStyle, syntaxHighlighting } from '@codemirror/language'
 import { redo, redoDepth, selectAll, undo, undoDepth } from '@codemirror/commands'
 import { tags as t } from '@lezer/highlight'
@@ -263,6 +264,7 @@ export function Editor({
       search({ top: true }),
       headerFindKeymap,
       keymap.of(searchKeymap),
+      justReplacedField,
       bracketMatching(),
       indentUnit.of('  '),
       EditorView.lineWrapping,

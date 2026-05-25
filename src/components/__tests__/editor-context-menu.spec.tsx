@@ -152,8 +152,15 @@ vi.mock('@codemirror/language', () => ({
   HighlightStyle: { define: () => ({}) },
   syntaxHighlighting: () => ({}),
 }))
-vi.mock('@codemirror/view', () => ({ EditorView: { lineWrapping: {} }, keymap: { of: () => ({}) } }))
-vi.mock('@codemirror/state', () => ({}))
+vi.mock('@codemirror/view', () => ({
+  EditorView: { lineWrapping: {} },
+  keymap: { of: () => ({}) },
+  Decoration: { mark: () => ({ range: () => ({}) }), none: { update: () => null } },
+}))
+vi.mock('@codemirror/state', () => ({
+  StateEffect: { define: () => ({ of: () => ({}) }) },
+  StateField: { define: () => ({}) },
+}))
 vi.mock('../lib/cmLanguage', () => ({
   languageIdFor: () => null,
   loadLanguage: () => Promise.resolve(null),

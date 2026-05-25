@@ -162,6 +162,9 @@ function makeFakePMView(selFrom = 0, selTo = 0) {
   const tr = {
     _isTr: true,
     scrollIntoView: vi.fn(() => tr),
+    // Replace flow stamps a meta on the dispatched tr to flash the
+    // just-written range. Mock as a chainable no-op.
+    setMeta: vi.fn(() => tr),
   }
   return {
     state: {

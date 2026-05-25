@@ -125,6 +125,13 @@ vi.mock('@codemirror/search', () => ({
 vi.mock('@codemirror/view', () => ({
   EditorView: { lineWrapping: {} },
   keymap: { of: (...args: unknown[]) => mockKeymapOf(...args) },
+  // `Decoration.mark(...).range(from, to)` is invoked when the
+  // justReplacedField module loads alongside Editor — return a deterministic
+  // shape that the unused-by-this-test pipeline can carry around safely.
+  Decoration: {
+    mark: () => ({ range: (from: number, to: number) => ({ from, to }) }),
+    none: { update: () => null },
+  },
 }))
 
 vi.mock('@codemirror/commands', () => ({
@@ -154,7 +161,13 @@ vi.mock('@codemirror/language', () => ({
   HighlightStyle: { define: () => ({}) },
   syntaxHighlighting: () => ({}),
 }))
-vi.mock('@codemirror/state', () => ({}))
+vi.mock('@codemirror/state', () => ({
+  // Both effects are no-op factories in the test environment — none of these
+  // assertions exercise the StateField wiring. Returning truthy objects keeps
+  // `StateEffect.define()` from blowing up at module-load time.
+  StateEffect: { define: () => ({ of: (v: unknown) => ({ value: v }) }) },
+  StateField: { define: () => ({}) },
+}))
 vi.mock('../lib/cmLanguage', () => ({
   languageIdFor: () => null,
   loadLanguage: () => Promise.resolve(null),

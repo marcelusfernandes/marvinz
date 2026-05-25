@@ -12,6 +12,7 @@ import {
 } from 'prosemirror-search'
 import { Icon } from './Icon'
 import { readReplaceExpanded, writeReplaceExpanded } from '../lib/findBarPrefs'
+import { justReplacedPluginKey } from '../lib/pmJustReplacedHighlight'
 
 /** Ensures the post-navigation selection is anchored in view with 80px
  * of breathing room below the floating find bar.
@@ -28,12 +29,11 @@ import { readReplaceExpanded, writeReplaceExpanded } from '../lib/findBarPrefs'
  * `coordsAtPos`, and scrollTo with an 80px offset that mirrors the
  * `scroll-padding-top` we use elsewhere. `requestAnimationFrame` waits
  * for the PM dispatch + DOM update to land before measuring. */
-function scrollSelectionIntoView(view: EditorView): void {
+function scrollPosIntoView(view: EditorView, pos: number): void {
   requestAnimationFrame(() => {
-    const { from } = view.state.selection
     let coords
     try {
-      coords = view.coordsAtPos(from)
+      coords = view.coordsAtPos(pos)
     } catch {
       return
     }
@@ -48,6 +48,10 @@ function scrollSelectionIntoView(view: EditorView): void {
     const targetScrollTop = scrollContainer.scrollTop + offsetFromTop - 80
     scrollContainer.scrollTo({ top: targetScrollTop, behavior: 'smooth' })
   })
+}
+
+function scrollSelectionIntoView(view: EditorView): void {
+  scrollPosIntoView(view, view.state.selection.from)
 }
 
 /** Computes total matches and the 1-based index of the current selection
@@ -150,12 +154,14 @@ export function FindReplaceOverlay({ view, onClose, initialReplaceExpanded, onRe
     return () => window.clearTimeout(t)
   }, [query, replace, navTick, view])
 
-  // Clear the search state when the panel unmounts so highlights disappear.
+  // Clear the search state + any lingering replace-flash decorations when
+  // the panel unmounts so the surface returns to a clean slate.
   useEffect(() => {
     return () => {
       const current = getSearchState(view.state)
-      if (!current) return
-      const tr = setSearchState(view.state.tr, new SearchQuery({ search: '' }))
+      let tr = view.state.tr
+      if (current) tr = setSearchState(tr, new SearchQuery({ search: '' }))
+      tr = tr.setMeta(justReplacedPluginKey, { type: 'clear' })
       view.dispatch(tr)
     }
   }, [view])
@@ -171,17 +177,54 @@ export function FindReplaceOverlay({ view, onClose, initialReplaceExpanded, onRe
     setNavTick((n) => n + 1)
   }
   const runReplaceNext = () => {
+    // Same logic as the CodeMirror side: snapshot the active match BEFORE
+    // `replaceNext` rewrites + auto-advances. We need the snapshot positions
+    // so we can flash the just-written range and anchor the viewport on it,
+    // instead of scrolling away to the auto-advanced next match where the
+    // flash would never be seen.
+    const before = view.state.selection
+    const replaceLen = replace.length
     const ok = replaceNext(view.state, view.dispatch, view)
     if (ok) {
-      scrollSelectionIntoView(view)
+      const flashFrom = before.from
+      const flashTo = before.from + replaceLen
+      view.dispatch(
+        view.state.tr.setMeta(justReplacedPluginKey, {
+          type: 'add',
+          ranges: [{ from: flashFrom, to: flashTo }],
+        }),
+      )
+      scrollPosIntoView(view, flashFrom)
       onReplaced?.(1)
     }
     setNavTick((n) => n + 1)
   }
   const runReplaceAll = () => {
-    const total = matchInfo.total
+    // Capture every match's range from the active highlight decoration set
+    // BEFORE replaceAll runs (positions are stable in the old doc). Then
+    // project them into the post-replace coordinate system by accumulating
+    // a `delta` per match (replaceLen - matchLen). Dispatch all flashes in
+    // one transaction.
+    const highlightDecos = getMatchHighlights(view.state).find()
+    const matches = highlightDecos.map((d) => ({ from: d.from, to: d.to }))
+    const total = matches.length
     replaceAll(view.state, view.dispatch, view)
-    if (total > 0) onReplaced?.(total)
+    if (total > 0) {
+      const replaceLen = replace.length
+      let delta = 0
+      const flashes = matches.map((m) => {
+        const matchLen = m.to - m.from
+        const newFrom = m.from + delta
+        const newTo = newFrom + replaceLen
+        delta += replaceLen - matchLen
+        return { from: newFrom, to: newTo }
+      })
+      view.dispatch(
+        view.state.tr.setMeta(justReplacedPluginKey, { type: 'add', ranges: flashes }),
+      )
+      if (flashes[0]) scrollPosIntoView(view, flashes[0].from)
+      onReplaced?.(total)
+    }
     setNavTick((n) => n + 1)
   }
 

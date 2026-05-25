@@ -92,6 +92,10 @@ vi.mock('prosemirror-search', () => ({
   replaceAll: (...args: unknown[]) => mockReplaceAll(...args),
   setSearchState: (...args: unknown[]) => mockSetSearchState(...args),
   getSearchState: (...args: unknown[]) => mockGetSearchState(...args),
+  // Replace flow needs to scan match decorations before replaceAll so each
+  // post-replace range can be flashed. Return an empty highlight set so the
+  // logic short-circuits cleanly in unit tests.
+  getMatchHighlights: () => ({ find: () => [] }),
   SearchQuery: class {
     readonly search: string
     readonly replace: string
@@ -214,6 +218,11 @@ function makeFakeView() {
   const fakeTr: { _isTr: true; scrollIntoView: () => unknown } = {
     _isTr: true,
     scrollIntoView() {
+      return fakeTr
+    },
+    // The replace flow now stamps a meta key on the dispatched transaction
+    // to flash the just-replaced range. The mock is a no-op chainable.
+    setMeta() {
       return fakeTr
     },
   }

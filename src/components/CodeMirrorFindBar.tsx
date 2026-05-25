@@ -11,6 +11,10 @@ import {
 } from '@codemirror/search'
 import { Icon } from './Icon'
 import { readReplaceExpanded, writeReplaceExpanded } from '../lib/findBarPrefs'
+import {
+  clearReplacedFlashes,
+  flashReplaced,
+} from '../lib/cmJustReplacedHighlight'
 
 /** Anchors the current main selection in view with 80px of breathing room
  * below the floating find bar.
@@ -23,12 +27,11 @@ import { readReplaceExpanded, writeReplaceExpanded } from '../lib/findBarPrefs'
  *   80px offset always matches the `scroll-padding-top` we declared on
  *   the same containers. `requestAnimationFrame` waits for the CM
  *   dispatch + DOM update before measuring. */
-function scrollSelectionIntoView(view: EditorView): void {
+function scrollPosIntoView(view: EditorView, pos: number): void {
   requestAnimationFrame(() => {
-    const sel = view.state.selection.main
     let coords
     try {
-      coords = view.coordsAtPos(sel.from)
+      coords = view.coordsAtPos(pos)
     } catch {
       return
     }
@@ -40,6 +43,10 @@ function scrollSelectionIntoView(view: EditorView): void {
     const targetScrollTop = scrollContainer.scrollTop + offsetFromTop - 80
     scrollContainer.scrollTo({ top: targetScrollTop, behavior: 'smooth' })
   })
+}
+
+function scrollSelectionIntoView(view: EditorView): void {
+  scrollPosIntoView(view, view.state.selection.main.from)
 }
 
 /** Walks all matches of `query` in the editor's document and returns the
@@ -129,10 +136,17 @@ export function CodeMirrorFindBar({ view, onClose, initialReplaceExpanded, onRep
     prevQueryRef.current = query
   }, [query, replace, view])
 
-  // Clear the search query when the bar closes so highlights disappear.
+  // Clear the search query when the bar closes so highlights disappear, and
+  // drop any lingering "just replaced" flash decorations so the StateField
+  // doesn't grow across long sessions.
   useEffect(() => {
     return () => {
-      view.dispatch({ effects: setSearchQuery.of(new SearchQuery({ search: '' })) })
+      view.dispatch({
+        effects: [
+          setSearchQuery.of(new SearchQuery({ search: '' })),
+          clearReplacedFlashes.of(null),
+        ],
+      })
     }
   }, [view])
 
@@ -159,17 +173,53 @@ export function CodeMirrorFindBar({ view, onClose, initialReplaceExpanded, onRep
     setNavTick((n) => n + 1)
   }
   const runReplaceNext = () => {
+    // Snapshot the active match BEFORE `replaceNext` runs — the command
+    // both rewrites that range and auto-advances the selection to the next
+    // match. After it returns, `view.state.selection` already points at the
+    // next match, so we use the snapshot to (a) flash the just-written
+    // range and (b) keep the viewport anchored on it long enough for the
+    // user to see the highlight, instead of scrolling away to the next.
+    const before = view.state.selection.main
+    const replaceLen = replace.length
     const ok = replaceNext(view)
     if (ok) {
-      scrollSelectionIntoView(view)
+      const flashFrom = before.from
+      const flashTo = before.from + replaceLen
+      view.dispatch({ effects: flashReplaced.of([{ from: flashFrom, to: flashTo }]) })
+      scrollPosIntoView(view, flashFrom)
       onReplaced?.(1)
     }
     setNavTick((n) => n + 1)
   }
   const runReplaceAll = () => {
-    const total = matchInfo.total
+    // Capture every match range BEFORE replaceAll runs so we can flash
+    // each post-replace span. Doc positions of later matches shift as
+    // earlier ones are rewritten; we accumulate a `delta` per iteration
+    // (replaceLen - matchLen) to project the original positions into the
+    // post-replace coordinate system.
+    const matches: Array<{ from: number; to: number }> = []
+    if (query) {
+      const cursor = new SearchCursor(view.state.doc, query)
+      while (!cursor.next().done) {
+        matches.push({ from: cursor.value.from, to: cursor.value.to })
+      }
+    }
+    const total = matches.length
     replaceAll(view)
-    if (total > 0) onReplaced?.(total)
+    if (total > 0) {
+      const replaceLen = replace.length
+      let delta = 0
+      const flashes = matches.map((m) => {
+        const matchLen = m.to - m.from
+        const newFrom = m.from + delta
+        const newTo = newFrom + replaceLen
+        delta += replaceLen - matchLen
+        return { from: newFrom, to: newTo }
+      })
+      view.dispatch({ effects: flashReplaced.of(flashes) })
+      if (flashes[0]) scrollPosIntoView(view, flashes[0].from)
+      onReplaced?.(total)
+    }
     setNavTick((n) => n + 1)
   }
 

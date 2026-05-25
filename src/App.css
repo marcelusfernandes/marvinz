@@ -2382,6 +2382,31 @@ button {
   animation: find-match-pop 320ms var(--ease-out);
 }
 
+/* "Just replaced" flash — green fade applied to the range that was just
+   rewritten by Replace. `forwards` keeps the highlight transparent after
+   the animation so the decoration node (which lives on in the StateField /
+   PluginState until the find bar unmounts) stays invisible. */
+.cm-host .cm-just-replaced,
+.live-md .pm-just-replaced {
+  border-radius: var(--radius-sm);
+  animation: just-replaced-flash 900ms var(--ease-out) forwards;
+}
+
+@keyframes just-replaced-flash {
+  0% {
+    background: rgba(46, 204, 113, 0.55);
+    box-shadow: 0 0 0 2px rgba(46, 204, 113, 0.45);
+  }
+  60% {
+    background: rgba(46, 204, 113, 0.35);
+    box-shadow: 0 0 0 2px rgba(46, 204, 113, 0);
+  }
+  100% {
+    background: transparent;
+    box-shadow: none;
+  }
+}
+
 /* "Pop" bounce fired every time a match becomes the active one (Enter, Prev,
    Next). Combines a real `scale` bounce with an expanding amber ring so the
    feedback reads clearly even when the active background already matches

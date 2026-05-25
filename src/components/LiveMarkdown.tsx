@@ -17,6 +17,7 @@ import { keymap } from 'prosemirror-keymap'
 import { findNext, findPrev, search } from 'prosemirror-search'
 import type { EditorView } from 'prosemirror-view'
 import { imageNodeView } from '../lib/imageNodeView'
+import { justReplacedPlugin } from '../lib/pmJustReplacedHighlight'
 import type { PaletteItem } from '../lib/paletteRanker'
 import { parseWikilinks, unparseWikilinks } from '../lib/wikilinks'
 
@@ -149,6 +150,7 @@ function LiveMarkdownInner({
           // parent then drives the PM view through `onViewReady`.
           searchPlugin,
           findKeymap,
+          justReplacedPlugin(),
         ])
         ctx.get(listenerCtx).markdownUpdated((_ctx, markdown, prevMarkdown) => {
           if (markdown !== prevMarkdown) onChangeRef.current(unparseWikilinks(markdown))
