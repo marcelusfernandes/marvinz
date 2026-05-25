@@ -251,6 +251,14 @@ body,
   color: var(--text-primary);
 }
 
+/* Kill the browser's default focus outline globally so we never see the
+   yellow/orange/blue system ring leaking through. Components opt into a
+   visible focus indicator via box-shadow: var(--focus-ring) (or the inset
+   variant) on their own :focus-visible rule. */
+:focus {
+  outline: none;
+}
+
 button {
   font-family: inherit;
   font-size: inherit;
@@ -1997,7 +2005,7 @@ button {
   background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  width: 420px;
+  width: 100%;
   max-width: 90vw;
   padding: 18px;
   display: flex;
@@ -2183,7 +2191,7 @@ button {
   right: var(--space-3);
   /* Fixed width so toggling Replace doesn't shrink/grow the container
      and shift the anchor point. */
-  width: 420px;
+  width: 300px;
   max-width: calc(100% - var(--space-6));
   z-index: var(--z-dropdown);
   display: flex;
