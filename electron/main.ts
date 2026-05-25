@@ -120,10 +120,21 @@ function scheduleTurnEnd(vaultRoot: string, turnId: string) {
 // detection and in-process state.
 const fileContentCache = new Map<string, string>()
 
+// Geometry descriptor: insets from each contentView edge to the browser-host
+// element. Registered by the renderer once and reused by main on every resize.
+type BrowserGeometry = {
+  leftInset: number
+  topInset: number
+  rightInset: number
+  bottomInset: number
+}
+
 type BrowserEntry = {
   view: WebContentsView
-  /** Last known bounds set from the renderer; we reapply them when un-hiding. */
+  /** Last known bounds set from the renderer; fallback when no geometry registered. */
   lastBounds: { x: number; y: number; width: number; height: number }
+  /** Geometry descriptor for synchronous main-side resize recompute. */
+  geometry: BrowserGeometry | null
   /** Whether this view is currently the active browser tab. */
   active: boolean
   /** When true, all browsers are temporarily hidden (e.g. a React modal is open). */
@@ -134,12 +145,43 @@ let browsersGloballyHidden = false
 
 const HIDDEN_BOUNDS = { x: 0, y: 0, width: 0, height: 0 }
 
+function boundsFromGeometry(
+  geometry: BrowserGeometry,
+  contentWidth: number,
+  contentHeight: number,
+): { x: number; y: number; width: number; height: number } {
+  return {
+    x: geometry.leftInset,
+    y: geometry.topInset,
+    width: Math.max(0, contentWidth - geometry.leftInset - geometry.rightInset),
+    height: Math.max(0, contentHeight - geometry.topInset - geometry.bottomInset),
+  }
+}
+
 function applyBounds(entry: BrowserEntry) {
   if (!entry.active || entry.globallyHidden) {
     entry.view.setBounds(HIDDEN_BOUNDS)
     return
   }
   entry.view.setBounds(entry.lastBounds)
+}
+
+// Recompute bounds from stored geometry descriptors using current window size.
+// Called synchronously on every resize event to avoid an IPC round-trip.
+// Uses getContentBounds() — same coordinate space as getBoundingClientRect() in
+// the renderer and as WebContentsView.setBounds() (content area, excludes frame).
+function reapplyAllWithGeometry() {
+  if (!win || win.isDestroyed()) return
+  const { width: contentWidth, height: contentHeight } = win.getContentBounds()
+  for (const entry of browserViews.values()) {
+    if (!entry.geometry) {
+      applyBounds(entry)
+      continue
+    }
+    const newBounds = boundsFromGeometry(entry.geometry, contentWidth, contentHeight)
+    entry.lastBounds = newBounds
+    applyBounds(entry)
+  }
 }
 
 const SETTINGS_FILE = () => path.join(app.getPath('userData'), 'settings.json')
@@ -200,6 +242,11 @@ function createWindow() {
     shell.openExternal(url)
     return { action: 'deny' }
   })
+
+  win.on('resize', () => reapplyAllWithGeometry())
+  win.on('maximize', () => reapplyAllWithGeometry())
+  win.on('unmaximize', () => reapplyAllWithGeometry())
+  win.on('restore', () => reapplyAllWithGeometry())
 }
 
 // Custom protocol for serving vault-local resources (images, etc.) into
@@ -1058,6 +1105,7 @@ ipcMain.handle(
     const entry: BrowserEntry = {
       view,
       lastBounds: opts.bounds,
+      geometry: null,
       active: true,
       globallyHidden: browsersGloballyHidden,
     }
@@ -1178,6 +1226,27 @@ ipcMain.handle('browser:setBounds', (_e, id: string, bounds: BrowserBounds) => {
   entry.lastBounds = bounds
   applyBounds(entry)
 })
+
+// Geometry descriptor path: renderer registers insets from window edges once
+// (and on panel layout changes). Main recomputes absolute bounds synchronously
+// on every win.on('resize') without a renderer round-trip — eliminates the
+// "wait then snap" on macOS maximize/restore.
+ipcMain.handle(
+  'browser:setGeometry',
+  (
+    _e,
+    id: string,
+    geometry: { leftInset: number; topInset: number; rightInset: number; bottomInset: number },
+  ) => {
+    const entry = browserViews.get(id)
+    if (!entry || !win || win.isDestroyed()) return
+    entry.geometry = geometry
+    const { width: contentWidth, height: contentHeight } = win.getContentBounds()
+    const newBounds = boundsFromGeometry(geometry, contentWidth, contentHeight)
+    entry.lastBounds = newBounds
+    applyBounds(entry)
+  },
+)
 
 ipcMain.handle('browser:setActive', (_e, activeId: string | null) => {
   for (const [id, entry] of browserViews.entries()) {

@@ -13,6 +13,17 @@ export type FileNode = {
   children?: FileNode[]
 }
 
+// Geometry descriptor for an embedded WebContentsView: the placeholder's
+// distance (in DIPs) from each window content edge. Lets main recompute bounds
+// synchronously during an OS window resize instead of round-tripping to the
+// renderer per frame (issue #259).
+export type BrowserViewInsets = {
+  leftInset: number
+  topInset: number
+  rightInset: number
+  bottomInset: number
+}
+
 export type BrowserEvent =
   | { id: string; kind: 'title'; title: string }
   | { id: string; kind: 'url'; url: string }
@@ -116,6 +127,7 @@ export type MarvinAPI = {
     reload: (id: string) => Promise<void>
     stop: (id: string) => Promise<void>
     setBounds: (id: string, bounds: { x: number; y: number; width: number; height: number }) => Promise<void>
+    setGeometry: (id: string, insets: BrowserViewInsets) => Promise<void>
     setActive: (id: string | null) => Promise<void>
     setAllHidden: (hidden: boolean) => Promise<void>
     close: (id: string) => Promise<void>

@@ -1,5 +1,5 @@
-import { useEffect, useRef } from 'react'
-import { computeViewBounds } from '../lib/browserBounds'
+import { useCallback, useEffect, useRef } from 'react'
+import { computeViewBounds, computeViewInsets } from '../lib/browserBounds'
 
 type Props = {
   filePath: string
@@ -20,6 +20,15 @@ export function HtmlPreview({ filePath, version, geometryKey }: Props) {
   const hostRef = useRef<HTMLDivElement>(null)
   const id = `html-preview-${filePath}`
 
+  // Push absolute bounds (panel drags + create) and the geometry descriptor
+  // (lets main recompute during OS window resize, #259) together.
+  const pushGeometry = useCallback(() => {
+    const bounds = computeViewBounds(hostRef.current)
+    if (bounds) void window.marvin.browser.setBounds(id, bounds)
+    const insets = computeViewInsets(hostRef.current, window.innerWidth, window.innerHeight)
+    if (insets) void window.marvin.browser.setGeometry(id, insets)
+  }, [id])
+
   // Create the WebContentsView on mount; close on unmount. Re-creates when
   // `filePath` changes because `id` is derived from it.
   useEffect(() => {
@@ -35,17 +44,20 @@ export function HtmlPreview({ filePath, version, geometryKey }: Props) {
           bounds,
         })
         if (cancelled) return
+        // Register the descriptor so main can recompute on the first OS resize.
+        const insets = computeViewInsets(
+          hostRef.current,
+          window.innerWidth,
+          window.innerHeight,
+        )
+        if (insets) void window.marvin.browser.setGeometry(id, insets)
       } catch (err) {
         console.error('[HtmlPreview] create failed', err)
       }
     }
     void create()
 
-    const sync = () => {
-      const next = computeViewBounds(hostRef.current)
-      if (!next) return
-      void window.marvin.browser.setBounds(id, next)
-    }
+    const sync = () => pushGeometry()
     const ro = new ResizeObserver(sync)
     if (hostRef.current) ro.observe(hostRef.current)
     window.addEventListener('resize', sync)
@@ -76,12 +88,9 @@ export function HtmlPreview({ filePath, version, geometryKey }: Props) {
   // Pure-position shifts (layout-mode swap, sidebar resize) don't trigger
   // ResizeObserver. Wait one frame for CSS to settle, then push fresh bounds.
   useEffect(() => {
-    const raf = requestAnimationFrame(() => {
-      const r = computeViewBounds(hostRef.current)
-      if (r) void window.marvin.browser.setBounds(id, r)
-    })
+    const raf = requestAnimationFrame(() => pushGeometry())
     return () => cancelAnimationFrame(raf)
-  }, [geometryKey, id])
+  }, [geometryKey, pushGeometry])
 
   return <div ref={hostRef} className="html-preview-host" />
 }

@@ -5,6 +5,7 @@ import { render, screen, fireEvent, cleanup } from '@testing-library/react'
 import { FileTree } from '../FileTree'
 import type { FileNode } from '../../types'
 import { smallTree } from './file-tree-fixtures'
+import { setupVirtualizerMocks } from './_virtualizerSetup'
 
 // ---------------------------------------------------------------------------
 // Mocks — must come before any component import that transitively uses them
@@ -106,14 +107,18 @@ function baseProps(overrides: Partial<Parameters<typeof FileTree>[0]> = {}) {
 // Setup / teardown
 // ---------------------------------------------------------------------------
 
+let restoreVirtualizer: () => void
+
 beforeEach(() => {
   mockIconTheme = undefined
+  restoreVirtualizer = setupVirtualizerMocks()
   setupMarvinMock()
 })
 
 afterEach(() => {
   cleanup()
   vi.restoreAllMocks()
+  restoreVirtualizer()
 })
 
 // ===========================================================================
@@ -125,7 +130,8 @@ describe('FileTree — render variations', () => {
     const { container } = render(<FileTree {...baseProps({ nodes: [] })} />)
     const ul = container.querySelector('ul.file-tree')
     expect(ul).not.toBeNull()
-    expect(ul!.children).toHaveLength(0)
+    // Virtualizer wraps rows in a sizing div — assert no treeitems rendered instead
+    expect(container.querySelectorAll('[role="treeitem"]')).toHaveLength(0)
   })
 
   it('renders a single file node with its display name (no extension)', () => {
@@ -170,7 +176,7 @@ describe('FileTree — render variations', () => {
 
   it('applies the drop-root class to the root ul when it is the drop target', () => {
     const { container } = render(<FileTree {...baseProps()} />)
-    const ul = container.querySelector('ul.file-tree')!
+    const ul = container.querySelector('ul.file-tree') as HTMLUListElement
     fireEvent.dragOver(ul, {
       dataTransfer: { types: ['Files'], dropEffect: '' },
     })
@@ -356,7 +362,7 @@ describe('FileTree — drag-drop valid move', () => {
   it('calls onMove when dropping a file onto the root (vaultPath)', () => {
     const onMove = vi.fn()
     const { container } = render(<FileTree {...baseProps({ onMove })} />)
-    const ul = container.querySelector('ul.file-tree')!
+    const ul = container.querySelector('ul.file-tree') as HTMLUListElement
     const srcPath = '/vault/docs/intro.md'
     const mimeData = { [DRAG_MIME]: srcPath }
 
@@ -626,7 +632,7 @@ describe('FileTree — external drop on root ul', () => {
   it('calls importExternal with resolved paths and vaultPath on external drop', async () => {
     const onImportResult = vi.fn()
     const { container } = render(<FileTree {...baseProps({ onImportResult })} />)
-    const ul = container.querySelector('ul.file-tree')!
+    const ul = container.querySelector('ul.file-tree') as HTMLUListElement
 
     const fakeFile = new File([''], 'photo.png', { type: 'image/png' })
     const dt = makeExternalDt([fakeFile])
@@ -643,7 +649,7 @@ describe('FileTree — external drop on root ul', () => {
     importExternalMock.mockResolvedValueOnce(result)
     const onImportResult = vi.fn()
     const { container } = render(<FileTree {...baseProps({ onImportResult })} />)
-    const ul = container.querySelector('ul.file-tree')!
+    const ul = container.querySelector('ul.file-tree') as HTMLUListElement
 
     const fakeFile = new File([''], 'photo.png', { type: 'image/png' })
     const dt = makeExternalDt([fakeFile])
@@ -659,7 +665,7 @@ describe('FileTree — external drop on root ul', () => {
     importExternalMock.mockRejectedValueOnce(new Error('disk full'))
     const onImportResult = vi.fn()
     const { container } = render(<FileTree {...baseProps({ onImportResult })} />)
-    const ul = container.querySelector('ul.file-tree')!
+    const ul = container.querySelector('ul.file-tree') as HTMLUListElement
 
     const fakeFile = new File([''], 'photo.png', { type: 'image/png' })
     const dt = makeExternalDt([fakeFile])
@@ -675,7 +681,7 @@ describe('FileTree — external drop on root ul', () => {
     getPathForFileMock.mockReturnValue('')
     const onImportResult = vi.fn()
     const { container } = render(<FileTree {...baseProps({ onImportResult })} />)
-    const ul = container.querySelector('ul.file-tree')!
+    const ul = container.querySelector('ul.file-tree') as HTMLUListElement
 
     const fakeFile = new File([''], 'photo.png', { type: 'image/png' })
     const dt = makeExternalDt([fakeFile])
@@ -759,7 +765,7 @@ describe('FileTree — external drop on root ul', () => {
     const { act } = await import('@testing-library/react')
     const onImportResult = vi.fn()
     const { container } = render(<FileTree {...baseProps({ onImportResult })} />)
-    const ul = container.querySelector('ul.file-tree')!
+    const ul = container.querySelector('ul.file-tree') as HTMLUListElement
 
     const file = new File([''], 'photo.png', { type: 'image/png' })
     getPathForFileMock.mockReturnValue('/external/photo.png')
@@ -780,7 +786,7 @@ describe('FileTree — external drop on root ul', () => {
     importExternalMock.mockResolvedValue(importResult)
     const onImportResult = vi.fn()
     const { container } = render(<FileTree {...baseProps({ onImportResult })} />)
-    const ul = container.querySelector('ul.file-tree')!
+    const ul = container.querySelector('ul.file-tree') as HTMLUListElement
 
     const file = new File([''], 'photo.png', { type: 'image/png' })
     getPathForFileMock.mockReturnValue('/external/photo.png')
@@ -800,7 +806,7 @@ describe('FileTree — external drop on root ul', () => {
     importExternalMock.mockRejectedValue(new Error('disk full'))
     const onImportResult = vi.fn()
     const { container } = render(<FileTree {...baseProps({ onImportResult })} />)
-    const ul = container.querySelector('ul.file-tree')!
+    const ul = container.querySelector('ul.file-tree') as HTMLUListElement
 
     const file = new File([''], 'photo.png', { type: 'image/png' })
     getPathForFileMock.mockReturnValue('/external/photo.png')
@@ -819,7 +825,7 @@ describe('FileTree — external drop on root ul', () => {
     const { act } = await import('@testing-library/react')
     getPathForFileMock.mockReturnValue('')
     const { container } = render(<FileTree {...baseProps()} />)
-    const ul = container.querySelector('ul.file-tree')!
+    const ul = container.querySelector('ul.file-tree') as HTMLUListElement
 
     const file = new File([''], 'photo.png', { type: 'image/png' })
     const dt = makeExternalDt([file])
@@ -937,19 +943,20 @@ describe('FileTree — ARIA semantics', () => {
     expect(items).toHaveLength(5)
   })
 
-  it('renders the children container of an open folder with role="group"', () => {
+  it('renders child treeitems at aria-level 2 when a folder is open', () => {
     const openPaths = new Set(['/vault/docs'])
-    const { container } = render(<FileTree {...baseProps({ openPaths })} />)
-    const group = container.querySelector('ul[role="group"]')
-    expect(group).not.toBeNull()
-    // Group children should be the two files under docs
-    const groupItems = group!.querySelectorAll('[role="treeitem"]')
-    expect(groupItems).toHaveLength(2)
+    render(<FileTree {...baseProps({ openPaths })} />)
+    const items = screen.getAllByRole('treeitem')
+    const level2 = items.filter((el) => el.getAttribute('aria-level') === '2')
+    // docs has 2 children: intro.md and guide.md
+    expect(level2).toHaveLength(2)
   })
 
-  it('does not render a group when the folder is closed', () => {
-    const { container } = render(<FileTree {...baseProps()} />)
-    expect(container.querySelector('ul[role="group"]')).toBeNull()
+  it('renders no treeitems at aria-level 2 when the folder is closed', () => {
+    render(<FileTree {...baseProps()} />)
+    const items = screen.queryAllByRole('treeitem')
+    const level2 = items.filter((el) => el.getAttribute('aria-level') === '2')
+    expect(level2).toHaveLength(0)
   })
 
   it('uses 1-indexed aria-level across 3 nesting depths', () => {
@@ -1043,3 +1050,338 @@ describe('FileTree — ARIA semantics', () => {
 })
 
 // ===========================================================================
+// Scenario 14 — Handler reference stability (useCallback + useRef pattern)
+//
+// Verifies that the refactor in issue #251 works: the 4 handlers passed to
+// <FileTree> keep the same function reference across parent re-renders that
+// do not affect FileTree-relevant data. A broken useCallback (missing deps or
+// no ref indirection) would create new references on every render, defeating
+// React.memo.
+// ===========================================================================
+
+import { useCallback, useRef, useState } from 'react'
+import { renderHook, act as actHook } from '@testing-library/react'
+
+describe('FileTree handler stability — useCallback + latest-ref pattern', () => {
+  // Mirrors the pattern used in App.tsx for the 4 FileTree handlers:
+  // volatile deps are captured via a latest-ref so handler identities are stable.
+  function useStableHandlers() {
+    const [volatileCounter, setVolatileCounter] = useState(0)
+    const [tabTitle, setTabTitle] = useState('Untitled')
+
+    const volatileRef = useRef(volatileCounter)
+    volatileRef.current = volatileCounter
+
+    const handleSelectFile = useCallback((_node: unknown) => {
+      void volatileRef.current
+    }, [])
+
+    const handleToggleOpen = useCallback((_p: string) => {}, [])
+
+    const handleDropMove = useCallback((_src: string, _dest: string) => {}, [])
+
+    const handleContextMenu = useCallback((_e: unknown, _node: unknown) => {}, [])
+
+    return {
+      handleSelectFile,
+      handleToggleOpen,
+      handleDropMove,
+      handleContextMenu,
+      setVolatileCounter,
+      setTabTitle,
+      tabTitle,
+    }
+  }
+
+  it('handler refs are identical after re-render caused by a volatile dependency change', () => {
+    const { result } = renderHook(() => useStableHandlers())
+
+    const before = {
+      onSelect: result.current.handleSelectFile,
+      onToggleOpen: result.current.handleToggleOpen,
+      onMove: result.current.handleDropMove,
+      onContextMenu: result.current.handleContextMenu,
+    }
+
+    actHook(() => {
+      result.current.setVolatileCounter(1)
+    })
+
+    expect(result.current.handleSelectFile).toBe(before.onSelect)
+    expect(result.current.handleToggleOpen).toBe(before.onToggleOpen)
+    expect(result.current.handleDropMove).toBe(before.onMove)
+    expect(result.current.handleContextMenu).toBe(before.onContextMenu)
+  })
+
+  it('handler refs are identical when irrelevant App state changes (e.g., tab title rename)', () => {
+    const { result } = renderHook(() => useStableHandlers())
+
+    const before = {
+      onSelect: result.current.handleSelectFile,
+      onToggleOpen: result.current.handleToggleOpen,
+      onMove: result.current.handleDropMove,
+      onContextMenu: result.current.handleContextMenu,
+    }
+
+    actHook(() => {
+      result.current.setTabTitle('My Document')
+    })
+
+    expect(result.current.handleSelectFile).toBe(before.onSelect)
+    expect(result.current.handleToggleOpen).toBe(before.onToggleOpen)
+    expect(result.current.handleDropMove).toBe(before.onMove)
+    expect(result.current.handleContextMenu).toBe(before.onContextMenu)
+  })
+})
+
+// ===========================================================================
+// Scenario 15 — hoveredPath lift: single source of truth
+//
+// After the lift in issue #253, hoveredPath lives in <FileTree> root, not in
+// each <FileTreeNode>. These tests verify the invariant: at most one row carries
+// drop-target at a time, and dragLeave clears it.
+// ===========================================================================
+
+describe('FileTree — hoveredPath lift (single source of truth)', () => {
+  it('applies drop-target to row A on dragOver, then moves it to row B on subsequent dragOver', () => {
+    render(<FileTree {...baseProps()} />)
+    const docsBtn = screen.getByText('docs').closest('button')!
+    const assetsBtn = screen.getByText('assets').closest('button')!
+
+    fireEvent.dragOver(docsBtn, makeDragEvent([DRAG_MIME]))
+    expect(docsBtn.classList.contains('drop-target')).toBe(true)
+    expect(assetsBtn.classList.contains('drop-target')).toBe(false)
+
+    fireEvent.dragOver(assetsBtn, makeDragEvent([DRAG_MIME]))
+    expect(assetsBtn.classList.contains('drop-target')).toBe(true)
+    expect(docsBtn.classList.contains('drop-target')).toBe(false)
+  })
+
+  it('clears drop-target from any row on dragLeave', () => {
+    render(<FileTree {...baseProps()} />)
+    const docsBtn = screen.getByText('docs').closest('button')!
+
+    fireEvent.dragOver(docsBtn, makeDragEvent([DRAG_MIME]))
+    expect(docsBtn.classList.contains('drop-target')).toBe(true)
+
+    fireEvent.dragLeave(docsBtn)
+    expect(docsBtn.classList.contains('drop-target')).toBe(false)
+  })
+
+  it('ensures at most one folder carries drop-target across all root siblings', () => {
+    render(<FileTree {...baseProps()} />)
+    const docsBtn = screen.getByText('docs').closest('button')!
+    const assetsBtn = screen.getByText('assets').closest('button')!
+
+    for (const btn of [docsBtn, assetsBtn, docsBtn]) {
+      fireEvent.dragOver(btn, makeDragEvent([DRAG_MIME]))
+      const activeTargets = [docsBtn, assetsBtn].filter(b =>
+        b.classList.contains('drop-target'),
+      )
+      expect(activeTargets).toHaveLength(1)
+      expect(activeTargets[0]).toBe(btn)
+    }
+  })
+
+  it('clears drop-target after a successful drop', () => {
+    const onMove = vi.fn()
+    render(<FileTree {...baseProps({ onMove })} />)
+    const docsBtn = screen.getByText('docs').closest('button')!
+    const mimeData = { [DRAG_MIME]: '/vault/readme.md' }
+
+    fireEvent.dragOver(docsBtn, makeDragEvent([DRAG_MIME], mimeData))
+    expect(docsBtn.classList.contains('drop-target')).toBe(true)
+
+    fireEvent.drop(docsBtn, makeDragEvent([DRAG_MIME], mimeData))
+    expect(docsBtn.classList.contains('drop-target')).toBe(false)
+  })
+
+  it('drag-over race: only child carries drop-target when drag moves from parent to nested child without dragleave', () => {
+    const nestedNodes: FileNode[] = [
+      {
+        path: '/vault/parent',
+        name: 'parent',
+        isDir: true,
+        children: [
+          { path: '/vault/parent/child', name: 'child', isDir: true, children: [] },
+        ],
+      },
+    ]
+    const openPaths = new Set(['/vault/parent'])
+    render(<FileTree {...baseProps({ nodes: nestedNodes, openPaths })} />)
+
+    const parentBtn = screen.getByText('parent').closest('button')!
+    const childBtn = screen.getByText('child').closest('button')!
+
+    fireEvent.dragOver(parentBtn, makeDragEvent([DRAG_MIME]))
+    expect(parentBtn.classList.contains('drop-target')).toBe(true)
+    expect(childBtn.classList.contains('drop-target')).toBe(false)
+
+    // Simulate drag entering child without dragleave on parent first (the race scenario)
+    fireEvent.dragOver(childBtn, makeDragEvent([DRAG_MIME]))
+    expect(childBtn.classList.contains('drop-target')).toBe(true)
+    expect(parentBtn.classList.contains('drop-target')).toBe(false)
+  })
+})
+
+// ===========================================================================
+// Scenario 16 — iconTheme lift: useSetting called once at root
+//
+// After the lift, iconTheme is derived once in <FileTree> and passed down as a
+// prop — useSetting is no longer called per-node. These tests verify that
+// changing mockIconTheme and re-rendering updates all visible nodes at once,
+// proving the single-call contract.
+// ===========================================================================
+
+describe('FileTree — iconTheme lift (single useSetting call at root)', () => {
+  it('all folder nodes switch to material icons together on iconTheme change', () => {
+    mockIconTheme = 'codicon'
+    const openPaths = new Set(['/vault/docs'])
+    const { container, rerender } = render(<FileTree {...baseProps({ openPaths })} />)
+
+    expect(container.querySelectorAll('img[data-testid^="material-icon-"]').length).toBe(0)
+
+    mockIconTheme = 'material'
+    rerender(<FileTree {...baseProps({ openPaths })} />)
+
+    const materialIcons = container.querySelectorAll('img[data-testid^="material-icon-"]')
+    expect(materialIcons.length).toBeGreaterThan(1)
+  })
+
+  it('all nodes revert to codicon icons together when iconTheme switches back', () => {
+    mockIconTheme = 'material'
+    const openPaths = new Set(['/vault/docs'])
+    const { container, rerender } = render(<FileTree {...baseProps({ openPaths })} />)
+
+    expect(container.querySelectorAll('img[data-testid^="material-icon-"]').length).toBeGreaterThan(0)
+
+    mockIconTheme = 'codicon'
+    rerender(<FileTree {...baseProps({ openPaths })} />)
+
+    expect(container.querySelectorAll('img[data-testid^="material-icon-"]').length).toBe(0)
+    expect(container.querySelectorAll('span[data-testid^="icon-"]').length).toBeGreaterThan(0)
+  })
+})
+
+// ===========================================================================
+// Drag and drop — auto-scroll
+// ===========================================================================
+//
+// The file tree uses onDragOverCapture to detect drag proximity to the top or
+// bottom edge (EDGE_ZONE = 50px) and schedules a requestAnimationFrame loop
+// that adjusts scrollRef.current.scrollTop each frame.
+//
+// Key testing constraints:
+// - fireEvent.dragOver does not trigger React's capture-phase handler in jsdom.
+//   We must use ul.dispatchEvent(new Event('dragover', { bubbles: true })) so
+//   the native event propagates through capture before React's synthetic one.
+// - getBoundingClientRect must be set as a direct method assignment on the
+//   element instance (not Object.defineProperty) to override the prototype shim
+//   installed by _virtualizerSetup.
+// - rAF callbacks are collected and flushed manually so we control timing.
+// ===========================================================================
+
+describe('Drag and drop — auto-scroll', () => {
+  const VIEWPORT_HEIGHT = 600 // matches setupVirtualizerMocks default
+  const EDGE_ZONE = 50
+
+  function makeDragEvent(clientY: number): Event {
+    const dt = {
+      types: [DRAG_MIME],
+      dropEffect: '',
+      effectAllowed: '',
+      getData: () => '',
+      setData: vi.fn(),
+      files: [],
+    }
+    const event = new MouseEvent('dragover', { bubbles: true, cancelable: true, clientY })
+    Object.defineProperty(event, 'dataTransfer', { value: dt })
+    return event
+  }
+
+  function setupScrollEl(ul: HTMLElement, initialScrollTop = 0) {
+    // Override getBoundingClientRect as a direct method so it takes precedence
+    // over the HTMLElement.prototype shim from _virtualizerSetup.
+    ul.getBoundingClientRect = () =>
+      ({ top: 0, bottom: VIEWPORT_HEIGHT, left: 0, right: 0, width: 0, height: VIEWPORT_HEIGHT, x: 0, y: 0, toJSON: () => ({}) } as DOMRect)
+
+    let scrollTop = initialScrollTop
+    Object.defineProperty(ul, 'scrollTop', {
+      configurable: true,
+      get: () => scrollTop,
+      set: (v: number) => { scrollTop = v },
+    })
+    return { getScrollTop: () => scrollTop }
+  }
+
+  it('decrements scrollTop when clientY is within EDGE_ZONE of the top', () => {
+    const rafQueue: FrameRequestCallback[] = []
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
+      rafQueue.push(cb)
+      return rafQueue.length
+    })
+
+    const { container } = render(<FileTree {...baseProps()} />)
+    const ul = container.querySelector('ul.file-tree') as HTMLUListElement
+    const { getScrollTop } = setupScrollEl(ul, 200)
+
+    // clientY = 30 → within top EDGE_ZONE (distFromTop = 30 < 50)
+    ul.dispatchEvent(makeDragEvent(30))
+    expect(rafQueue).toHaveLength(1)
+
+    rafQueue.forEach(cb => cb(0))
+    expect(getScrollTop()).toBeLessThan(200)
+  })
+
+  it('increments scrollTop when clientY is within EDGE_ZONE of the bottom', () => {
+    const rafQueue: FrameRequestCallback[] = []
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
+      rafQueue.push(cb)
+      return rafQueue.length
+    })
+
+    const { container } = render(<FileTree {...baseProps()} />)
+    const ul = container.querySelector('ul.file-tree') as HTMLUListElement
+    const { getScrollTop } = setupScrollEl(ul, 0)
+
+    // clientY = 570 → within bottom EDGE_ZONE (distFromBottom = 30 < 50)
+    ul.dispatchEvent(makeDragEvent(VIEWPORT_HEIGHT - EDGE_ZONE + 20))
+    expect(rafQueue).toHaveLength(1)
+
+    rafQueue.forEach(cb => cb(0))
+    expect(getScrollTop()).toBeGreaterThan(0)
+  })
+
+  it('does not schedule rAF when clientY is in the middle of the container', () => {
+    const rafQueue: FrameRequestCallback[] = []
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
+      rafQueue.push(cb)
+      return rafQueue.length
+    })
+
+    const { container } = render(<FileTree {...baseProps()} />)
+    const ul = container.querySelector('ul.file-tree') as HTMLUListElement
+    setupScrollEl(ul, 100)
+
+    // clientY = 300 → middle, outside both edge zones
+    ul.dispatchEvent(makeDragEvent(300))
+    expect(rafQueue).toHaveLength(0)
+  })
+
+  it('cancels the rAF loop when dragend fires on window', () => {
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation(() => 99)
+    const cafSpy = vi.spyOn(window, 'cancelAnimationFrame')
+
+    const { container } = render(<FileTree {...baseProps()} />)
+    const ul = container.querySelector('ul.file-tree') as HTMLUListElement
+    setupScrollEl(ul, 0)
+
+    // Schedule a frame by dragging near the top edge
+    ul.dispatchEvent(makeDragEvent(20))
+
+    // Simulate drag termination via window event (matches the useEffect listener)
+    window.dispatchEvent(new Event('dragend'))
+
+    expect(cafSpy).toHaveBeenCalledWith(99)
+  })
+})

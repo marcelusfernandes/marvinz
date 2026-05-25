@@ -16,6 +16,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, act } from '@testing-library/react'
 import type { FileNode } from '../../types'
+import { setupVirtualizerMocks } from './_virtualizerSetup'
 
 // ---------------------------------------------------------------------------
 // Capture the onContextMenu prop that App passes to FileTree
@@ -187,12 +188,16 @@ async function renderApp() {
 // Setup / teardown
 // ---------------------------------------------------------------------------
 
+let restoreVirtualizer: () => void
+
 beforeEach(() => {
+  restoreVirtualizer = setupVirtualizerMocks()
   setupMarvinMock()
 })
 
 afterEach(() => {
   vi.restoreAllMocks()
+  restoreVirtualizer()
 })
 
 // ---------------------------------------------------------------------------
