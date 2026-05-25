@@ -1632,7 +1632,12 @@ button {
   outline: none;
   color: #1a1a1a;
   border-radius: var(--radius-sm);
-  animation: find-match-pop 280ms var(--ease-out);
+  /* `inline-block` so `transform: scale()` actually applies — CSS transforms
+     on inline boxes are no-ops. Only the single active match gets this, so
+     the baseline impact is negligible. */
+  display: inline-block;
+  transform-origin: center;
+  animation: find-match-pop 320ms var(--ease-out);
 }
 
 .cm-host .cm-matchingBracket {
@@ -2372,22 +2377,27 @@ button {
   background: var(--bg-find-match-active);
   color: #1a1a1a;
   border-radius: var(--radius-sm);
-  animation: find-match-pop 280ms var(--ease-out);
+  display: inline-block;
+  transform-origin: center;
+  animation: find-match-pop 320ms var(--ease-out);
 }
 
-/* "Pop" pulse fired every time a match becomes the active one (Enter, Prev,
-   Next). Uses an expanding box-shadow ring instead of `transform: scale()`
-   because match decorations are inline spans — transforms on inline boxes
-   are no-ops without `display: inline-block`, which would cause a baseline
-   jolt mid-paragraph. The ring grows + fades in 280ms for that "poup" feel. */
+/* "Pop" bounce fired every time a match becomes the active one (Enter, Prev,
+   Next). Combines a real `scale` bounce with an expanding amber ring so the
+   feedback reads clearly even when the active background already matches
+   the ring color. Active matches are promoted to `display: inline-block` so
+   the transform actually applies. */
 @keyframes find-match-pop {
   0% {
-    box-shadow: 0 0 0 0 rgba(255, 191, 0, 0.6);
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(255, 191, 0, 0.7);
   }
-  60% {
-    box-shadow: 0 0 0 6px rgba(255, 191, 0, 0);
+  40% {
+    transform: scale(1.18);
+    box-shadow: 0 0 0 5px rgba(255, 191, 0, 0.35);
   }
   100% {
+    transform: scale(1);
     box-shadow: 0 0 0 0 rgba(255, 191, 0, 0);
   }
 }
