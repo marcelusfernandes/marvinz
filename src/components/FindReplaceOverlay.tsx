@@ -118,18 +118,19 @@ export function FindReplaceOverlay({ view, onClose, initialReplaceExpanded }: Pr
     })
   }
 
-  // Push query changes into the plugin state so highlights track typing.
-  // Immediately after applying the query, jump+scroll to the nearest match
-  // so the user sees the result without having to press Enter — matches
-  // Notion / VS Code behavior. `findNext` returns false when no match
-  // exists; the scroll helper is harmless in that case.
+  // Push query/replace changes into the plugin state so highlights track
+  // typing. The auto-navigation to the first match only fires when the
+  // QUERY changes — editing the Replace text must not move the selection
+  // or scroll the document.
+  const prevQueryRef = useRef(query)
   useEffect(() => {
     const tr = setSearchState(view.state.tr, new SearchQuery({ search: query, replace }))
     view.dispatch(tr)
-    if (query) {
+    if (query && query !== prevQueryRef.current) {
       const moved = findNext(view.state, view.dispatch, view)
       if (moved) scrollSelectionIntoView(view)
     }
+    prevQueryRef.current = query
   }, [query, replace, view])
 
   // Recompute match count after query/replace or navigation. Debounced so

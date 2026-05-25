@@ -113,19 +113,17 @@ export function CodeMirrorFindBar({ view, onClose, initialReplaceExpanded }: Pro
     })
   }
 
-  // Push the typed query into the @codemirror/search state so highlights
-  // and findNext/findPrevious operate on it. Immediately after applying the
-  // query, jump+scroll to the nearest match so the user sees the result
-  // without having to press Enter — matches Notion / VS Code behavior.
-  // `findNext` returns false when the doc has no match for the query, so
-  // it's safe to call unconditionally; scrollSelectionIntoView is a no-op
-  // when the selection didn't move.
+  // Push the typed query/replace into the @codemirror/search state. The
+  // auto-navigation to the first match only fires when the QUERY changes —
+  // editing the Replace text must not move the selection or scroll.
+  const prevQueryRef = useRef(query)
   useEffect(() => {
     view.dispatch({ effects: setSearchQuery.of(new SearchQuery({ search: query, replace })) })
-    if (query) {
+    if (query && query !== prevQueryRef.current) {
       const moved = findNext(view)
       if (moved) scrollSelectionIntoView(view)
     }
+    prevQueryRef.current = query
   }, [query, replace, view])
 
   // Clear the search query when the bar closes so highlights disappear.
