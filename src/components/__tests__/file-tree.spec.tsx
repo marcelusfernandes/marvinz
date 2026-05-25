@@ -176,7 +176,7 @@ describe('FileTree — render variations', () => {
 
   it('applies the drop-root class to the root ul when it is the drop target', () => {
     const { container } = render(<FileTree {...baseProps()} />)
-    const ul = container.querySelector('ul.file-tree')!
+    const ul = container.querySelector('ul.file-tree') as HTMLUListElement
     fireEvent.dragOver(ul, {
       dataTransfer: { types: ['Files'], dropEffect: '' },
     })
@@ -362,7 +362,7 @@ describe('FileTree — drag-drop valid move', () => {
   it('calls onMove when dropping a file onto the root (vaultPath)', () => {
     const onMove = vi.fn()
     const { container } = render(<FileTree {...baseProps({ onMove })} />)
-    const ul = container.querySelector('ul.file-tree')!
+    const ul = container.querySelector('ul.file-tree') as HTMLUListElement
     const srcPath = '/vault/docs/intro.md'
     const mimeData = { [DRAG_MIME]: srcPath }
 
@@ -632,7 +632,7 @@ describe('FileTree — external drop on root ul', () => {
   it('calls importExternal with resolved paths and vaultPath on external drop', async () => {
     const onImportResult = vi.fn()
     const { container } = render(<FileTree {...baseProps({ onImportResult })} />)
-    const ul = container.querySelector('ul.file-tree')!
+    const ul = container.querySelector('ul.file-tree') as HTMLUListElement
 
     const fakeFile = new File([''], 'photo.png', { type: 'image/png' })
     const dt = makeExternalDt([fakeFile])
@@ -649,7 +649,7 @@ describe('FileTree — external drop on root ul', () => {
     importExternalMock.mockResolvedValueOnce(result)
     const onImportResult = vi.fn()
     const { container } = render(<FileTree {...baseProps({ onImportResult })} />)
-    const ul = container.querySelector('ul.file-tree')!
+    const ul = container.querySelector('ul.file-tree') as HTMLUListElement
 
     const fakeFile = new File([''], 'photo.png', { type: 'image/png' })
     const dt = makeExternalDt([fakeFile])
@@ -665,7 +665,7 @@ describe('FileTree — external drop on root ul', () => {
     importExternalMock.mockRejectedValueOnce(new Error('disk full'))
     const onImportResult = vi.fn()
     const { container } = render(<FileTree {...baseProps({ onImportResult })} />)
-    const ul = container.querySelector('ul.file-tree')!
+    const ul = container.querySelector('ul.file-tree') as HTMLUListElement
 
     const fakeFile = new File([''], 'photo.png', { type: 'image/png' })
     const dt = makeExternalDt([fakeFile])
@@ -681,7 +681,7 @@ describe('FileTree — external drop on root ul', () => {
     getPathForFileMock.mockReturnValue('')
     const onImportResult = vi.fn()
     const { container } = render(<FileTree {...baseProps({ onImportResult })} />)
-    const ul = container.querySelector('ul.file-tree')!
+    const ul = container.querySelector('ul.file-tree') as HTMLUListElement
 
     const fakeFile = new File([''], 'photo.png', { type: 'image/png' })
     const dt = makeExternalDt([fakeFile])
@@ -765,7 +765,7 @@ describe('FileTree — external drop on root ul', () => {
     const { act } = await import('@testing-library/react')
     const onImportResult = vi.fn()
     const { container } = render(<FileTree {...baseProps({ onImportResult })} />)
-    const ul = container.querySelector('ul.file-tree')!
+    const ul = container.querySelector('ul.file-tree') as HTMLUListElement
 
     const file = new File([''], 'photo.png', { type: 'image/png' })
     getPathForFileMock.mockReturnValue('/external/photo.png')
@@ -786,7 +786,7 @@ describe('FileTree — external drop on root ul', () => {
     importExternalMock.mockResolvedValue(importResult)
     const onImportResult = vi.fn()
     const { container } = render(<FileTree {...baseProps({ onImportResult })} />)
-    const ul = container.querySelector('ul.file-tree')!
+    const ul = container.querySelector('ul.file-tree') as HTMLUListElement
 
     const file = new File([''], 'photo.png', { type: 'image/png' })
     getPathForFileMock.mockReturnValue('/external/photo.png')
@@ -806,7 +806,7 @@ describe('FileTree — external drop on root ul', () => {
     importExternalMock.mockRejectedValue(new Error('disk full'))
     const onImportResult = vi.fn()
     const { container } = render(<FileTree {...baseProps({ onImportResult })} />)
-    const ul = container.querySelector('ul.file-tree')!
+    const ul = container.querySelector('ul.file-tree') as HTMLUListElement
 
     const file = new File([''], 'photo.png', { type: 'image/png' })
     getPathForFileMock.mockReturnValue('/external/photo.png')
@@ -825,7 +825,7 @@ describe('FileTree — external drop on root ul', () => {
     const { act } = await import('@testing-library/react')
     getPathForFileMock.mockReturnValue('')
     const { container } = render(<FileTree {...baseProps()} />)
-    const ul = container.querySelector('ul.file-tree')!
+    const ul = container.querySelector('ul.file-tree') as HTMLUListElement
 
     const file = new File([''], 'photo.png', { type: 'image/png' })
     const dt = makeExternalDt([file])
@@ -1322,7 +1322,7 @@ describe('Drag and drop — auto-scroll', () => {
     })
 
     const { container } = render(<FileTree {...baseProps()} />)
-    const ul = container.querySelector<HTMLUListElement>('ul.file-tree')!
+    const ul = container.querySelector('ul.file-tree') as HTMLUListElement
     const { getScrollTop } = setupScrollEl(ul, 200)
 
     // clientY = 30 → within top EDGE_ZONE (distFromTop = 30 < 50)
@@ -1341,7 +1341,7 @@ describe('Drag and drop — auto-scroll', () => {
     })
 
     const { container } = render(<FileTree {...baseProps()} />)
-    const ul = container.querySelector<HTMLUListElement>('ul.file-tree')!
+    const ul = container.querySelector('ul.file-tree') as HTMLUListElement
     const { getScrollTop } = setupScrollEl(ul, 0)
 
     // clientY = 570 → within bottom EDGE_ZONE (distFromBottom = 30 < 50)
@@ -1360,7 +1360,7 @@ describe('Drag and drop — auto-scroll', () => {
     })
 
     const { container } = render(<FileTree {...baseProps()} />)
-    const ul = container.querySelector<HTMLUListElement>('ul.file-tree')!
+    const ul = container.querySelector('ul.file-tree') as HTMLUListElement
     setupScrollEl(ul, 100)
 
     // clientY = 300 → middle, outside both edge zones
@@ -1373,7 +1373,7 @@ describe('Drag and drop — auto-scroll', () => {
     const cafSpy = vi.spyOn(window, 'cancelAnimationFrame')
 
     const { container } = render(<FileTree {...baseProps()} />)
-    const ul = container.querySelector<HTMLUListElement>('ul.file-tree')!
+    const ul = container.querySelector('ul.file-tree') as HTMLUListElement
     setupScrollEl(ul, 0)
 
     // Schedule a frame by dragging near the top edge
