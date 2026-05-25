@@ -80,6 +80,9 @@ type Props = {
    * is written back to localStorage.
    */
   initialReplaceExpanded?: boolean
+  /** Called after a successful Replace / Replace All so the host can show
+   * a toast. `count` is 1 for a single Replace, total for Replace All. */
+  onReplaced?: (count: number) => void
 }
 
 /**
@@ -87,7 +90,7 @@ type Props = {
  * surface. Replace row is collapsed by default; click the leading chevron
  * to expand. Enter/Shift+Enter navigate matches, Esc dismisses.
  */
-export function FindReplaceOverlay({ view, onClose, initialReplaceExpanded }: Props) {
+export function FindReplaceOverlay({ view, onClose, initialReplaceExpanded, onReplaced }: Props) {
   const [query, setQuery] = useState('')
   const [replace, setReplace] = useState('')
   // Replace row visibility. Initial value: the prop (when Cmd+Alt+F forced
@@ -168,12 +171,17 @@ export function FindReplaceOverlay({ view, onClose, initialReplaceExpanded }: Pr
     setNavTick((n) => n + 1)
   }
   const runReplaceNext = () => {
-    replaceNext(view.state, view.dispatch, view)
-    scrollSelectionIntoView(view)
+    const ok = replaceNext(view.state, view.dispatch, view)
+    if (ok) {
+      scrollSelectionIntoView(view)
+      onReplaced?.(1)
+    }
     setNavTick((n) => n + 1)
   }
   const runReplaceAll = () => {
+    const total = matchInfo.total
     replaceAll(view.state, view.dispatch, view)
+    if (total > 0) onReplaced?.(total)
     setNavTick((n) => n + 1)
   }
 

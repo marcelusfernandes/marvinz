@@ -100,6 +100,10 @@ type Props = {
   /** Bumped by App.tsx when a window-level Cmd+Alt+F fires; opens the bar
    * with the Replace row pre-expanded. */
   openReplaceTick?: number
+  /** Notifies the host whenever Replace / Replace All succeeds so a toast
+   * can confirm the action. `count` is 1 for a single Replace, total
+   * matches replaced for Replace All. */
+  onReplaced?: (count: number) => void
 }
 
 type Mode = 'edit' | 'preview'
@@ -136,6 +140,7 @@ export function Editor({
   onForward,
   openFindTick,
   openReplaceTick,
+  onReplaced,
 }: Props) {
   const visualStyle = useVisualStyle()
   const [value, setValue] = useState(initialContent)
@@ -486,6 +491,7 @@ export function Editor({
             view={cmView}
             onClose={closeFind}
             initialReplaceExpanded={forceReplace}
+            onReplaced={onReplaced}
           />
         )}
         {findOpen && effectiveMode !== 'edit' && pmView && (
@@ -493,6 +499,7 @@ export function Editor({
             view={pmView}
             onClose={closeFind}
             initialReplaceExpanded={forceReplace}
+            onReplaced={onReplaced}
           />
         )}
         {effectiveMode === 'edit' ? (

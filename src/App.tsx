@@ -1621,6 +1621,15 @@ export default function App() {
                 onForward={goForward}
                 openFindTick={openFindTick}
                 openReplaceTick={openReplaceTick}
+                onReplaced={(count) =>
+                  setImportToast({
+                    state: 'success',
+                    message:
+                      count === 1
+                        ? '1 replacement made'
+                        : `${count} replacements made`,
+                  })
+                }
               />
             </div>
           )}
