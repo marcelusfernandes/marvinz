@@ -97,6 +97,7 @@ export type MarvinAPI = {
     write: (filePath: string, content: string) => Promise<void>
     exportPdf: (filePath: string) => Promise<void>
     create: (parentDir: string, name: string) => Promise<string>
+    writeBinary: (payload: { vaultPath: string; relPath: string; base64Bytes: string; maxBytes?: number }) => Promise<string>
     onChanged: (cb: (filePath: string, source: FileChangeSource) => void) => () => void
   }
   folder: {

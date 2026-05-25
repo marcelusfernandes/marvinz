@@ -604,6 +604,19 @@ ipcMain.handle('file:create', async (_e, parentDir: string, name: string) => {
   return safe
 })
 
+ipcMain.handle('file:writeBinary', async (_e, payload: { vaultPath: string; relPath: string; base64Bytes: string; maxBytes?: number }) => {
+  const { vaultPath, relPath, base64Bytes, maxBytes } = payload
+  const absolute = path.join(vaultPath, relPath)
+  const safe = await assertInVault(absolute)
+  // Size check on decoded length — base64 inflates by ~33%, so we must check after decoding.
+  const decoded = Buffer.from(base64Bytes, 'base64')
+  const limit = maxBytes ?? 25 * 1024 * 1024
+  if (decoded.length > limit) throw new Error(`MARVIN_TOO_LARGE: ${decoded.length}`)
+  await fs.mkdir(path.dirname(safe), { recursive: true })
+  await fs.writeFile(safe, decoded)
+  return path.relative(vaultPath, safe)
+})
+
 ipcMain.handle('folder:create', async (_e, parentDir: string, name: string) => {
   const full = path.join(parentDir, name)
   const safe = await assertInVault(full)
