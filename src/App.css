@@ -2181,11 +2181,10 @@ button {
   position: absolute;
   top: var(--space-2);
   right: var(--space-3);
-  /* Intrinsic width — the bar hugs its content (Notion-style compact
-     overlay) instead of stretching across the whole editor. The replace
-     row's input + buttons drive the expanded width. */
-  /* width: max-content; */
-  /* max-width: calc(100% - var(--space-6)); */
+  /* Fixed width so toggling Replace doesn't shrink/grow the container
+     and shift the anchor point. */
+  width: 420px;
+  max-width: calc(100% - var(--space-6));
   z-index: var(--z-dropdown);
   display: flex;
   flex-direction: column;
