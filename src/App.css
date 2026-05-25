@@ -2252,7 +2252,12 @@ button {
 /* Match count readout between the query input and the nav buttons.
    Tabular numbers keep the width steady while the index ticks up. */
 .md-find-count {
+  /* Fixed slot for the counter so the surrounding controls don't jiggle
+     as the index grows (1 → 99 → 1001). Width is sized for "9999 of 9999"
+     with tabular-nums and right-aligned digits. */
   flex: 0 0 auto;
+  min-width: 10ch;
+  text-align: right;
   font-size: var(--font-size-xs);
   color: var(--text-secondary);
   white-space: nowrap;
