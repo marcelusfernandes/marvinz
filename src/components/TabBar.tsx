@@ -1,4 +1,5 @@
-import { useCallback } from 'react'
+import { useCallback, useRef } from 'react'
+import { useHorizontalWheelScroll } from '../lib/useHorizontalWheelScroll'
 import { Icon } from './Icon'
 import { fileIconFor } from '../lib/fileIcons'
 import type { MenuItemSpec } from '../types'
@@ -55,6 +56,9 @@ function basename(p: string): string {
 }
 
 export function TabBar({ tabs, activeId, onActivate, onClose, onNewBrowserTab }: Props) {
+  const barRef = useRef<HTMLDivElement>(null)
+  useHorizontalWheelScroll(barRef)
+
   const handleContextMenu = useCallback(
     async (e: React.MouseEvent, tabId: string) => {
       e.preventDefault()
@@ -97,7 +101,7 @@ export function TabBar({ tabs, activeId, onActivate, onClose, onNewBrowserTab }:
   )
 
   return (
-    <div className="tab-bar">
+    <div className="tab-bar" ref={barRef}>
       {tabs.map((t) => {
         const active = t.id === activeId
         const kind: 'note' | 'browser' | 'image' = t.type

@@ -1437,10 +1437,6 @@ export default function App() {
             <div className="sidebar-project-info">
               <div className="sidebar-project-text">
                 <span className="sidebar-project-name">{vaultPath.split('/').pop()}</span>
-                <span className="sidebar-branch-name">
-                  <Icon name="git-branch" size={14} />
-                  main
-                </span>
               </div>
             </div>
           )}

@@ -2,8 +2,8 @@
   /* Surfaces */
   --bg-app: #ececec;
   --surface-1: #ffffff;
-  --surface-2: #f7f7f8;
-  --surface-3: #ededee;
+  --surface-2: #f2f2f2;
+  --surface-3: #e8e8e8;
 
   /* Borders */
   --border-subtle: rgba(0, 0, 0, 0.05);
@@ -155,7 +155,7 @@
      Hex values are R=G=B (neutral gray) by design — no blue/warm bias. */
   --bg-app: #0e0e0e;
   --surface-1: #262626;
-  --surface-2: #2e2e2e;
+  --surface-2: #333333;
   --surface-3: #363636;
 
   --border-subtle: rgba(255, 255, 255, 0.06);
@@ -324,6 +324,13 @@ button {
   pointer-events: none;
 }
 
+.shell.sidebar-hidden .sidebar {
+  opacity: 0;
+  /* Delay visibility hide until after the opacity fade-out finishes. */
+  transition: opacity var(--duration-normal) var(--ease-in-out),
+              visibility 0s linear var(--duration-normal);
+}
+
 .shell.sidebar-hidden .app {
   grid-template-columns: 0 0 1fr var(--space-2) var(--agents-w, 588px);
 }
@@ -488,6 +495,9 @@ button {
   /* Transparent so the .shell's translucent tint + macOS vibrancy show through. */
   background: transparent;
   overflow: hidden;
+  opacity: 1;
+  transition: opacity var(--duration-normal) var(--ease-in-out),
+              visibility 0s linear 0s;
 }
 
 .sidebar-header {
@@ -756,8 +766,9 @@ button {
 }
 
 .nav-btn {
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
+  padding: 2px;
   border-radius: var(--radius-md);
   display: flex;
   align-items: center;
