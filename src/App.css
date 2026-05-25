@@ -1631,6 +1631,8 @@ button {
   background: var(--bg-find-match-active);
   outline: none;
   color: #1a1a1a;
+  border-radius: var(--radius-sm);
+  animation: find-match-pop 280ms var(--ease-out);
 }
 
 .cm-host .cm-matchingBracket {
@@ -2370,6 +2372,24 @@ button {
   background: var(--bg-find-match-active);
   color: #1a1a1a;
   border-radius: var(--radius-sm);
+  animation: find-match-pop 280ms var(--ease-out);
+}
+
+/* "Pop" pulse fired every time a match becomes the active one (Enter, Prev,
+   Next). Uses an expanding box-shadow ring instead of `transform: scale()`
+   because match decorations are inline spans — transforms on inline boxes
+   are no-ops without `display: inline-block`, which would cause a baseline
+   jolt mid-paragraph. The ring grows + fades in 280ms for that "poup" feel. */
+@keyframes find-match-pop {
+  0% {
+    box-shadow: 0 0 0 0 rgba(255, 191, 0, 0.6);
+  }
+  60% {
+    box-shadow: 0 0 0 6px rgba(255, 191, 0, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(255, 191, 0, 0);
+  }
 }
 
 .md-preview-inner {
