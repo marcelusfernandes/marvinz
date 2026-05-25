@@ -2221,20 +2221,11 @@ button {
   padding-left: calc(36px + var(--space-1));
 }
 
-/* Push the replace-all + replace icons to the right edge of the row so the
-   row doesn't have a hanging gap between the input and the buttons. */
-.md-find-row--replace [data-testid$="-replace-all"] {
-  margin-left: auto;
-}
-
 /* Both find + replace inputs share the boxed look: subtle surface-2 fill,
    no border (the fill alone separates them from the container surface-1). */
 .md-find-input,
 .md-find-input--bare {
-  /* Same fixed width across both rows so they read aligned even with
-     different trailing button counts. */
-  flex: 0 0 auto;
-  width: 220px;
+  flex: 1 1 auto;
   min-width: 0;
   height: 28px;
   background: var(--surface-2);
