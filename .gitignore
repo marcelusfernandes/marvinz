@@ -40,3 +40,4 @@ coverage/
 test-results/
 playwright-report/
 .marvin/
+.claude/scheduled_tasks.lock
