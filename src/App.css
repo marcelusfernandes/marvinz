@@ -2288,16 +2288,22 @@ button {
   left: 50%;
   transform: translateX(-50%);
   padding: var(--space-2) var(--space-4);
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-pill);
+  border: 1px solid var(--border-success);
+  background: var(--surface-1);
+  border-radius: var(--radius-md);
   box-shadow: var(--shadow-md);
   color: var(--text-primary);
-  font-size: var(--font-size-sm);
-  line-height: var(--line-height-tight);
+  font-size: var(--font-size-md);
   z-index: var(--z-toast);
   pointer-events: none;
   animation: editor-replace-toast-in var(--duration-normal) var(--ease-out);
+}
+
+/* `forwards` pins the faded-out state until React unmounts the node a beat
+   later, so the toast doesn't flash back to fully opaque during the gap
+   between animation-end and the unmount setState. */
+.editor-replace-toast--leaving {
+  animation: editor-replace-toast-out var(--duration-normal) var(--ease-out) forwards;
 }
 
 @keyframes editor-replace-toast-in {
@@ -2308,6 +2314,17 @@ button {
   to {
     opacity: 1;
     transform: translate(-50%, 0);
+  }
+}
+
+@keyframes editor-replace-toast-out {
+  from {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+  to {
+    opacity: 0;
+    transform: translate(-50%, -6px);
   }
 }
 

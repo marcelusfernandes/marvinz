@@ -159,19 +159,32 @@ export function Editor({
   const [pmView, setPmView] = useState<PMView | null>(null)
   const [cmView, setCmView] = useState<EditorView | null>(null)
   // Lightweight in-pane confirmation that floats over the editor body
-  // (top-center) after Replace / Replace All. Reset on every fire so a
-  // burst of replacements re-arms the auto-dismiss timer cleanly.
+  // (top-center) after Replace / Replace All. Two-phase lifecycle:
+  //   'enter' — visible, after 2s flips to 'leave'
+  //   'leave' — fade-out class is applied; after the 200ms animation we
+  //             null out the toast so the DOM unmounts cleanly.
+  // The `nonce` key remounts the element on bursts so each successive
+  // replacement re-runs the enter animation from scratch.
   const [replaceToast, setReplaceToast] = useState<{
     count: number
     nonce: number
+    phase: 'enter' | 'leave'
   } | null>(null)
   useEffect(() => {
-    if (!replaceToast) return
-    const t = window.setTimeout(() => setReplaceToast(null), 2000)
+    if (!replaceToast || replaceToast.phase !== 'enter') return
+    const t = window.setTimeout(
+      () => setReplaceToast((prev) => (prev ? { ...prev, phase: 'leave' } : null)),
+      2000,
+    )
+    return () => window.clearTimeout(t)
+  }, [replaceToast])
+  useEffect(() => {
+    if (!replaceToast || replaceToast.phase !== 'leave') return
+    const t = window.setTimeout(() => setReplaceToast(null), 200)
     return () => window.clearTimeout(t)
   }, [replaceToast])
   const handleReplaced = useCallback((count: number) => {
-    setReplaceToast({ count, nonce: Date.now() })
+    setReplaceToast({ count, nonce: Date.now(), phase: 'enter' })
   }, [])
 
   // Convenience helpers wired into both editor keymaps and the LiveMarkdown
@@ -515,7 +528,9 @@ export function Editor({
         {replaceToast && (
           <div
             key={replaceToast.nonce}
-            className="editor-replace-toast"
+            className={`editor-replace-toast${
+              replaceToast.phase === 'leave' ? ' editor-replace-toast--leaving' : ''
+            }`}
             role="status"
             aria-live="polite"
             data-testid="editor-replace-toast"
