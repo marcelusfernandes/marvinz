@@ -2214,6 +2214,9 @@ button {
 
 .md-find-row--replace {
   border-top: 1px solid var(--border-subtle);
+  /* Align the Replace input with the Find input above it (which sits
+     after the 28px replace-toggle icon button + 4px gap). */
+  padding-left: calc(28px + var(--space-1));
 }
 
 /* Both find + replace inputs share the boxed look: subtle surface-2 fill,
@@ -2263,10 +2266,7 @@ button {
 
 .md-find-input:focus-visible,
 .md-find-input--bare:focus-visible {
-  /* Transparent inputs — no focus ring; the row itself reads as the
-     active control. */
-  outline: none;
-  box-shadow: none;
+  box-shadow: var(--focus-ring-inset);
 }
 
 /* Bumps the shared `.icon-btn` from its default 24×24 to 28×28 inside
