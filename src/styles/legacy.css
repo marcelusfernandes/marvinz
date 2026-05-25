@@ -226,6 +226,9 @@
   border-bottom: 1px solid var(--border);
   height: 38px;
   gap: 0;
+  /* Modern adds 36px top padding to clear the floating icon strip; legacy
+     has no floating strip, so revert to symmetric padding. */
+  padding: var(--space-2) var(--space-3);
 }
 
 [data-style='legacy'] .vault-name {
@@ -310,7 +313,7 @@
   color: var(--text-secondary);
 }
 
-[data-style='legacy'] .tab-new-btn {
+[data-style='legacy'] .tab-new {
   height: 100%;
   border-radius: 0;
 }
