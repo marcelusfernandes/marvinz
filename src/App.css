@@ -83,9 +83,9 @@
   --radius-xl: 16px;
   --radius-pill: 999px;
 
-  /* Typography — system fonts, base 14px on html (1rem = 14px) */
-  --font-family-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --font-family-mono: ui-monospace, 'SF Mono', Menlo, Monaco, Consolas, monospace;
+  /* Typography — brand Geist (Sans + Mono) with system fallback, base 14px on html (1rem = 14px) */
+  --font-family-sans: 'Geist Variable', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-family-mono: 'Geist Mono Variable', ui-monospace, 'SF Mono', Menlo, Monaco, Consolas, monospace;
 
   --font-size-xs: 0.714rem; /* 10px — captions, status badges */
   --font-size-sm: 0.857rem; /* 12px — labels, file tree, tabs */
