@@ -100,10 +100,6 @@ type Props = {
   /** Bumped by App.tsx when a window-level Cmd+Alt+F fires; opens the bar
    * with the Replace row pre-expanded. */
   openReplaceTick?: number
-  /** Notifies the host whenever Replace / Replace All succeeds so a toast
-   * can confirm the action. `count` is 1 for a single Replace, total
-   * matches replaced for Replace All. */
-  onReplaced?: (count: number) => void
 }
 
 type Mode = 'edit' | 'preview'
@@ -140,7 +136,6 @@ export function Editor({
   onForward,
   openFindTick,
   openReplaceTick,
-  onReplaced,
 }: Props) {
   const visualStyle = useVisualStyle()
   const [value, setValue] = useState(initialContent)
@@ -163,6 +158,21 @@ export function Editor({
   const [forceReplace, setForceReplace] = useState(false)
   const [pmView, setPmView] = useState<PMView | null>(null)
   const [cmView, setCmView] = useState<EditorView | null>(null)
+  // Lightweight in-pane confirmation that floats over the editor body
+  // (top-center) after Replace / Replace All. Reset on every fire so a
+  // burst of replacements re-arms the auto-dismiss timer cleanly.
+  const [replaceToast, setReplaceToast] = useState<{
+    count: number
+    nonce: number
+  } | null>(null)
+  useEffect(() => {
+    if (!replaceToast) return
+    const t = window.setTimeout(() => setReplaceToast(null), 2000)
+    return () => window.clearTimeout(t)
+  }, [replaceToast])
+  const handleReplaced = useCallback((count: number) => {
+    setReplaceToast({ count, nonce: Date.now() })
+  }, [])
 
   // Convenience helpers wired into both editor keymaps and the LiveMarkdown
   // `onOpenFind` callback. `openFind('replace')` mirrors the historical
@@ -491,7 +501,7 @@ export function Editor({
             view={cmView}
             onClose={closeFind}
             initialReplaceExpanded={forceReplace}
-            onReplaced={onReplaced}
+            onReplaced={handleReplaced}
           />
         )}
         {findOpen && effectiveMode !== 'edit' && pmView && (
@@ -499,8 +509,21 @@ export function Editor({
             view={pmView}
             onClose={closeFind}
             initialReplaceExpanded={forceReplace}
-            onReplaced={onReplaced}
+            onReplaced={handleReplaced}
           />
+        )}
+        {replaceToast && (
+          <div
+            key={replaceToast.nonce}
+            className="editor-replace-toast"
+            role="status"
+            aria-live="polite"
+            data-testid="editor-replace-toast"
+          >
+            {replaceToast.count === 1
+              ? '1 replacement made'
+              : `${replaceToast.count} replacements made`}
+          </div>
         )}
         {effectiveMode === 'edit' ? (
           <CodeMirror

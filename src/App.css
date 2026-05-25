@@ -2278,6 +2278,39 @@ button {
   flex-direction: column;
 }
 
+/* Replace confirmation toast — floats top-center inside the editor body so it
+   reads as belonging to the active editor rather than the global chrome. Sits
+   below the find bar's right-anchored row; centering vs that bar is fine in
+   practice because the find bar lives in the top-right corner. */
+.editor-replace-toast {
+  position: absolute;
+  top: var(--space-3);
+  left: 50%;
+  transform: translateX(-50%);
+  padding: var(--space-2) var(--space-4);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-md);
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-tight);
+  z-index: var(--z-toast);
+  pointer-events: none;
+  animation: editor-replace-toast-in var(--duration-normal) var(--ease-out);
+}
+
+@keyframes editor-replace-toast-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -6px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
 
 .md-find-input:focus-visible,
 .md-find-input--bare:focus-visible {
