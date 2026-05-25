@@ -247,6 +247,7 @@ export default function App() {
   const [layoutMode, setLayoutModeState] = useState<LayoutMode>(() => readStoredLayout())
   const [urlBarFocusTick, setUrlBarFocusTick] = useState(0)
   const [newAgentTabTick, setNewAgentTabTick] = useState(0)
+  const [sidebarHidden, setSidebarHidden] = useState(false)
   const [sidebarWidth, setSidebarWidthState] = useState<number>(() =>
     readStoredWidth(SIDEBAR_WIDTH_KEY, DEFAULT_SIDEBAR_WIDTH, MIN_SIDEBAR, MAX_SIDEBAR),
   )
@@ -1309,7 +1310,7 @@ export default function App() {
     // search bar, the header, the footer, or any interactive child.
     if (
       target.closest(
-        '.file-tree-row, .sidebar-search, .sidebar-header, .sidebar-footer, button, input, a',
+        '.file-tree-row, .sidebar-icon-row, .sidebar-header, .sidebar-footer, button, input, a',
       )
     ) {
       return
@@ -1362,8 +1363,44 @@ export default function App() {
     }
   })()
 
+  const sidebarIconButtons = visualStyle === 'modern' && (
+    <>
+      <button
+        type="button"
+        className="sidebar-icon-btn"
+        onClick={() => setSidebarHidden((h) => !h)}
+        aria-label={sidebarHidden ? 'Show sidebar' : 'Hide sidebar'}
+        title={sidebarHidden ? 'Show sidebar' : 'Hide sidebar'}
+      >
+        <Icon
+          name={sidebarHidden ? 'layout-sidebar-left' : 'layout-sidebar-left-off'}
+          size={16}
+        />
+      </button>
+      <button
+        type="button"
+        className="sidebar-icon-btn"
+        onClick={() => setPaletteOpen(true)}
+        aria-label="Search (⌘P)"
+        title="Search (⌘P)"
+      >
+        <Icon name="search" size={16} />
+      </button>
+    </>
+  )
+
+  const tabBarElement = (
+    <TabBar
+      tabs={tabs}
+      activeId={activeTabId}
+      onActivate={setActiveTabId}
+      onClose={closeTab}
+      onNewBrowserTab={openNewBrowserTab}
+    />
+  )
+
   return (
-    <div className="shell">
+    <div className={`shell${sidebarHidden ? ' sidebar-hidden' : ''}`}>
       {visualStyle === 'legacy' && (
         <TopBar
           onOpenPalette={() => setPaletteOpen(true)}
@@ -1371,6 +1408,9 @@ export default function App() {
           layoutMode={layoutMode}
           onLayoutChange={setLayoutMode}
         />
+      )}
+      {sidebarHidden && visualStyle === 'modern' && (
+        <div className="sidebar-icon-strip">{sidebarIconButtons}</div>
       )}
       <div
         className="app"
@@ -1387,19 +1427,8 @@ export default function App() {
         onContextMenu={handleSidebarContextMenu}
         onPaste={handleSidebarPaste}
       >
-        {visualStyle === 'modern' && (
-          <div className="sidebar-search">
-            <button
-              type="button"
-              className="sidebar-search-btn"
-              onClick={() => setPaletteOpen(true)}
-              aria-label="Search (⌘P)"
-            >
-              <Icon name="search" size={14} />
-              <span className="sidebar-search-placeholder">Search…</span>
-              <span className="sidebar-search-kbd">⌘P</span>
-            </button>
-          </div>
+        {visualStyle === 'modern' && !sidebarHidden && (
+          <div className="sidebar-icon-row">{sidebarIconButtons}</div>
         )}
         <div className="sidebar-header">
           {visualStyle === 'legacy' ? (
@@ -1484,13 +1513,7 @@ export default function App() {
       <Splitter onDelta={handleSidebarDelta} ariaLabel="Resize sidebar" />
 
       <main className="editor-pane">
-        <TabBar
-          tabs={tabs}
-          activeId={activeTabId}
-          onActivate={setActiveTabId}
-          onClose={closeTab}
-          onNewBrowserTab={openNewBrowserTab}
-        />
+        {tabBarElement}
         <div className="editor-stack">
           {activeTab && isNoteTab(activeTab) && (
             <div className="note-tab-container">

@@ -305,55 +305,113 @@ button {
 }
 
 .shell {
+  position: relative;
   display: flex;
   flex-direction: column;
   height: 100vh;
   width: 100%;
   background: var(--shell-wash);
-  padding: var(--space-3);
+  padding: var(--space-2);
   border-radius: var(--radius-xl);
   overflow: hidden;
   -webkit-app-region: drag;
 }
 
-.sidebar-search {
-  -webkit-app-region: no-drag;
-  padding: var(--space-1);
-  padding-top: 0;
-  /* Clear the macOS traffic lights — they sit at x=14 with ~70px width
-     (so they end at ~x=84). The sidebar starts at .shell padding-left = 12px.
-     Search needs to start after the lights: 84 - 12 = 72px from sidebar
-     inner edge, plus an 8px buffer = 80px. */
-  padding-left: 80px;
+.shell.sidebar-hidden .sidebar,
+.shell.sidebar-hidden .app > .splitter:nth-of-type(1) {
+  /* visibility (not display: none) so width/grid transitions can play out */
+  visibility: hidden;
+  pointer-events: none;
 }
 
-.sidebar-search-btn {
+.shell.sidebar-hidden .app {
+  grid-template-columns: 0 0 1fr var(--space-2) var(--agents-w, 588px);
+}
+
+.shell.sidebar-hidden .app[data-layout='claude-center'] {
+  grid-template-columns: 0 0 var(--agents-w, 588px) var(--space-2) 1fr;
+}
+
+.sidebar-icon-row {
+  -webkit-app-region: no-drag;
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  width: 100%;
+  padding: 0 var(--space-3);
+  padding-top: 2px;
+  /* Clear the macOS traffic lights (x=18 start, end ~92, .shell padding-left = 12px). */
+  padding-left: 88px;
+  margin-bottom: var(--space-2);
+}
+
+.sidebar-icon-strip {
+  -webkit-app-region: no-drag;
+  position: absolute;
+  top: var(--space-2);
+  left: var(--space-2);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  /* Match .sidebar-icon-row so icons land at the same spot whether the
+     sidebar is visible or hidden. */
+  padding: 0 var(--space-3);
+  padding-top: 2px;
+  padding-left: 88px;
+  background: transparent;
+  z-index: var(--z-dropdown);
+}
+
+/* Use clip-path: path() with a single SVG path defining the L-complement of
+   the cinza notch with all 3 rounded outer corners (BL, BR, TR of the cinza
+   pill). Notch is 160×36 with 12px corner radius. The 9999 values are
+   sentinels that always exceed the pane's actual dimensions.
+   The default (sidebar-visible) clip is a degenerate no-op path with the
+   same number of segments so the browser can interpolate between states. */
+.shell .app:not([data-layout='claude-center']) .editor-pane,
+.shell .app[data-layout='claude-center'] .claude-pane {
+  clip-path: path('M 0 0 A 0 0 0 0 1 0 0 L 0 0 A 0 0 0 0 0 0 0 L 0 0 A 0 0 0 0 1 0 0 L 9999 0 L 9999 9999 L 0 9999 Z');
+  transition: clip-path var(--duration-normal) var(--ease-in-out);
+}
+
+.shell.sidebar-hidden .app:not([data-layout='claude-center']) .editor-pane,
+.shell.sidebar-hidden .app[data-layout='claude-center'] .claude-pane {
+  clip-path: path('M 0 48 A 12 12 0 0 1 12 36 L 148 36 A 12 12 0 0 0 160 24 L 160 12 A 12 12 0 0 1 172 0 L 9999 0 L 9999 9999 L 0 9999 Z');
+}
+
+/* Push the leftmost pane's tabs right by the width of the floating icon strip
+   (traffic lights + toggle + search) so they don't sit under the overlay.
+   Only the LEFT pane (column 3 in the .app grid) is overlapped — which is the
+   editor in the default layout, the agents pane in claude-center. */
+.editor-pane > .tab-bar,
+.claude-pane .agent-tabs {
+  transition: padding-left var(--duration-normal) var(--ease-in-out);
+}
+
+.shell.sidebar-hidden .app:not([data-layout='claude-center']) .editor-pane > .tab-bar,
+.shell.sidebar-hidden .app[data-layout='claude-center'] .claude-pane .agent-tabs {
+  padding-left: 166px;
+}
+
+.sidebar-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
   height: 28px;
-  padding: 0 var(--space-2);
-  background: var(--surface-3);
+  background: transparent;
   border-radius: var(--radius-md);
-  color: var(--text-tertiary);
-  font-size: var(--font-size-sm);
-  text-align: left;
-}
-
-.sidebar-search-btn:hover {
-  background: var(--surface-3);
   color: var(--text-secondary);
+  transition: background var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
 }
 
-.sidebar-search-placeholder {
-  flex: 1;
+.sidebar-icon-btn:hover {
+  background: var(--surface-3);
+  color: var(--text-primary);
 }
 
-.sidebar-search-kbd {
-  font-size: var(--font-size-xs);
-  color: var(--text-tertiary);
-  opacity: 0.7;
+.sidebar-icon-btn:focus-visible {
+  box-shadow: var(--focus-ring);
 }
 
 .app {
@@ -363,17 +421,18 @@ button {
      widths driven by --sidebar-w / --agents-w state vars. The 2 splitter
      tracks are var(--space-3) wide so they double as visual gap between the
      panel cards; .splitter renders a centered hit zone inside. */
-  grid-template-columns: var(--sidebar-w, 240px) var(--space-3) 1fr var(--space-3) var(--agents-w, 588px);
+  grid-template-columns: var(--sidebar-w, 240px) var(--space-2) 1fr var(--space-2) var(--agents-w, 588px);
   grid-template-rows: 1fr;
   grid-template-areas: 'sidebar split-sidebar editor split-agents claude';
   flex: 1;
   min-height: 0;
+  transition: grid-template-columns var(--duration-normal) var(--ease-in-out);
 }
 
 .app[data-layout='claude-center'] {
   /* Same fixed widths swap to 'sidebar | split | claude | split | editor'.
      The agents pane (.claude-pane) is now in the middle column. */
-  grid-template-columns: var(--sidebar-w, 240px) var(--space-3) var(--agents-w, 588px) var(--space-3) 1fr;
+  grid-template-columns: var(--sidebar-w, 240px) var(--space-2) var(--agents-w, 588px) var(--space-2) 1fr;
   grid-template-areas: 'sidebar split-sidebar claude split-agents editor';
 }
 
@@ -395,7 +454,8 @@ button {
 
 .splitter:hover,
 .splitter.dragging {
-  background: var(--accent-bg);
+  background: var(--surface-3);
+  border-radius: var(--radius-pill);
 }
 
 .app > .splitter:nth-of-type(1) {
@@ -404,21 +464,6 @@ button {
 
 .app > .splitter:nth-of-type(2) {
   grid-area: split-agents;
-}
-
-.sidebar-search-btn kbd {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 16px;
-  height: 16px;
-  padding: 0 var(--space-1);
-  font-size: var(--font-size-xs);
-  font-family: inherit;
-  background: var(--surface-2);
-  color: var(--text-secondary);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
 }
 
 .palette-footer kbd {
@@ -788,10 +833,10 @@ button {
   align-items: center;
   background: transparent;
   padding: var(--space-2);
-  gap: var(--space-1);
+  gap: var(--space-2);
   overflow-x: auto;
   flex-shrink: 0;
-  height: 48px;
+  height: auto;
 }
 
 .tab-bar::-webkit-scrollbar {
@@ -801,9 +846,9 @@ button {
 .tab {
   display: flex;
   align-items: center;
-  gap: 6px;
-  height: 32px;
-  padding: 0 var(--space-2) 0 var(--space-3);
+  gap: var(--space-2);
+  height: 28px;
+  padding:  var(--space-2) var(--space-3);
   border-radius: var(--radius-md);
   background: var(--surface-2);
   font-size: var(--font-size-sm);
@@ -825,6 +870,7 @@ button {
      tab doesn't read as "neon" in either theme. */
   background: var(--accent-bg);
   color: var(--text-primary);
+  padding: var(--space-2) var(--space-1) var(--space-2) var(--space-3);
 }
 
 .tab-title {
@@ -883,8 +929,8 @@ button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   border-radius: var(--radius-md);
   color: var(--text-tertiary);
   flex-shrink: 0;
@@ -1571,7 +1617,7 @@ button {
 
 .claude-host {
   flex: 1;
-  padding: 6px 4px 6px 8px;
+  padding: var(--space-3);
   overflow: hidden;
 }
 
@@ -1598,7 +1644,7 @@ button {
 .agent-tabs {
   display: flex;
   align-items: center;
-  height: 48px;
+  height: auto;
   background: transparent;
   padding: var(--space-2);
   gap: var(--space-1);
@@ -1613,7 +1659,7 @@ button {
 .agent-tab {
   display: inline-flex;
   align-items: center;
-  height: 32px;
+  height: 28px;
   border-radius: var(--radius-md);
   background: var(--surface-2);
   font-size: var(--font-size-sm);
@@ -1707,7 +1753,7 @@ button {
 
 .agent-new-plus,
 .agent-new-chevron {
-  height: 32px;
+  height: 28px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
