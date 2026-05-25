@@ -2225,11 +2225,7 @@ button {
    no border (the fill alone separates them from the container surface-1). */
 .md-find-input,
 .md-find-input--bare {
-  /* Fixed width so both rows render the input at the same dimensions
-     even though their trailing button clusters differ in count
-     (find: prev/next/close; replace: replace-all/replace). */
-  flex: 0 0 auto;
-  width: 220px;
+  flex: 1 1 auto;
   min-width: 0;
   height: 28px;
   background: var(--surface-2);
