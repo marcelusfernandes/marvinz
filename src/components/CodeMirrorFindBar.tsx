@@ -212,21 +212,21 @@ export function CodeMirrorFindBar({ view, onClose, initialReplaceExpanded }: Pro
           aria-label="Find"
           data-testid="cm-search-input"
         />
-        {query && (
-          <span
-            className={`md-find-count${
-              matchInfo.total === 0 ? ' md-find-count--empty' : ''
-            }`}
-            aria-live="polite"
-            data-testid="cm-search-count"
-          >
-            {matchInfo.total === 0
+        <span
+          className={`md-find-count${
+            !query || matchInfo.total === 0 ? ' md-find-count--empty' : ''
+          }`}
+          aria-live="polite"
+          data-testid="cm-search-count"
+        >
+          {!query
+            ? ''
+            : matchInfo.total === 0
               ? 'No results'
               : matchInfo.current !== null
                 ? `${matchInfo.current} of ${matchInfo.total}`
                 : `${matchInfo.total} ${matchInfo.total === 1 ? 'match' : 'matches'}`}
-          </span>
-        )}
+        </span>
         <button
           type="button"
           className="icon-btn"
