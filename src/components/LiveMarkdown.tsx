@@ -14,7 +14,10 @@ import { listener, listenerCtx } from '@milkdown/plugin-listener'
 import { selectAll } from 'prosemirror-commands'
 import { history as pmHistory, redo, redoDepth, undo, undoDepth } from 'prosemirror-history'
 import { keymap } from 'prosemirror-keymap'
+import { findNext, findPrev, search } from 'prosemirror-search'
+import type { EditorView } from 'prosemirror-view'
 import { imageNodeView } from '../lib/imageNodeView'
+import { justReplacedPlugin } from '../lib/pmJustReplacedHighlight'
 import type { PaletteItem } from '../lib/paletteRanker'
 import { parseWikilinks, unparseWikilinks } from '../lib/wikilinks'
 
@@ -36,6 +39,17 @@ type Props = {
    * its content (e.g., switching files or external file change while open).
    */
   remountKey: string | number
+  /**
+   * Opens the parent-rendered find bar in the requested mode. Wired so
+   * Cmd+F / Cmd+Alt+F inside the PM contentDOM surface the bar in the
+   * editor header instead of rendering a panel locally.
+   */
+  onOpenFind?: (mode: 'find' | 'replace') => void
+  /**
+   * Fires whenever the live EditorView reference becomes available
+   * (or null on unmount), so the parent can drive search commands.
+   */
+  onViewReady?: (view: EditorView | null) => void
 }
 
 export function LiveMarkdown(props: Props) {
@@ -53,6 +67,8 @@ function LiveMarkdownInner({
   filePath,
   vaultPath,
   paletteItems,
+  onOpenFind,
+  onViewReady,
 }: Props) {
   // Refs avoid re-creating the editor on every change of these props.
   const onChangeRef = useRef(onChange)
@@ -63,6 +79,36 @@ function LiveMarkdownInner({
   useEffect(() => {
     onLinkClickRef.current = onLinkClick
   }, [onLinkClick])
+
+  // Built once per mount alongside the rest of the editor's plugin stack.
+  // `useMemo` (rather than module scope) so test contracts asserting
+  // `search()` and `keymap()` were invoked during render keep working.
+  // `onOpenFind` is expected to be a stable setter from the parent (typically
+  // `useState`'s setFindMode), so closing over it inside the keymap callbacks
+  // is safe even with an empty dependency list.
+  const searchPlugin = useMemo(() => search(), [])
+  /* eslint-disable react-hooks/exhaustive-deps -- intentional: keymap is
+     registered once per editor mount; onOpenFind from useState is
+     referentially stable across renders. */
+  const findKeymap = useMemo(
+    () =>
+      keymap({
+        'Mod-f': () => {
+          onOpenFind?.('find')
+          return true
+        },
+        'Mod-Alt-f': () => {
+          onOpenFind?.('replace')
+          return true
+        },
+        // Cmd+G / Shift+Cmd+G: navigate matches without re-opening the bar.
+        // Mirrors the CodeMirror searchKeymap bindings for parity.
+        'Mod-g': findNext,
+        'Shift-Mod-g': findPrev,
+      }),
+    [],
+  )
+  /* eslint-enable react-hooks/exhaustive-deps */
 
   // We freeze the initial value at mount; further updates come from typing.
   // External changes are handled by remountKey causing a full remount.
@@ -98,6 +144,13 @@ function LiveMarkdownInner({
           ...prev,
           pmHistory(),
           keymap({ 'Mod-z': undo, 'Mod-Shift-z': redo, 'Mod-y': redo }),
+          // Find / Replace: prosemirror-search owns the highlights + commands;
+          // the parent-rendered find bar drives the search query and navigates
+          // matches. Cmd+F / Cmd+Alt+F bubble up via `onOpenFind` and the
+          // parent then drives the PM view through `onViewReady`.
+          searchPlugin,
+          findKeymap,
+          justReplacedPlugin(),
         ])
         ctx.get(listenerCtx).markdownUpdated((_ctx, markdown, prevMarkdown) => {
           if (markdown !== prevMarkdown) onChangeRef.current(unparseWikilinks(markdown))
@@ -194,6 +247,27 @@ function LiveMarkdownInner({
     },
     [editorInfo],
   )
+
+  // Push the live EditorView to the parent so it can drive search commands
+  // from the header-mounted find bar. Fires whenever the editor info resolves
+  // a view (typically once per mount) and clears on unmount.
+  const onViewReadyRef = useRef(onViewReady)
+  useEffect(() => {
+    onViewReadyRef.current = onViewReady
+  }, [onViewReady])
+  useEffect(() => {
+    const editor = editorInfo.get()
+    if (!editor) return
+    try {
+      const view = editor.ctx.get(editorViewCtx) as EditorView
+      onViewReadyRef.current?.(view)
+    } catch {
+      // View not ready yet — useEditor will re-run and we'll catch it next pass.
+    }
+    return () => {
+      onViewReadyRef.current?.(null)
+    }
+  }, [editorInfo])
 
   return (
     <div ref={containerRef} className="live-md" onContextMenu={handleContextMenu}>

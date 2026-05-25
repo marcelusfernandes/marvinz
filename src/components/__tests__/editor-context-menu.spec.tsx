@@ -145,15 +145,22 @@ vi.mock('@uiw/react-codemirror', () => ({
 // Mock heavy deps that Editor.tsx transitively imports
 // ---------------------------------------------------------------------------
 
-vi.mock('@codemirror/search', () => ({ search: () => ({}) }))
+vi.mock('@codemirror/search', () => ({ search: () => ({}), searchKeymap: [] }))
 vi.mock('@codemirror/language', () => ({
   bracketMatching: () => ({}),
   indentUnit: { of: () => ({}) },
   HighlightStyle: { define: () => ({}) },
   syntaxHighlighting: () => ({}),
 }))
-vi.mock('@codemirror/view', () => ({ EditorView: { lineWrapping: {} } }))
-vi.mock('@codemirror/state', () => ({}))
+vi.mock('@codemirror/view', () => ({
+  EditorView: { lineWrapping: {} },
+  keymap: { of: () => ({}) },
+  Decoration: { mark: () => ({ range: () => ({}) }), none: { update: () => null } },
+}))
+vi.mock('@codemirror/state', () => ({
+  StateEffect: { define: () => ({ of: () => ({}) }) },
+  StateField: { define: () => ({}) },
+}))
 vi.mock('../lib/cmLanguage', () => ({
   languageIdFor: () => null,
   loadLanguage: () => Promise.resolve(null),

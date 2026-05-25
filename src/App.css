@@ -45,6 +45,10 @@
   --bg-warning-subtle: rgba(217, 119, 6, 0.10);
   --bg-success-subtle: rgba(22, 163, 74, 0.10);
 
+  /* Find-in-page match highlights — classic browser yellow */
+  --bg-find-match: rgba(255, 213, 79, 0.55);
+  --bg-find-match-active: #ffbf00;
+
   /* Focus ring (use as box-shadow, applied via :focus-visible) */
   --focus-ring: 0 0 0 3px rgba(0, 0, 0, 0.35);
   --focus-ring-inset: inset 0 0 0 2px rgba(0, 0, 0, 0.5);
@@ -198,6 +202,10 @@
   --bg-warning-subtle: rgba(176, 137, 64, 0.10);
   --bg-success-subtle: rgba(78, 199, 122, 0.10);
 
+  /* Find-in-page match highlights (dark) */
+  --bg-find-match: rgba(255, 213, 79, 0.30);
+  --bg-find-match-active: #ffd24c;
+
   /* Focus ring (dark) — white tint so the ring stays visible against dark surfaces */
   --focus-ring: 0 0 0 3px rgba(255, 255, 255, 0.35);
   --focus-ring-inset: inset 0 0 0 2px rgba(255, 255, 255, 0.5);
@@ -249,6 +257,14 @@ body,
 ::selection {
   background: var(--accent-bg);
   color: var(--text-primary);
+}
+
+/* Kill the browser's default focus outline globally so we never see the
+   yellow/orange/blue system ring leaking through. Components opt into a
+   visible focus indicator via box-shadow: var(--focus-ring) (or the inset
+   variant) on their own :focus-visible rule. */
+:focus {
+  outline: none;
 }
 
 button {
@@ -604,6 +620,7 @@ button {
   background: var(--surface-3);
   color: var(--text-secondary);
   cursor: pointer;
+  white-space: nowrap;
   -webkit-app-region: no-drag;
   transition: background var(--duration-fast) var(--ease-out),
     color var(--duration-fast) var(--ease-out);
@@ -864,7 +881,8 @@ button {
   flex: 1;
   min-width: 0;
   margin-left: 4px;
-  padding: 4px 8px;
+  height: 28px;
+  padding: var(--space-1) var(--space-2);
   background: transparent;
   border: 1px solid transparent;
   border-radius: var(--radius-md);
@@ -1147,10 +1165,10 @@ button {
 .browser-toolbar {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-2);
   padding: 6px 10px;
   border-bottom: 1px solid var(--border);
-  background: var(--surface-2);
+  background: transparent;
   height: 38px;
   flex-shrink: 0;
 }
@@ -1215,6 +1233,7 @@ button {
      container's rounded background. */
   padding: var(--space-1);
   gap: var(--space-0);
+  height: 28px;
 }
 
 .mode-btn {
@@ -1435,6 +1454,11 @@ button {
 
 .cm-host .cm-scroller {
   background: var(--surface-1);
+  /* Breathing room above/below the active find match — without this the
+     scroller anchors the match flush against the top edge, partially
+     hidden behind the floating find bar. */
+  scroll-padding-top: 80px;
+  scroll-padding-bottom: 40px;
 }
 
 .cm-host .cm-activeLine,
@@ -1599,14 +1623,21 @@ button {
 }
 
 .cm-host .cm-searchMatch {
-  background: rgba(196, 105, 31, 0.18);
-  outline: 1px solid rgba(196, 105, 31, 0.4);
+  background: var(--bg-find-match);
+  outline: none;
 }
 
 .cm-host .cm-searchMatch-selected {
-  background: var(--accent);
-  outline: 1px solid var(--accent);
-  color: white;
+  background: var(--bg-find-match-active);
+  outline: none;
+  color: #1a1a1a;
+  border-radius: var(--radius-sm);
+  /* `inline-block` so `transform: scale()` actually applies — CSS transforms
+     on inline boxes are no-ops. Only the single active match gets this, so
+     the baseline impact is negligible. */
+  display: inline-block;
+  transform-origin: center;
+  animation: find-match-pop 320ms var(--ease-out);
 }
 
 .cm-host .cm-matchingBracket {
@@ -1992,7 +2023,7 @@ button {
   background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  width: 420px;
+  width: 100%;
   max-width: 90vw;
   padding: 18px;
   display: flex;
@@ -2161,6 +2192,239 @@ button {
 .md-preview {
   flex: 1;
   overflow: auto;
+  /* Breathing room for find-bar match scroll: keeps the active match from
+     anchoring flush against the top edge under the floating find bar. */
+  scroll-padding-top: 80px;
+  scroll-padding-bottom: 40px;
+}
+
+/* Find / Replace bar — a floating, shadowed overlay anchored to the top of
+   the editor body, just below the header. Shared visual between CodeMirror
+   and Milkdown surfaces (driver logic lives in each engine's wrapper).
+   When Replace is expanded the bar grows downward to host a second row
+   separated by a subtle divider. */
+.md-find {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-3);
+  /* Fixed width so toggling Replace doesn't shrink/grow the container
+     and shift the anchor point. */
+  width: 360px;
+  max-width: calc(100% - var(--space-6));
+  z-index: var(--z-dropdown);
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-1);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+}
+
+/* Each row (find or replace) is a horizontal flex track. The replace
+   row gets a hairline divider above it so the visual hierarchy reads
+   as a single grouped surface rather than two stacked bars. */
+.md-find-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-2);
+}
+
+.md-find-row--replace {
+  border-top: 1px solid var(--border-subtle);
+  /* Align the Replace input with the Find input above it (which sits
+     after the 28px replace-toggle icon button + 4px gap). */
+  padding-left: calc(36px + var(--space-1));
+}
+
+/* Both find + replace inputs share the boxed look: subtle surface-2 fill,
+   no border (the fill alone separates them from the container surface-1). */
+.md-find-input,
+.md-find-input--bare {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 28px;
+  background: var(--surface-2);
+  color: var(--text-primary);
+  border: none;
+  border-radius: var(--radius-md);
+  padding: var(--space-1) var(--space-2);
+  font-size: 13px;
+}
+
+.md-find-input::placeholder,
+.md-find-input--bare::placeholder {
+  color: var(--text-tertiary);
+}
+
+/* Match count readout between the query input and the nav buttons.
+   Tabular numbers keep the width steady while the index ticks up. */
+.md-find-count {
+  /* Fixed slot for the counter so the surrounding controls don't jiggle
+     as the index grows (1 → 99 → 1001). Width is sized for "9999 of 9999"
+     with tabular-nums and right-aligned digits. */
+  flex: 0 0 auto;
+  min-width: 10ch;
+  text-align: right;
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.md-find-count--empty {
+  color: var(--text-tertiary);
+}
+
+/* Anchor for the floating find bar — sits inside the editor below the header
+   and stretches to fill the remaining space. */
+.editor-body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Replace confirmation toast — floats top-center inside the editor body so it
+   reads as belonging to the active editor rather than the global chrome. Sits
+   below the find bar's right-anchored row; centering vs that bar is fine in
+   practice because the find bar lives in the top-right corner. */
+.editor-replace-toast {
+  position: absolute;
+  top: var(--space-3);
+  left: 50%;
+  transform: translateX(-50%);
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--border-success);
+  background: var(--surface-1);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  color: var(--text-primary);
+  font-size: var(--font-size-md);
+  z-index: var(--z-toast);
+  pointer-events: none;
+  animation: editor-replace-toast-in var(--duration-normal) var(--ease-out);
+}
+
+/* `forwards` pins the faded-out state until React unmounts the node a beat
+   later, so the toast doesn't flash back to fully opaque during the gap
+   between animation-end and the unmount setState. */
+.editor-replace-toast--leaving {
+  animation: editor-replace-toast-out var(--duration-normal) var(--ease-out) forwards;
+}
+
+@keyframes editor-replace-toast-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -6px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+@keyframes editor-replace-toast-out {
+  from {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+  to {
+    opacity: 0;
+    transform: translate(-50%, -6px);
+  }
+}
+
+
+.md-find-input:focus-visible,
+.md-find-input--bare:focus-visible {
+  box-shadow: var(--focus-ring-inset);
+}
+
+/* Bumps the shared `.icon-btn` from its default 24×24 to 28×28 inside
+   the find bar, matching the sidebar icon buttons so the row reads at the
+   same visual scale. */
+.md-find .icon-btn {
+  width: 28px;
+  height: 28px;
+}
+
+/* Close button anchors to the right edge of the find row. */
+.md-find-close {
+  margin-left: auto;
+}
+
+/* Leading replace-toggle. Inherits sizing/hover from `.icon-btn`; the
+   modifier below only adds the accent color when the Replace row is
+   expanded so the user sees at a glance which mode the bar is in. */
+.md-find-toggle--active {
+  color: var(--accent);
+}
+
+.md-find-toggle--active:hover {
+  color: var(--accent);
+}
+
+/* Match highlights emitted by prosemirror-search. The plugin tags every
+   match with `.ProseMirror-search-match` and the current one with
+   `.ProseMirror-active-search-match`. */
+.live-md .ProseMirror-search-match {
+  background: var(--bg-find-match);
+  border-radius: var(--radius-sm);
+}
+
+.live-md .ProseMirror-active-search-match {
+  background: var(--bg-find-match-active);
+  color: #1a1a1a;
+  border-radius: var(--radius-sm);
+  display: inline-block;
+  transform-origin: center;
+  animation: find-match-pop 320ms var(--ease-out);
+}
+
+/* "Just replaced" flash — green fade applied to the range that was just
+   rewritten by Replace. `forwards` keeps the highlight transparent after
+   the animation so the decoration node (which lives on in the StateField /
+   PluginState until the find bar unmounts) stays invisible. */
+.cm-host .cm-just-replaced,
+.live-md .pm-just-replaced {
+  border-radius: var(--radius-sm);
+  animation: just-replaced-flash 900ms var(--ease-out) forwards;
+}
+
+@keyframes just-replaced-flash {
+  0% {
+    background: rgba(46, 204, 113, 0.55);
+    box-shadow: 0 0 0 2px rgba(46, 204, 113, 0.45);
+  }
+  60% {
+    background: rgba(46, 204, 113, 0.35);
+    box-shadow: 0 0 0 2px rgba(46, 204, 113, 0);
+  }
+  100% {
+    background: transparent;
+    box-shadow: none;
+  }
+}
+
+/* "Pop" bounce fired every time a match becomes the active one (Enter, Prev,
+   Next). Combines a real `scale` bounce with an expanding amber ring so the
+   feedback reads clearly even when the active background already matches
+   the ring color. Active matches are promoted to `display: inline-block` so
+   the transform actually applies. */
+@keyframes find-match-pop {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(255, 191, 0, 0.7);
+  }
+  40% {
+    transform: scale(1.18);
+    box-shadow: 0 0 0 5px rgba(255, 191, 0, 0.35);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(255, 191, 0, 0);
+  }
 }
 
 .md-preview-inner {

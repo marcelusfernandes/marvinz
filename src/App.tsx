@@ -14,6 +14,7 @@ import { TabBar } from './components/TabBar'
 import { CommandPalette } from './components/CommandPalette'
 import { SettingsModal } from './components/SettingsModal'
 import { seedFromMain } from './lib/settingsStore'
+import { resolveAppFindShortcut } from './lib/appFindShortcut'
 import { useColorTheme } from './lib/colorTheme'
 import { useVisualStyle } from './lib/visualStyle'
 import { TopBar } from './components/TopBar'
@@ -248,6 +249,12 @@ export default function App() {
   const [layoutMode, setLayoutModeState] = useState<LayoutMode>(() => readStoredLayout())
   const [urlBarFocusTick, setUrlBarFocusTick] = useState(0)
   const [newAgentTabTick, setNewAgentTabTick] = useState(0)
+  // Window-level Cmd+F / Cmd+Alt+F → bumps a tick that the Editor watches
+  // so the find bar opens even when focus is on the sidebar / agents / tab
+  // bar. Keep separate ticks so the variant (find vs replace-expanded)
+  // survives a same-frame double-fire.
+  const [openFindTick, setOpenFindTick] = useState(0)
+  const [openReplaceTick, setOpenReplaceTick] = useState(0)
   const [sidebarHidden, setSidebarHidden] = useState(() => {
     try {
       return window.localStorage.getItem(SIDEBAR_HIDDEN_KEY) === '1'
@@ -986,10 +993,27 @@ export default function App() {
         setSettingsOpen(true)
         return
       }
+      // Cmd+F / Cmd+Alt+F → open the find bar in the active markdown editor
+      // even when focus sits outside the editor surface. Predicate is
+      // extracted (see resolveAppFindShortcut) so it can be unit-tested
+      // without spinning up the entire App tree.
+      const findVariant = resolveAppFindShortcut(e, {
+        modalOpen,
+        activeMarkdownPath:
+          activeTab && isNoteTab(activeTab) && isMarkdownPath(activeTab.path)
+            ? activeTab.path
+            : null,
+      })
+      if (findVariant) {
+        e.preventDefault()
+        if (findVariant === 'replace') setOpenReplaceTick((t) => t + 1)
+        else setOpenFindTick((t) => t + 1)
+        return
+      }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [vaultPath, openNewBrowserTab])
+  }, [vaultPath, openNewBrowserTab, modalOpen, activeTab])
 
   const handlePalettePick = useCallback(
     async (item: PaletteItem, replaceCurrent: boolean) => {
@@ -1595,6 +1619,8 @@ export default function App() {
                 canForward={activeTab.forward.length > 0}
                 onBack={goBack}
                 onForward={goForward}
+                openFindTick={openFindTick}
+                openReplaceTick={openReplaceTick}
               />
             </div>
           )}
