@@ -2356,7 +2356,7 @@ button {
 }
 
 .prop-row:hover {
-  background: var(--surface-3);
+  background: var(--bg-hover);
 }
 
 .prop-icon {
@@ -2364,7 +2364,8 @@ button {
   align-items: center;
   justify-content: center;
   color: var(--text-tertiary);
-  height: 18px;
+  height: 28px;
+  width: 28px;
 }
 
 .prop-row:hover .prop-icon {
@@ -2453,7 +2454,7 @@ button {
   padding: var(--space-0) var(--space-2);
   border-radius: var(--radius-pill);
   font-size: var(--font-size-sm);
-  border: 1px solid var(--pill-border);
+  /* border: 1px solid var(--pill-border); */
 }
 
 .prop-pill-hash {
@@ -2492,7 +2493,7 @@ button {
 }
 
 .prop-row .prop-remove:hover {
-  background: var(--surface-3);
+  background: var(--bg-hover);
   color: var(--text-primary);
 }
 
@@ -2504,7 +2505,6 @@ button {
   background: transparent;
   color: inherit;
   padding: 0;
-  font: inherit;
   cursor: text;
   border-radius: var(--radius-sm);
 }
@@ -2517,7 +2517,7 @@ button {
 .prop-input,
 .prop-key-input {
   background: var(--surface-1);
-  border: 1px solid var(--accent);
+  border: 1px solid var(--border);
   border-radius: var(--radius-md);
   padding: var(--space-1) var(--space-2);
   font: inherit;
@@ -2525,6 +2525,11 @@ button {
   outline: none;
   width: 100%;
   min-width: 0;
+}
+
+.prop-input:focus,
+.prop-key-input:focus {
+  box-shadow: var(--focus-ring);
 }
 
 .prop-key-input {
@@ -2555,14 +2560,15 @@ button.prop-bool {
 }
 
 .prop-pill-remove {
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
   border-radius: var(--radius-pill);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   color: var(--text-tertiary);
   margin-left: var(--space-0);
+  padding: 2px;
 }
 
 .prop-pill-remove:hover {
@@ -2608,7 +2614,7 @@ button.prop-bool {
   margin-top: var(--space-1);
   padding: var(--space-2);
   background: var(--surface-2);
-  border: 1px solid var(--border);
+  /* border: 1px solid var(--border); */
   border-radius: var(--radius-md);
   align-items: center;
 }
@@ -2641,31 +2647,6 @@ button.prop-bool {
 .prop-type-picker:focus-visible {
   outline: none;
   box-shadow: var(--focus-ring);
-}
-
-.props-add-btn {
-  font-size: var(--font-size-sm);
-  padding: var(--space-1) var(--space-3);
-  border-radius: var(--radius-md);
-}
-
-.props-add-btn.primary {
-  background: var(--accent);
-  color: white;
-  font-weight: 500;
-}
-
-.props-add-btn.primary:hover {
-  filter: brightness(1.1);
-}
-
-.props-add-btn.ghost {
-  color: var(--text-tertiary);
-}
-
-.props-add-btn.ghost:hover {
-  color: var(--text-primary);
-  background: var(--surface-3);
 }
 
 /* === Milkdown live-preview surface === */
