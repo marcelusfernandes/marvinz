@@ -1730,6 +1730,7 @@ button {
 .claude-host .xterm-screen {
   height: 100% !important;
   background: transparent !important;
+  padding-bottom: var(--space-2);
 }
 
 .agent-terminal,
