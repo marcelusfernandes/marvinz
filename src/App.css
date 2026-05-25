@@ -35,7 +35,7 @@
   /* Overlays + hover washes */
   --bg-overlay: rgba(0, 0, 0, 0.5);
   --bg-overlay-light: rgba(0, 0, 0, 0.45);
-  --bg-hover: rgba(0, 0, 0, 0.04);
+  --bg-hover: rgba(0, 0, 0, 0.06);
   --bg-hover-strong: rgba(0, 0, 0, 0.1);
 
   /* Status backgrounds */
@@ -186,7 +186,7 @@
   --accent-codex-bg: #0a84ff22;
 
   /* Overlays + hover washes (dark) */
-  --bg-hover: rgba(255, 255, 255, 0.04);
+  --bg-hover: rgba(255, 255, 255, 0.09);
   --bg-hover-strong: rgba(255, 255, 255, 0.1);
 
   /* Status backgrounds (dark) */
@@ -417,7 +417,7 @@ button {
 }
 
 .sidebar-icon-btn:hover {
-  background: var(--surface-3);
+  background: var(--bg-hover);
   color: var(--text-primary);
 }
 
@@ -589,7 +589,7 @@ button {
 }
 
 .icon-btn:hover {
-  background: var(--surface-3);
+  background: var(--bg-hover);
   color: var(--text-primary);
 }
 
@@ -676,7 +676,7 @@ button {
 }
 
 .file-tree-row:hover {
-  background: var(--surface-3);
+  background: var(--bg-hover);
   color: var(--text-primary);
 }
 
@@ -777,7 +777,7 @@ button {
 }
 
 .sidebar-footer-btn:hover {
-  background: var(--surface-3);
+  background: var(--bg-hover);
   color: var(--text-primary);
 }
 
@@ -846,7 +846,7 @@ button {
 }
 
 .nav-btn:hover:not(:disabled) {
-  background: var(--surface-3);
+  background: var(--bg-hover);
   color: var(--text-primary);
 }
 
@@ -1020,7 +1020,7 @@ button {
 }
 
 .tab-new:hover {
-  background: var(--surface-3);
+  background: var(--bg-hover);
   color: var(--text-primary);
 }
 
