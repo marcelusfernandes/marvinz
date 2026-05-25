@@ -45,6 +45,10 @@
   --bg-warning-subtle: rgba(217, 119, 6, 0.10);
   --bg-success-subtle: rgba(22, 163, 74, 0.10);
 
+  /* Find-in-page match highlights — classic browser yellow */
+  --bg-find-match: rgba(255, 213, 79, 0.55);
+  --bg-find-match-active: #ffbf00;
+
   /* Focus ring (use as box-shadow, applied via :focus-visible) */
   --focus-ring: 0 0 0 3px rgba(0, 0, 0, 0.35);
   --focus-ring-inset: inset 0 0 0 2px rgba(0, 0, 0, 0.5);
@@ -197,6 +201,10 @@
   --bg-error-subtle: rgba(224, 123, 110, 0.08);
   --bg-warning-subtle: rgba(176, 137, 64, 0.10);
   --bg-success-subtle: rgba(78, 199, 122, 0.10);
+
+  /* Find-in-page match highlights (dark) */
+  --bg-find-match: rgba(255, 213, 79, 0.30);
+  --bg-find-match-active: #ffd24c;
 
   /* Focus ring (dark) — white tint so the ring stays visible against dark surfaces */
   --focus-ring: 0 0 0 3px rgba(255, 255, 255, 0.35);
@@ -1615,14 +1623,14 @@ button {
 }
 
 .cm-host .cm-searchMatch {
-  background: var(--bg-hover-strong);
-  outline: 1px solid var(--border-strong);
+  background: var(--bg-find-match);
+  outline: none;
 }
 
 .cm-host .cm-searchMatch-selected {
-  background: var(--accent);
-  outline: 1px solid var(--accent);
-  color: white;
+  background: var(--bg-find-match-active);
+  outline: none;
+  color: #1a1a1a;
 }
 
 .cm-host .cm-matchingBracket {
@@ -2194,7 +2202,7 @@ button {
   right: var(--space-3);
   /* Fixed width so toggling Replace doesn't shrink/grow the container
      and shift the anchor point. */
-  width: 300px;
+  width: 360px;
   max-width: calc(100% - var(--space-6));
   z-index: var(--z-dropdown);
   display: flex;
@@ -2233,7 +2241,7 @@ button {
   border: none;
   border-radius: var(--radius-md);
   padding: var(--space-1) var(--space-2);
-  font-size: var(--font-size-sm);
+  font-size: 13px;
 }
 
 .md-find-input::placeholder,
@@ -2299,13 +2307,13 @@ button {
    match with `.ProseMirror-search-match` and the current one with
    `.ProseMirror-active-search-match`. */
 .live-md .ProseMirror-search-match {
-  background: var(--bg-hover-strong);
+  background: var(--bg-find-match);
   border-radius: var(--radius-sm);
 }
 
 .live-md .ProseMirror-active-search-match {
-  background: var(--accent);
-  color: white;
+  background: var(--bg-find-match-active);
+  color: #1a1a1a;
   border-radius: var(--radius-sm);
 }
 
