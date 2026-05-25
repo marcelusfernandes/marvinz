@@ -540,8 +540,9 @@ function EmptyState({
   return (
     <div className="agent-empty">
       <p>No terminal open.</p>
-      <button type="button" className="agent-empty-cta" onClick={onNew}>
-        + New terminal
+      <button type="button" className="btn" onClick={onNew}>
+        <Icon name="add" size={14} />
+        New terminal
       </button>
     </div>
   )

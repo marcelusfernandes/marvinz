@@ -1449,7 +1449,7 @@ export default function App() {
           onLayoutChange={setLayoutMode}
         />
       )}
-      {sidebarHidden && visualStyle === 'modern' && (
+      {visualStyle === 'modern' && (
         <div className="sidebar-icon-strip">{sidebarIconButtons}</div>
       )}
       <div
@@ -1467,9 +1467,6 @@ export default function App() {
         onContextMenu={handleSidebarContextMenu}
         onPaste={handleSidebarPaste}
       >
-        {visualStyle === 'modern' && !sidebarHidden && (
-          <div className="sidebar-icon-row">{sidebarIconButtons}</div>
-        )}
         <div className="sidebar-header">
           {visualStyle === 'legacy' ? (
             <span className="vault-name">{vaultPath.split('/').pop()}</span>

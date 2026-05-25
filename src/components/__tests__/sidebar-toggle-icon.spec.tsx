@@ -372,9 +372,12 @@ describe('TabBar location — sidebar visible', () => {
     expect(tabBar.closest('.sidebar-hidden-header')).toBeNull()
   })
 
-  it('.sidebar-icon-strip does not exist when sidebar is visible', async () => {
+  it('.sidebar-icon-strip is always rendered (faded out when sidebar is visible)', async () => {
     const { container } = await renderApp()
-    expect(container.querySelector('.sidebar-icon-strip')).toBeNull()
+    // Strip is always in the DOM in modern style so it can cross-fade with the
+    // sidebar on toggle. It's hidden via CSS opacity when sidebar is visible.
+    expect(container.querySelector('.sidebar-icon-strip')).not.toBeNull()
+    expect(container.querySelector('.shell.sidebar-hidden')).toBeNull()
   })
 })
 
