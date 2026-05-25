@@ -31,6 +31,7 @@ import './styles/legacy.css'
 const LAYOUT_STORAGE_KEY = 'marvin:layoutMode'
 const SIDEBAR_WIDTH_KEY = 'marvin:sidebarWidth'
 const AGENTS_WIDTH_KEY = 'marvin:agentsWidth'
+const SIDEBAR_HIDDEN_KEY = 'marvin:sidebarHidden'
 
 const DEFAULT_SIDEBAR_WIDTH = 240
 const DEFAULT_AGENTS_WIDTH = 588
@@ -247,7 +248,20 @@ export default function App() {
   const [layoutMode, setLayoutModeState] = useState<LayoutMode>(() => readStoredLayout())
   const [urlBarFocusTick, setUrlBarFocusTick] = useState(0)
   const [newAgentTabTick, setNewAgentTabTick] = useState(0)
-  const [sidebarHidden, setSidebarHidden] = useState(false)
+  const [sidebarHidden, setSidebarHidden] = useState(() => {
+    try {
+      return window.localStorage.getItem(SIDEBAR_HIDDEN_KEY) === '1'
+    } catch {
+      return false
+    }
+  })
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(SIDEBAR_HIDDEN_KEY, sidebarHidden ? '1' : '0')
+    } catch {
+      // ignore quota / private-mode errors
+    }
+  }, [sidebarHidden])
   const [sidebarWidth, setSidebarWidthState] = useState<number>(() =>
     readStoredWidth(SIDEBAR_WIDTH_KEY, DEFAULT_SIDEBAR_WIDTH, MIN_SIDEBAR, MAX_SIDEBAR),
   )
@@ -1350,7 +1364,7 @@ export default function App() {
     // search bar, the header, the footer, or any interactive child.
     if (
       target.closest(
-        '.file-tree-row, .sidebar-icon-row, .sidebar-header, .sidebar-footer, button, input, a',
+        '.file-tree-row, .sidebar-icon-strip, .sidebar-header, .sidebar-footer, button, input, a',
       )
     ) {
       return
@@ -1429,15 +1443,6 @@ export default function App() {
     </>
   )
 
-  const tabBarElement = (
-    <TabBar
-      tabs={tabs}
-      activeId={activeTabId}
-      onActivate={setActiveTabId}
-      onClose={closeTab}
-      onNewBrowserTab={openNewBrowserTab}
-    />
-  )
 
   return (
     <div className={`shell${sidebarHidden ? ' sidebar-hidden' : ''}`}>
@@ -1539,7 +1544,13 @@ export default function App() {
       <Splitter onDelta={handleSidebarDelta} ariaLabel="Resize sidebar" />
 
       <main className="editor-pane">
-        {tabBarElement}
+        <TabBar
+          tabs={tabs}
+          activeId={activeTabId}
+          onActivate={setActiveTabId}
+          onClose={closeTab}
+          onNewBrowserTab={openNewBrowserTab}
+        />
         <div className="editor-stack">
           {activeTab && isNoteTab(activeTab) && (
             <div className="note-tab-container">

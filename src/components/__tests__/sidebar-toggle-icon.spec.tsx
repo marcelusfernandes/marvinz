@@ -161,6 +161,9 @@ function getToggleBtn(container: HTMLElement, label?: string): HTMLElement | nul
 
 beforeEach(() => {
   setupMarvinMock()
+  // App now persists sidebarHidden to localStorage — reset between tests so
+  // they don't leak state into each other.
+  window.localStorage.clear()
 })
 
 afterEach(() => {

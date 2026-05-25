@@ -357,7 +357,11 @@ export function Editor({
             <button
               type="button"
               className="btn btn--ghost"
-              onClick={() => void window.marvin.file.exportPdf(filePath)}
+              onClick={() =>
+                void window.marvin.file.exportPdf(filePath).catch((err) => {
+                  console.error('Export PDF failed', err)
+                })
+              }
               title="Export as PDF"
               aria-label="Export as PDF"
             >
