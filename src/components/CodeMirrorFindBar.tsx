@@ -219,13 +219,11 @@ export function CodeMirrorFindBar({ view, onClose, initialReplaceExpanded }: Pro
           aria-live="polite"
           data-testid="cm-search-count"
         >
-          {!query
-            ? ''
-            : matchInfo.total === 0
-              ? 'No results'
-              : matchInfo.current !== null
-                ? `${matchInfo.current} of ${matchInfo.total}`
-                : `${matchInfo.total} ${matchInfo.total === 1 ? 'match' : 'matches'}`}
+          {!query || matchInfo.total === 0
+            ? 'No results'
+            : matchInfo.current !== null
+              ? `${matchInfo.current} of ${matchInfo.total}`
+              : `${matchInfo.total} ${matchInfo.total === 1 ? 'match' : 'matches'}`}
         </span>
         <button
           type="button"

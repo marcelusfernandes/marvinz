@@ -382,7 +382,7 @@ describe('CodeMirrorFindBar — match count readout', () => {
 // ===========================================================================
 
 describe('match-count edge cases', () => {
-  it('PM: empty query → count badge renders empty so layout stays fixed', async () => {
+  it('PM: empty query → count badge shows "No results" so the slot stays present', async () => {
     const view = makeFakePMView()
     mockGetMatchHighlights.mockReturnValue({ find: () => [] })
     const { container } = render(
@@ -391,7 +391,7 @@ describe('match-count edge cases', () => {
     await flushDebounce()
     const badge = container.querySelector('[data-testid="pm-search-count"]')
     expect(badge).not.toBeNull()
-    expect(badge!.textContent).toBe('')
+    expect(badge!.textContent).toBe('No results')
   })
 
   it('CM: zero matches for non-empty query → "No results"', async () => {
