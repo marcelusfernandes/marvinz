@@ -37,6 +37,8 @@
     "@codemirror/search": "^6.7.0",
     "@codemirror/state": "^6.6.0",
     "@codemirror/view": "^6.42.1",
+    "@fontsource-variable/geist": "^5.2.9",
+    "@fontsource-variable/geist-mono": "^5.2.8",
     "@milkdown/core": "^7.20.0",
     "@milkdown/ctx": "^7.20.0",
     "@milkdown/plugin-listener": "^7.20.0",
