@@ -612,6 +612,7 @@ button {
   background: var(--surface-3);
   color: var(--text-secondary);
   cursor: pointer;
+  white-space: nowrap;
   -webkit-app-region: no-drag;
   transition: background var(--duration-fast) var(--ease-out),
     color var(--duration-fast) var(--ease-out);
@@ -2215,33 +2216,24 @@ button {
   border-top: 1px solid var(--border-subtle);
 }
 
-.md-find-input {
-  /* Fixed-ish width so the bar stays compact; grows a little if needed. */
-  flex: 0 1 220px;
-  min-width: 120px;
+/* Both find + replace inputs share the boxed look: subtle surface-2 fill,
+   no border (the fill alone separates them from the container surface-1). */
+.md-find-input,
+.md-find-input--bare {
+  flex: 1 1 auto;
+  min-width: 0;
   height: 28px;
   background: var(--surface-2);
   color: var(--text-primary);
-  border: 1px solid var(--border);
+  border: none;
   border-radius: var(--radius-md);
   padding: var(--space-1) var(--space-2);
   font-size: var(--font-size-sm);
-  border: none;
 }
 
-/* Borderless variant used by the Replace input: the row's divider already
-   bounds it, so an extra rectangle would feel boxy. Allowed to flex so the
-   second row aligns its buttons to the right edge of the compact container. */
-.md-find-input--bare {
-  flex: 1 1 auto;
-  background: transparent;
-  border-color: transparent;
-  padding-left: 0;
-}
-
-.md-find-input--bare:focus-visible {
-  box-shadow: none;
-  border-color: transparent;
+.md-find-input::placeholder,
+.md-find-input--bare::placeholder {
+  color: var(--text-tertiary);
 }
 
 /* Match count readout between the query input and the nav buttons.
@@ -2269,9 +2261,12 @@ button {
 }
 
 
-.md-find-input:focus-visible {
-  box-shadow: var(--focus-ring-inset);
-  border-color: var(--border-focus);
+.md-find-input:focus-visible,
+.md-find-input--bare:focus-visible {
+  /* Transparent inputs — no focus ring; the row itself reads as the
+     active control. */
+  outline: none;
+  box-shadow: none;
 }
 
 /* Bumps the shared `.icon-btn` from its default 24×24 to 28×28 inside
