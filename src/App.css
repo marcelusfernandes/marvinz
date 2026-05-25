@@ -1435,6 +1435,11 @@ button {
 
 .cm-host .cm-scroller {
   background: var(--surface-1);
+  /* Breathing room above/below the active find match — without this the
+     scroller anchors the match flush against the top edge, partially
+     hidden behind the floating find bar. */
+  scroll-padding-top: 80px;
+  scroll-padding-bottom: 40px;
 }
 
 .cm-host .cm-activeLine,
@@ -1599,8 +1604,8 @@ button {
 }
 
 .cm-host .cm-searchMatch {
-  background: rgba(196, 105, 31, 0.18);
-  outline: 1px solid rgba(196, 105, 31, 0.4);
+  background: var(--bg-hover-strong);
+  outline: 1px solid var(--border-strong);
 }
 
 .cm-host .cm-searchMatch-selected {
@@ -2161,6 +2166,143 @@ button {
 .md-preview {
   flex: 1;
   overflow: auto;
+  /* Breathing room for find-bar match scroll: keeps the active match from
+     anchoring flush against the top edge under the floating find bar. */
+  scroll-padding-top: 80px;
+  scroll-padding-bottom: 40px;
+}
+
+/* Find / Replace bar — a floating, shadowed overlay anchored to the top of
+   the editor body, just below the header. Shared visual between CodeMirror
+   and Milkdown surfaces (driver logic lives in each engine's wrapper).
+   When Replace is expanded the bar grows downward to host a second row
+   separated by a subtle divider. */
+.md-find {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-3);
+  /* Intrinsic width — the bar hugs its content (Notion-style compact
+     overlay) instead of stretching across the whole editor. The replace
+     row's input + buttons drive the expanded width. */
+  /* width: max-content; */
+  /* max-width: calc(100% - var(--space-6)); */
+  z-index: var(--z-dropdown);
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-1);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+}
+
+/* Each row (find or replace) is a horizontal flex track. The replace
+   row gets a hairline divider above it so the visual hierarchy reads
+   as a single grouped surface rather than two stacked bars. */
+.md-find-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-2);
+}
+
+.md-find-row--replace {
+  border-top: 1px solid var(--border-subtle);
+}
+
+.md-find-input {
+  /* Fixed-ish width so the bar stays compact; grows a little if needed. */
+  flex: 0 1 220px;
+  min-width: 120px;
+  height: 28px;
+  background: var(--surface-2);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--font-size-sm);
+  border: none;
+}
+
+/* Borderless variant used by the Replace input: the row's divider already
+   bounds it, so an extra rectangle would feel boxy. Allowed to flex so the
+   second row aligns its buttons to the right edge of the compact container. */
+.md-find-input--bare {
+  flex: 1 1 auto;
+  background: transparent;
+  border-color: transparent;
+  padding-left: 0;
+}
+
+.md-find-input--bare:focus-visible {
+  box-shadow: none;
+  border-color: transparent;
+}
+
+/* Match count readout between the query input and the nav buttons.
+   Tabular numbers keep the width steady while the index ticks up. */
+.md-find-count {
+  flex: 0 0 auto;
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.md-find-count--empty {
+  color: var(--text-tertiary);
+}
+
+/* Anchor for the floating find bar — sits inside the editor below the header
+   and stretches to fill the remaining space. */
+.editor-body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+
+.md-find-input:focus-visible {
+  box-shadow: var(--focus-ring-inset);
+  border-color: var(--border-focus);
+}
+
+/* Bumps the shared `.icon-btn` from its default 24×24 to 28×28 inside
+   the find bar, matching the sidebar icon buttons so the row reads at the
+   same visual scale. */
+.md-find .icon-btn {
+  width: 28px;
+  height: 28px;
+}
+
+/* Close button anchors to the right edge of the find row. */
+.md-find-close {
+  margin-left: auto;
+}
+
+/* Leading replace-toggle. Inherits sizing/hover from `.icon-btn`; the
+   modifier below only adds the accent color when the Replace row is
+   expanded so the user sees at a glance which mode the bar is in. */
+.md-find-toggle--active {
+  color: var(--accent);
+}
+
+.md-find-toggle--active:hover {
+  color: var(--accent);
+}
+
+/* Match highlights emitted by prosemirror-search. The plugin tags every
+   match with `.ProseMirror-search-match` and the current one with
+   `.ProseMirror-active-search-match`. */
+.live-md .ProseMirror-search-match {
+  background: var(--bg-hover-strong);
+  border-radius: var(--radius-sm);
+}
+
+.live-md .ProseMirror-active-search-match {
+  background: var(--accent);
+  color: white;
+  border-radius: var(--radius-sm);
 }
 
 .md-preview-inner {

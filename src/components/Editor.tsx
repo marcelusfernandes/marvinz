@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import CodeMirror from '@uiw/react-codemirror'
-import { EditorView } from '@codemirror/view'
-import { search } from '@codemirror/search'
+import { EditorView, keymap } from '@codemirror/view'
+import { search, searchKeymap } from '@codemirror/search'
 import { bracketMatching, indentUnit, HighlightStyle, syntaxHighlighting } from '@codemirror/language'
 import { redo, redoDepth, selectAll, undo, undoDepth } from '@codemirror/commands'
 import { tags as t } from '@lezer/highlight'
 import type { Extension } from '@codemirror/state'
+import type { EditorView as PMView } from 'prosemirror-view'
 import { languageIdFor, loadLanguage } from '../lib/cmLanguage'
 import {
   replaceFrontmatter,
@@ -18,6 +19,8 @@ import { LiveMarkdown } from './LiveMarkdown'
 import { CsvEditor } from './CsvEditor'
 import { HtmlPreview } from './HtmlPreview'
 import { PathSuggest } from './PathSuggest'
+import { FindReplaceOverlay } from './FindReplaceOverlay'
+import { CodeMirrorFindBar } from './CodeMirrorFindBar'
 import type { PaletteItem } from '../lib/paletteRanker'
 import { isWikilinkHref, resolveWikilink } from '../lib/wikilinks'
 import { Icon } from './Icon'
@@ -91,6 +94,12 @@ type Props = {
   canForward: boolean
   onBack: () => void
   onForward: () => void
+  /** Bumped by App.tsx when a window-level Cmd+F fires while this editor
+   * is active. Opens the find bar in `find` mode. */
+  openFindTick?: number
+  /** Bumped by App.tsx when a window-level Cmd+Alt+F fires; opens the bar
+   * with the Replace row pre-expanded. */
+  openReplaceTick?: number
 }
 
 type Mode = 'edit' | 'preview'
@@ -125,6 +134,8 @@ export function Editor({
   canForward,
   onBack,
   onForward,
+  openFindTick,
+  openReplaceTick,
 }: Props) {
   const visualStyle = useVisualStyle()
   const [value, setValue] = useState(initialContent)
@@ -135,6 +146,48 @@ export function Editor({
   const timer = useRef<number | null>(null)
   const latestValue = useRef(initialContent)
   const viewRef = useRef<EditorView | null>(null)
+
+  // Find / Replace bar state. The bar itself owns the collapsed/expanded
+  // state of the Replace row (persisted to localStorage); `forceReplace`
+  // here is a one-shot signal from Cmd+Alt+F that overrides the persisted
+  // preference for the next open. `pmView` is set by LiveMarkdown via
+  // `onViewReady` so the bar can drive prosemirror-search commands; `cmView`
+  // mirrors the CodeMirror view from `viewRef` for the same purpose, kept as
+  // state so the bar re-renders when the view becomes available.
+  const [findOpen, setFindOpen] = useState(false)
+  const [forceReplace, setForceReplace] = useState(false)
+  const [pmView, setPmView] = useState<PMView | null>(null)
+  const [cmView, setCmView] = useState<EditorView | null>(null)
+
+  // Convenience helpers wired into both editor keymaps and the LiveMarkdown
+  // `onOpenFind` callback. `openFind('replace')` mirrors the historical
+  // Cmd+Alt+F shortcut by forcing the Replace row open on the next mount.
+  const openFind = useCallback((variant: 'find' | 'replace') => {
+    setForceReplace(variant === 'replace')
+    setFindOpen(true)
+  }, [])
+  const closeFind = useCallback(() => {
+    setFindOpen(false)
+    setForceReplace(false)
+  }, [])
+
+  // Window-level Cmd+F / Cmd+Alt+F: App.tsx bumps these ticks when the
+  // shortcut fires outside the editor surface (sidebar / agents / tab bar).
+  // The local CM/PM keymaps still handle in-editor presses; the parent
+  // listener defers to them by inspecting the event target. Skip the first
+  // render (no tick change) so opening a tab doesn't auto-pop the bar.
+  const lastFindTickRef = useRef(openFindTick ?? 0)
+  useEffect(() => {
+    if (openFindTick === undefined || openFindTick === lastFindTickRef.current) return
+    lastFindTickRef.current = openFindTick
+    openFind('find')
+  }, [openFindTick, openFind])
+  const lastReplaceTickRef = useRef(openReplaceTick ?? 0)
+  useEffect(() => {
+    if (openReplaceTick === undefined || openReplaceTick === lastReplaceTickRef.current) return
+    lastReplaceTickRef.current = openReplaceTick
+    openFind('replace')
+  }, [openReplaceTick, openFind])
 
   useEffect(() => {
     setLangExt(null)
@@ -149,17 +202,46 @@ export function Editor({
     }
   }, [filePath])
 
+  // Intercept Cmd+F / Cmd+Alt+F before @codemirror/search's default keymap
+  // so the header find bar surfaces instead of the built-in top panel.
+  // Registered ahead of `searchKeymap` in the extensions array so its
+  // bindings win the precedence tie and consume the event by returning true.
+  // Cmd+Alt+F is kept as a power-user shortcut that pre-expands the Replace
+  // row; Cmd+F alone respects the persisted user preference.
+  const headerFindKeymap = useMemo(
+    () =>
+      keymap.of([
+        {
+          key: 'Mod-f',
+          run: () => {
+            openFind('find')
+            return true
+          },
+        },
+        {
+          key: 'Mod-Alt-f',
+          run: () => {
+            openFind('replace')
+            return true
+          },
+        },
+      ]),
+    [openFind],
+  )
+
   const extensions = useMemo(() => {
     const style = visualStyle === 'legacy' ? legacyCodeHighlightStyle : codeHighlightStyle
     const base = [
-      search(),
+      search({ top: true }),
+      headerFindKeymap,
+      keymap.of(searchKeymap),
       bracketMatching(),
       indentUnit.of('  '),
       EditorView.lineWrapping,
       syntaxHighlighting(style),
     ]
     return langExt ? [...base, langExt] : base
-  }, [langExt, visualStyle])
+  }, [langExt, visualStyle, headerFindKeymap])
 
   useEffect(() => {
     setValue(initialContent)
@@ -393,55 +475,79 @@ export function Editor({
           )}
         </div>
       </div>
-      {effectiveMode === 'edit' ? (
-        <CodeMirror
-          value={value}
-          height="100%"
-          theme="none"
-          extensions={extensions}
-          onChange={handleSourceChange}
-          onContextMenu={handleContextMenu}
-          onCreateEditor={(view) => {
-            viewRef.current = view
-          }}
-          basicSetup={{
-            lineNumbers: true,
-            foldGutter: false,
-            highlightActiveLine: true,
-            highlightActiveLineGutter: true,
-          }}
-          className={
-            visualStyle === 'legacy'
-              ? 'cm-host'
-              : `cm-host ${isMd ? 'cm-host-prose' : 'cm-host-code'}`
-          }
-        />
-      ) : isCsv ? (
-        <CsvEditor
-          filePath={filePath}
-          initialContent={value}
-          onChange={scheduleSave}
-        />
-      ) : isHtml ? (
-        <HtmlPreview filePath={filePath} version={version} geometryKey={geometryKey} />
-      ) : (
-        <div className="md-preview">
-          <div className="md-preview-inner">
-            {frontmatter && (
-              <Properties data={frontmatter} onChange={handlePropertiesChange} />
-            )}
-            <LiveMarkdown
-              body={previewBody}
-              onChange={handleBodyChange}
-              onLinkClick={handleLinkClick}
-              filePath={filePath}
-              vaultPath={vaultPath}
-              paletteItems={paletteItems}
-              remountKey={liveKey}
-            />
+      <div className="editor-body">
+        {/* Floating Find / Replace bar sits as an overlay just below the
+            header. Driven by the active surface (CodeMirror in raw edit
+            mode, Milkdown/ProseMirror in live preview). `forceReplace`
+            propagates the Cmd+Alt+F shortcut; the bar itself owns the
+            persisted toggle for subsequent opens. */}
+        {findOpen && effectiveMode === 'edit' && cmView && (
+          <CodeMirrorFindBar
+            view={cmView}
+            onClose={closeFind}
+            initialReplaceExpanded={forceReplace}
+          />
+        )}
+        {findOpen && effectiveMode !== 'edit' && pmView && (
+          <FindReplaceOverlay
+            view={pmView}
+            onClose={closeFind}
+            initialReplaceExpanded={forceReplace}
+          />
+        )}
+        {effectiveMode === 'edit' ? (
+          <CodeMirror
+            value={value}
+            height="100%"
+            theme="none"
+            extensions={extensions}
+            onChange={handleSourceChange}
+            onContextMenu={handleContextMenu}
+            onCreateEditor={(view) => {
+              viewRef.current = view
+              setCmView(view)
+            }}
+            basicSetup={{
+              lineNumbers: true,
+              foldGutter: false,
+              highlightActiveLine: true,
+              highlightActiveLineGutter: true,
+            }}
+            className={
+              visualStyle === 'legacy'
+                ? 'cm-host'
+                : `cm-host ${isMd ? 'cm-host-prose' : 'cm-host-code'}`
+            }
+          />
+        ) : isCsv ? (
+          <CsvEditor
+            filePath={filePath}
+            initialContent={value}
+            onChange={scheduleSave}
+          />
+        ) : isHtml ? (
+          <HtmlPreview filePath={filePath} version={version} geometryKey={geometryKey} />
+        ) : (
+          <div className="md-preview">
+            <div className="md-preview-inner">
+              {frontmatter && (
+                <Properties data={frontmatter} onChange={handlePropertiesChange} />
+              )}
+              <LiveMarkdown
+                body={previewBody}
+                onChange={handleBodyChange}
+                onLinkClick={handleLinkClick}
+                filePath={filePath}
+                vaultPath={vaultPath}
+                paletteItems={paletteItems}
+                remountKey={liveKey}
+                onOpenFind={openFind}
+                onViewReady={setPmView}
+              />
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   )
 }
