@@ -215,7 +215,7 @@ function createWindow() {
     minWidth: 900,
     minHeight: 600,
     titleBarStyle: process.platform === 'darwin' ? 'hidden' : 'default',
-    trafficLightPosition: { x: 14, y: 13 },
+    trafficLightPosition: { x: 18, y: 16 },
     // Transparent + frameless on macOS so .shell can own rounded corners +
     // translucent vibrancy blur (Tahoe-friendly look). Traffic lights still
     // draw via titleBarStyle 'hidden'.

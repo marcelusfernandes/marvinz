@@ -11,6 +11,7 @@ import {
   writeTabLabels,
 } from '../lib/chat/tabLabels'
 import { CHAT_UI_ENABLED, resolveTabMode, type TabMode } from '../lib/featureFlags'
+import { useHorizontalWheelScroll } from '../lib/useHorizontalWheelScroll'
 import type { MenuItemSpec } from '../types'
 
 type Props = {
@@ -367,9 +368,12 @@ export function AgentsPane({
     [],
   )
 
+  const tabsBarRef = useRef<HTMLDivElement>(null)
+  useHorizontalWheelScroll(tabsBarRef)
+
   return (
     <div className="agents-pane-inner">
-      <div className="agent-tabs" role="tablist">
+      <div className="agent-tabs" role="tablist" ref={tabsBarRef}>
         {tabs.map((t) => {
           const s = statuses[t.id]?.status
           const label = tabLabel(t)
@@ -536,8 +540,9 @@ function EmptyState({
   return (
     <div className="agent-empty">
       <p>No terminal open.</p>
-      <button type="button" className="agent-empty-cta" onClick={onNew}>
-        + New terminal
+      <button type="button" className="btn" onClick={onNew}>
+        <Icon name="add" size={14} />
+        New terminal
       </button>
     </div>
   )

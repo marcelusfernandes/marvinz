@@ -31,6 +31,7 @@ import './styles/legacy.css'
 const LAYOUT_STORAGE_KEY = 'marvin:layoutMode'
 const SIDEBAR_WIDTH_KEY = 'marvin:sidebarWidth'
 const AGENTS_WIDTH_KEY = 'marvin:agentsWidth'
+const SIDEBAR_HIDDEN_KEY = 'marvin:sidebarHidden'
 
 const DEFAULT_SIDEBAR_WIDTH = 240
 const DEFAULT_AGENTS_WIDTH = 588
@@ -247,6 +248,20 @@ export default function App() {
   const [layoutMode, setLayoutModeState] = useState<LayoutMode>(() => readStoredLayout())
   const [urlBarFocusTick, setUrlBarFocusTick] = useState(0)
   const [newAgentTabTick, setNewAgentTabTick] = useState(0)
+  const [sidebarHidden, setSidebarHidden] = useState(() => {
+    try {
+      return window.localStorage.getItem(SIDEBAR_HIDDEN_KEY) === '1'
+    } catch {
+      return false
+    }
+  })
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(SIDEBAR_HIDDEN_KEY, sidebarHidden ? '1' : '0')
+    } catch {
+      // ignore quota / private-mode errors
+    }
+  }, [sidebarHidden])
   const [sidebarWidth, setSidebarWidthState] = useState<number>(() =>
     readStoredWidth(SIDEBAR_WIDTH_KEY, DEFAULT_SIDEBAR_WIDTH, MIN_SIDEBAR, MAX_SIDEBAR),
   )
@@ -1349,7 +1364,7 @@ export default function App() {
     // search bar, the header, the footer, or any interactive child.
     if (
       target.closest(
-        '.file-tree-row, .sidebar-search, .sidebar-header, .sidebar-footer, button, input, a',
+        '.file-tree-row, .sidebar-icon-strip, .sidebar-header, .sidebar-footer, button, input, a',
       )
     ) {
       return
@@ -1402,8 +1417,35 @@ export default function App() {
     }
   })()
 
+  const sidebarIconButtons = visualStyle === 'modern' && (
+    <>
+      <button
+        type="button"
+        className="sidebar-icon-btn"
+        onClick={() => setSidebarHidden((h) => !h)}
+        aria-label={sidebarHidden ? 'Show sidebar' : 'Hide sidebar'}
+        title={sidebarHidden ? 'Show sidebar' : 'Hide sidebar'}
+      >
+        <Icon
+          name={sidebarHidden ? 'layout-sidebar-left' : 'layout-sidebar-left-off'}
+          size={16}
+        />
+      </button>
+      <button
+        type="button"
+        className="sidebar-icon-btn"
+        onClick={() => setPaletteOpen(true)}
+        aria-label="Search (⌘P)"
+        title="Search (⌘P)"
+      >
+        <Icon name="search" size={16} />
+      </button>
+    </>
+  )
+
+
   return (
-    <div className="shell">
+    <div className={`shell${sidebarHidden ? ' sidebar-hidden' : ''}`}>
       {visualStyle === 'legacy' && (
         <TopBar
           onOpenPalette={() => setPaletteOpen(true)}
@@ -1411,6 +1453,9 @@ export default function App() {
           layoutMode={layoutMode}
           onLayoutChange={setLayoutMode}
         />
+      )}
+      {visualStyle === 'modern' && (
+        <div className="sidebar-icon-strip">{sidebarIconButtons}</div>
       )}
       <div
         className="app"
@@ -1427,20 +1472,6 @@ export default function App() {
         onContextMenu={handleSidebarContextMenu}
         onPaste={handleSidebarPaste}
       >
-        {visualStyle === 'modern' && (
-          <div className="sidebar-search">
-            <button
-              type="button"
-              className="sidebar-search-btn"
-              onClick={() => setPaletteOpen(true)}
-              aria-label="Search (⌘P)"
-            >
-              <Icon name="search" size={14} />
-              <span className="sidebar-search-placeholder">Search…</span>
-              <span className="sidebar-search-kbd">⌘P</span>
-            </button>
-          </div>
-        )}
         <div className="sidebar-header">
           {visualStyle === 'legacy' ? (
             <span className="vault-name">{vaultPath.split('/').pop()}</span>
@@ -1448,10 +1479,6 @@ export default function App() {
             <div className="sidebar-project-info">
               <div className="sidebar-project-text">
                 <span className="sidebar-project-name">{vaultPath.split('/').pop()}</span>
-                <span className="sidebar-branch-name">
-                  <Icon name="git-branch" size={14} />
-                  main
-                </span>
               </div>
             </div>
           )}

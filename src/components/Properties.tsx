@@ -507,14 +507,14 @@ function AddPropertyRow({
         onClick={openTypeMenu}
         title="Property type"
       >
-        <Icon name={currentTypeMeta.icon} size={14} />
+        <Icon name={currentTypeMeta.icon} size={16} />
         <span>{currentTypeMeta.label}</span>
-        <Icon name="chevron-down" size={12} />
+        <Icon name="chevron-down" size={14} />
       </button>
-      <button type="button" className="props-add-btn primary" onClick={submit}>
+      <button type="button" className="btn btn--primary" onClick={submit}>
         Add
       </button>
-      <button type="button" className="props-add-btn ghost" onClick={onCancel}>
+      <button type="button" className="btn btn--ghost" onClick={onCancel}>
         Cancel
       </button>
     </div>
@@ -533,5 +533,5 @@ const PROP_ICON_BY_TYPE: Record<PropertyType, 'symbol-string' | 'symbol-numeric'
 }
 
 function PropertyIcon({ type }: { type: PropertyType }) {
-  return <Icon name={PROP_ICON_BY_TYPE[type]} size={14} />
+  return <Icon name={PROP_ICON_BY_TYPE[type]} size={20} />
 }

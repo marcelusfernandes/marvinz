@@ -323,30 +323,26 @@ export function Editor({
     <div className="editor">
       <div className="editor-header">
         <div className="editor-header-left">
-          {visualStyle === 'legacy' && (
-            <>
-              <button
-                type="button"
-                className="nav-btn"
-                disabled={!canBack}
-                onClick={onBack}
-                title="Back"
-                aria-label="Back"
-              >
-                <Icon name="chevron-left" />
-              </button>
-              <button
-                type="button"
-                className="nav-btn"
-                disabled={!canForward}
-                onClick={onForward}
-                title="Forward"
-                aria-label="Forward"
-              >
-                <Icon name="chevron-right" />
-              </button>
-            </>
-          )}
+          <button
+            type="button"
+            className="nav-btn"
+            disabled={!canBack}
+            onClick={onBack}
+            title="Back"
+            aria-label="Back"
+          >
+            <Icon name="chevron-left" />
+          </button>
+          <button
+            type="button"
+            className="nav-btn"
+            disabled={!canForward}
+            onClick={onForward}
+            title="Forward"
+            aria-label="Forward"
+          >
+            <Icon name="chevron-right" />
+          </button>
           <PathSuggest
             value={relativePath}
             items={paletteItems}
@@ -357,6 +353,22 @@ export function Editor({
           <span className="editor-status">
             {saving ? 'Saving…' : savedAt ? 'Saved' : ''}
           </span>
+          {isMd && (
+            <button
+              type="button"
+              className="btn btn--ghost"
+              onClick={() =>
+                void window.marvin.file.exportPdf(filePath).catch((err) => {
+                  console.error('Export PDF failed', err)
+                })
+              }
+              title="Export as PDF"
+              aria-label="Export as PDF"
+            >
+              <Icon name="file-pdf" size={14} />
+              Export PDF
+            </button>
+          )}
           {hasPreview && (
             <div className="mode-toggle" role="tablist">
               <button
