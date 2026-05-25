@@ -271,22 +271,23 @@ export function CodeMirrorFindBar({ view, onClose, initialReplaceExpanded }: Pro
           />
           <button
             type="button"
-            className="btn btn--ghost"
+            className="icon-btn"
             onClick={runReplaceAll}
             title="Replace all"
+            aria-label="Replace all"
             data-testid="cm-replace-all"
           >
-            Replace All
+            <Icon name="replace-all" size={16} />
           </button>
           <button
             type="button"
-            className="btn btn--primary"
+            className="icon-btn"
             onClick={runReplaceNext}
             title="Replace (Enter)"
+            aria-label="Replace"
             data-testid="cm-replace-next"
           >
-            Replace
-            <Icon name="reply" size={12} />
+            <Icon name="replace" size={16} />
           </button>
         </div>
       )}

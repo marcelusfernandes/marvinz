@@ -873,7 +873,8 @@ button {
   flex: 1;
   min-width: 0;
   margin-left: 4px;
-  padding: 4px 8px;
+  height: 28px;
+  padding: var(--space-1) var(--space-2);
   background: transparent;
   border: 1px solid transparent;
   border-radius: var(--radius-md);
@@ -1156,10 +1157,10 @@ button {
 .browser-toolbar {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-2);
   padding: 6px 10px;
   border-bottom: 1px solid var(--border);
-  background: var(--surface-2);
+  background: transparent;
   height: 38px;
   flex-shrink: 0;
 }
@@ -1224,6 +1225,7 @@ button {
      container's rounded background. */
   padding: var(--space-1);
   gap: var(--space-0);
+  height: 28px;
 }
 
 .mode-btn {
@@ -2216,14 +2218,18 @@ button {
   border-top: 1px solid var(--border-subtle);
   /* Align the Replace input with the Find input above it (which sits
      after the 28px replace-toggle icon button + 4px gap). */
-  padding-left: calc(28px + var(--space-1));
+  padding-left: calc(36px + var(--space-1));
 }
 
 /* Both find + replace inputs share the boxed look: subtle surface-2 fill,
    no border (the fill alone separates them from the container surface-1). */
 .md-find-input,
 .md-find-input--bare {
-  flex: 1 1 auto;
+  /* Fixed width so both rows render the input at the same dimensions
+     even though their trailing button clusters differ in count
+     (find: prev/next/close; replace: replace-all/replace). */
+  flex: 0 0 auto;
+  width: 220px;
   min-width: 0;
   height: 28px;
   background: var(--surface-2);

@@ -280,22 +280,23 @@ export function FindReplaceOverlay({ view, onClose, initialReplaceExpanded }: Pr
           />
           <button
             type="button"
-            className="btn btn--ghost"
+            className="icon-btn"
             onClick={runReplaceAll}
             title="Replace all"
+            aria-label="Replace all"
             data-testid="pm-replace-all"
           >
-            Replace All
+            <Icon name="replace-all" size={16} />
           </button>
           <button
             type="button"
-            className="btn btn--primary"
+            className="icon-btn"
             onClick={runReplaceNext}
             title="Replace (Enter)"
+            aria-label="Replace"
             data-testid="pm-replace-next"
           >
-            Replace
-            <Icon name="reply" size={12} />
+            <Icon name="replace" size={16} />
           </button>
         </div>
       )}

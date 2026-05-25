@@ -722,12 +722,12 @@ describe('find-bar — replace toggle visual state', () => {
       container
         .querySelector('[data-testid="pm-replace-all"]')!
         .className.split(/\s+/),
-    ).toContain('btn--ghost')
+    ).toContain('icon-btn')
     expect(
       container
         .querySelector('[data-testid="pm-replace-next"]')!
         .className.split(/\s+/),
-    ).toContain('btn--primary')
+    ).toContain('icon-btn')
   })
 
   it('CM: replace row carries the divider modifier class when expanded', () => {
@@ -740,11 +740,11 @@ describe('find-bar — replace toggle visual state', () => {
       container
         .querySelector('[data-testid="cm-replace-all"]')!
         .className.split(/\s+/),
-    ).toContain('btn--ghost')
+    ).toContain('icon-btn')
     expect(
       container
         .querySelector('[data-testid="cm-replace-next"]')!
         .className.split(/\s+/),
-    ).toContain('btn--primary')
+    ).toContain('icon-btn')
   })
 })
