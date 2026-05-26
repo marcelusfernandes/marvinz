@@ -30,7 +30,6 @@ import { CodeMirrorFindBar } from './CodeMirrorFindBar'
 import type { ImportToastState } from './ImportToast'
 import type { PaletteItem } from '../lib/paletteRanker'
 import {
-  IMAGE_EXT_RE,
   MARVIN_PATH_MIME,
   collectFiles,
   emitSummaryToast,

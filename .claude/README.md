@@ -8,12 +8,25 @@ Time de agentes IA configurado como **Agent Team nativo** do Claude Code para de
 
 ```
 .claude/
-├── settings.json    # liga a flag Agent Teams (experimental)
+├── settings.json    # liga a flag Agent Teams + registra os hooks
 ├── agents/          # 12 subagentes — viram teammates quando spawned em time
 ├── skills/          # 6 skills auto-invocadas (apenas para uso direto — NÃO se aplicam a teammates)
 ├── commands/        # /squad — monta o team conforme tipo da missão
+├── hooks/           # scripts disparados pelo Claude Code (force-push, lint, type-check)
 └── rules/           # git-workflow.md (preexistente)
 ```
+
+## Hooks
+
+Versionados em `.claude/hooks/` e registrados em `.claude/settings.json` — todo mundo que clonar o repo herda automaticamente. Todos parseiam o stdin com **node** (garantido pra quem roda o app), então **não exigem instalar nada** — sem dependência de `jq`.
+
+| Script | Evento | O que faz |
+|---|---|---|
+| `block-force-push.sh` | `PreToolUse` (Bash) | Bloqueia `git push --force`/`-f`/`+refspec` antes do comando rodar (issue #201). |
+| `eslint-fix.sh` | `PostToolUse` (Edit/Write/MultiEdit) | Roda `eslint --fix` no arquivo `.ts`/`.tsx` editado. **Auto-fix only — nunca bloqueia.** Não reporta resíduo não-autofixável porque o baseline de lint não está limpo e forçar consertos não-relacionados violaria a regra de Surgical Changes do `CLAUDE.md`. Lint completo continua manual/CI (`npm run lint`). |
+| `tsc-check.sh` | `Stop` | Roda `tsc -b --noEmit` uma vez no fim do turno. Se houver erro de tipo, devolve as primeiras linhas e sai com `exit 2` — o agente continua até type-checkar limpo. Seguro porque o baseline de tsc é mantido verde (issue #312). |
+
+**Por que `node` e não `jq`**: o `block-force-push.sh` estabeleceu a convenção — node já é pré-requisito pra rodar o Electron/Vite, então hooks não devem exigir setup extra de quem clona. Mantenha hooks novos no mesmo padrão.
 
 ## Como funciona — Agent Teams vs subagent clássico
 

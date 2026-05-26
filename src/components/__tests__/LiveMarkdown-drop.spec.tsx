@@ -435,10 +435,11 @@ describe('LiveMarkdown — Milkdown drop handler (issue #290)', () => {
         ...fakeView.state,
         get tr() {
           const base = fakeView.state.tr
-          base.doc.resolve = (n: number) => ({
+          base.doc.resolve = ((n: number) => ({
             pos: n,
+            nodeBefore: null,
             marks: () => [{ type: { name: 'link' } }],
-          })
+          })) as unknown as typeof base.doc.resolve
           return base
         },
       },
