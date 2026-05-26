@@ -153,13 +153,14 @@ vi.mock('@codemirror/language', () => ({
   syntaxHighlighting: () => ({}),
 }))
 vi.mock('@codemirror/view', () => ({
-  EditorView: { lineWrapping: {} },
+  EditorView: { lineWrapping: {}, domEventHandlers: () => ({}) },
   keymap: { of: () => ({}) },
   Decoration: { mark: () => ({ range: () => ({}) }), none: { update: () => null } },
 }))
 vi.mock('@codemirror/state', () => ({
   StateEffect: { define: () => ({ of: () => ({}) }) },
   StateField: { define: () => ({}) },
+  EditorSelection: { cursor: (n: number) => ({ from: n, to: n }) },
 }))
 vi.mock('../lib/cmLanguage', () => ({
   languageIdFor: () => null,

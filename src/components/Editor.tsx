@@ -6,7 +6,7 @@ import { justReplacedField } from '../lib/cmJustReplacedHighlight'
 import { bracketMatching, indentUnit, HighlightStyle, syntaxHighlighting } from '@codemirror/language'
 import { redo, redoDepth, selectAll, undo, undoDepth } from '@codemirror/commands'
 import { tags as t } from '@lezer/highlight'
-import type { Extension } from '@codemirror/state'
+import { EditorSelection, type Extension } from '@codemirror/state'
 import type { EditorView as PMView } from 'prosemirror-view'
 import { languageIdFor, loadLanguage } from '../lib/cmLanguage'
 import {
@@ -22,7 +22,9 @@ import { HtmlPreview } from './HtmlPreview'
 import { PathSuggest } from './PathSuggest'
 import { FindReplaceOverlay } from './FindReplaceOverlay'
 import { CodeMirrorFindBar } from './CodeMirrorFindBar'
+import type { ImportToastState } from './ImportToast'
 import type { PaletteItem } from '../lib/paletteRanker'
+import { attachmentMarkdown, buildAttachmentRelPath } from '../lib/attachments'
 import { isWikilinkHref, resolveWikilink } from '../lib/wikilinks'
 import { Icon } from './Icon'
 import { useVisualStyle } from '../lib/visualStyle'
@@ -101,11 +103,19 @@ type Props = {
   /** Bumped by App.tsx when a window-level Cmd+Alt+F fires; opens the bar
    * with the Replace row pre-expanded. */
   openReplaceTick?: number
+  onImportToast?: (toast: { state: ImportToastState; message: string }) => void
 }
 
 type Mode = 'edit' | 'preview'
 
 const SAVE_DEBOUNCE_MS = 600
+const ATTACHMENT_MAX_BYTES = 25 * 1024 * 1024
+
+function uint8ToBase64(bytes: Uint8Array): string {
+  let binary = ''
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i])
+  return btoa(binary)
+}
 
 function resolveLink(href: string, currentFile: string, vaultPath: string): string | null {
   if (!href) return null
@@ -137,6 +147,7 @@ export function Editor({
   onForward,
   openFindTick,
   openReplaceTick,
+  onImportToast,
 }: Props) {
   const visualStyle = useVisualStyle()
   const [value, setValue] = useState(initialContent)
@@ -258,6 +269,87 @@ export function Editor({
     [openFind],
   )
 
+  const dropExtension = useMemo(() => {
+    const handleDrop = async (
+      view: EditorView,
+      event: DragEvent,
+      files: File[],
+    ): Promise<void> => {
+      const inserts: string[] = []
+      let okCount = 0
+      let errCount = 0
+      for (const file of files) {
+        if (file.size > ATTACHMENT_MAX_BYTES) {
+          errCount++
+          onImportToast?.({
+            state: 'error',
+            message: `${file.name} is larger than 25 MB.`,
+          })
+          continue
+        }
+        try {
+          const bytes = new Uint8Array(await file.arrayBuffer())
+          // Buffer is present in Electron renderers; fall back to btoa for safety.
+          const base64Bytes =
+            typeof Buffer !== 'undefined'
+              ? Buffer.from(bytes).toString('base64')
+              : uint8ToBase64(bytes)
+          const relPath = buildAttachmentRelPath(file.name)
+          const persistedRelPath = await window.marvin.file.writeBinary({
+            vaultPath,
+            relPath,
+            base64Bytes,
+          })
+          inserts.push(attachmentMarkdown(file, persistedRelPath))
+          okCount++
+        } catch (err) {
+          errCount++
+          const reason = err instanceof Error ? err.message : String(err)
+          onImportToast?.({
+            state: 'error',
+            message: `Failed to import ${file.name}: ${reason}`,
+          })
+        }
+      }
+      if (inserts.length > 0) {
+        const pos =
+          view.posAtCoords({ x: event.clientX, y: event.clientY }) ??
+          view.state.selection.main.head
+        const text = inserts.join('\n')
+        view.dispatch({
+          changes: { from: pos, insert: text },
+          selection: EditorSelection.cursor(pos + text.length),
+        })
+      }
+      const total = okCount + errCount
+      if (okCount === total && okCount > 0) {
+        onImportToast?.({
+          state: 'success',
+          message: `Imported ${okCount} attachment${okCount > 1 ? 's' : ''}.`,
+        })
+      } else if (okCount > 0) {
+        onImportToast?.({
+          state: 'partial',
+          message: `Imported ${okCount} of ${total} attachments.`,
+        })
+      }
+    }
+    return EditorView.domEventHandlers({
+      dragover(event) {
+        event.preventDefault()
+        return true
+      },
+      drop(event, view) {
+        const files = Array.from(event.dataTransfer?.files ?? [])
+        if (files.length === 0) return false
+        event.preventDefault()
+        event.stopPropagation()
+        void handleDrop(view, event, files)
+        return true
+      },
+    })
+  }, [vaultPath, onImportToast])
+
   const extensions = useMemo(() => {
     const style = visualStyle === 'legacy' ? legacyCodeHighlightStyle : codeHighlightStyle
     const base = [
@@ -269,9 +361,10 @@ export function Editor({
       indentUnit.of('  '),
       EditorView.lineWrapping,
       syntaxHighlighting(style),
+      dropExtension,
     ]
     return langExt ? [...base, langExt] : base
-  }, [langExt, visualStyle, headerFindKeymap])
+  }, [langExt, visualStyle, headerFindKeymap, dropExtension])
 
   useEffect(() => {
     setValue(initialContent)
