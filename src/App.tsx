@@ -794,6 +794,12 @@ export default function App() {
     void openInTabRef.current(node.path)
   }, [])
 
+  // Cmd/Ctrl+Click on a path in the agent terminal opens it via the same
+  // primitive as the file tree — including its missing/binary error toasts.
+  const handleOpenFileFromTerminal = useCallback((absolutePath: string) => {
+    void openInTabRef.current(absolutePath)
+  }, [])
+
   const handleToggleOpen = useCallback((p: string) => {
     setOpenPaths((prev) => {
       const next = new Set(prev)
@@ -1663,6 +1669,7 @@ export default function App() {
           onTurnSummary={(summary) =>
             setTurnToast({ turnId: summary.turnId, files: summary.fileNames })
           }
+          onOpenFile={handleOpenFileFromTerminal}
         />
       </aside>
 

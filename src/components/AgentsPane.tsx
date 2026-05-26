@@ -23,6 +23,8 @@ type Props = {
   onRewind?: (turnId: string) => void
   /** Fires when a chat turn finishes with >=1 Edit/Write — drives SnapshotToast. */
   onTurnSummary?: (summary: TurnSummary) => void
+  /** Opens a vault file when a path in terminal output is Cmd/Ctrl+Clicked. */
+  onOpenFile?: (absolutePath: string) => void
 }
 
 type AgentTab = {
@@ -62,6 +64,7 @@ export function AgentsPane({
   newTabTick,
   onRewind,
   onTurnSummary,
+  onOpenFile,
 }: Props) {
   const installed = useMemo(
     () => agents.filter((a) => a.binaryPath != null),
@@ -452,6 +455,7 @@ export function AgentsPane({
                 vaultPath={vaultPath}
                 isActive={isActive}
                 onStatusChange={handleStatusChange}
+                onOpenFile={onOpenFile}
               />
             )
           })
