@@ -200,10 +200,20 @@ function defaultProps() {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function makeDragEvent(files: File[]): DragEvent {
+function makeDragEvent(files: File[], internalPath = ''): DragEvent {
   const event = new Event('drop', { bubbles: true, cancelable: true }) as DragEvent
+  const types: string[] = []
+  if (internalPath) types.push('application/x-marvin-path')
+  if (files.length > 0) types.push('Files')
   Object.defineProperty(event, 'dataTransfer', {
-    value: { files: files as unknown as FileList, types: ['Files'] },
+    value: {
+      files: files as unknown as FileList,
+      items: [],
+      types,
+      getData: (k: string) =>
+        k === 'application/x-marvin-path' ? internalPath : '',
+      dropEffect: 'none',
+    },
     writable: false,
   })
   Object.defineProperty(event, 'preventDefault', { value: vi.fn(), writable: false })
@@ -322,6 +332,48 @@ describe('Editor — CodeMirror drop handler (issue #289)', () => {
     expect(toast.state).toBe('error')
     expect(toast.message).toContain('larger than 25 MB')
     expect(toast.message).toContain('huge.png')
+  })
+
+  it('note in subfolder: external drop inserts ../attachments/ link (file-relative)', async () => {
+    const onImportToast = vi.fn()
+    const file = new File(['png'], 'photo.png', { type: 'image/png' })
+    fakeView.state._text = ''
+    fakeView.dispatch.mockClear()
+    render(
+      <Editor
+        {...defaultProps()}
+        filePath="/vault/sub/note.ts"
+        onImportToast={onImportToast}
+      />,
+    )
+    await new Promise((r) => setTimeout(r, 10))
+    editorContentDOM.dispatchEvent(makeDragEvent([file]))
+    await new Promise((r) => setTimeout(r, 50))
+
+    expect(fakeView.state._text).toMatch(/!\[photo\.png\]\(\.\.\/attachments\/.+\.png\)/)
+  })
+
+  it('internal drag from file tree: inserts relative markdown link without IPC copy', async () => {
+    const onImportToast = vi.fn()
+    render(<Editor {...defaultProps()} onImportToast={onImportToast} />)
+    await new Promise((r) => setTimeout(r, 10))
+
+    editorContentDOM.dispatchEvent(makeDragEvent([], '/vault/sub/photo.png'))
+    await new Promise((r) => setTimeout(r, 20))
+
+    expect(writeBinaryMock).not.toHaveBeenCalled()
+    expect(fakeView.state._text).toBe('![photo.png](sub/photo.png)')
+  })
+
+  it('internal drag with spaces in filename: wraps link in angle brackets (raw path)', async () => {
+    const onImportToast = vi.fn()
+    render(<Editor {...defaultProps()} onImportToast={onImportToast} />)
+    await new Promise((r) => setTimeout(r, 10))
+
+    editorContentDOM.dispatchEvent(makeDragEvent([], '/vault/Captura de Tela.png'))
+    await new Promise((r) => setTimeout(r, 20))
+
+    expect(fakeView.state._text).toBe('![Captura de Tela.png](<Captura de Tela.png>)')
   })
 
   it('IPC rejection: error toast contains filename and error message', async () => {
