@@ -17,6 +17,7 @@ import {
 } from './snapshot.js'
 import { assertInsideVaultAsync } from './vault-boundary.js'
 import { assertAllowedVault } from './vault-allowlist.js'
+import { isNoisy, relPathIsNoisy } from './noisyPaths.js'
 import { assertPtySpawnAllowed, registerDynamicShell } from './pty-spawn-guard.js'
 import { assertAgentDetectAllowed, registerDetectedAgent } from './agent-detect-guard.js'
 import {
@@ -415,16 +416,6 @@ type FileNode = {
   children?: FileNode[]
 }
 
-const NOISY_DIRS = new Set([
-  '.git', 'node_modules', '.DS_Store', '.svn', '.hg', '.idea', '.marvin',
-  '.next', 'dist', 'build', 'out', 'target', '.turbo', '.cache',
-])
-const NOISY_FILES = new Set(['.DS_Store', 'Thumbs.db'])
-
-function isNoisy(name: string, isDir: boolean): boolean {
-  return isDir ? NOISY_DIRS.has(name) : NOISY_FILES.has(name)
-}
-
 async function readVaultTree(root: string, current = root): Promise<FileNode[]> {
   const entries = await fs.readdir(current, { withFileTypes: true })
   const nodes: FileNode[] = []
@@ -475,10 +466,11 @@ ipcMain.handle('vault:watch', async (_e, vaultPath: string) => {
     console.error('[snapshot] ensureVaultGitignore failed', err),
   )
   vaultWatcher = chokidar.watch(resolvedVault, {
-    ignored: (p) => {
-      const base = path.basename(p)
-      return NOISY_DIRS.has(base) || NOISY_FILES.has(base)
-    },
+    // Test every vault-relative path segment, not just the basename: under the
+    // macOS fsevents backend the watcher receives deep paths, and a basename-only
+    // check let internal files leak (.marvin/.../_manifest.json,
+    // .obsidian/workspace.json) into snapshots and the turn's modified-files list.
+    ignored: (p) => relPathIsNoisy(path.relative(resolvedVault, p)),
     ignoreInitial: true,
     persistent: true,
   })
