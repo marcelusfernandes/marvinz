@@ -966,6 +966,78 @@ button {
   flex-direction: column;
 }
 
+.mention-picker {
+  position: fixed;
+  z-index: var(--z-popover);
+  background: color-mix(in srgb, var(--surface-2) 75%, transparent);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-1);
+  overflow-y: auto;
+  box-shadow: var(--shadow-md);
+  display: flex;
+  flex-direction: column;
+}
+
+.mention-picker-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  text-align: left;
+  padding: var(--space-2);
+  border-radius: var(--radius-md);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-family: inherit;
+}
+
+.mention-picker-row.active {
+  background: var(--accent-bg);
+}
+
+.mention-picker-icon {
+  flex: 0 0 auto;
+  color: var(--text-tertiary);
+}
+
+.mention-picker-row.active .mention-picker-icon {
+  color: var(--text-secondary);
+}
+
+.mention-picker-name {
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 60%;
+}
+
+.mention-picker-row.active .mention-picker-name {
+  color: var(--text-primary);
+}
+
+.mention-picker-path {
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+
+.mention-picker-row mark {
+  background: transparent;
+  color: var(--accent-text);
+  font-weight: 700;
+}
+
 .tab-bar {
   display: flex;
   align-items: center;
