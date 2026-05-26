@@ -150,7 +150,13 @@ export function resolveWikilinkImage(
   return sameDir ? sameDir.path : matches[0].path
 }
 
-function stripMdExt(name: string): string {
+/**
+ * Strip a trailing `.md` / `.markdown` extension (case-insensitive) so
+ * wikilinks render with the bare basename — Obsidian-style. Used both by
+ * the resolver above (to match by stripped basename) and by surfaces that
+ * compose new wikilinks from `PaletteItem.name`.
+ */
+export function stripMdExt(name: string): string {
   return name.replace(/\.(md|markdown)$/i, '')
 }
 

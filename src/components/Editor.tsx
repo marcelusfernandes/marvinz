@@ -36,9 +36,11 @@ import {
   internalDragMarkdown,
   persistDroppedFiles,
 } from '../lib/dropAttachments'
-import { isWikilinkHref, resolveWikilink } from '../lib/wikilinks'
+import { isWikilinkHref, resolveWikilink, stripMdExt } from '../lib/wikilinks'
 import { Icon } from './Icon'
 import { useVisualStyle } from '../lib/visualStyle'
+import { mentionTrigger } from '../lib/cmMentionTrigger'
+import { MentionPicker } from './MentionPicker'
 
 const codeHighlightStyle = HighlightStyle.define([
   // Language tokens (TS/JS/JSON/etc.)
@@ -174,6 +176,15 @@ export function Editor({
   const [forceReplace, setForceReplace] = useState(false)
   const [pmView, setPmView] = useState<PMView | null>(null)
   const [cmView, setCmView] = useState<EditorView | null>(null)
+  // `@`-mention picker state. `from` is the doc offset of the `@` sigil;
+  // `query` is the text typed after it; `anchor` is the viewport coord the
+  // picker pins to. `null` while inactive. The mentionTrigger extension
+  // owns the lifecycle — it calls into refs (below) to mutate this state.
+  const [mention, setMention] = useState<{
+    from: number
+    query: string
+    anchor: { x: number; y: number }
+  } | null>(null)
   // Lightweight in-pane confirmation that floats over the editor body
   // (top-center) after Replace / Replace All. Two-phase lifecycle:
   //   'enter' — visible, after 2s flips to 'leave'
@@ -347,6 +358,23 @@ export function Editor({
     })
   }, [vaultPath, filePath, onImportToast])
 
+  // The `@`-mention trigger extension is built once per Editor mount.
+  // Callbacks are stable setState invocations, so the extension never has
+  // to rebuild — that matters because rebuilding extensions tears the
+  // CodeMirror state down. The picker itself is rendered conditionally
+  // below from `mention` state, and a selection there dispatches the
+  // wikilink insertion back into the active view via `viewRef`.
+  const mentionExt = useMemo(
+    () =>
+      mentionTrigger({
+        onOpen: (from, anchor) => setMention({ from, query: '', anchor }),
+        onUpdate: (query, anchor) =>
+          setMention((prev) => (prev ? { ...prev, query, anchor } : prev)),
+        onClose: () => setMention(null),
+      }),
+    [],
+  )
+
   const extensions = useMemo(() => {
     const style = visualStyle === 'legacy' ? legacyCodeHighlightStyle : codeHighlightStyle
     const base = [
@@ -360,9 +388,10 @@ export function Editor({
       EditorView.lineWrapping,
       syntaxHighlighting(style),
       dropExtension,
+      mentionExt,
     ]
     return langExt ? [...base, langExt] : base
-  }, [langExt, visualStyle, headerFindKeymap, dropExtension])
+  }, [langExt, visualStyle, headerFindKeymap, dropExtension, mentionExt])
 
   useEffect(() => {
     setValue(initialContent)
@@ -447,6 +476,35 @@ export function Editor({
     [filePath, vaultPath, paletteItems, onNavigate],
   )
 
+  // Mention selection: replace the `@`+query span with `[[name]]`. We use
+  // the current selection head as the upper bound because the user may
+  // have typed beyond what onUpdate last reported (CodeMirror state lags
+  // React state by one render tick). Clearing `mention` tears the picker
+  // down; the inserted wikilink lives on as plain text in the document.
+  const handleMentionSelect = useCallback(
+    (item: PaletteItem) => {
+      const view = viewRef.current
+      if (!view || !mention) {
+        setMention(null)
+        return
+      }
+      const to = view.state.selection.main.head
+      // Obsidian-style wikilinks omit the `.md` extension: `[[My Note]]`,
+      // not `[[My Note.md]]`. The resolver in `wikilinks.ts` also matches
+      // by stripped basename, so keeping the extension would only break
+      // round-tripping for `.markdown` files.
+      const insert = `[[${stripMdExt(item.name)}]]`
+      view.dispatch({
+        changes: { from: mention.from, to, insert },
+        selection: EditorSelection.cursor(mention.from + insert.length),
+      })
+      setMention(null)
+      view.focus()
+    },
+    [mention],
+  )
+  const handleMentionDismiss = useCallback(() => setMention(null), [])
+
   const handleContextMenu = useCallback(async (e: React.MouseEvent<HTMLDivElement>) => {
     const view = viewRef.current
     if (!view) return
@@ -521,6 +579,15 @@ export function Editor({
   // typing edits are propagated through onChange and re-applied via React
   // state without forcing a re-init of the editor.
   const liveKey = filePath
+
+  // The `@`-mention picker only supports markdown wikilinks (`[[Name]]`).
+  // Non-markdown items (images, attachments) would need the embed form
+  // `![[file.png]]` — that is a follow-up. Filter here so the picker's
+  // ranker never surfaces a row that cannot be inserted as a wikilink.
+  const mentionItems = useMemo(
+    () => paletteItems.filter((it) => it.isMarkdown),
+    [paletteItems],
+  )
 
   return (
     <div className="editor">
@@ -616,6 +683,15 @@ export function Editor({
             onClose={closeFind}
             initialReplaceExpanded={forceReplace}
             onReplaced={handleReplaced}
+          />
+        )}
+        {mention && effectiveMode === 'edit' && (
+          <MentionPicker
+            query={mention.query}
+            items={mentionItems}
+            anchor={mention.anchor}
+            onSelect={handleMentionSelect}
+            onDismiss={handleMentionDismiss}
           />
         )}
         {replaceToast && (
