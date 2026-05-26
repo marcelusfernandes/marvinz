@@ -4,6 +4,7 @@ import {
   defaultValueCtx,
   editorViewCtx,
   editorViewOptionsCtx,
+  parserCtx,
   prosePluginsCtx,
   rootCtx,
 } from '@milkdown/core'
@@ -15,11 +16,21 @@ import { selectAll } from 'prosemirror-commands'
 import { history as pmHistory, redo, redoDepth, undo, undoDepth } from 'prosemirror-history'
 import { keymap } from 'prosemirror-keymap'
 import { findNext, findPrev, search } from 'prosemirror-search'
+import { Slice, type Node as PMNode } from 'prosemirror-model'
+import { Plugin, TextSelection } from 'prosemirror-state'
 import type { EditorView } from 'prosemirror-view'
 import { imageNodeView } from '../lib/imageNodeView'
 import { justReplacedPlugin } from '../lib/pmJustReplacedHighlight'
 import type { PaletteItem } from '../lib/paletteRanker'
 import { parseWikilinks, unparseWikilinks } from '../lib/wikilinks'
+import {
+  MARVIN_PATH_MIME,
+  collectFiles,
+  emitSummaryToast,
+  internalDragMarkdown,
+  persistDroppedFiles,
+} from '../lib/dropAttachments'
+import type { ImportToastState } from './ImportToast'
 
 type Props = {
   /** Markdown body (without frontmatter) to render. */
@@ -50,6 +61,67 @@ type Props = {
    * (or null on unmount), so the parent can drive search commands.
    */
   onViewReady?: (view: EditorView | null) => void
+  /** Surfaces drag-drop import outcomes (success / error / partial). */
+  onImportToast?: (toast: { state: ImportToastState; message: string }) => void
+}
+
+type ParserCtxGetter = { get: (key: typeof parserCtx) => (text: string) => PMNode | null }
+
+// Parse a markdown snippet through Milkdown's commonmark parser and splice
+// it into the doc at the drop coordinates.
+//
+// Single-block drops (one file → one paragraph from the parser) insert their
+// inline content directly so the surrounding paragraph is preserved — drop
+// in the middle of "hello | world" produces "hello LINK world" on the same
+// line. Multi-block drops (multiple files joined with blank lines) fall back
+// to slice-replace which intentionally splits the host paragraph.
+//
+// After the insert, a cursor sitting inside a `link` mark range would make
+// every subsequent keystroke render as a link; we append a plain space and
+// position the cursor past it so the user can continue typing in plain text.
+function insertMarkdownAt(
+  view: EditorView,
+  event: DragEvent,
+  markdown: string,
+  ctx: ParserCtxGetter,
+): void {
+  let parsed: PMNode | null
+  try {
+    parsed = ctx.get(parserCtx)(markdown)
+  } catch {
+    return
+  }
+  if (!parsed) return
+  const coords = view.posAtCoords({ left: event.clientX, top: event.clientY })
+  const pos = coords?.pos ?? view.state.selection.from
+
+  const tr = view.state.tr
+  let cursorPos: number
+
+  if (parsed.childCount === 1 && parsed.firstChild?.isTextblock) {
+    // Inline-merge into the surrounding paragraph.
+    const inline = parsed.firstChild.content
+    tr.replaceWith(pos, pos, inline)
+    cursorPos = pos + inline.size
+  } else {
+    // Multi-block: keep the original block-fitting behavior.
+    const slice = new Slice(parsed.content, 1, 1)
+    tr.replace(pos, pos, slice)
+    cursorPos = Math.min(pos + slice.size, tr.doc.content.size)
+  }
+
+  // Escape any mark range the cursor would otherwise inherit. `insertText`
+  // would copy the position's marks onto the space (so the space itself
+  // becomes part of the link), so we build the text node explicitly with no
+  // marks and insert it as a node.
+  const $end = tr.doc.resolve(Math.min(cursorPos, tr.doc.content.size))
+  if ($end.marks().length > 0) {
+    tr.insert(cursorPos, view.state.schema.text(' '))
+    cursorPos += 1
+  }
+  tr.setSelection(TextSelection.near(tr.doc.resolve(cursorPos)))
+  tr.setStoredMarks([])
+  view.dispatch(tr)
 }
 
 export function LiveMarkdown(props: Props) {
@@ -69,16 +141,31 @@ function LiveMarkdownInner({
   paletteItems,
   onOpenFind,
   onViewReady,
+  onImportToast,
 }: Props) {
   // Refs avoid re-creating the editor on every change of these props.
   const onChangeRef = useRef(onChange)
   const onLinkClickRef = useRef(onLinkClick)
+  // Drop handler refs — captured by the ProseMirror plugin closure, but the
+  // plugin is built once per mount so we read the latest prop via these.
+  const filePathRef = useRef(filePath)
+  const vaultPathRef = useRef(vaultPath)
+  const onImportToastRef = useRef(onImportToast)
   useEffect(() => {
     onChangeRef.current = onChange
   }, [onChange])
   useEffect(() => {
     onLinkClickRef.current = onLinkClick
   }, [onLinkClick])
+  useEffect(() => {
+    filePathRef.current = filePath
+  }, [filePath])
+  useEffect(() => {
+    vaultPathRef.current = vaultPath
+  }, [vaultPath])
+  useEffect(() => {
+    onImportToastRef.current = onImportToast
+  }, [onImportToast])
 
   // Built once per mount alongside the rest of the editor's plugin stack.
   // `useMemo` (rather than module scope) so test contracts asserting
@@ -137,6 +224,64 @@ function LiveMarkdownInner({
           ...prev,
           attributes: { class: 'milkdown-host' },
         }))
+
+        // Drop plugin — accepts files from Finder/OS and internal drags from
+        // the Marvinz file tree, mirroring Editor.tsx's CodeMirror handler.
+        // Inserting markdown goes through Milkdown's commonmark parser so the
+        // image / link nodes render immediately instead of appearing as
+        // literal text. Refs let the plugin closure read the latest props
+        // even though it's built once per mount.
+        const dropPlugin = new Plugin({
+          props: {
+            handleDOMEvents: {
+              dragover(_view, event) {
+                const types = event.dataTransfer?.types ?? []
+                if (!types.includes('Files') && !types.includes(MARVIN_PATH_MIME)) return false
+                event.preventDefault()
+                if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy'
+                return true
+              },
+              drop(view, event) {
+                const dt = event.dataTransfer
+                if (!dt) return false
+                const internalPath = dt.getData(MARVIN_PATH_MIME)
+                const files = collectFiles(dt)
+                if (internalPath) {
+                  event.preventDefault()
+                  event.stopPropagation()
+                  const md = internalDragMarkdown(filePathRef.current, internalPath)
+                  insertMarkdownAt(view, event, md, ctx)
+                  return true
+                }
+                if (files.length > 0) {
+                  event.preventDefault()
+                  event.stopPropagation()
+                  void (async () => {
+                    const outcome = await persistDroppedFiles({
+                      files,
+                      vaultPath: vaultPathRef.current,
+                      notePath: filePathRef.current,
+                      writeBinary: (p) => window.marvin.file.writeBinary(p),
+                      onToast: onImportToastRef.current,
+                    })
+                    if (outcome.inserts.length > 0) {
+                      insertMarkdownAt(
+                        view,
+                        event,
+                        outcome.inserts.join('\n\n'),
+                        ctx,
+                      )
+                    }
+                    emitSummaryToast(outcome, onImportToastRef.current)
+                  })()
+                  return true
+                }
+                return false
+              },
+            },
+          },
+        })
+
         // Use prosemirror-history directly via prosePluginsCtx. Avoids the
         // @milkdown/plugin-history path that broke the editor's SchemaReady
         // timer in our setup. Keymap registers Cmd/Ctrl+Z + Shift+Cmd/Ctrl+Z.
@@ -151,6 +296,7 @@ function LiveMarkdownInner({
           searchPlugin,
           findKeymap,
           justReplacedPlugin(),
+          dropPlugin,
         ])
         ctx.get(listenerCtx).markdownUpdated((_ctx, markdown, prevMarkdown) => {
           if (markdown !== prevMarkdown) onChangeRef.current(unparseWikilinks(markdown))
