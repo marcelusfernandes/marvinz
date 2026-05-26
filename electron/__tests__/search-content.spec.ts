@@ -13,6 +13,11 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import os from 'node:os'
+import { execSync } from 'node:child_process'
+
+const rgAvailable = (() => {
+  try { execSync('rg --version', { stdio: 'ignore' }); return true } catch { return false }
+})()
 
 import { searchContent, type ContentHit } from '../search-content.js'
 
@@ -51,7 +56,7 @@ async function teardown(): Promise<void> {
 // Happy path — hits returned
 // ---------------------------------------------------------------------------
 
-describe('searchContent — happy path: query matches content', () => {
+describe.skipIf(!rgAvailable)('searchContent — happy path: query matches content', () => {
   beforeEach(setup)
   afterEach(teardown)
 
@@ -130,7 +135,7 @@ describe('searchContent — happy path: query matches content', () => {
 // Cap at 50 hits
 // ---------------------------------------------------------------------------
 
-describe('searchContent — result limit: max 50 hits', () => {
+describe.skipIf(!rgAvailable)('searchContent — result limit: max 50 hits', () => {
   beforeEach(async () => {
     const raw = await fs.mkdtemp(path.join(os.tmpdir(), 'marvin-search-limit-'))
     vault = await fs.realpath(raw)
@@ -179,7 +184,7 @@ describe('searchContent — security: vault path outside allowedVaultPaths', () 
 // lineText — trimmed match line content
 // ---------------------------------------------------------------------------
 
-describe('searchContent — lineText: trimmed match line content', () => {
+describe.skipIf(!rgAvailable)('searchContent — lineText: trimmed match line content', () => {
   beforeEach(async () => {
     const raw = await fs.mkdtemp(path.join(os.tmpdir(), 'marvin-search-linetext-'))
     vault = await fs.realpath(raw)
@@ -235,7 +240,7 @@ describe('searchContent — lineText: trimmed match line content', () => {
 // matchRanges — char offsets into lineText for highlight
 // ---------------------------------------------------------------------------
 
-describe('searchContent — matchRanges: highlight offsets into lineText', () => {
+describe.skipIf(!rgAvailable)('searchContent — matchRanges: highlight offsets into lineText', () => {
   beforeEach(async () => {
     const raw = await fs.mkdtemp(path.join(os.tmpdir(), 'marvin-search-ranges-'))
     vault = await fs.realpath(raw)
