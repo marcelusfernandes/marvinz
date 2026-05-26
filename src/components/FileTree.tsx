@@ -406,7 +406,9 @@ function FileTreeNodeImpl({
   const handleDragStart = (e: React.DragEvent) => {
     e.dataTransfer.setData(DRAG_MIME, node.path)
     e.dataTransfer.setData('text/plain', node.path) // fallback
-    e.dataTransfer.effectAllowed = 'move'
+    // 'copyMove' lets the editor accept this drag as a copy (insert link) while
+    // the tree's own drop handlers still default to move (rearrange).
+    e.dataTransfer.effectAllowed = 'copyMove'
   }
 
   if (node.isDir) {

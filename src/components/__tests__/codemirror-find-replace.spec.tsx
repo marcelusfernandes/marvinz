@@ -123,7 +123,7 @@ vi.mock('@codemirror/search', () => ({
 }))
 
 vi.mock('@codemirror/view', () => ({
-  EditorView: { lineWrapping: {} },
+  EditorView: { lineWrapping: {}, domEventHandlers: () => ({}) },
   keymap: { of: (...args: unknown[]) => mockKeymapOf(...args) },
   // `Decoration.mark(...).range(from, to)` is invoked when the
   // justReplacedField module loads alongside Editor — return a deterministic
@@ -167,6 +167,7 @@ vi.mock('@codemirror/state', () => ({
   // `StateEffect.define()` from blowing up at module-load time.
   StateEffect: { define: () => ({ of: (v: unknown) => ({ value: v }) }) },
   StateField: { define: () => ({}) },
+  EditorSelection: { cursor: (n: number) => ({ from: n, to: n }) },
 }))
 vi.mock('../lib/cmLanguage', () => ({
   languageIdFor: () => null,

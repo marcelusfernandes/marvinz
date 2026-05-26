@@ -6,7 +6,7 @@ import { justReplacedField } from '../lib/cmJustReplacedHighlight'
 import { bracketMatching, indentUnit, HighlightStyle, syntaxHighlighting } from '@codemirror/language'
 import { redo, redoDepth, selectAll, undo, undoDepth } from '@codemirror/commands'
 import { tags as t } from '@lezer/highlight'
-import type { Extension } from '@codemirror/state'
+import { EditorSelection, type Extension } from '@codemirror/state'
 import type { EditorView as PMView } from 'prosemirror-view'
 import { languageIdFor, loadLanguage } from '../lib/cmLanguage'
 import {
@@ -22,7 +22,9 @@ import { HtmlPreview } from './HtmlPreview'
 import { PathSuggest } from './PathSuggest'
 import { FindReplaceOverlay } from './FindReplaceOverlay'
 import { CodeMirrorFindBar } from './CodeMirrorFindBar'
+import type { ImportToastState } from './ImportToast'
 import type { PaletteItem } from '../lib/paletteRanker'
+import { attachmentMarkdown, buildAttachmentRelPath } from '../lib/attachments'
 import { isWikilinkHref, resolveWikilink } from '../lib/wikilinks'
 import { Icon } from './Icon'
 import { useVisualStyle } from '../lib/visualStyle'
@@ -101,11 +103,60 @@ type Props = {
   /** Bumped by App.tsx when a window-level Cmd+Alt+F fires; opens the bar
    * with the Replace row pre-expanded. */
   openReplaceTick?: number
+  onImportToast?: (toast: { state: ImportToastState; message: string }) => void
 }
 
 type Mode = 'edit' | 'preview'
 
 const SAVE_DEBOUNCE_MS = 600
+const ATTACHMENT_MAX_BYTES = 25 * 1024 * 1024
+const MARVIN_PATH_MIME = 'application/x-marvin-path'
+const IMAGE_EXT_RE = /\.(png|jpe?g|gif|svg|webp|avif|bmp|ico|heic|heif)$/i
+
+function uint8ToBase64(bytes: Uint8Array): string {
+  let binary = ''
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i])
+  return btoa(binary)
+}
+
+function collectFiles(dt: DataTransfer): File[] {
+  const out: File[] = Array.from(dt.files ?? [])
+  if (out.length > 0) return out
+  // Some drag sources (macOS screenshot UI thumbnail, NSFilePromise) leave
+  // dt.files empty but populate dt.items.
+  if (dt.items) {
+    for (let i = 0; i < dt.items.length; i++) {
+      const item = dt.items[i]
+      if (item.kind === 'file') {
+        const f = item.getAsFile()
+        if (f) out.push(f)
+      }
+    }
+  }
+  return out
+}
+
+// Compute a markdown link path from the directory holding the current note to
+// the target file (both absolute). Falls back to the target path if either
+// argument is empty.
+function linkFromNoteDir(noteAbsPath: string, targetAbsPath: string): string {
+  if (!noteAbsPath || !targetAbsPath) return targetAbsPath
+  const fromParts = noteAbsPath.split('/').slice(0, -1).filter(Boolean)
+  const toParts = targetAbsPath.split('/').filter(Boolean)
+  let i = 0
+  while (i < fromParts.length && i < toParts.length && fromParts[i] === toParts[i]) i++
+  const up = '../'.repeat(fromParts.length - i)
+  const down = toParts.slice(i).join('/')
+  return up + down || './'
+}
+
+// Wrap a markdown link target in angle brackets when it contains characters
+// that would break standard `(url)` parsing (spaces or parens). The resolver
+// (resolveImageSrc → toMarvinUrl) expects raw paths and URL-encodes per
+// segment itself, so we must NOT pre-encode here.
+function mdLinkTarget(link: string): string {
+  return /[\s()]/.test(link) ? `<${link}>` : link
+}
 
 function resolveLink(href: string, currentFile: string, vaultPath: string): string | null {
   if (!href) return null
@@ -137,6 +188,7 @@ export function Editor({
   onForward,
   openFindTick,
   openReplaceTick,
+  onImportToast,
 }: Props) {
   const visualStyle = useVisualStyle()
   const [value, setValue] = useState(initialContent)
@@ -258,6 +310,116 @@ export function Editor({
     [openFind],
   )
 
+  const dropExtension = useMemo(() => {
+    const insertAt = (view: EditorView, event: DragEvent, text: string): void => {
+      const pos =
+        view.posAtCoords({ x: event.clientX, y: event.clientY }) ??
+        view.state.selection.main.head
+      view.dispatch({
+        changes: { from: pos, insert: text },
+        selection: EditorSelection.cursor(pos + text.length),
+      })
+    }
+
+    const handleInternalDrop = (
+      view: EditorView,
+      event: DragEvent,
+      absolutePath: string,
+    ): void => {
+      const name = absolutePath.split('/').pop() ?? absolutePath
+      const link = mdLinkTarget(linkFromNoteDir(filePath, absolutePath))
+      const md = IMAGE_EXT_RE.test(name) ? `![${name}](${link})` : `[${name}](${link})`
+      insertAt(view, event, md)
+    }
+
+    const handleExternalDrop = async (
+      view: EditorView,
+      event: DragEvent,
+      files: File[],
+    ): Promise<void> => {
+      const inserts: string[] = []
+      let okCount = 0
+      let errCount = 0
+      for (const file of files) {
+        if (file.size > ATTACHMENT_MAX_BYTES) {
+          errCount++
+          onImportToast?.({
+            state: 'error',
+            message: `${file.name} is larger than 25 MB.`,
+          })
+          continue
+        }
+        try {
+          const bytes = new Uint8Array(await file.arrayBuffer())
+          // Buffer is present in Electron renderers; fall back to btoa for safety.
+          const base64Bytes =
+            typeof Buffer !== 'undefined'
+              ? Buffer.from(bytes).toString('base64')
+              : uint8ToBase64(bytes)
+          const relPath = buildAttachmentRelPath(file.name)
+          const persistedRelPath = await window.marvin.file.writeBinary({
+            vaultPath,
+            relPath,
+            base64Bytes,
+          })
+          const absoluteAttachmentPath = `${vaultPath}/${persistedRelPath}`
+          const link = mdLinkTarget(linkFromNoteDir(filePath, absoluteAttachmentPath))
+          inserts.push(attachmentMarkdown(file, link))
+          okCount++
+        } catch (err) {
+          errCount++
+          const reason = err instanceof Error ? err.message : String(err)
+          onImportToast?.({
+            state: 'error',
+            message: `Failed to import ${file.name}: ${reason}`,
+          })
+        }
+      }
+      if (inserts.length > 0) insertAt(view, event, inserts.join('\n'))
+      const total = okCount + errCount
+      if (okCount === total && okCount > 0) {
+        onImportToast?.({
+          state: 'success',
+          message: `Imported ${okCount} attachment${okCount > 1 ? 's' : ''}.`,
+        })
+      } else if (okCount > 0) {
+        onImportToast?.({
+          state: 'partial',
+          message: `Imported ${okCount} of ${total} attachments.`,
+        })
+      }
+    }
+
+    return EditorView.domEventHandlers({
+      dragover(event) {
+        const types = event.dataTransfer?.types ?? []
+        if (!types.includes('Files') && !types.includes(MARVIN_PATH_MIME)) return false
+        event.preventDefault()
+        if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy'
+        return true
+      },
+      drop(event, view) {
+        const dt = event.dataTransfer
+        if (!dt) return false
+        const internalPath = dt.getData(MARVIN_PATH_MIME)
+        const files = collectFiles(dt)
+        if (internalPath) {
+          event.preventDefault()
+          event.stopPropagation()
+          handleInternalDrop(view, event, internalPath)
+          return true
+        }
+        if (files.length > 0) {
+          event.preventDefault()
+          event.stopPropagation()
+          void handleExternalDrop(view, event, files)
+          return true
+        }
+        return false
+      },
+    })
+  }, [vaultPath, filePath, onImportToast])
+
   const extensions = useMemo(() => {
     const style = visualStyle === 'legacy' ? legacyCodeHighlightStyle : codeHighlightStyle
     const base = [
@@ -269,9 +431,10 @@ export function Editor({
       indentUnit.of('  '),
       EditorView.lineWrapping,
       syntaxHighlighting(style),
+      dropExtension,
     ]
     return langExt ? [...base, langExt] : base
-  }, [langExt, visualStyle, headerFindKeymap])
+  }, [langExt, visualStyle, headerFindKeymap, dropExtension])
 
   useEffect(() => {
     setValue(initialContent)

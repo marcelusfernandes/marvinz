@@ -1627,6 +1627,7 @@ export default function App() {
                 onForward={goForward}
                 openFindTick={openFindTick}
                 openReplaceTick={openReplaceTick}
+                onImportToast={setImportToast}
               />
             </div>
           )}
