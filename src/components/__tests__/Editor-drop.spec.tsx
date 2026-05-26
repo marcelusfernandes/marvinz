@@ -141,6 +141,7 @@ vi.mock('../lib/paletteRanker', () => ({}))
 // ---------------------------------------------------------------------------
 
 import { Editor } from '../Editor'
+import type { ImportToastState } from '../ImportToast'
 
 // ---------------------------------------------------------------------------
 // window.marvin mock
@@ -224,7 +225,10 @@ function makeDragEvent(files: File[], internalPath = ''): DragEvent {
 }
 
 // Render Editor, fire a drop on contentDOM, wait for async handleDrop to finish.
-async function renderAndDrop(files: File[], onImportToast: ReturnType<typeof vi.fn>) {
+async function renderAndDrop(
+  files: File[],
+  onImportToast: (toast: { state: ImportToastState; message: string }) => void,
+) {
   fakeView.state._text = ''
   fakeView.dispatch.mockClear()
   fakeView.posAtCoords.mockClear()

@@ -39,14 +39,14 @@ const {
 }))
 
 vi.mock('prosemirror-search', () => ({
-  search: (...args: unknown[]) => mockSearchPluginPM(...args),
-  findNext: (...args: unknown[]) => mockFindNextPM(...args),
-  findPrev: (...args: unknown[]) => mockFindPrevPM(...args),
+  search: mockSearchPluginPM,
+  findNext: mockFindNextPM,
+  findPrev: mockFindPrevPM,
   replaceNext: vi.fn(),
   replaceAll: vi.fn(),
-  setSearchState: (...args: unknown[]) => mockSetSearchState(...args),
-  getSearchState: (...args: unknown[]) => mockGetSearchStatePM(...args),
-  getMatchHighlights: (...args: unknown[]) => mockGetMatchHighlights(...args),
+  setSearchState: mockSetSearchState,
+  getSearchState: mockGetSearchStatePM,
+  getMatchHighlights: mockGetMatchHighlights,
   SearchQuery: class {
     readonly search: string
     readonly replace: string
@@ -100,8 +100,8 @@ vi.mock('@codemirror/search', () => ({
       this.search = cfg.search
     }
   },
-  findNext: (...args: unknown[]) => mockFindNextCM(...args),
-  findPrevious: (...args: unknown[]) => mockFindPreviousCM(...args),
+  findNext: mockFindNextCM,
+  findPrevious: mockFindPreviousCM,
   replaceAll: vi.fn(),
   replaceNext: vi.fn(),
   setSearchQuery: { of: (q: unknown) => ({ _effect: 'setSearchQuery', q }) },

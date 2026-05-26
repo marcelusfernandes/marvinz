@@ -106,12 +106,12 @@ let currentCMView = makeFakeView()
 // ---------------------------------------------------------------------------
 
 vi.mock('@codemirror/search', () => ({
-  search: (...args: unknown[]) => mockSearchFn(...args),
+  search: mockSearchFn,
   searchKeymap: fakeSearchKeymap,
-  openSearchPanel: (...args: unknown[]) => mockOpenSearchPanel(...args),
-  closeSearchPanel: (...args: unknown[]) => mockCloseSearchPanel(...args),
-  findNext: (...args: unknown[]) => mockFindNext(...args),
-  findPrevious: (...args: unknown[]) => mockFindPrevious(...args),
+  openSearchPanel: mockOpenSearchPanel,
+  closeSearchPanel: mockCloseSearchPanel,
+  findNext: mockFindNext,
+  findPrevious: mockFindPrevious,
   replaceAll: vi.fn(),
   replaceNext: vi.fn(),
   searchPanelOpen: vi.fn(() => false),

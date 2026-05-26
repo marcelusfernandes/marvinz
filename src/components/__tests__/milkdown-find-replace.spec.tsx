@@ -58,7 +58,7 @@ const {
     (_state: unknown, _dispatch: unknown, _view: unknown) => true,
   )
   const mockSetSearchState = vi.fn((tr: unknown, _query: unknown) => tr)
-  const mockGetSearchState = vi.fn(() => undefined)
+  const mockGetSearchState = vi.fn((): unknown => undefined)
   const mockSearchPlugin = vi.fn(() => ({ _plugin: 'prosemirror-search' }))
 
   const EDITOR_VIEW_CTX = Symbol('editorViewCtx')
@@ -85,13 +85,13 @@ const {
 // ---------------------------------------------------------------------------
 
 vi.mock('prosemirror-search', () => ({
-  search: (...args: unknown[]) => mockSearchPlugin(...args),
-  findNext: (...args: unknown[]) => mockFindNext(...args),
-  findPrev: (...args: unknown[]) => mockFindPrev(...args),
-  replaceNext: (...args: unknown[]) => mockReplaceNext(...args),
-  replaceAll: (...args: unknown[]) => mockReplaceAll(...args),
-  setSearchState: (...args: unknown[]) => mockSetSearchState(...args),
-  getSearchState: (...args: unknown[]) => mockGetSearchState(...args),
+  search: mockSearchPlugin,
+  findNext: mockFindNext,
+  findPrev: mockFindPrev,
+  replaceNext: mockReplaceNext,
+  replaceAll: mockReplaceAll,
+  setSearchState: mockSetSearchState,
+  getSearchState: mockGetSearchState,
   // Replace flow needs to scan match decorations before replaceAll so each
   // post-replace range can be flashed. Return an empty highlight set so the
   // logic short-circuits cleanly in unit tests.
@@ -215,7 +215,11 @@ function makeFakeView() {
   // navigation so the active match is anchored in the viewport. The PM
   // contract is that the method returns the same transaction; we mirror
   // that here so the fake plays nicely with the bar's dispatch flow.
-  const fakeTr: { _isTr: true; scrollIntoView: () => unknown } = {
+  const fakeTr: {
+    _isTr: true
+    scrollIntoView: () => unknown
+    setMeta: () => unknown
+  } = {
     _isTr: true,
     scrollIntoView() {
       return fakeTr
