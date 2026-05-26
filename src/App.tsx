@@ -13,7 +13,7 @@ import { Icon } from './components/Icon'
 import { TabBar } from './components/TabBar'
 import { CommandPalette } from './components/CommandPalette'
 import { SettingsModal } from './components/SettingsModal'
-import { seedFromMain } from './lib/settingsStore'
+import { seedFromMain, useSetting } from './lib/settingsStore'
 import { resolveAppFindShortcut } from './lib/appFindShortcut'
 import { useColorTheme } from './lib/colorTheme'
 import { useVisualStyle } from './lib/visualStyle'
@@ -215,6 +215,7 @@ function humanizeError(err: unknown): string {
 export default function App() {
   useColorTheme()
   const visualStyle = useVisualStyle()
+  const saveMode = useSetting('saveMode') ?? 'auto'
   const [vaultPath, setVaultPath] = useState<string | null>(null)
   const [tree, setTree] = useState<FileNode[]>([])
   const [tabs, setTabs] = useState<Tab[]>([])
@@ -255,6 +256,8 @@ export default function App() {
   // survives a same-frame double-fire.
   const [openFindTick, setOpenFindTick] = useState(0)
   const [openReplaceTick, setOpenReplaceTick] = useState(0)
+  const [isDirty, setIsDirty] = useState(false)
+  const flushSaveRef = useRef<(() => Promise<void>) | null>(null)
   const [sidebarHidden, setSidebarHidden] = useState(() => {
     try {
       return window.localStorage.getItem(SIDEBAR_HIDDEN_KEY) === '1'
@@ -999,6 +1002,14 @@ export default function App() {
         setSettingsOpen(true)
         return
       }
+      // Cmd+S → flush save on the active editor (works in both auto and
+      // manual save modes; in manual mode this is the only way to save).
+      if (!e.shiftKey && (e.key === 's' || e.key === 'S')) {
+        if (!activeTab || !isNoteTab(activeTab)) return
+        e.preventDefault()
+        void flushSaveRef.current?.()
+        return
+      }
       // Cmd+F / Cmd+Alt+F → open the find bar in the active markdown editor
       // even when focus sits outside the editor surface. Predicate is
       // extracted (see resolveAppFindShortcut) so it can be unit-tested
@@ -1040,9 +1051,16 @@ export default function App() {
   const handleSave = useCallback(
     async (content: string) => {
       if (!activeTab || !isNoteTab(activeTab)) return
-      await window.marvin.file.write(activeTab.path, content)
-      lastDiskContentRef.current.set(activeTab.path, content)
-      bufferContentRef.current.set(activeTab.path, content)
+      try {
+        await window.marvin.file.write(activeTab.path, content)
+        lastDiskContentRef.current.set(activeTab.path, content)
+        bufferContentRef.current.set(activeTab.path, content)
+      } catch (err) {
+        const name = basenameOf(activeTab.path)
+        const detail = err instanceof Error ? err.message : String(err)
+        setError(`Failed to save ${name}: ${detail}`)
+        throw err
+      }
     },
     [activeTab],
   )
@@ -1577,6 +1595,7 @@ export default function App() {
         <TabBar
           tabs={tabs}
           activeId={activeTabId}
+          dirtyTabId={isDirty ? activeTabId : null}
           onActivate={setActiveTabId}
           onClose={closeTab}
           onNewBrowserTab={openNewBrowserTab}
@@ -1628,6 +1647,11 @@ export default function App() {
                 openFindTick={openFindTick}
                 openReplaceTick={openReplaceTick}
                 onImportToast={setImportToast}
+                saveMode={saveMode}
+                onDirtyChange={setIsDirty}
+                onFlushSave={(fn) => {
+                  flushSaveRef.current = fn
+                }}
               />
             </div>
           )}

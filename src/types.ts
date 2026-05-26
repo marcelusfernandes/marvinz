@@ -78,6 +78,7 @@ export type Settings = {
    * the native chat panel. Per-tab type is preserved across the toggle.
    */
   terminalModeEnabled?: boolean
+  saveMode?: 'auto' | 'manual'
 }
 
 export type MarvinAPI = {

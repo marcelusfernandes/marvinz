@@ -1115,6 +1115,13 @@ button {
   color: var(--text-primary);
 }
 
+.tab-dirty {
+  flex-shrink: 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-lg);
+  line-height: 1;
+}
+
 .tab-icon {
   flex-shrink: 0;
   color: var(--text-tertiary);

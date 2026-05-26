@@ -115,6 +115,9 @@ type Props = {
    * with the Replace row pre-expanded. */
   openReplaceTick?: number
   onImportToast?: (toast: { state: ImportToastState; message: string }) => void
+  saveMode?: 'auto' | 'manual'
+  onDirtyChange?: (dirty: boolean) => void
+  onFlushSave?: (flush: () => Promise<void>) => void
 }
 
 type Mode = 'edit' | 'preview'
@@ -152,6 +155,9 @@ export function Editor({
   openFindTick,
   openReplaceTick,
   onImportToast,
+  saveMode = 'auto',
+  onDirtyChange,
+  onFlushSave,
 }: Props) {
   const visualStyle = useVisualStyle()
   const [value, setValue] = useState(initialContent)
@@ -162,6 +168,25 @@ export function Editor({
   const timer = useRef<number | null>(null)
   const latestValue = useRef(initialContent)
   const viewRef = useRef<EditorView | null>(null)
+  const isDirtyRef = useRef(false)
+  const saveModeRef = useRef(saveMode)
+  useEffect(() => {
+    saveModeRef.current = saveMode
+  }, [saveMode])
+  const onDirtyChangeRef = useRef(onDirtyChange)
+  useEffect(() => {
+    onDirtyChangeRef.current = onDirtyChange
+  }, [onDirtyChange])
+  const onSaveRef = useRef(onSave)
+  useEffect(() => {
+    onSaveRef.current = onSave
+  }, [onSave])
+
+  const setDirty = useCallback((next: boolean) => {
+    if (isDirtyRef.current === next) return
+    isDirtyRef.current = next
+    onDirtyChangeRef.current?.(next)
+  }, [])
 
   // Find / Replace bar state. The bar itself owns the collapsed/expanded
   // state of the Replace row (persisted to localStorage); `forceReplace`
@@ -368,7 +393,8 @@ export function Editor({
     setValue(initialContent)
     latestValue.current = initialContent
     setSavedAt(null)
-  }, [filePath, initialContent])
+    setDirty(false)
+  }, [filePath, initialContent, setDirty])
 
   useEffect(() => {
     return () => {
@@ -376,23 +402,49 @@ export function Editor({
     }
   }, [])
 
+  const runSave = useCallback(async () => {
+    if (timer.current) {
+      window.clearTimeout(timer.current)
+      timer.current = null
+    }
+    setSaving(true)
+    try {
+      await onSaveRef.current(latestValue.current)
+      setSavedAt(Date.now())
+      setDirty(false)
+    } finally {
+      setSaving(false)
+    }
+  }, [setDirty])
+
+  const flushSave = useCallback(async () => {
+    if (!isDirtyRef.current && timer.current == null) return
+    await runSave()
+  }, [runSave])
+
+  useEffect(() => {
+    onFlushSave?.(flushSave)
+  }, [onFlushSave, flushSave])
+
   const scheduleSave = useCallback(
     (next: string) => {
       setValue(next)
       latestValue.current = next
       onBufferChange?.(next)
-      if (timer.current) window.clearTimeout(timer.current)
-      timer.current = window.setTimeout(async () => {
-        setSaving(true)
-        try {
-          await onSave(latestValue.current)
-          setSavedAt(Date.now())
-        } finally {
-          setSaving(false)
+      setDirty(true)
+      if (saveModeRef.current === 'manual') {
+        if (timer.current) {
+          window.clearTimeout(timer.current)
+          timer.current = null
         }
+        return
+      }
+      if (timer.current) window.clearTimeout(timer.current)
+      timer.current = window.setTimeout(() => {
+        void runSave()
       }, SAVE_DEBOUNCE_MS)
     },
-    [onSave, onBufferChange],
+    [onBufferChange, runSave, setDirty],
   )
 
   const handleSourceChange = useCallback(
