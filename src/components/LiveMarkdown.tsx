@@ -157,19 +157,42 @@ function insertMarkdownAt(
     // line thanks to `max-width: 100%` CSS, but the markdown source stays
     // a single paragraph (no extra blank line separators).
     const inline = parsed.firstChild.content
-    tr.replaceWith(pos, pos, inline)
-    // Use tr.mapping.map(pos, 1) to get the actual end of the inserted
-    // content in the new doc. `inline.size` undercounts when PM wraps the
-    // inline content in a new block (e.g. dropping at a doc-level position
-    // where inline content can't live directly).
-    const insertedEnd = tr.mapping.map(pos, 1)
+
+    // If the cursor sits immediately after a non-whitespace character,
+    // prepend a plain space so the dropped item doesn't glue onto the
+    // preceding text (keeps both the markdown source and the rendered
+    // output legible). Use the resolved position BEFORE the replaceWith
+    // so we read the host content, not the just-inserted node.
+    const $beforeInsert = tr.doc.resolve(pos)
+    const nodeBefore = $beforeInsert.nodeBefore
+    const lastChar = nodeBefore?.isText ? nodeBefore.text?.slice(-1) ?? '' : ''
+    const needsLeadingSpace = lastChar !== '' && !/\s/.test(lastChar)
+    let insertPos = pos
+    if (needsLeadingSpace) {
+      tr.insert(insertPos, view.state.schema.text(' '))
+      insertPos += 1
+      highlightFrom += 1
+    }
+
+    tr.replaceWith(insertPos, insertPos, inline)
+    // Use tr.mapping.map(insertPos, 1) to get the actual end of the
+    // inserted content in the new doc. `inline.size` undercounts when PM
+    // wraps the inline content in a new block (e.g. dropping at a
+    // doc-level position where inline content can't live directly).
+    const insertedEnd = tr.mapping.map(insertPos, 1)
     cursorPos = insertedEnd
     highlightTo = insertedEnd
 
-    // Escape any link-mark range the cursor would otherwise inherit. Atoms
-    // (images) don't carry marks so this is a no-op for image drops.
-    const $end = tr.doc.resolve(Math.min(cursorPos, tr.doc.content.size))
-    if ($end.marks().length > 0) {
+    // For link drops (non-image), append a plain space after so the cursor
+    // lands outside the link-mark range and the user can continue typing
+    // without the link styling bleeding. Checking the inserted fragment
+    // directly is more reliable than $end.marks() — the latter returns
+    // nothing when PM wraps the inline content in a fresh paragraph.
+    let hasLink = false
+    inline.descendants((n) => {
+      if (n.marks.some((m) => m.type.name === 'link')) hasLink = true
+    })
+    if (hasLink) {
       tr.insert(cursorPos, view.state.schema.text(' '))
       cursorPos += 1
     }

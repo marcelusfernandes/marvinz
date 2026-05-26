@@ -33,12 +33,16 @@ const capturedHandlers: {
 const fakeParser = vi.fn((md: string) => {
   const blocks = md.split('\n\n').filter(Boolean)
   const isImage = md.startsWith('![')
-  const fakeNode = { type: { name: isImage ? 'image' : 'text' } }
+  const fakeNode = {
+    type: { name: isImage ? 'image' : 'text' },
+    marks: isImage ? [] : [{ type: { name: 'link' } }],
+  }
   const inline = {
     _kind: 'fragment',
     _from: md,
     size: md.length,
     forEach: (cb: (n: { type: { name: string } }) => void) => cb(fakeNode),
+    descendants: (cb: (n: typeof fakeNode) => void) => cb(fakeNode),
   }
   return {
     _markdown: md,
@@ -52,12 +56,15 @@ const fakeParser = vi.fn((md: string) => {
 // Fake PM view — only the bits the drop handler touches.
 const fakeView = {
   state: {
-    schema: { text: (s: string) => ({ _kind: 'text', text: s }) },
+    schema: {
+      text: (s: string) => ({ _kind: 'text', text: s }),
+      marks: { link: { name: 'link' } },
+    },
     selection: { from: 5, to: 5 },
     get tr() {
       const doc = {
         content: { size: 1000 },
-        resolve: (n: number) => ({ pos: n, marks: () => [] }),
+        resolve: (n: number) => ({ pos: n, nodeBefore: null, marks: () => [] }),
       }
       return {
         _replaces: [] as Array<{ from: number; to: number; slice: unknown }>,
