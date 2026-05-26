@@ -745,6 +745,42 @@ button {
   border-radius: var(--radius-md);
 }
 
+/* Drag ghost — wrapper sits at the pointer (top-left), with internal padding
+   that pushes the visible chip/thumb below the cursor so the pointer stays
+   uncluttered. The wrapper is appended to body during dragstart only long
+   enough for the browser to capture the snapshot, then removed. */
+.file-tree-drag-ghost {
+  position: absolute;
+  top: -9999px;
+  left: -9999px;
+  padding-top: var(--space-3);
+  pointer-events: none;
+}
+
+.file-tree-drag-chip {
+  display: inline-block;
+  padding: var(--space-1) var(--space-3);
+  background: var(--surface-2);
+  color: var(--text-primary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-pill);
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-regular);
+  line-height: var(--line-height-tight);
+  box-shadow: var(--shadow-sm);
+  white-space: nowrap;
+}
+
+.file-tree-drag-thumb {
+  display: block;
+  max-width: 124px;
+  max-height: 124px;
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  object-fit: cover;
+}
+
 .file-tree-row .chev {
   width: 16px;
   display: inline-flex;
@@ -2404,6 +2440,30 @@ button {
   100% {
     background: transparent;
     box-shadow: none;
+  }
+}
+
+/* Drop-insert entrance — scale + fade applied to the range just inserted by
+   the drag-drop handler. inline-block so transform-origin behaves predictably
+   on text spans (CSS transforms have no effect on raw inline content). The
+   nested .md-image rule lets the same animation fire for the image atom when
+   the decoration wraps Milkdown's image node view. */
+.live-md .pm-just-inserted,
+.cm-host .cm-just-inserted,
+.live-md .pm-just-inserted .md-image {
+  display: inline-block;
+  transform-origin: left center;
+  animation: just-inserted-pop 320ms var(--ease-out) forwards;
+}
+
+@keyframes just-inserted-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
   }
 }
 

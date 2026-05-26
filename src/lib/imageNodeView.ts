@@ -33,16 +33,16 @@ function buildImageNodeView({
   vaultPath: string
   paletteItems: PaletteItem[]
 }): NodeViewConstructor {
-  return (node) => {
+  return (initialNode, _view, _getPos, initialDecorations) => {
     // A wrapper is required as the node view's root `dom`: ProseMirror owns
     // that element and any `replaceWith` on it would be reverted on the next
     // reconciliation pass. Mutating the wrapper's *children* is safe.
     const dom = document.createElement('span')
     dom.className = 'md-image'
 
-    const src = String(node.attrs.src ?? '')
-    const alt = String(node.attrs.alt ?? '')
-    const title = String(node.attrs.title ?? '')
+    const src = String(initialNode.attrs.src ?? '')
+    const alt = String(initialNode.attrs.alt ?? '')
+    const title = String(initialNode.attrs.title ?? '')
 
     const img = document.createElement('img')
     if (alt) img.setAttribute('alt', alt)
@@ -64,7 +64,52 @@ function buildImageNodeView({
       dom.appendChild(img)
     }
 
-    return { dom }
+    // Mirror outer decorations onto `dom.classList`. ProseMirror won't merge
+    // decoration classes into a custom node view's wrapper automatically —
+    // without this, `Decoration.node(...{ class: '...' })` is invisible. We
+    // diff the previous set so the class is also removed when the
+    // decoration clears.
+    const applied = new Set<string>()
+    const applyDecorations = (decorations: readonly { type?: { attrs?: { class?: string } }; spec?: { class?: string } }[]) => {
+      const wanted = new Set<string>()
+      for (const d of decorations) {
+        const className =
+          (d as { type?: { attrs?: { class?: string } } }).type?.attrs?.class ??
+          (d as { spec?: { class?: string } }).spec?.class
+        if (className) {
+          for (const c of className.split(/\s+/)) if (c) wanted.add(c)
+        }
+      }
+      for (const c of applied) {
+        if (!wanted.has(c)) {
+          dom.classList.remove(c)
+          applied.delete(c)
+        }
+      }
+      for (const c of wanted) {
+        if (!applied.has(c)) {
+          dom.classList.add(c)
+          applied.add(c)
+        }
+      }
+    }
+
+    // Apply decorations present at construction time too — the image node
+    // view is built in the same transaction that adds the just-inserted
+    // decoration, so the class must be present from the first paint or the
+    // CSS animation never gets a chance to fire.
+    if (initialDecorations && initialDecorations.length > 0) {
+      applyDecorations(initialDecorations)
+    }
+
+    return {
+      dom,
+      update(newNode, decorations) {
+        if (newNode.type !== initialNode.type) return false
+        applyDecorations(decorations)
+        return true
+      },
+    }
   }
 }
 
