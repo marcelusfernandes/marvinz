@@ -158,8 +158,13 @@ function insertMarkdownAt(
     // a single paragraph (no extra blank line separators).
     const inline = parsed.firstChild.content
     tr.replaceWith(pos, pos, inline)
-    cursorPos = pos + inline.size
-    highlightTo = cursorPos
+    // Use tr.mapping.map(pos, 1) to get the actual end of the inserted
+    // content in the new doc. `inline.size` undercounts when PM wraps the
+    // inline content in a new block (e.g. dropping at a doc-level position
+    // where inline content can't live directly).
+    const insertedEnd = tr.mapping.map(pos, 1)
+    cursorPos = insertedEnd
+    highlightTo = insertedEnd
 
     // Escape any link-mark range the cursor would otherwise inherit. Atoms
     // (images) don't carry marks so this is a no-op for image drops.
@@ -313,13 +318,6 @@ function LiveMarkdownInner({
                 if (!dt) return false
                 const internalPath = dt.getData(MARVIN_PATH_MIME)
                 const files = collectFiles(dt)
-                console.log(
-                  '[marvinz drop pm]',
-                  'types:', Array.from(dt.types),
-                  'internal:', internalPath,
-                  'text:', dt.getData('text/plain'),
-                  'files:', files.map((f) => f.name),
-                )
                 if (internalPath) {
                   event.preventDefault()
                   event.stopPropagation()

@@ -33,7 +33,7 @@ function buildImageNodeView({
   vaultPath: string
   paletteItems: PaletteItem[]
 }): NodeViewConstructor {
-  return (initialNode) => {
+  return (initialNode, _view, _getPos, initialDecorations) => {
     // A wrapper is required as the node view's root `dom`: ProseMirror owns
     // that element and any `replaceWith` on it would be reverted on the next
     // reconciliation pass. Mutating the wrapper's *children* is safe.
@@ -92,6 +92,14 @@ function buildImageNodeView({
           applied.add(c)
         }
       }
+    }
+
+    // Apply decorations present at construction time too — the image node
+    // view is built in the same transaction that adds the just-inserted
+    // decoration, so the class must be present from the first paint or the
+    // CSS animation never gets a chance to fire.
+    if (initialDecorations && initialDecorations.length > 0) {
+      applyDecorations(initialDecorations)
     }
 
     return {

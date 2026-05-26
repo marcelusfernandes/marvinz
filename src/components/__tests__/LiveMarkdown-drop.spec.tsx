@@ -64,6 +64,7 @@ const fakeView = {
         _replaceWiths: [] as Array<{ from: number; to: number; content: unknown }>,
         _inserts: [] as Array<{ pos: number; content: unknown }>,
         doc,
+        mapping: { map: (p: number) => p + 1 },
         _splits: [] as Array<{ pos: number }>,
         replace(from: number, to: number, slice: unknown) {
           this._replaces.push({ from, to, slice })

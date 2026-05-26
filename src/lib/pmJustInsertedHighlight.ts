@@ -25,20 +25,24 @@ export function justInsertedPlugin(): Plugin<DecorationSet> {
         if (meta.type === 'add') {
           const decorations: Decoration[] = []
           for (const r of meta.ranges) {
-            // Always add the inline decoration — works for text spans.
             decorations.push(
               Decoration.inline(r.from, r.to, { class: 'pm-just-inserted' }),
             )
-            // Also add a node decoration on any atom inline node in the
-            // range (images): inline decorations don't reliably style atoms
-            // whose custom node view owns the DOM.
-            tr.doc.nodesBetween(r.from, r.to, (node, p) => {
+            // Find inline atom nodes (images, hard breaks) inside the range
+            // and emit node decorations so custom node views can mirror the
+            // class onto their wrapper element. `descendants` traverses
+            // both block-level and inline nodes; we filter to atoms within
+            // the highlight range.
+            tr.doc.descendants((node, p) => {
+              if (p >= r.to) return false
+              if (p + node.nodeSize <= r.from) return false
               if (node.isAtom && node.isInline) {
                 decorations.push(
                   Decoration.node(p, p + node.nodeSize, { class: 'pm-just-inserted' }),
                 )
+                return false
               }
-              return undefined
+              return true
             })
           }
           return next.add(tr.doc, decorations)
