@@ -60,6 +60,8 @@ const api = {
       ipcRenderer.invoke('file:exportPdf', filePath) as Promise<void>,
     create: (parentDir: string, name: string) =>
       ipcRenderer.invoke('file:create', parentDir, name) as Promise<string>,
+    writeBinary: (payload: { vaultPath: string; relPath: string; base64Bytes: string; maxBytes?: number }) =>
+      ipcRenderer.invoke('file:writeBinary', payload) as Promise<string>,
     onChanged: (cb: (filePath: string, source: FileChangeSource) => void) => {
       const listener = (_: unknown, filePath: string, source: FileChangeSource) => cb(filePath, source)
       ipcRenderer.on('file:changed', listener)
