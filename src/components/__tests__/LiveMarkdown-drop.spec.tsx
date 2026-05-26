@@ -27,10 +27,19 @@ const capturedHandlers: {
 
 // Fake parser returns a doc-like node. childCount=1 + isTextblock=true exercises
 // the inline-merge code path; multi-block markdown (with a blank line) bumps
-// childCount to 2 so the slice-replace branch is taken.
+// childCount to 2 so the slice-replace branch is taken. Inline fragment
+// includes a fake node with `type.name === 'image'` when the markdown starts
+// with `![` so the image-aware branch in insertMarkdownAt is exercised.
 const fakeParser = vi.fn((md: string) => {
   const blocks = md.split('\n\n').filter(Boolean)
-  const inline = { _kind: 'fragment', _from: md, size: md.length }
+  const isImage = md.startsWith('![')
+  const fakeNode = { type: { name: isImage ? 'image' : 'text' } }
+  const inline = {
+    _kind: 'fragment',
+    _from: md,
+    size: md.length,
+    forEach: (cb: (n: { type: { name: string } }) => void) => cb(fakeNode),
+  }
   return {
     _markdown: md,
     childCount: blocks.length,
@@ -55,8 +64,13 @@ const fakeView = {
         _replaceWiths: [] as Array<{ from: number; to: number; content: unknown }>,
         _inserts: [] as Array<{ pos: number; content: unknown }>,
         doc,
+        _splits: [] as Array<{ pos: number }>,
         replace(from: number, to: number, slice: unknown) {
           this._replaces.push({ from, to, slice })
+          return this
+        },
+        split(pos: number) {
+          this._splits.push({ pos })
           return this
         },
         replaceWith(from: number, to: number, content: unknown) {
@@ -67,6 +81,9 @@ const fakeView = {
           this._inserts.push({ pos, content })
           return this
         },
+        setMeta: vi.fn(function (this: unknown) {
+          return this
+        }),
         setSelection: vi.fn(function (this: unknown) {
           return this
         }),
@@ -379,6 +396,56 @@ describe('LiveMarkdown — Milkdown drop handler (issue #290)', () => {
         message: expect.stringContaining('secret.md'),
       }),
     )
+  })
+
+  it('image drop: inserts inline (no paragraph split, no trailing space)', async () => {
+    render(<LiveMarkdown {...defaultProps()} />)
+
+    const file = new File(['png'], 'photo.png', { type: 'image/png' })
+    capturedHandlers.drop!(fakeView, makeDragEvent([file]))
+    await new Promise((r) => setTimeout(r, 30))
+
+    // Image atoms don't carry marks so the trailing-space escape isn't fired;
+    // the image stays inline with surrounding text instead of getting its
+    // own paragraph (avoids serializing as a blank line in markdown source).
+    const tr = (fakeView.dispatch.mock.calls[0]?.[0] as unknown) as {
+      _splits: unknown[]
+      _inserts: unknown[]
+    }
+    expect(tr._splits.length).toBe(0)
+    expect(tr._inserts.length).toBe(0)
+  })
+
+  it('non-image link drop: inserts trailing space (no paragraph split)', async () => {
+    render(<LiveMarkdown {...defaultProps()} />)
+
+    // Custom parser path: marks() returns [link] so the space-escape branch
+    // fires for this single test.
+    const linkSpyView = {
+      ...fakeView,
+      state: {
+        ...fakeView.state,
+        get tr() {
+          const base = fakeView.state.tr
+          base.doc.resolve = (n: number) => ({
+            pos: n,
+            marks: () => [{ type: { name: 'link' } }],
+          })
+          return base
+        },
+      },
+    }
+
+    const file = new File(['pdf'], 'doc.pdf', { type: 'application/pdf' })
+    capturedHandlers.drop!(linkSpyView, makeDragEvent([file]))
+    await new Promise((r) => setTimeout(r, 30))
+
+    const tr = (linkSpyView.dispatch.mock.calls[0]?.[0] as unknown) as {
+      _splits: unknown[]
+      _inserts: unknown[]
+    }
+    expect(tr._splits.length).toBe(0)
+    expect(tr._inserts.length).toBe(1)
   })
 
   it('dragover accepts the drop only for Files / marvin-path types', () => {

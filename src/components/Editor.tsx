@@ -2,6 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import CodeMirror from '@uiw/react-codemirror'
 import { EditorView, keymap } from '@codemirror/view'
 import { search, searchKeymap } from '@codemirror/search'
+import {
+  clearInsertedFlashes,
+  flashInserted,
+  justInsertedField,
+} from '../lib/cmJustInsertedHighlight'
 import { justReplacedField } from '../lib/cmJustReplacedHighlight'
 import { bracketMatching, indentUnit, HighlightStyle, syntaxHighlighting } from '@codemirror/language'
 import { redo, redoDepth, selectAll, undo, undoDepth } from '@codemirror/commands'
@@ -274,10 +279,17 @@ export function Editor({
       const pos =
         view.posAtCoords({ x: event.clientX, y: event.clientY }) ??
         view.state.selection.main.head
+      const to = pos + text.length
       view.dispatch({
         changes: { from: pos, insert: text },
-        selection: EditorSelection.cursor(pos + text.length),
+        selection: EditorSelection.cursor(to),
+        effects: flashInserted.of([{ from: pos, to }]),
       })
+      // One-shot entrance animation; clear the decoration once it's done so
+      // subsequent drops re-trigger the animation cleanly.
+      setTimeout(() => {
+        view.dispatch({ effects: clearInsertedFlashes.of(null) })
+      }, 500)
     }
 
     const handleInternalDrop = (
@@ -309,7 +321,9 @@ export function Editor({
         const types = event.dataTransfer?.types ?? []
         if (!types.includes('Files') && !types.includes(MARVIN_PATH_MIME)) return false
         event.preventDefault()
-        if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy'
+        // 'move' suppresses the macOS green-plus copy badge while staying
+        // compatible with the file tree's effectAllowed.
+        if (event.dataTransfer) event.dataTransfer.dropEffect = 'move'
         return true
       },
       drop(event, view) {
@@ -341,6 +355,7 @@ export function Editor({
       headerFindKeymap,
       keymap.of(searchKeymap),
       justReplacedField,
+      justInsertedField,
       bracketMatching(),
       indentUnit.of('  '),
       EditorView.lineWrapping,
@@ -564,19 +579,19 @@ export function Editor({
                 type="button"
                 className={`mode-btn${mode === 'edit' ? ' active' : ''}`}
                 onClick={() => setMode('edit')}
-                title="Edit (raw)"
+                title="Source (raw markdown)"
               >
-                <Icon name="edit" size={14} />
-                Edit
+                <Icon name="code" size={14} />
+                Source
               </button>
               <button
                 type="button"
                 className={`mode-btn${mode === 'preview' ? ' active' : ''}`}
                 onClick={() => setMode('preview')}
-                title="Preview (rendered)"
+                title="Page (rendered)"
               >
-                <Icon name="eye" size={14} />
-                Preview
+                <Icon name="file-text" size={14} />
+                Page
               </button>
             </div>
           )}

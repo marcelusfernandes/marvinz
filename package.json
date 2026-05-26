@@ -58,6 +58,7 @@
     "nanoid": "^5.1.11",
     "node-pty": "^1.1.0",
     "papaparse": "^5.5.3",
+    "prosemirror-dropcursor": "^1.8.2",
     "prosemirror-search": "^1.1.1",
     "react": "^19.2.5",
     "react-data-grid": "^7.0.0-beta.59",

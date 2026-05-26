@@ -18,8 +18,10 @@ import { keymap } from 'prosemirror-keymap'
 import { findNext, findPrev, search } from 'prosemirror-search'
 import { Slice, type Node as PMNode } from 'prosemirror-model'
 import { Plugin, TextSelection } from 'prosemirror-state'
+import { dropCursor } from 'prosemirror-dropcursor'
 import type { EditorView } from 'prosemirror-view'
 import { imageNodeView } from '../lib/imageNodeView'
+import { justInsertedPlugin, justInsertedPluginKey } from '../lib/pmJustInsertedHighlight'
 import { justReplacedPlugin } from '../lib/pmJustReplacedHighlight'
 import type { PaletteItem } from '../lib/paletteRanker'
 import { parseWikilinks, unparseWikilinks } from '../lib/wikilinks'
@@ -67,6 +69,54 @@ type Props = {
 
 type ParserCtxGetter = { get: (key: typeof parserCtx) => (text: string) => PMNode | null }
 
+// Backspace command: when the cursor is immediately after an atom inline
+// node (image), delete it in a single keystroke instead of the default
+// two-press select-then-delete. Link/text deletion intentionally falls
+// through to default char-by-char behavior so backspace doesn't surprise
+// the user by wiping a whole link when they typed adjacent content.
+function deleteReferenceBackward(
+  state: import('prosemirror-state').EditorState,
+  dispatch?: (tr: import('prosemirror-state').Transaction) => void,
+): boolean {
+  if (!state.selection.empty) return false
+  const $pos = state.selection.$from
+  const before = $pos.nodeBefore
+  if (!before) return false
+  // Non-text atom inline (image, hard_break, mention) — wipe in one stroke.
+  // Text nodes are leaves too (Node.isAtom === true), hence the isText guard.
+  if (!before.isText && before.isAtom && before.isInline) {
+    if (dispatch) dispatch(state.tr.delete($pos.pos - before.nodeSize, $pos.pos))
+    return true
+  }
+  // Linked text immediately before cursor — but only fire if the cursor
+  // sits on the link's RIGHT boundary (nodeAfter has no link mark). When
+  // the user has extended the link by typing into it, nodeAfter would
+  // still carry the link mark and we let the default char-delete run.
+  if (!before.isText) return false
+  const linkType = state.schema.marks.link
+  if (!linkType) return false
+  const link = before.marks.find((m) => m.type === linkType)
+  if (!link) return false
+  const after = $pos.nodeAfter
+  if (after?.marks.some((m) => m.type === linkType && m.eq(link))) {
+    return false
+  }
+  let endPos = $pos.pos
+  let start = endPos
+  let idx = $pos.index()
+  while (idx > 0) {
+    const node = $pos.parent.child(idx - 1)
+    if (!node.isText) break
+    const nodeLink = node.marks.find((m) => m.type === linkType)
+    if (!nodeLink || !nodeLink.eq(link)) break
+    start -= node.nodeSize
+    idx--
+  }
+  if (start === endPos) return false
+  if (dispatch) dispatch(state.tr.delete(start, endPos))
+  return true
+}
+
 // Parse a markdown snippet through Milkdown's commonmark parser and splice
 // it into the doc at the drop coordinates.
 //
@@ -98,30 +148,45 @@ function insertMarkdownAt(
   const tr = view.state.tr
   let cursorPos: number
 
+  let highlightFrom = pos
+  let highlightTo = pos
+
   if (parsed.childCount === 1 && parsed.firstChild?.isTextblock) {
-    // Inline-merge into the surrounding paragraph.
+    // Inline-merge into the surrounding paragraph — keeps image and link
+    // drops inline with the host text. The image visually wraps to its own
+    // line thanks to `max-width: 100%` CSS, but the markdown source stays
+    // a single paragraph (no extra blank line separators).
     const inline = parsed.firstChild.content
     tr.replaceWith(pos, pos, inline)
     cursorPos = pos + inline.size
+    highlightTo = cursorPos
+
+    // Escape any link-mark range the cursor would otherwise inherit. Atoms
+    // (images) don't carry marks so this is a no-op for image drops.
+    const $end = tr.doc.resolve(Math.min(cursorPos, tr.doc.content.size))
+    if ($end.marks().length > 0) {
+      tr.insert(cursorPos, view.state.schema.text(' '))
+      cursorPos += 1
+    }
   } else {
     // Multi-block: keep the original block-fitting behavior.
     const slice = new Slice(parsed.content, 1, 1)
     tr.replace(pos, pos, slice)
     cursorPos = Math.min(pos + slice.size, tr.doc.content.size)
+    highlightTo = cursorPos
   }
-
-  // Escape any mark range the cursor would otherwise inherit. `insertText`
-  // would copy the position's marks onto the space (so the space itself
-  // becomes part of the link), so we build the text node explicitly with no
-  // marks and insert it as a node.
-  const $end = tr.doc.resolve(Math.min(cursorPos, tr.doc.content.size))
-  if ($end.marks().length > 0) {
-    tr.insert(cursorPos, view.state.schema.text(' '))
-    cursorPos += 1
-  }
+  tr.setMeta(justInsertedPluginKey, {
+    type: 'add',
+    ranges: [{ from: highlightFrom, to: highlightTo }],
+  })
   tr.setSelection(TextSelection.near(tr.doc.resolve(cursorPos)))
   tr.setStoredMarks([])
   view.dispatch(tr)
+  // Clear the decoration after the animation completes so highlights don't
+  // accumulate when the user drops multiple files in sequence.
+  setTimeout(() => {
+    view.dispatch(view.state.tr.setMeta(justInsertedPluginKey, { type: 'clear' }))
+  }, 500)
 }
 
 export function LiveMarkdown(props: Props) {
@@ -238,7 +303,9 @@ function LiveMarkdownInner({
                 const types = event.dataTransfer?.types ?? []
                 if (!types.includes('Files') && !types.includes(MARVIN_PATH_MIME)) return false
                 event.preventDefault()
-                if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy'
+                // 'move' suppresses the macOS green-plus copy badge while
+                // staying compatible with the file tree's effectAllowed.
+                if (event.dataTransfer) event.dataTransfer.dropEffect = 'move'
                 return true
               },
               drop(view, event) {
@@ -246,6 +313,13 @@ function LiveMarkdownInner({
                 if (!dt) return false
                 const internalPath = dt.getData(MARVIN_PATH_MIME)
                 const files = collectFiles(dt)
+                console.log(
+                  '[marvinz drop pm]',
+                  'types:', Array.from(dt.types),
+                  'internal:', internalPath,
+                  'text:', dt.getData('text/plain'),
+                  'files:', files.map((f) => f.name),
+                )
                 if (internalPath) {
                   event.preventDefault()
                   event.stopPropagation()
@@ -295,7 +369,17 @@ function LiveMarkdownInner({
           // parent then drives the PM view through `onViewReady`.
           searchPlugin,
           findKeymap,
+          // Smart Backspace — when the cursor sits on the right boundary of
+          // a dropped reference (image atom or linked text), wipe the whole
+          // reference in one stroke. Plain text typed past the boundary
+          // (escaped by the trailing space we insert on drop) deletes
+          // char-by-char via the default.
+          keymap({ Backspace: deleteReferenceBackward }),
           justReplacedPlugin(),
+          justInsertedPlugin(),
+          // Visual caret that follows the cursor during a drag, so the user
+          // sees exactly where the attachment will land.
+          dropCursor({ color: 'var(--accent)', width: 2 }),
           dropPlugin,
         ])
         ctx.get(listenerCtx).markdownUpdated((_ctx, markdown, prevMarkdown) => {
