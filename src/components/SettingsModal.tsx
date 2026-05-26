@@ -22,6 +22,7 @@ export function SettingsModal({ onClose, layoutMode, onLayoutChange }: Props) {
   const colorTheme = useSetting('colorTheme') ?? 'system'
   const visualStyle = useSetting('visualStyle') ?? 'modern'
   const terminalModeEnabled = useSetting('terminalModeEnabled') ?? false
+  const saveMode = useSetting('saveMode') ?? 'auto'
 
   return (
     <div className="modal-backdrop" onMouseDown={onClose}>
@@ -163,6 +164,38 @@ export function SettingsModal({ onClose, layoutMode, onLayoutChange }: Props) {
                 onClick={() => onLayoutChange('claude-center')}
               >
                 Claude
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <section className="modal-section">
+          <div className="modal-section-header">Editor</div>
+          <div className="modal-section-row">
+            <div>
+              <div className="modal-section-label">Save mode</div>
+              <div className="modal-section-hint">
+                Automatic saves after a short pause. Manual requires Cmd+S.
+              </div>
+            </div>
+            <div className="segmented" role="radiogroup" aria-label="Save mode">
+              <button
+                type="button"
+                role="radio"
+                aria-checked={saveMode === 'auto'}
+                className={`segmented-btn${saveMode === 'auto' ? ' active' : ''}`}
+                onClick={() => void setSetting('saveMode', 'auto')}
+              >
+                Automatic
+              </button>
+              <button
+                type="button"
+                role="radio"
+                aria-checked={saveMode === 'manual'}
+                className={`segmented-btn${saveMode === 'manual' ? ' active' : ''}`}
+                onClick={() => void setSetting('saveMode', 'manual')}
+              >
+                Manual
               </button>
             </div>
           </div>

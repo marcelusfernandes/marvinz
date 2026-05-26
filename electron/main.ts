@@ -193,6 +193,7 @@ type Settings = {
   colorTheme?: 'light' | 'dark' | 'system'
   visualStyle?: 'modern' | 'legacy'
   terminalModeEnabled?: boolean
+  saveMode?: 'auto' | 'manual'
 }
 
 async function readSettings(): Promise<Settings> {

@@ -29,6 +29,7 @@ type Tab = NoteTab | BrowserTab | ImageTab
 type Props = {
   tabs: Tab[]
   activeId: string | null
+  dirtyTabId?: string | null
   onActivate: (id: string) => void
   onClose: (id: string) => void
   onNewBrowserTab: () => void
@@ -55,7 +56,14 @@ function basename(p: string): string {
   return p.split('/').pop() ?? p
 }
 
-export function TabBar({ tabs, activeId, onActivate, onClose, onNewBrowserTab }: Props) {
+export function TabBar({
+  tabs,
+  activeId,
+  dirtyTabId,
+  onActivate,
+  onClose,
+  onNewBrowserTab,
+}: Props) {
   const barRef = useRef<HTMLDivElement>(null)
   useHorizontalWheelScroll(barRef)
 
@@ -132,6 +140,11 @@ export function TabBar({ tabs, activeId, onActivate, onClose, onNewBrowserTab }:
               loading={t.type === 'browser' ? t.loading : false}
             />
             <span className="tab-title">{label}</span>
+            {dirtyTabId === t.id && (
+              <span className="tab-dirty" aria-label="Unsaved changes" title="Unsaved changes">
+                •
+              </span>
+            )}
             <button
               type="button"
               className="tab-close"

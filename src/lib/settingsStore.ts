@@ -29,6 +29,10 @@ function readFromLocalStorage(): Settings {
     if (terminalModeEnabled === 'true' || terminalModeEnabled === 'false') {
       out.terminalModeEnabled = terminalModeEnabled === 'true'
     }
+    const saveMode = window.localStorage.getItem(`${LS_PREFIX}saveMode`)
+    if (saveMode === 'auto' || saveMode === 'manual') {
+      out.saveMode = saveMode
+    }
   } catch {
     // ignore
   }
