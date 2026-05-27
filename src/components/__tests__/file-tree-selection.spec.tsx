@@ -9,12 +9,11 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, cleanup } from '@testing-library/react'
 import { useState } from 'react'
 import { FileTree } from '../FileTree'
+import type { SelectModifiers } from '../FileTree'
 import { smallTree } from './file-tree-fixtures'
 import { setupVirtualizerMocks } from './_virtualizerSetup'
 import { flattenVisibleTree } from '../../lib/flattenVisibleTree'
 import type { FileNode } from '../../types'
-
-type SelectModifiers = { meta: boolean; shift: boolean }
 
 vi.mock('../../lib/settingsStore', () => ({
   seedFromMain: vi.fn(),
@@ -121,7 +120,7 @@ describe('FileTree — folder click uses unified onSelect', () => {
     expect(onSelect).toHaveBeenCalledTimes(1)
     expect(onSelect).toHaveBeenCalledWith(
       expect.objectContaining({ path: '/vault/docs', isDir: true }),
-      { meta: false, shift: false },
+      { cmdOrCtrl: false, shift: false },
     )
   })
 
@@ -133,7 +132,7 @@ describe('FileTree — folder click uses unified onSelect', () => {
     expect(onToggleOpen).toHaveBeenCalledWith('/vault/docs')
     expect(onSelect).toHaveBeenCalledWith(
       expect.objectContaining({ path: '/vault/docs', isDir: true }),
-      { meta: false, shift: false },
+      { cmdOrCtrl: false, shift: false },
     )
   })
 
@@ -231,37 +230,37 @@ describe('FileTree — .active-file class', () => {
 // ===========================================================================
 
 describe('FileTree — onSelect receives modifier flags', () => {
-  it('plain click passes { meta: false, shift: false }', () => {
+  it('plain click passes { cmdOrCtrl: false, shift: false }', () => {
     const onSelect = vi.fn<(node: FileNode, mods: SelectModifiers) => void>()
     render(<FileTree {...baseProps({ onSelect })} />)
     fireEvent.click(screen.getByText('readme').closest('button')!)
     expect(onSelect).toHaveBeenCalledTimes(1)
     const [, mods] = onSelect.mock.calls[0]
-    expect(mods).toEqual({ meta: false, shift: false })
+    expect(mods).toEqual({ cmdOrCtrl: false, shift: false })
   })
 
-  it('Cmd-click passes { meta: true, shift: false }', () => {
+  it('Cmd-click passes { cmdOrCtrl: true, shift: false }', () => {
     const onSelect = vi.fn<(node: FileNode, mods: SelectModifiers) => void>()
     render(<FileTree {...baseProps({ onSelect })} />)
     fireEvent.click(screen.getByText('readme').closest('button')!, { metaKey: true })
     const [, mods] = onSelect.mock.calls[0]
-    expect(mods).toEqual({ meta: true, shift: false })
+    expect(mods).toEqual({ cmdOrCtrl: true, shift: false })
   })
 
-  it('Shift-click passes { meta: false, shift: true }', () => {
+  it('Shift-click passes { cmdOrCtrl: false, shift: true }', () => {
     const onSelect = vi.fn<(node: FileNode, mods: SelectModifiers) => void>()
     render(<FileTree {...baseProps({ onSelect })} />)
     fireEvent.click(screen.getByText('readme').closest('button')!, { shiftKey: true })
     const [, mods] = onSelect.mock.calls[0]
-    expect(mods).toEqual({ meta: false, shift: true })
+    expect(mods).toEqual({ cmdOrCtrl: false, shift: true })
   })
 
-  it('Ctrl-click (non-Mac) passes { meta: true, shift: false }', () => {
+  it('Ctrl-click (non-Mac) passes { cmdOrCtrl: true, shift: false }', () => {
     const onSelect = vi.fn<(node: FileNode, mods: SelectModifiers) => void>()
     render(<FileTree {...baseProps({ onSelect })} />)
     fireEvent.click(screen.getByText('readme').closest('button')!, { ctrlKey: true })
     const [, mods] = onSelect.mock.calls[0]
-    expect(mods).toEqual({ meta: true, shift: false })
+    expect(mods).toEqual({ cmdOrCtrl: true, shift: false })
   })
 
   it('folder click also passes modifiers', () => {
@@ -271,7 +270,7 @@ describe('FileTree — onSelect receives modifier flags', () => {
     expect(onSelect).toHaveBeenCalledTimes(1)
     const [node, mods] = onSelect.mock.calls[0]
     expect(node).toMatchObject({ path: '/vault/docs', isDir: true })
-    expect(mods).toEqual({ meta: true, shift: false })
+    expect(mods).toEqual({ cmdOrCtrl: true, shift: false })
   })
 })
 
@@ -296,7 +295,7 @@ function MultiSelectWrapper({
 
   function handleSelect(node: FileNode, mods: SelectModifiers) {
     const path = node.path
-    if (mods.meta) {
+    if (mods.cmdOrCtrl) {
       setSelectedPaths((prev) => {
         const next = new Set(prev)
         if (next.has(path)) next.delete(path)

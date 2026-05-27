@@ -23,7 +23,7 @@ import { TopBar } from './components/TopBar'
 import { SnapshotPanel } from './components/SnapshotPanel'
 import { SnapshotToast } from './components/SnapshotToast'
 import { ImportToast, type ImportToastState } from './components/ImportToast'
-import type { CreatingIn, ImportOutcome } from './components/FileTree'
+import type { CreatingIn, ImportOutcome, SelectModifiers } from './components/FileTree'
 import { ExternalChangeBanner } from './components/ExternalChangeBanner'
 import type { PaletteItem } from './lib/paletteRanker'
 import { flattenTree } from './lib/paletteItems'
@@ -832,9 +832,9 @@ export default function App() {
   })
 
   const handleTreeSelect = useCallback(
-    (node: FileNode, mods: { meta: boolean; shift: boolean }) => {
+    (node: FileNode, mods: SelectModifiers) => {
       const path = node.path
-      if (mods.meta) {
+      if (mods.cmdOrCtrl) {
         setSelectedPaths((prev) => {
           const next = new Set(prev)
           if (next.has(path)) next.delete(path)

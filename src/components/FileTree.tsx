@@ -41,7 +41,7 @@ export type ImportOutcome =
 
 export type CreatingIn = { parentDir: string; kind: 'file' | 'folder' }
 
-export type SelectModifiers = { meta: boolean; shift: boolean }
+export type SelectModifiers = { cmdOrCtrl: boolean; shift: boolean }
 
 type Props = {
   nodes: FileNode[]
@@ -508,9 +508,9 @@ function FileTreeNodeImpl({
           onDragLeave={() => onHoverChange(null)}
           onDrop={handleDrop}
           onClick={(e) => {
-            const mods = { meta: e.metaKey || e.ctrlKey, shift: e.shiftKey }
+            const mods = { cmdOrCtrl: e.metaKey || e.ctrlKey, shift: e.shiftKey }
             onSelect(node, mods)
-            if (!mods.meta && !mods.shift) onToggleOpen(node.path)
+            if (!mods.cmdOrCtrl && !mods.shift) onToggleOpen(node.path)
           }}
           onContextMenu={(e) => onContextMenu(e, node)}
         >
@@ -555,7 +555,7 @@ function FileTreeNodeImpl({
         draggable
         onDragStart={handleDragStart}
         onClick={(e) =>
-          onSelect(node, { meta: e.metaKey || e.ctrlKey, shift: e.shiftKey })
+          onSelect(node, { cmdOrCtrl: e.metaKey || e.ctrlKey, shift: e.shiftKey })
         }
         onContextMenu={(e) => onContextMenu(e, node)}
       >
