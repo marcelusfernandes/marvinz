@@ -835,6 +835,7 @@ export default function App() {
     (node: FileNode, mods: SelectModifiers) => {
       const path = node.path
       if (mods.cmdOrCtrl) {
+        // Cmd-click only toggles selection; does not open the file.
         setSelectedPaths((prev) => {
           const next = new Set(prev)
           if (next.has(path)) next.delete(path)
@@ -851,7 +852,7 @@ export default function App() {
           ? flat.findIndex((it) => it.node.path === anchor)
           : -1
         const currentIdx = flat.findIndex((it) => it.node.path === path)
-        if (anchorIdx >= 0 && currentIdx >= 0) {
+        if (anchorIdx >= 0) {
           const [lo, hi] =
             anchorIdx < currentIdx ? [anchorIdx, currentIdx] : [currentIdx, anchorIdx]
           const range = flat.slice(lo, hi + 1).map((it) => it.node.path)

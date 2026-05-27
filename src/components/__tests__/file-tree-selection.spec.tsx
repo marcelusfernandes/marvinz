@@ -307,7 +307,7 @@ function MultiSelectWrapper({
       const flat = flattenVisibleTree(smallTree, openPaths)
       const anchorIdx = flat.findIndex((it) => it.node.path === anchorPath)
       const currentIdx = flat.findIndex((it) => it.node.path === path)
-      if (anchorIdx >= 0 && currentIdx >= 0) {
+      if (anchorIdx >= 0) {
         const [lo, hi] =
           anchorIdx < currentIdx ? [anchorIdx, currentIdx] : [currentIdx, anchorIdx]
         const range = flat.slice(lo, hi + 1).map((it) => it.node.path)
@@ -479,5 +479,19 @@ describe('multi-select — empty-area click clears selection', () => {
     const treeEl = container.querySelector('[role="tree"]')!
     fireEvent.click(treeEl)
     expect(onClearSelection).toHaveBeenCalledTimes(1)
+  })
+
+  it('clicking a file row does NOT clear selection (closest .file-tree-row guard)', () => {
+    const onClearSelection = vi.fn()
+    render(
+      <FileTree
+        {...baseProps({
+          selectedPaths: new Set(['/vault/readme.md']),
+          onClearSelection,
+        })}
+      />,
+    )
+    fireEvent.click(screen.getByText('readme').closest('button')!)
+    expect(onClearSelection).not.toHaveBeenCalled()
   })
 })
