@@ -122,9 +122,9 @@ export function TabBar({
         const label =
           t.type === 'browser'
             ? browserLabel(t)
-            : t.type === 'image'
-              ? basename(t.path)
-              : noteLabel(t.path)
+            : t.type === 'note'
+              ? noteLabel(t.path)
+              : basename(t.path)
         const tooltip = t.type === 'browser' ? t.url : t.path
         return (
           <div
