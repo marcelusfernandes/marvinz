@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Editor as MilkdownEditor,
   defaultValueCtx,
@@ -24,7 +24,9 @@ import { imageNodeView } from '../lib/imageNodeView'
 import { justInsertedPlugin, justInsertedPluginKey } from '../lib/pmJustInsertedHighlight'
 import { justReplacedPlugin } from '../lib/pmJustReplacedHighlight'
 import type { PaletteItem } from '../lib/paletteRanker'
-import { parseWikilinks, unparseWikilinks } from '../lib/wikilinks'
+import { parseWikilinks, stripMdExt, unparseWikilinks } from '../lib/wikilinks'
+import { mentionTrigger } from '../lib/pmMentionTrigger'
+import { MentionPicker } from './MentionPicker'
 import {
   MARVIN_PATH_MIME,
   collectFiles,
@@ -101,7 +103,7 @@ function deleteReferenceBackward(
   if (after?.marks.some((m) => m.type === linkType && m.eq(link))) {
     return false
   }
-  let endPos = $pos.pos
+  const endPos = $pos.pos
   let start = endPos
   let idx = $pos.index()
   while (idx > 0) {
@@ -260,6 +262,21 @@ function LiveMarkdownInner({
     onImportToastRef.current = onImportToast
   }, [onImportToast])
 
+  // `@`-mention picker state. The trigger plugin (built once per mount) keeps
+  // its TriggerState inside the ProseMirror plugin state and pushes lifecycle
+  // updates here through a ref-backed setter — same pattern as the drop /
+  // import-toast refs above, so the plugin closure can read the latest
+  // setState without rebuilding the plugin on every render.
+  const [mention, setMention] = useState<{
+    from: number
+    query: string
+    anchor: { x: number; y: number }
+  } | null>(null)
+  const setMentionRef = useRef(setMention)
+  useEffect(() => {
+    setMentionRef.current = setMention
+  }, [])
+
   // Built once per mount alongside the rest of the editor's plugin stack.
   // `useMemo` (rather than module scope) so test contracts asserting
   // `search()` and `keymap()` were invoked during render keep working.
@@ -267,6 +284,20 @@ function LiveMarkdownInner({
   // `useState`'s setFindMode), so closing over it inside the keymap callbacks
   // is safe even with an empty dependency list.
   const searchPlugin = useMemo(() => search(), [])
+  // Built once per mount. Callbacks dispatch through `setMentionRef` so the
+  // plugin closure always sees the latest React state setter even though the
+  // plugin itself is referentially stable across renders.
+  const mentionPlugin = useMemo(
+    () =>
+      mentionTrigger({
+        onOpen: (from, anchor) =>
+          setMentionRef.current({ from, query: '', anchor }),
+        onUpdate: (query, anchor) =>
+          setMentionRef.current((prev) => (prev ? { ...prev, query, anchor } : prev)),
+        onClose: () => setMentionRef.current(null),
+      }),
+    [],
+  )
   /* eslint-disable react-hooks/exhaustive-deps -- intentional: keymap is
      registered once per editor mount; onOpenFind from useState is
      referentially stable across renders. */
@@ -402,6 +433,9 @@ function LiveMarkdownInner({
           // sees exactly where the attachment will land.
           dropCursor({ color: 'var(--accent)', width: 2 }),
           dropPlugin,
+          // `@`-mention trigger — emits lifecycle callbacks; the picker is
+          // rendered conditionally below from React state.
+          mentionPlugin,
         ])
         ctx.get(listenerCtx).markdownUpdated((_ctx, markdown, prevMarkdown) => {
           if (markdown !== prevMarkdown) onChangeRef.current(unparseWikilinks(markdown))
@@ -499,6 +533,52 @@ function LiveMarkdownInner({
     [editorInfo],
   )
 
+  // The `@`-mention picker only supports markdown wikilinks (`[[Name]]`).
+  // Non-markdown items (images, attachments) would need the embed form
+  // `![[file.png]]` — that is a follow-up. Filter here so the picker's
+  // ranker never surfaces a row that cannot be inserted as a wikilink.
+  // Mirrors the same decision in Editor.tsx (CodeMirror surface).
+  const mentionItems = useMemo(
+    () => paletteItems.filter((it) => it.isMarkdown),
+    [paletteItems],
+  )
+
+  // Mention selection: replace the `@`+query span with `[[name]]`. We use
+  // the current selection head as the upper bound because the user may
+  // have typed beyond what onUpdate last reported (PM state lags React
+  // state by one render tick). Clearing `mention` tears the picker down.
+  const handleMentionSelect = useCallback(
+    (item: PaletteItem) => {
+      const editor = editorInfo.get()
+      if (!editor || !mention) {
+        setMention(null)
+        return
+      }
+      let view: EditorView
+      try {
+        view = editor.ctx.get(editorViewCtx) as EditorView
+      } catch {
+        setMention(null)
+        return
+      }
+      const to = view.state.selection.from
+      // Obsidian-style wikilinks omit the `.md` extension: `[[My Note]]`.
+      const insertText = `[[${stripMdExt(item.name)}]]`
+      const tr = view.state.tr.replaceWith(
+        mention.from,
+        to,
+        view.state.schema.text(insertText),
+      )
+      const cursorPos = mention.from + insertText.length
+      tr.setSelection(TextSelection.near(tr.doc.resolve(cursorPos)))
+      view.dispatch(tr)
+      setMention(null)
+      view.focus()
+    },
+    [editorInfo, mention],
+  )
+  const handleMentionDismiss = useCallback(() => setMention(null), [])
+
   // Push the live EditorView to the parent so it can drive search commands
   // from the header-mounted find bar. Fires whenever the editor info resolves
   // a view (typically once per mount) and clears on unmount.
@@ -523,6 +603,15 @@ function LiveMarkdownInner({
   return (
     <div ref={containerRef} className="live-md" onContextMenu={handleContextMenu}>
       <Milkdown />
+      {mention && (
+        <MentionPicker
+          query={mention.query}
+          items={mentionItems}
+          anchor={mention.anchor}
+          onSelect={handleMentionSelect}
+          onDismiss={handleMentionDismiss}
+        />
+      )}
     </div>
   )
 }
