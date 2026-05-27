@@ -100,7 +100,13 @@ afterEach(() => {
 
 function buildView(node: ReturnType<typeof makeMermaidNode> | ReturnType<typeof makePassthroughNode>) {
   const constructor = buildCodeBlockView()
-  const view = constructor(node as never, null as never, null as never)
+  const view = constructor(
+    node as never,
+    null as never,
+    null as never,
+    null as never,
+    null as never,
+  )
   if (view.destroy) destroyFns.push(view.destroy.bind(view))
   return view
 }
@@ -126,7 +132,7 @@ describe('mermaidNodeView — passthrough branch (non-mermaid language)', () => 
   it('update() returns false when language switches to mermaid', () => {
     const view = buildView(makePassthroughNode('typescript'))
     const mermaidNode = makeMermaidNode()
-    const result = (view as { update: (n: unknown) => boolean }).update(mermaidNode)
+    const result = (view as unknown as { update: (n: unknown) => boolean }).update(mermaidNode)
     expect(result).toBe(false)
   })
 })
@@ -146,12 +152,12 @@ describe('mermaidNodeView — mermaid branch: DOM structure', () => {
 
   it('ignoreMutation() always returns true', () => {
     const view = buildView(makeMermaidNode())
-    expect((view as { ignoreMutation: () => boolean }).ignoreMutation()).toBe(true)
+    expect((view as unknown as { ignoreMutation: () => boolean }).ignoreMutation()).toBe(true)
   })
 
   it('stopEvent() always returns false', () => {
     const view = buildView(makeMermaidNode())
-    expect((view as { stopEvent: () => boolean }).stopEvent()).toBe(false)
+    expect((view as unknown as { stopEvent: () => boolean }).stopEvent()).toBe(false)
   })
 })
 
@@ -260,7 +266,7 @@ describe('mermaidNodeView — mermaid branch: empty source', () => {
 describe('mermaidNodeView — mermaid branch: update()', () => {
   it('returns false when node type changes', async () => {
     const view = buildView(makeMermaidNode())
-    const result = (view as { update: (n: unknown) => boolean }).update({
+    const result = (view as unknown as { update: (n: unknown) => boolean }).update({
       type: { name: 'paragraph' },
       attrs: { language: 'mermaid' },
       textContent: '',
@@ -270,7 +276,7 @@ describe('mermaidNodeView — mermaid branch: update()', () => {
 
   it('returns false when language switches away from mermaid', async () => {
     const view = buildView(makeMermaidNode())
-    const result = (view as { update: (n: unknown) => boolean }).update(makePassthroughNode('python'))
+    const result = (view as unknown as { update: (n: unknown) => boolean }).update(makePassthroughNode('python'))
     expect(result).toBe(false)
   })
 
@@ -279,7 +285,7 @@ describe('mermaidNodeView — mermaid branch: update()', () => {
     await tick()
     vi.mocked(mermaid.render).mockClear()
 
-    const updated = (view as { update: (n: unknown) => boolean }).update(
+    const updated = (view as unknown as { update: (n: unknown) => boolean }).update(
       makeMermaidNode('flowchart LR\n  X --> Y'),
     )
     expect(updated).toBe(true)
@@ -293,7 +299,7 @@ describe('mermaidNodeView — mermaid branch: update()', () => {
     await tick()
     vi.mocked(mermaid.render).mockClear()
 
-    ;(view as { update: (n: unknown) => boolean }).update(makeMermaidNode(source))
+    ;(view as unknown as { update: (n: unknown) => boolean }).update(makeMermaidNode(source))
     await tick()
     expect(mermaid.render).not.toHaveBeenCalled()
   })
