@@ -27,6 +27,7 @@ import type { CreatingIn, ImportOutcome } from './components/FileTree'
 import { ExternalChangeBanner } from './components/ExternalChangeBanner'
 import type { PaletteItem } from './lib/paletteRanker'
 import { flattenTree } from './lib/paletteItems'
+import { flattenVisibleTree } from './lib/flattenVisibleTree'
 import type { LayoutMode } from './components/LayoutToggle'
 import './App.css'
 import './styles/legacy.css'
@@ -266,6 +267,9 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [openPaths, setOpenPaths] = useState<Set<string>>(() => new Set())
   const [selectedPaths, setSelectedPaths] = useState<Set<string>>(() => new Set())
+  // Anchor for shift-click ranges — the last path that was selected via a
+  // non-shift gesture (plain click or Cmd-click).
+  const [anchorPath, setAnchorPath] = useState<string | null>(null)
   const [creatingIn, setCreatingIn] = useState<CreatingIn | null>(null)
   const [snapshotPanel, setSnapshotPanel] = useState<
     | {
@@ -619,6 +623,7 @@ export default function App() {
     setTabs([])
     setActiveTabId(null)
     setSelectedPaths(new Set())
+    setAnchorPath(null)
     setCreatingIn(null)
     lastDiskContentRef.current.clear()
     bufferContentRef.current.clear()
@@ -816,13 +821,60 @@ export default function App() {
   // dependencies via refs so the handler identities can stay stable, which is
   // what React.memo on FileTree relies on to skip re-renders.
   const openInTabRef = useRef(openInTab)
+  const treeRef = useRef(tree)
+  const openPathsRef = useRef(openPaths)
+  const anchorPathRef = useRef(anchorPath)
   useEffect(() => {
     openInTabRef.current = openInTab
+    treeRef.current = tree
+    openPathsRef.current = openPaths
+    anchorPathRef.current = anchorPath
   })
 
-  const handleTreeSelect = useCallback((node: FileNode) => {
-    setSelectedPaths(new Set([node.path]))
-    if (!node.isDir) void openInTabRef.current(node.path)
+  const handleTreeSelect = useCallback(
+    (node: FileNode, mods: { meta: boolean; shift: boolean }) => {
+      const path = node.path
+      if (mods.meta) {
+        setSelectedPaths((prev) => {
+          const next = new Set(prev)
+          if (next.has(path)) next.delete(path)
+          else next.add(path)
+          return next
+        })
+        setAnchorPath(path)
+        return
+      }
+      if (mods.shift) {
+        const anchor = anchorPathRef.current
+        const flat = flattenVisibleTree(treeRef.current, openPathsRef.current)
+        const anchorIdx = anchor
+          ? flat.findIndex((it) => it.node.path === anchor)
+          : -1
+        const currentIdx = flat.findIndex((it) => it.node.path === path)
+        if (anchorIdx >= 0 && currentIdx >= 0) {
+          const [lo, hi] =
+            anchorIdx < currentIdx ? [anchorIdx, currentIdx] : [currentIdx, anchorIdx]
+          const range = flat.slice(lo, hi + 1).map((it) => it.node.path)
+          setSelectedPaths(new Set(range))
+          // anchor preserved on shift-click
+          return
+        }
+        // Anchor missing or no longer visible — fall back to single-select.
+        setSelectedPaths(new Set([path]))
+        setAnchorPath(path)
+        if (!node.isDir) void openInTabRef.current(path)
+        return
+      }
+      setSelectedPaths(new Set([path]))
+      setAnchorPath(path)
+      if (!node.isDir) void openInTabRef.current(path)
+    },
+    [],
+  )
+
+  const handleClearSelection = useCallback(() => {
+    setSelectedPaths(new Set())
+    setAnchorPath(null)
   }, [])
 
   // Cmd/Ctrl+Click on a path in the agent terminal opens it via the same
@@ -1589,6 +1641,7 @@ export default function App() {
           creatingIn={creatingIn}
           onToggleOpen={handleToggleOpen}
           onSelect={handleTreeSelect}
+          onClearSelection={handleClearSelection}
           onCreatingInChange={setCreatingIn}
           onContextMenu={handleNodeContextMenu}
           onMove={handleDropMove}
