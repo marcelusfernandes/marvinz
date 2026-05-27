@@ -13,6 +13,7 @@ import { InputDialog } from './components/InputDialog'
 import { FileTreeToolbar } from './components/FileTreeToolbar'
 import { Icon } from './components/Icon'
 import { TabBar } from './components/TabBar'
+import { EmptyTab } from './components/EmptyTab'
 import { CommandPalette } from './components/CommandPalette'
 import { SettingsModal } from './components/SettingsModal'
 import { seedFromMain, useSetting } from './lib/settingsStore'
@@ -120,13 +121,20 @@ type DocxTab = {
   path: string
 }
 
-type Tab = NoteTab | BrowserTabState | ImageTab | PdfTab | DocxTab
+type EmptyTab = {
+  type: 'empty'
+  id: string
+  title: string
+}
+
+type Tab = NoteTab | BrowserTabState | ImageTab | PdfTab | DocxTab | EmptyTab
 
 const isNoteTab = (t: Tab): t is NoteTab => t.type === 'note'
 const isBrowserTab = (t: Tab): t is BrowserTabState => t.type === 'browser'
 const isImageTab = (t: Tab): t is ImageTab => t.type === 'image'
 const isPdfTab = (t: Tab): t is PdfTab => t.type === 'pdf'
 const isDocxTab = (t: Tab): t is DocxTab => t.type === 'docx'
+const isEmptyTab = (t: Tab): t is EmptyTab => t.type === 'empty'
 
 type Dialog =
   | { kind: 'rename'; target: string; isDir: boolean }
@@ -962,6 +970,44 @@ export default function App() {
     setUrlBarFocusTick((t) => t + 1)
   }, [])
 
+  const openEmptyTab = useCallback(() => {
+    const id = newTabId()
+    setTabs((prev) => [...prev, { type: 'empty', id, title: 'New tab' }])
+    setActiveTabId(id)
+  }, [])
+
+  const convertEmptyToBrowser = useCallback((emptyTabId: string) => {
+    const url = 'https://www.google.com'
+    setTabs((prev) =>
+      prev.map((t) =>
+        isEmptyTab(t) && t.id === emptyTabId
+          ? {
+              type: 'browser',
+              id: t.id,
+              url,
+              draftUrl: url,
+              title: 'New tab',
+              canBack: false,
+              canForward: false,
+              loading: true,
+              ready: false,
+            }
+          : t,
+      ),
+    )
+    setUrlBarFocusTick((t) => t + 1)
+  }, [])
+
+  const startNoteFromEmpty = useCallback(
+    (emptyTabId: string) => {
+      if (!vaultPath) return
+      setTabs((prev) => prev.filter((t) => t.id !== emptyTabId))
+      setActiveTabId((id) => (id === emptyTabId ? null : id))
+      setCreatingIn({ parentDir: vaultPath, kind: 'file' })
+    },
+    [vaultPath],
+  )
+
   const handleBrowserDraftChange = useCallback((id: string, value: string) => {
     setTabs((prev) =>
       prev.map((t) => (isBrowserTab(t) && t.id === id ? { ...t, draftUrl: value } : t)),
@@ -1685,7 +1731,7 @@ export default function App() {
           dirtyTabId={isDirty ? activeTabId : null}
           onActivate={setActiveTabId}
           onClose={closeTab}
-          onNewBrowserTab={openNewBrowserTab}
+          onNewTab={openEmptyTab}
         />
         <div className="editor-stack">
           {activeTab && isNoteTab(activeTab) && (
@@ -1761,6 +1807,13 @@ export default function App() {
               key={activeTab.id}
               path={activeTab.path}
               onRevealInFinder={(p) => void window.marvin.shell.reveal(p)}
+            />
+          )}
+          {activeTab && isEmptyTab(activeTab) && (
+            <EmptyTab
+              key={activeTab.id}
+              onOpenBrowser={() => convertEmptyToBrowser(activeTab.id)}
+              onCreateNote={() => startNoteFromEmpty(activeTab.id)}
             />
           )}
           {!activeTab && (

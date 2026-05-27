@@ -36,7 +36,13 @@ type DocxTab = {
   path: string
 }
 
-type Tab = NoteTab | BrowserTab | ImageTab | PdfTab | DocxTab
+type EmptyTab = {
+  type: 'empty'
+  id: string
+  title: string
+}
+
+type Tab = NoteTab | BrowserTab | ImageTab | PdfTab | DocxTab | EmptyTab
 
 type Props = {
   tabs: Tab[]
@@ -44,7 +50,7 @@ type Props = {
   dirtyTabId?: string | null
   onActivate: (id: string) => void
   onClose: (id: string) => void
-  onNewBrowserTab: () => void
+  onNewTab: () => void
 }
 
 function noteLabel(p: string): string {
@@ -74,7 +80,7 @@ export function TabBar({
   dirtyTabId,
   onActivate,
   onClose,
-  onNewBrowserTab,
+  onNewTab,
 }: Props) {
   const barRef = useRef<HTMLDivElement>(null)
   useHorizontalWheelScroll(barRef)
@@ -88,7 +94,8 @@ export function TabBar({
       const target = tabs[idx]
       const others = tabs.filter((t) => t.id !== tabId)
       const toRight = tabs.slice(idx + 1)
-      const revealPath = target.type === 'browser' ? null : target.path
+      const revealPath =
+        target.type === 'browser' || target.type === 'empty' ? null : target.path
       const items: MenuItemSpec[] = [
         { kind: 'item', id: 'close', label: 'Close' },
         { kind: 'item', id: 'closeOthers', label: 'Close Others', enabled: others.length > 0 },
@@ -124,14 +131,17 @@ export function TabBar({
     <div className="tab-bar" ref={barRef}>
       {tabs.map((t) => {
         const active = t.id === activeId
-        const kind: 'note' | 'browser' | 'image' | 'pdf' | 'docx' = t.type
+        const kind: 'note' | 'browser' | 'image' | 'pdf' | 'docx' | 'empty' = t.type
         const label =
           t.type === 'browser'
             ? browserLabel(t)
             : t.type === 'note'
               ? noteLabel(t.path)
-              : basename(t.path)
-        const tooltip = t.type === 'browser' ? t.url : t.path
+              : t.type === 'empty'
+                ? t.title
+                : basename(t.path)
+        const tooltip =
+          t.type === 'browser' ? t.url : t.type === 'empty' ? undefined : t.path
         return (
           <div
             key={t.id}
@@ -175,9 +185,9 @@ export function TabBar({
       <button
         type="button"
         className="tab-new"
-        onClick={onNewBrowserTab}
-        title="New browser tab (⌘T)"
-        aria-label="New browser tab"
+        onClick={onNewTab}
+        title="New tab"
+        aria-label="New tab"
       >
         <Icon name="add"/>
       </button>
@@ -189,6 +199,9 @@ function TabIcon({ tab, loading }: { tab: Tab; loading: boolean }) {
   if (tab.type === 'browser') {
     if (loading) return <span className="tab-icon spinner" aria-hidden />
     return <Icon name="globe" className="tab-icon" size={12} />
+  }
+  if (tab.type === 'empty') {
+    return <Icon name="add" className="tab-icon" size={12} />
   }
   // note & image both have a path → use file-type icon based on extension
   return <Icon name={fileIconFor(basename(tab.path))} className="tab-icon" size={12} />
