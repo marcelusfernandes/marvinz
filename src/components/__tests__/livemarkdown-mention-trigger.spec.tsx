@@ -108,7 +108,38 @@ const fakeCtx = {
     }
   }),
   get: vi.fn((key: symbol) => {
-    if (key === PARSER_CTX) return (_md: string) => null
+    if (key === PARSER_CTX) return (md: string) => {
+      // Simulate the Milkdown parser: if the markdown contains a wikilink: href,
+      // return a fake PM node whose first text child carries a link mark.
+      const match = md.match(/\[([^\]]+)\]\(wikilink:([^)]+)\)/)
+      if (match) {
+        const linkMark = { type: { name: 'link' }, attrs: { href: `wikilink:${match[2]}` } }
+        return {
+          childCount: 1,
+          firstChild: {
+            isTextblock: true,
+            childCount: 1,
+            firstChild: {
+              isText: true,
+              text: match[1],
+              marks: [linkMark],
+            },
+            content: {
+              size: match[1].length,
+              firstChild: {
+                isText: true,
+                text: match[1],
+                marks: [linkMark],
+              },
+            },
+            // copy() needed by PM inline-merge path
+            copy: (content: unknown) => ({ content, childCount: 1, firstChild: content }),
+          },
+          content: { size: match[1].length + 2 },
+        }
+      }
+      return null
+    }
     if (key === LISTENER_CTX) return { markdownUpdated: vi.fn() }
     if (key === EDITOR_VIEW_CTX) return fakeView
     return undefined
@@ -190,7 +221,8 @@ vi.mock('../../lib/pmJustInsertedHighlight', () => ({
   justInsertedPluginKey: {},
 }))
 vi.mock('../../lib/wikilinks', () => ({
-  parseWikilinks: (s: string) => s,
+  // Returns the commonmark link form that Milkdown's parser would receive.
+  parseWikilinks: (s: string) => s.replace(/\[\[([^\]]+)\]\]/g, '[$1](wikilink:$1)'),
   unparseWikilinks: (s: string) => s,
   stripMdExt: (name: string) => name.replace(/\.md$/, ''),
 }))
@@ -333,10 +365,27 @@ describe('LiveMarkdown — @-mention trigger integration', () => {
     // dispatch should have been called with a transaction containing replaceWith
     expect(fakeView.dispatch).toHaveBeenCalled()
     const dispatchedTr = fakeView.dispatch.mock.calls[0]?.[0] as {
-      _replaceWiths: Array<{ from: number; to: number; content: { text: string } }>
+      _replaceWiths: Array<{ from: number; to: number; content: unknown }>
     }
     expect(dispatchedTr._replaceWiths).toHaveLength(1)
-    expect(dispatchedTr._replaceWiths[0].content).toMatchObject({ text: '[[My Note]]' })
+
+    // REGRESSION ASSERTION: the inserted content must NOT be plain text `[[My Note]]`.
+    // handleMentionSelect must go through the Milkdown parser (parserCtx) so that
+    // the inserted node carries a `link` mark with href `wikilink:My Note`.
+    const inserted = dispatchedTr._replaceWiths[0].content as {
+      text?: string
+      marks?: Array<{ type: { name: string }; attrs: { href: string } }>
+    }
+    // Must NOT be a plain-text node with the literal wikilink syntax.
+    expect(inserted.text).not.toBe('[[My Note]]')
+    // Must be a node whose marks include a `link` mark with a wikilink: href.
+    expect(inserted.marks).toBeDefined()
+    expect(inserted.marks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ type: { name: 'link' }, attrs: expect.objectContaining({ href: 'wikilink:My Note' }) }),
+      ]),
+    )
+
     // Picker should be gone after selection
     expect(document.body.querySelector('.mention-picker')).toBeFalsy()
   })

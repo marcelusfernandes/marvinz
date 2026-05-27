@@ -543,10 +543,13 @@ function LiveMarkdownInner({
     [paletteItems],
   )
 
-  // Mention selection: replace the `@`+query span with `[[name]]`. We use
-  // the current selection head as the upper bound because the user may
-  // have typed beyond what onUpdate last reported (PM state lags React
-  // state by one render tick). Clearing `mention` tears the picker down.
+  // Mention selection: replace the `@`+query span with a parsed wikilink
+  // node so it renders as a link, not literal `[[Name]]` text. The markdown
+  // is run through `parseWikilinks` → Milkdown's commonmark parser to produce
+  // an inline text node carrying the `link` mark with the `wikilink:` href
+  // (mirrors `insertMarkdownAt` above). We use the current selection head as
+  // the upper bound because the user may have typed beyond what onUpdate last
+  // reported (PM state lags React state by one render tick).
   const handleMentionSelect = useCallback(
     (item: PaletteItem) => {
       const editor = editorInfo.get()
@@ -563,14 +566,27 @@ function LiveMarkdownInner({
       }
       const to = view.state.selection.from
       // Obsidian-style wikilinks omit the `.md` extension: `[[My Note]]`.
-      const insertText = `[[${stripMdExt(item.name)}]]`
-      const tr = view.state.tr.replaceWith(
-        mention.from,
-        to,
-        view.state.schema.text(insertText),
-      )
-      const cursorPos = mention.from + insertText.length
+      const name = stripMdExt(item.name)
+      const wikiMarkdown = parseWikilinks(`[[${name}]]`)
+      let parsed: PMNode | null
+      try {
+        parsed = editor.ctx.get(parserCtx)(wikiMarkdown)
+      } catch {
+        parsed = null
+      }
+      // Parser produced a single paragraph holding the linked inline text —
+      // pull out the text node so `replaceWith` inserts a node carrying the
+      // link mark instead of a plain string.
+      const inlineNode = parsed?.firstChild?.firstChild
+      if (!inlineNode) {
+        setMention(null)
+        return
+      }
+      const tr = view.state.tr.replaceWith(mention.from, to, inlineNode)
+      const cursorPos = mention.from + inlineNode.nodeSize
       tr.setSelection(TextSelection.near(tr.doc.resolve(cursorPos)))
+      // Strip stored marks so the next keystroke isn't part of the link.
+      tr.setStoredMarks([])
       view.dispatch(tr)
       setMention(null)
       view.focus()
