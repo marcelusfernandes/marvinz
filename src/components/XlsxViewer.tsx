@@ -18,6 +18,16 @@ function padRows(rows: string[][]): string[][] {
   )
 }
 
+function columnLabel(idx: number): string {
+  let n = idx
+  let out = ''
+  while (n >= 0) {
+    out = String.fromCharCode((n % 26) + 65) + out
+    n = Math.floor(n / 26) - 1
+  }
+  return out
+}
+
 export function XlsxViewer({ path, onRevealInFinder }: Props) {
   const [originalRows, setOriginalRows] = useState<string[][]>([])
   const [rows, setRows] = useState<string[][]>([])
@@ -70,8 +80,7 @@ export function XlsxViewer({ path, onRevealInFinder }: Props) {
 
   const handleSheetClick = useCallback(
     (name: string) => {
-      if (name === activeSheet) return
-      if (dirty) return // block tab switch with unsaved edits
+      if (name === activeSheet || dirty) return
       loadSheet(name)
     },
     [activeSheet, dirty, loadSheet],
@@ -111,6 +120,10 @@ export function XlsxViewer({ path, onRevealInFinder }: Props) {
     })
   }, [])
 
+  const cols = rows[0]?.length ?? 0
+  const headerRow = rows[0] ?? []
+  const dataRows = rows.slice(1)
+
   if (loading) {
     return (
       <div className="xlsx-viewer">
@@ -135,8 +148,7 @@ export function XlsxViewer({ path, onRevealInFinder }: Props) {
     )
   }
 
-  const headerRow = rows[0] ?? []
-  const dataRows = rows.slice(1)
+  const contentCls = `xlsx-viewer-grid-host xlsx-viewer-content${editMode ? ' xlsx-viewer-edit' : ''}`
 
   return (
     <div className="xlsx-viewer">
@@ -156,6 +168,7 @@ export function XlsxViewer({ path, onRevealInFinder }: Props) {
               <button
                 type="button"
                 title="Save changes to .xlsx"
+                className="xlsx-viewer-action xlsx-viewer-action-primary"
                 onClick={handleSave}
                 disabled={saving || !dirty}
               >
@@ -164,6 +177,7 @@ export function XlsxViewer({ path, onRevealInFinder }: Props) {
               <button
                 type="button"
                 title="Discard changes"
+                className="xlsx-viewer-action"
                 onClick={discardChanges}
                 disabled={saving}
               >
@@ -172,7 +186,12 @@ export function XlsxViewer({ path, onRevealInFinder }: Props) {
             </>
           ) : (
             <>
-              <button type="button" title="Edit spreadsheet" onClick={enterEditMode}>
+              <button
+                type="button"
+                title="Edit spreadsheet"
+                className="xlsx-viewer-action"
+                onClick={enterEditMode}
+              >
                 <Icon name="edit" size={14} />
                 Edit
               </button>
@@ -180,6 +199,7 @@ export function XlsxViewer({ path, onRevealInFinder }: Props) {
                 <button
                   type="button"
                   title="Reveal in Finder"
+                  className="xlsx-viewer-action"
                   onClick={() => onRevealInFinder(path)}
                 >
                   Reveal in Finder
@@ -226,20 +246,36 @@ export function XlsxViewer({ path, onRevealInFinder }: Props) {
         </div>
       )}
 
-      <div className={`xlsx-viewer-content${editMode ? ' xlsx-viewer-edit' : ''}`}>
+      <div className={contentCls}>
         <table className="xlsx-viewer-grid">
           <thead>
+            {/* Column letter header row */}
             <tr>
+              <th className="xlsx-viewer-corner" aria-hidden="true" />
+              {Array.from({ length: cols }).map((_, c) => (
+                <th key={c} className="xlsx-viewer-colhead" scope="col">
+                  {columnLabel(c)}
+                </th>
+              ))}
+            </tr>
+            {/* First data row as header */}
+            <tr>
+              <th className="xlsx-viewer-rowhead" scope="row" aria-hidden="true">
+                1
+              </th>
               {headerRow.map((cell, ci) =>
                 editMode ? (
-                  <th key={ci}>
+                  <th key={ci} className="xlsx-viewer-cell xlsx-viewer-cell-header">
                     <input
+                      className="xlsx-viewer-cell-input"
                       value={cell}
                       onChange={(e) => handleCellChange(0, ci, e.target.value)}
                     />
                   </th>
                 ) : (
-                  <th key={ci}>{cell}</th>
+                  <th key={ci} className="xlsx-viewer-cell xlsx-viewer-cell-header" scope="col">
+                    {cell}
+                  </th>
                 ),
               )}
             </tr>
@@ -247,16 +283,22 @@ export function XlsxViewer({ path, onRevealInFinder }: Props) {
           <tbody>
             {dataRows.map((row, ri) => (
               <tr key={ri}>
+                <th className="xlsx-viewer-rowhead" scope="row" aria-hidden="true">
+                  {ri + 2}
+                </th>
                 {row.map((cell, ci) =>
                   editMode ? (
-                    <td key={ci}>
+                    <td key={ci} className="xlsx-viewer-cell xlsx-viewer-cell-editing">
                       <input
+                        className="xlsx-viewer-cell-input"
                         value={cell}
                         onChange={(e) => handleCellChange(ri + 1, ci, e.target.value)}
                       />
                     </td>
                   ) : (
-                    <td key={ci}>{cell}</td>
+                    <td key={ci} className="xlsx-viewer-cell">
+                      <span className="xlsx-viewer-cell-value">{cell}</span>
+                    </td>
                   ),
                 )}
               </tr>
