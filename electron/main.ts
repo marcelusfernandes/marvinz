@@ -657,6 +657,56 @@ ipcMain.handle('office:writeDocx', async (_e, filePath: string, plainText: strin
   await fs.writeFile(safe, buf)
 })
 
+ipcMain.handle('office:readXlsx', async (_e, filePath: string, sheetName?: string) => {
+  const XLSX = await import('xlsx')
+  const safe = await assertInVault(filePath)
+  const stats = await fs.stat(safe)
+  if (stats.size > 25 * 1024 * 1024) throw new Error(`MARVIN_TOO_LARGE: ${stats.size}`)
+  const buf = await fs.readFile(safe)
+  // cellFormula/cellHTML disabled to reduce parser attack surface (SheetJS CVEs)
+  const wb = XLSX.read(buf, { type: 'buffer', cellFormula: false, cellHTML: false })
+  const sheetNames = wb.SheetNames
+  const targetSheet = sheetName && sheetNames.includes(sheetName) ? sheetName : sheetNames[0]
+  const sheet = wb.Sheets[targetSheet]
+  const rows = XLSX.utils.sheet_to_json<string[]>(sheet, { header: 1 })
+  return { rows, sheetNames }
+})
+
+const XLSX_SHEET_NAME_RE = /[\[\]:*?/\\]/
+
+ipcMain.handle('office:writeXlsx', async (_e, filePath: string, rows: unknown, sheetName: unknown) => {
+  if (
+    !Array.isArray(rows) ||
+    !rows.every(
+      (r) =>
+        Array.isArray(r) &&
+        r.every((c) => typeof c === 'string' || typeof c === 'number' || c == null),
+    )
+  ) {
+    throw new Error('MARVIN_INVALID_ROWS')
+  }
+  if (
+    typeof sheetName !== 'string' ||
+    sheetName.length === 0 ||
+    sheetName.length > 31 ||
+    XLSX_SHEET_NAME_RE.test(sheetName)
+  ) {
+    throw new Error('MARVIN_INVALID_SHEET_NAME')
+  }
+  let totalCells = 0
+  for (const r of rows as unknown[][]) {
+    totalCells += r.length
+    if (totalCells > 1_000_000) throw new Error('MARVIN_TOO_LARGE')
+  }
+  const XLSX = await import('xlsx')
+  const safe = await assertInVault(filePath)
+  const ws = XLSX.utils.aoa_to_sheet(rows as string[][])
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, sheetName)
+  const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }) as Buffer
+  await fs.writeFile(safe, buf)
+})
+
 ipcMain.handle('file:create', async (_e, parentDir: string, name: string) => {
   const safeName = name.endsWith('.md') ? name : `${name}.md`
   const full = path.join(parentDir, safeName)

@@ -1482,6 +1482,281 @@ button {
   box-shadow: var(--focus-ring-inset);
 }
 
+/* === XlsxViewer === */
+
+.xlsx-viewer {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--surface-1);
+}
+
+.xlsx-viewer-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-2) var(--space-4);
+  border-bottom: 1px solid var(--border);
+  height: 38px;
+  flex-shrink: 0;
+  font-size: var(--font-size-md);
+  color: var(--text-secondary);
+  gap: var(--space-3);
+}
+
+.xlsx-viewer-name {
+  font-weight: var(--font-weight-medium);
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.xlsx-viewer-dirty {
+  color: var(--text-secondary);
+  margin-left: var(--space-1);
+}
+
+.xlsx-viewer-dirty-text {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.xlsx-viewer-sheets {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-4);
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border-subtle);
+  overflow-x: auto;
+  flex-shrink: 0;
+}
+
+.xlsx-viewer-sheet {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-md);
+  background: transparent;
+  border: 1px solid transparent;
+  white-space: nowrap;
+  transition: background var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+}
+
+.xlsx-viewer-sheet:hover:not(.xlsx-viewer-sheet-active):not([aria-disabled='true']) {
+  color: var(--text-primary);
+  background: var(--surface-3);
+}
+
+.xlsx-viewer-sheet[aria-disabled='true'] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.xlsx-viewer-sheet-active {
+  color: var(--text-primary);
+  background: var(--surface-1);
+  border-color: var(--border);
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+
+.xlsx-viewer-sheet:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+
+.xlsx-viewer-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  background: var(--bg-error-subtle);
+  color: var(--text-error);
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: var(--font-size-sm);
+  flex-shrink: 0;
+}
+
+.xlsx-viewer-grid-host {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  background: var(--surface-1);
+}
+
+.xlsx-viewer-grid {
+  border-collapse: separate;
+  border-spacing: 0;
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-md);
+  color: var(--text-primary);
+  width: max-content;
+  min-width: 100%;
+}
+
+.xlsx-viewer-corner,
+.xlsx-viewer-colhead,
+.xlsx-viewer-rowhead {
+  background: var(--surface-2);
+  color: var(--text-secondary);
+  font-weight: var(--font-weight-medium);
+  font-size: var(--font-size-sm);
+  text-align: center;
+  border-right: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--border-subtle);
+  position: sticky;
+  user-select: none;
+}
+
+.xlsx-viewer-corner,
+.xlsx-viewer-colhead {
+  top: 0;
+  z-index: 2;
+}
+
+.xlsx-viewer-rowhead {
+  left: 0;
+  z-index: 1;
+  min-width: 44px;
+  padding: var(--space-2);
+}
+
+.xlsx-viewer-corner {
+  left: 0;
+  z-index: 3;
+  min-width: 44px;
+}
+
+.xlsx-viewer-colhead {
+  padding: var(--space-2) var(--space-3);
+  min-width: 96px;
+}
+
+.xlsx-viewer-cell {
+  border-right: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--border-subtle);
+  padding: 0;
+  min-width: 96px;
+  max-width: 320px;
+  height: 28px;
+  vertical-align: middle;
+  cursor: cell;
+  background: var(--surface-1);
+}
+
+.xlsx-viewer-cell:hover {
+  background: var(--bg-hover);
+}
+
+.xlsx-viewer-cell-editing {
+  padding: 0;
+  background: var(--surface-1);
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+.xlsx-viewer-cell-value {
+  display: block;
+  padding: var(--space-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.xlsx-viewer-cell-input {
+  width: 100%;
+  height: 100%;
+  padding: var(--space-2);
+  border: none;
+  outline: none;
+  background: transparent;
+  font-family: inherit;
+  font-size: inherit;
+  color: var(--text-primary);
+}
+
+.xlsx-viewer-empty {
+  padding: var(--space-6);
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: var(--font-size-md);
+}
+
+.xlsx-viewer-status {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-6);
+  font-size: var(--font-size-md);
+  color: var(--text-secondary);
+}
+
+.xlsx-viewer-error-card {
+  margin: var(--space-4);
+  padding: var(--space-4);
+  border: 1px solid var(--border-error);
+  background: var(--bg-error-subtle);
+  color: var(--text-error);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-md);
+}
+
+.xlsx-viewer-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  border-top: 1px solid var(--border);
+  background: var(--surface-1);
+  flex-shrink: 0;
+  height: 44px;
+}
+
+.xlsx-viewer-save-error {
+  font-size: var(--font-size-sm);
+  color: var(--text-error);
+  margin-right: auto;
+}
+
+.xlsx-viewer-action {
+  font-size: var(--font-size-sm);
+  color: var(--text-tertiary);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  transition: background var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+}
+
+.xlsx-viewer-action:hover:not(:disabled) {
+  color: var(--text-primary);
+  background: var(--surface-3);
+}
+
+.xlsx-viewer-action:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.xlsx-viewer-action:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+
+.xlsx-viewer-action-primary {
+  color: var(--text-primary);
+  background: var(--accent-bg);
+  border-color: var(--border-strong);
+}
+
 /* === Editor / browser stack (everything below the tab bar) === */
 
 .editor-stack {
