@@ -4,6 +4,8 @@ import type { IconName } from './Icon'
 type Props = {
   onOpenBrowser: () => void
   onCreateNote: () => void
+  /** Disables the "Nova nota" card when there is no vault open. */
+  isVaultOpen?: boolean
 }
 
 type Card = {
@@ -12,9 +14,10 @@ type Card = {
   title: string
   description: string
   onClick: () => void
+  disabled?: boolean
 }
 
-export function EmptyTab({ onOpenBrowser, onCreateNote }: Props) {
+export function EmptyTab({ onOpenBrowser, onCreateNote, isVaultOpen = true }: Props) {
   const cards: Card[] = [
     {
       id: 'browser',
@@ -27,8 +30,9 @@ export function EmptyTab({ onOpenBrowser, onCreateNote }: Props) {
       id: 'note',
       icon: 'new-file',
       title: 'Nova nota',
-      description: 'Criar nota markdown',
+      description: isVaultOpen ? 'Criar nota markdown' : 'Abra um vault primeiro',
       onClick: onCreateNote,
+      disabled: !isVaultOpen,
     },
   ]
 
@@ -41,6 +45,7 @@ export function EmptyTab({ onOpenBrowser, onCreateNote }: Props) {
             type="button"
             className="empty-tab-card"
             onClick={card.onClick}
+            disabled={card.disabled}
             data-card={card.id}
           >
             <Icon name={card.icon} size={24} className="empty-tab-card-icon" />

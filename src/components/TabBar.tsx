@@ -3,6 +3,7 @@ import { useHorizontalWheelScroll } from '../lib/useHorizontalWheelScroll'
 import { Icon } from './Icon'
 import { fileIconFor } from '../lib/fileIcons'
 import type { MenuItemSpec } from '../types'
+import type { EmptyTab } from '../App'
 
 type NoteTab = {
   type: 'note'
@@ -34,12 +35,6 @@ type DocxTab = {
   type: 'docx'
   id: string
   path: string
-}
-
-type EmptyTab = {
-  type: 'empty'
-  id: string
-  title: string
 }
 
 type Tab = NoteTab | BrowserTab | ImageTab | PdfTab | DocxTab | EmptyTab

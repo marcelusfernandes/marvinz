@@ -121,13 +121,15 @@ type DocxTab = {
   path: string
 }
 
-type EmptyTab = {
+export type EmptyTab = {
   type: 'empty'
   id: string
   title: string
 }
 
 type Tab = NoteTab | BrowserTabState | ImageTab | PdfTab | DocxTab | EmptyTab
+
+const DEFAULT_BROWSER_URL = 'https://www.google.com'
 
 const isNoteTab = (t: Tab): t is NoteTab => t.type === 'note'
 const isBrowserTab = (t: Tab): t is BrowserTabState => t.type === 'browser'
@@ -950,7 +952,7 @@ export default function App() {
 
   const openNewBrowserTab = useCallback(() => {
     const id = newTabId()
-    const url = 'https://www.google.com'
+    const url = DEFAULT_BROWSER_URL
     setTabs((prev) => [
       ...prev,
       {
@@ -977,7 +979,7 @@ export default function App() {
   }, [])
 
   const convertEmptyToBrowser = useCallback((emptyTabId: string) => {
-    const url = 'https://www.google.com'
+    const url = DEFAULT_BROWSER_URL
     setTabs((prev) =>
       prev.map((t) =>
         isEmptyTab(t) && t.id === emptyTabId
@@ -1814,6 +1816,7 @@ export default function App() {
               key={activeTab.id}
               onOpenBrowser={() => convertEmptyToBrowser(activeTab.id)}
               onCreateNote={() => startNoteFromEmpty(activeTab.id)}
+              isVaultOpen={!!vaultPath}
             />
           )}
           {!activeTab && (

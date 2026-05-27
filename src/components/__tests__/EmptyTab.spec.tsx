@@ -117,25 +117,22 @@ describe('EmptyTab — keyboard accessibility', () => {
 // Disabled cards — Arquivos and Revisão are not interactive
 // ---------------------------------------------------------------------------
 
-describe('EmptyTab — disabled cards', () => {
-  it('Arquivos card is marked disabled or aria-disabled', () => {
-    renderEmptyTab()
-    const card = screen.queryByText('Arquivos')?.closest('[role="button"], button, [aria-disabled]')
-    if (!card) return // card may be hidden — skip assertion if not rendered
-    const isDisabled =
-      card.getAttribute('aria-disabled') === 'true' ||
-      (card as HTMLButtonElement).disabled === true
-    expect(isDisabled).toBe(true)
+describe('EmptyTab — disabled cards (sibling sub-issue #307)', () => {
+  // Arquivos + Revisão cards aren't rendered in this sub-issue. When #307 lands
+  // them as disabled placeholders, replace these `.todo`s with real assertions.
+  it.todo('Arquivos card is marked disabled or aria-disabled')
+  it.todo('Revisão card is marked disabled or aria-disabled')
+
+  it('Nova nota card is disabled when isVaultOpen is false', () => {
+    render(<EmptyTab onOpenBrowser={vi.fn()} onCreateNote={vi.fn()} isVaultOpen={false} />)
+    const card = screen.getByText('Nova nota').closest('button') as HTMLButtonElement
+    expect(card.disabled).toBe(true)
   })
 
-  it('Revisão card is marked disabled or aria-disabled', () => {
+  it('Nova nota card is enabled by default (vault assumed open)', () => {
     renderEmptyTab()
-    const card = screen.queryByText('Revisão')?.closest('[role="button"], button, [aria-disabled]')
-    if (!card) return // card may be hidden — skip assertion if not rendered
-    const isDisabled =
-      card.getAttribute('aria-disabled') === 'true' ||
-      (card as HTMLButtonElement).disabled === true
-    expect(isDisabled).toBe(true)
+    const card = screen.getByText('Nova nota').closest('button') as HTMLButtonElement
+    expect(card.disabled).toBe(false)
   })
 })
 
