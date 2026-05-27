@@ -668,7 +668,8 @@ ipcMain.handle('office:readXlsx', async (_e, filePath: string, sheetName?: strin
   const sheetNames = wb.SheetNames
   const targetSheet = sheetName && sheetNames.includes(sheetName) ? sheetName : sheetNames[0]
   const sheet = wb.Sheets[targetSheet]
-  const rows = XLSX.utils.sheet_to_json<string[]>(sheet, { header: 1 })
+  const raw = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1 })
+  const rows = raw.map((r) => (r as unknown[]).map((c) => (c == null ? '' : String(c))))
   return { rows, sheetNames }
 })
 

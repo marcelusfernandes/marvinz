@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Icon } from './Icon'
 
 type Props = {
@@ -28,38 +28,53 @@ export function XlsxViewer({ path, onRevealInFinder }: Props) {
   const [saveError, setSaveError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [editMode, setEditMode] = useState(false)
+  const loadTokenRef = useRef(0)
+
+  const loadSheet = useCallback(
+    (sheetName?: string) => {
+      const token = ++loadTokenRef.current
+      setLoading(true)
+      setReadError(null)
+      setSaveError(null)
+      window.marvin.office
+        .readXlsx(path, sheetName)
+        .then((res) => {
+          if (loadTokenRef.current !== token) return
+          const normalized = padRows(res.rows)
+          setOriginalRows(normalized)
+          setRows(normalized)
+          setSheetNames(res.sheetNames)
+          setActiveSheet(sheetName ?? res.sheetNames[0] ?? '')
+        })
+        .catch((err: unknown) => {
+          if (loadTokenRef.current !== token) return
+          setReadError(err instanceof Error ? err.message : String(err))
+        })
+        .finally(() => {
+          if (loadTokenRef.current === token) setLoading(false)
+        })
+    },
+    [path],
+  )
 
   useEffect(() => {
-    let cancelled = false
-    setLoading(true)
-    setReadError(null)
-    setSaveError(null)
     setEditMode(false)
-    window.marvin.office
-      .readXlsx(path)
-      .then((res) => {
-        if (cancelled) return
-        const normalized = padRows(res.rows.map((r) => r.map(String)))
-        setOriginalRows(normalized)
-        setRows(normalized)
-        setSheetNames(res.sheetNames)
-        setActiveSheet(res.sheetNames[0] ?? '')
-      })
-      .catch((err: unknown) => {
-        if (cancelled) return
-        setReadError(err instanceof Error ? err.message : String(err))
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false)
-      })
-    return () => {
-      cancelled = true
-    }
+    loadSheet()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [path])
 
   const dirty = useMemo(
     () => JSON.stringify(rows) !== JSON.stringify(originalRows),
     [rows, originalRows],
+  )
+
+  const handleSheetClick = useCallback(
+    (name: string) => {
+      if (name === activeSheet) return
+      if (dirty) return // block tab switch with unsaved edits
+      loadSheet(name)
+    },
+    [activeSheet, dirty, loadSheet],
   )
 
   const enterEditMode = useCallback(() => {
@@ -177,21 +192,26 @@ export function XlsxViewer({ path, onRevealInFinder }: Props) {
 
       {sheetNames.length > 0 && (
         <div className="xlsx-viewer-sheets" role="tablist">
-          {sheetNames.map((name) => (
-            <button
-              key={name}
-              type="button"
-              role="tab"
-              aria-selected={name === activeSheet}
-              className={
-                'xlsx-viewer-sheet' + (name === activeSheet ? ' xlsx-viewer-sheet-active' : '')
-              }
-              onClick={() => setActiveSheet(name)}
-              title={name}
-            >
-              {name}
-            </button>
-          ))}
+          {sheetNames.map((name) => {
+            const isActive = name === activeSheet
+            const blocked = !isActive && dirty
+            return (
+              <button
+                key={name}
+                type="button"
+                role="tab"
+                aria-selected={isActive}
+                aria-disabled={blocked}
+                className={
+                  'xlsx-viewer-sheet' + (isActive ? ' xlsx-viewer-sheet-active' : '')
+                }
+                onClick={() => handleSheetClick(name)}
+                title={blocked ? 'Save or discard changes before switching sheets' : name}
+              >
+                {name}
+              </button>
+            )
+          })}
         </div>
       )}
 
