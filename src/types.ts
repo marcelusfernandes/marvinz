@@ -104,6 +104,8 @@ export type MarvinAPI = {
   office: {
     readDocx: (filePath: string) => Promise<{ html: string; messages: unknown[] }>
     writeDocx: (filePath: string, plainText: string) => Promise<void>
+    readXlsx: (filePath: string, sheetName?: string) => Promise<{ rows: string[][]; sheetNames: string[] }>
+    writeXlsx: (filePath: string, rows: string[][], sheetName: string) => Promise<void>
   }
   folder: {
     create: (parentDir: string, name: string) => Promise<string>

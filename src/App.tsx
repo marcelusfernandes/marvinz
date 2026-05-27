@@ -9,6 +9,7 @@ import { Splitter } from './components/Splitter'
 import { ImageViewer } from './components/ImageViewer'
 import { PdfViewer } from './components/PdfViewer'
 import { DocxViewer } from './components/DocxViewer'
+import { XlsxViewer } from './components/XlsxViewer'
 import { InputDialog } from './components/InputDialog'
 import { FileTreeToolbar } from './components/FileTreeToolbar'
 import { Icon } from './components/Icon'
@@ -121,13 +122,19 @@ type DocxTab = {
   path: string
 }
 
+type XlsxTab = {
+  type: 'xlsx'
+  id: string
+  path: string
+}
+
 export type EmptyTab = {
   type: 'empty'
   id: string
   title: string
 }
 
-type Tab = NoteTab | BrowserTabState | ImageTab | PdfTab | DocxTab | EmptyTab
+type Tab = NoteTab | BrowserTabState | ImageTab | PdfTab | DocxTab | XlsxTab | EmptyTab
 
 const DEFAULT_BROWSER_URL = 'https://www.google.com'
 
@@ -136,6 +143,7 @@ const isBrowserTab = (t: Tab): t is BrowserTabState => t.type === 'browser'
 const isImageTab = (t: Tab): t is ImageTab => t.type === 'image'
 const isPdfTab = (t: Tab): t is PdfTab => t.type === 'pdf'
 const isDocxTab = (t: Tab): t is DocxTab => t.type === 'docx'
+const isXlsxTab = (t: Tab): t is XlsxTab => t.type === 'xlsx'
 const isEmptyTab = (t: Tab): t is EmptyTab => t.type === 'empty'
 
 type Dialog =
@@ -161,6 +169,10 @@ function isPdfPath(p: string): boolean {
 
 function isDocxPath(p: string): boolean {
   return /\.docx$/i.test(p)
+}
+
+function isXlsxPath(p: string): boolean {
+  return /\.xlsx$/i.test(p)
 }
 
 function isHtmlPath(p: string): boolean {
@@ -649,7 +661,8 @@ export default function App() {
           (isNoteTab(t) && t.path === path) ||
           (isImageTab(t) && t.path === path) ||
           (isPdfTab(t) && t.path === path) ||
-          (isDocxTab(t) && t.path === path),
+          (isDocxTab(t) && t.path === path) ||
+          (isXlsxTab(t) && t.path === path),
       )
       if (existing) {
         setActiveTabId(existing.id)
@@ -672,6 +685,12 @@ export default function App() {
       if (isDocxPath(path)) {
         const id = newTabId()
         setTabs((prev) => [...prev, { type: 'docx', id, path }])
+        setActiveTabId(id)
+        return
+      }
+      if (isXlsxPath(path)) {
+        const id = newTabId()
+        setTabs((prev) => [...prev, { type: 'xlsx', id, path }])
         setActiveTabId(id)
         return
       }
@@ -1810,6 +1829,9 @@ export default function App() {
               path={activeTab.path}
               onRevealInFinder={(p) => void window.marvin.shell.reveal(p)}
             />
+          )}
+          {activeTab && isXlsxTab(activeTab) && (
+            <XlsxViewer path={activeTab.path} />
           )}
           {activeTab && isEmptyTab(activeTab) && (
             <EmptyTab

@@ -73,6 +73,10 @@ const api = {
       ipcRenderer.invoke('office:readDocx', filePath) as Promise<{ html: string; messages: unknown[] }>,
     writeDocx: (filePath: string, plainText: string) =>
       ipcRenderer.invoke('office:writeDocx', filePath, plainText) as Promise<void>,
+    readXlsx: (filePath: string, sheetName?: string) =>
+      ipcRenderer.invoke('office:readXlsx', filePath, sheetName) as Promise<{ rows: string[][]; sheetNames: string[] }>,
+    writeXlsx: (filePath: string, rows: string[][], sheetName: string) =>
+      ipcRenderer.invoke('office:writeXlsx', filePath, rows, sheetName) as Promise<void>,
   },
   folder: {
     create: (parentDir: string, name: string) =>
