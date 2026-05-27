@@ -31,10 +31,12 @@ import type { ImportToastState } from './ImportToast'
 import type { PaletteItem } from '../lib/paletteRanker'
 import {
   MARVIN_PATH_MIME,
+  MARVIN_PATHS_MIME,
   collectFiles,
   emitSummaryToast,
   internalDragMarkdown,
   persistDroppedFiles,
+  readDraggedPaths,
 } from '../lib/dropAttachments'
 import { isWikilinkHref, resolveWikilink, stripMdExt } from '../lib/wikilinks'
 import { Icon } from './Icon'
@@ -330,9 +332,12 @@ export function Editor({
     const handleInternalDrop = (
       view: EditorView,
       event: DragEvent,
-      absolutePath: string,
+      paths: string[],
     ): void => {
-      insertAt(view, event, internalDragMarkdown(filePath, absolutePath))
+      // Multi-drag: produce one markdown line per path and insert them all in
+      // a single dispatch so undo reverts the whole drop atomically.
+      const markdown = paths.map((p) => internalDragMarkdown(filePath, p)).join('\n')
+      insertAt(view, event, markdown)
     }
 
     const handleExternalDrop = async (
@@ -354,7 +359,12 @@ export function Editor({
     return EditorView.domEventHandlers({
       dragover(event) {
         const types = event.dataTransfer?.types ?? []
-        if (!types.includes('Files') && !types.includes(MARVIN_PATH_MIME)) return false
+        if (
+          !types.includes('Files') &&
+          !types.includes(MARVIN_PATH_MIME) &&
+          !types.includes(MARVIN_PATHS_MIME)
+        )
+          return false
         event.preventDefault()
         // 'move' suppresses the macOS green-plus copy badge while staying
         // compatible with the file tree's effectAllowed.
@@ -364,12 +374,12 @@ export function Editor({
       drop(event, view) {
         const dt = event.dataTransfer
         if (!dt) return false
-        const internalPath = dt.getData(MARVIN_PATH_MIME)
+        const internalPaths = readDraggedPaths(dt)
         const files = collectFiles(dt)
-        if (internalPath) {
+        if (internalPaths.length > 0) {
           event.preventDefault()
           event.stopPropagation()
-          handleInternalDrop(view, event, internalPath)
+          handleInternalDrop(view, event, internalPaths)
           return true
         }
         if (files.length > 0) {

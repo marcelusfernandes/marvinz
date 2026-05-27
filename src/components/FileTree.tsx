@@ -8,19 +8,27 @@ import { MaterialIcon } from './MaterialIcon'
 import { fileIconFor } from '../lib/fileIcons'
 import { useSetting } from '../lib/settingsStore'
 import { toMarvinUrl } from '../lib/marvinUrl'
+import { MARVIN_PATHS_MIME } from '../lib/dropAttachments'
 
 const IMAGE_EXT_RE = /\.(png|jpe?g|gif|svg|webp|avif|bmp|ico|heic|heif)$/i
 
 // Build a compact drag ghost so the preview shown while dragging isn't the
 // full file-tree row. Images get a small thumbnail (relies on the marvin://
 // URL being cached if previously rendered); everything else gets a small
-// chip with just the file name. Wrapped in a spacer so the visible content
-// sits slightly below the pointer instead of crowding it.
-function buildDragGhost(name: string, absolutePath: string): HTMLElement {
+// chip with just the file name. When `count > 1`, the ghost shows an
+// "N items" chip instead so the user sees how many paths are attached to
+// the gesture. Wrapped in a spacer so the visible content sits slightly
+// below the pointer instead of crowding it.
+function buildDragGhost(name: string, absolutePath: string, count = 1): HTMLElement {
   const wrapper = document.createElement('div')
   wrapper.className = 'file-tree-drag-ghost'
   let body: HTMLElement
-  if (IMAGE_EXT_RE.test(name)) {
+  if (count > 1) {
+    const chip = document.createElement('div')
+    chip.className = 'file-tree-drag-chip'
+    chip.textContent = `${count} items`
+    body = chip
+  } else if (IMAGE_EXT_RE.test(name)) {
     const img = document.createElement('img')
     img.src = toMarvinUrl(absolutePath)
     img.className = 'file-tree-drag-thumb'
@@ -430,15 +438,28 @@ function FileTreeNodeImpl({
   const padding = 8 + depth * 14
 
   const handleDragStart = (e: React.DragEvent) => {
-    e.dataTransfer.setData(DRAG_MIME, node.path)
-    e.dataTransfer.setData('text/plain', node.path) // fallback
+    // When the dragged item is part of a multi-selection, ship the entire
+    // selection in the plural MIME (JSON-encoded) so drop handlers can
+    // insert one reference per path. Dragging an item that isn't selected
+    // keeps the singular-MIME behavior intact (compat retro). Set insertion
+    // order is the click order — don't sort.
+    const isSelected = selectedPaths.has(node.path)
+    const paths = isSelected && selectedPaths.size > 1
+      ? Array.from(selectedPaths)
+      : [node.path]
+    if (paths.length > 1) {
+      e.dataTransfer.setData(MARVIN_PATHS_MIME, JSON.stringify(paths))
+    } else {
+      e.dataTransfer.setData(DRAG_MIME, node.path)
+    }
+    e.dataTransfer.setData('text/plain', paths.join('\n')) // fallback
     // 'copyMove' lets the editor accept this drag as a copy (insert link) while
     // the tree's own drop handlers still default to move (rearrange).
     e.dataTransfer.effectAllowed = 'copyMove'
     // Some test environments stub dataTransfer without setDragImage; guard
     // so the production path can use it without breaking unit tests.
     if (typeof e.dataTransfer.setDragImage === 'function') {
-      const ghost = buildDragGhost(node.name, node.path)
+      const ghost = buildDragGhost(node.name, node.path, paths.length)
       document.body.appendChild(ghost)
       // anchor: x ≈ 16px in from the left edge; y = 0 so the wrapper's top
       // sits at the pointer. The wrapper's top padding pushes the visible
