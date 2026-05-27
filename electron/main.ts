@@ -30,6 +30,7 @@ import {
 import type { AgentRequest, AgentEvent } from './agent/protocol.js'
 import { importExternal } from './fs-import-external.js'
 import { searchContent } from './search-content.js'
+import { killProcessTree } from './proc-group.js'
 
 process.env.APP_ROOT = path.join(__dirname, '..')
 
@@ -373,12 +374,48 @@ app.whenReady().then(() => {
   createWindow()
 })
 
-app.on('window-all-closed', () => {
-  for (const p of ptyProcesses.values()) p.kill()
+// Kill every long-lived child (pty shells + their trees, agent CLIs + their
+// grandchildren) and close the vault watcher. Returns the agent-kill promise so
+// callers can await the full SIGTERM→grace→SIGKILL sequence before exiting.
+// Tracked in `pendingTeardowns` so a quit triggered while a teardown is still
+// in flight (e.g. window closed then Cmd+Q) waits for it instead of cutting it
+// off and orphaning children.
+const pendingTeardowns = new Set<Promise<unknown>>()
+function teardownChildren(): Promise<void> {
+  for (const p of ptyProcesses.values()) killProcessTree(p.pid, 'SIGKILL')
   ptyProcesses.clear()
-  killAllAgents().catch(() => {})
   vaultWatcher?.close()
-  if (process.platform !== 'darwin') app.quit()
+  const done = killAllAgents()
+  pendingTeardowns.add(done)
+  done.finally(() => pendingTeardowns.delete(done))
+  return done
+}
+
+app.on('window-all-closed', () => {
+  if (process.platform === 'darwin') {
+    // App stays in the dock; the closed window's ptys/agents are now
+    // unreachable, so reap them. before-quit handles the real-quit path.
+    void teardownChildren()
+  } else {
+    app.quit()
+  }
+})
+
+// Authoritative teardown for every quit path (Cmd+Q, app.quit() from anywhere,
+// auto-update relaunch) — window-all-closed alone misses these and on macOS
+// never fires. Defer the quit until children are reaped, with a hard ceiling so
+// a stuck child can't block exit forever.
+let isQuitting = false
+app.on('before-quit', (event) => {
+  if (isQuitting) return
+  event.preventDefault()
+  isQuitting = true
+  const forceExit = setTimeout(() => app.exit(0), 5000)
+  void teardownChildren()
+  Promise.allSettled([...pendingTeardowns]).finally(() => {
+    clearTimeout(forceExit)
+    app.exit(0)
+  })
 })
 
 app.on('activate', () => {

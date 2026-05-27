@@ -16,6 +16,7 @@ import {
   cancelPendingApprovals,
 } from './permissions.js'
 import { createApprovalServer, type ApprovalServer } from './approval-socket.js'
+import { collectProcessTree, signalPids } from '../proc-group.js'
 import { newTurnId } from '../snapshot.js'
 import type { AgentEvent, AgentRequest, Provider, PermissionMode } from './protocol.js'
 
@@ -78,9 +79,14 @@ function waitForExit(proc: ChildProcess, timeoutMs: number): Promise<boolean> {
 }
 
 async function killAgent(child: AgentChild): Promise<void> {
-  child.proc.kill('SIGTERM')
-  const dead = await waitForExit(child.proc, SIGTERM_GRACE_MS)
-  if (!dead) child.proc.kill('SIGKILL')
+  // Capture the whole subtree up front (CLI + grandchildren — MCP servers,
+  // app-servers, sub-shells, which may live in their own process groups), then
+  // SIGTERM it, wait for the CLI to exit, and SIGKILL-sweep the captured set so
+  // nothing that ignored SIGTERM is left orphaned.
+  const tree = child.proc.pid != null ? collectProcessTree(child.proc.pid) : []
+  signalPids(tree, 'SIGTERM')
+  await waitForExit(child.proc, SIGTERM_GRACE_MS)
+  signalPids(tree, 'SIGKILL')
 }
 
 // Resolve the hook bridge script path.
@@ -455,9 +461,10 @@ export async function cancelAgent(sessionId: string): Promise<void> {
   const child = agentChildren.get(sessionId)
   if (!child) return
   cancelPendingApprovals([...child.pendingApprovalIds])
-  child.proc.kill('SIGINT')
-  const dead = await waitForExit(child.proc, SIGTERM_GRACE_MS)
-  if (!dead) child.proc.kill('SIGKILL')
+  const tree = child.proc.pid != null ? collectProcessTree(child.proc.pid) : []
+  signalPids(tree, 'SIGINT')
+  await waitForExit(child.proc, SIGTERM_GRACE_MS)
+  signalPids(tree, 'SIGKILL')
 }
 
 export async function killAgentSession(sessionId: string): Promise<void> {
