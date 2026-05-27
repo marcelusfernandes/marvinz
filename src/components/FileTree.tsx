@@ -44,20 +44,18 @@ export type CreatingIn = { parentDir: string; kind: 'file' | 'folder' }
 type Props = {
   nodes: FileNode[]
   vaultPath: string
-  selectedPath: string | null
-  selectedFolderPath?: string | null
+  selectedPaths: Set<string>
+  activeFilePath: string | null
   openPaths: Set<string>
   creatingIn?: CreatingIn | null
   onToggleOpen: (path: string) => void
   onSelect: (node: FileNode) => void
-  onSelectFolder?: (path: string | null) => void
   onCreatingInChange?: (value: CreatingIn | null) => void
   onContextMenu: (e: React.MouseEvent, node: FileNode) => void
   onMove: (srcPath: string, destDir: string) => void
   onImportResult?: (outcome: ImportOutcome) => void
 }
 
-const noopSelectFolder: (path: string | null) => void = () => {}
 const noopCreatingInChange: (value: CreatingIn | null) => void = () => {}
 
 const DRAG_MIME = 'application/x-marvin-path'
@@ -115,13 +113,12 @@ function buildVirtualRows(
 export function FileTree({
   nodes,
   vaultPath,
-  selectedPath,
-  selectedFolderPath = null,
+  selectedPaths,
+  activeFilePath,
   openPaths,
   creatingIn = null,
   onToggleOpen,
   onSelect,
-  onSelectFolder = noopSelectFolder,
   onCreatingInChange = noopCreatingInChange,
   onContextMenu,
   onMove,
@@ -264,9 +261,6 @@ export function FileTree({
       className={`file-tree${rootHover ? ' drop-root' : ''}`}
       role="tree"
       aria-label="File tree"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onSelectFolder(null)
-      }}
       onDragOverCapture={handleRootDragOverCapture}
       onDragOver={handleRootDragOver}
       onDragLeave={(e) => {
@@ -314,15 +308,14 @@ export function FileTree({
               key={item.node.path}
               item={item}
               style={style}
-              selectedPath={selectedPath}
-              selectedFolderPath={selectedFolderPath}
+              selectedPaths={selectedPaths}
+              activeFilePath={activeFilePath}
               openPaths={openPaths}
               creatingIn={creatingIn ?? null}
               hoveredPath={hoveredPath}
               iconTheme={iconTheme}
               onToggleOpen={onToggleOpen}
               onSelect={onSelect}
-              onSelectFolder={onSelectFolder}
               onCreatingInChange={onCreatingInChange}
               onContextMenu={onContextMenu}
               onMove={onMove}
@@ -339,15 +332,14 @@ export function FileTree({
 type FileTreeNodeProps = {
   item: FlatTreeItem
   style: React.CSSProperties
-  selectedPath: string | null
-  selectedFolderPath: string | null
+  selectedPaths: Set<string>
+  activeFilePath: string | null
   openPaths: Set<string>
   creatingIn: CreatingIn | null
   hoveredPath: string | null
   iconTheme: string
   onToggleOpen: (path: string) => void
   onSelect: (node: FileNode) => void
-  onSelectFolder: (path: string | null) => void
   onCreatingInChange: (value: CreatingIn | null) => void
   onContextMenu: (e: React.MouseEvent, node: FileNode) => void
   onMove: (srcPath: string, destDir: string) => void
@@ -356,7 +348,7 @@ type FileTreeNodeProps = {
 }
 
 // Custom equality for FileTreeNode. Compares DERIVED booleans for openPaths,
-// selectedPath, selectedFolderPath, hoveredPath, and creatingIn against this
+// selectedPaths, activeFilePath, hoveredPath, and creatingIn against this
 // node's own path — not the raw values. Raw comparison would invalidate every
 // node on any hover/toggle/select, cascading O(n) re-renders on every interaction
 // (the exact trap documented in issue #266; perf goal in issue #255).
@@ -378,11 +370,9 @@ function areEqual(prev: FileTreeNodeProps, next: FileTreeNodeProps): boolean {
   // Derived: isOpen
   if (prev.openPaths.has(prevPath) !== next.openPaths.has(nextPath)) return false
   // Derived: isSelected
-  if ((prev.selectedPath === prevPath) !== (next.selectedPath === nextPath)) return false
-  // Derived: isFolderSelected
-  const prevFolderSel = prev.item.node.isDir && prev.selectedFolderPath === prevPath
-  const nextFolderSel = next.item.node.isDir && next.selectedFolderPath === nextPath
-  if (prevFolderSel !== nextFolderSel) return false
+  if (prev.selectedPaths.has(prevPath) !== next.selectedPaths.has(nextPath)) return false
+  // Derived: isActiveFile
+  if ((prev.activeFilePath === prevPath) !== (next.activeFilePath === nextPath)) return false
   // Derived: isHovered
   if ((prev.hoveredPath === prevPath) !== (next.hoveredPath === nextPath)) return false
   // Derived: hosts the inline-create row (must also compare kind when host)
@@ -395,7 +385,6 @@ function areEqual(prev: FileTreeNodeProps, next: FileTreeNodeProps): boolean {
   // setState/setLocalState refs. Identity compare is sufficient.
   if (prev.onToggleOpen !== next.onToggleOpen) return false
   if (prev.onSelect !== next.onSelect) return false
-  if (prev.onSelectFolder !== next.onSelectFolder) return false
   if (prev.onCreatingInChange !== next.onCreatingInChange) return false
   if (prev.onContextMenu !== next.onContextMenu) return false
   if (prev.onMove !== next.onMove) return false
@@ -410,14 +399,13 @@ const FileTreeNode = memo(FileTreeNodeImpl, areEqual)
 function FileTreeNodeImpl({
   item,
   style,
-  selectedPath,
-  selectedFolderPath,
+  selectedPaths,
+  activeFilePath,
   openPaths,
   hoveredPath,
   iconTheme,
   onToggleOpen,
   onSelect,
-  onSelectFolder,
   onContextMenu,
   onMove,
   onHoverChange,
@@ -426,8 +414,8 @@ function FileTreeNodeImpl({
   const { node, depth, posinset, setsize } = item
   const open = openPaths.has(node.path)
   const hovered = hoveredPath === node.path
-  const isSelected = selectedPath === node.path
-  const isFolderSelected = node.isDir && selectedFolderPath === node.path
+  const isSelected = selectedPaths.has(node.path)
+  const isActiveFile = activeFilePath === node.path
   const padding = 8 + depth * 14
 
   const handleDragStart = (e: React.DragEvent) => {
@@ -501,7 +489,7 @@ function FileTreeNodeImpl({
       >
         <button
           type="button"
-          className={`file-tree-row dir${hovered ? ' drop-target' : ''}${isFolderSelected ? ' folder-selected' : ''}`}
+          className={`file-tree-row dir${hovered ? ' drop-target' : ''}${isSelected ? ' selected' : ''}`}
           style={{ paddingLeft: padding }}
           draggable
           onDragStart={handleDragStart}
@@ -509,7 +497,7 @@ function FileTreeNodeImpl({
           onDragLeave={() => onHoverChange(null)}
           onDrop={handleDrop}
           onClick={() => {
-            onSelectFolder(node.path)
+            onSelect(node)
             onToggleOpen(node.path)
           }}
           onContextMenu={(e) => onContextMenu(e, node)}
@@ -543,14 +531,14 @@ function FileTreeNodeImpl({
     <li
       role="treeitem"
       aria-level={depth + 1}
-      aria-selected={isSelected}
+      aria-selected={isSelected || isActiveFile}
       aria-posinset={posinset}
       aria-setsize={setsize}
       style={style}
     >
       <button
         type="button"
-        className={`file-tree-row file${isSelected ? ' selected' : ''}${md ? '' : ' non-md'}`}
+        className={`file-tree-row file${isSelected ? ' selected' : ''}${isActiveFile ? ' active-file' : ''}${md ? '' : ' non-md'}`}
         style={{ paddingLeft: padding + 20 }}
         draggable
         onDragStart={handleDragStart}
