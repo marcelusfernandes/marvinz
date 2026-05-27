@@ -707,8 +707,9 @@ button {
   color: var(--text-primary);
 }
 
-.file-tree-row.active-file {
-  box-shadow: inset 2px 0 0 var(--accent);
+.file-tree-row.active-file.file .name,
+.file-tree-row.active-file.file.non-md .name {
+  color: var(--accent);
 }
 
 .file-tree-row.inline-edit {
