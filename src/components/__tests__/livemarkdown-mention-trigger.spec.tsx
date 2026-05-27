@@ -135,6 +135,8 @@ const fakeCtx = {
             // copy() needed by PM inline-merge path
             copy: (content: unknown) => ({ content, childCount: 1, firstChild: content }),
           },
+          // +2 accounts for the paragraph wrapper's open + close tag tokens
+          // when computing PM positions (size = 1 open + text length + 1 close).
           content: { size: match[1].length + 2 },
         }
       }
@@ -388,6 +390,50 @@ describe('LiveMarkdown — @-mention trigger integration', () => {
 
     // Picker should be gone after selection
     expect(document.body.querySelector('.mention-picker')).toBeFalsy()
+  })
+
+  it('falls back to literal text + warns when parserCtx returns null', async () => {
+    const { fireEvent } = await import('@testing-library/react')
+    // Force the parser to return null for this test (simulates parser failure
+    // or unexpected commonmark output). Spy on console.warn so we can assert
+    // observability.
+    const originalGet = fakeCtx.get.getMockImplementation()
+    fakeCtx.get = vi.fn((key: symbol) => {
+      if (key === PARSER_CTX) return (_md: string) => null
+      return originalGet?.(key)
+    })
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    try {
+      render(<LiveMarkdown {...defaultProps()} />)
+      await act(async () => {
+        capturedMentionCallbacks.onOpen!(0, { x: 100, y: 200 })
+      })
+      const row = document.body.querySelector('button.mention-picker-row')
+      await act(async () => {
+        fireEvent.click(row!)
+      })
+
+      // Dispatch should still fire — the bail-out must not silently drop
+      // the user's selection.
+      expect(fakeView.dispatch).toHaveBeenCalled()
+      const tr = fakeView.dispatch.mock.calls[0]?.[0] as {
+        _replaceWiths: Array<{ content: { _kind: string; text?: string } }>
+      }
+      expect(tr._replaceWiths).toHaveLength(1)
+      // Fallback path inserts a literal text node carrying the wikilink syntax.
+      expect(tr._replaceWiths[0].content).toEqual({ _kind: 'text', text: '[[My Note]]' })
+      // Warn must fire so the failure is observable in prod logs.
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('parserCtx returned an unexpected shape'),
+        expect.any(Object),
+      )
+      expect(document.body.querySelector('.mention-picker')).toBeFalsy()
+    } finally {
+      warnSpy.mockRestore()
+      // Restore the original get implementation for subsequent tests.
+      if (originalGet) fakeCtx.get = vi.fn(originalGet)
+    }
   })
 
   it('dismisses picker on Escape without inserting text', async () => {
