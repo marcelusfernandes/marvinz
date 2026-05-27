@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { setSetting, useSetting } from '../lib/settingsStore'
-import { CHAT_UI_ENABLED, MODERN_UI_ENABLED } from '../lib/featureFlags'
+import { CHAT_UI_ENABLED } from '../lib/featureFlags'
 import type { LayoutMode } from './LayoutToggle'
 
 type Props = {
@@ -103,39 +103,37 @@ export function SettingsModal({ onClose, layoutMode, onLayoutChange }: Props) {
           </div>
         </section>
 
-        {MODERN_UI_ENABLED && (
-          <section className="modal-section">
-            <div className="modal-section-header">Visual style</div>
-            <div className="modal-section-row">
-              <div>
-                <div className="modal-section-label">Interface style</div>
-                <div className="modal-section-hint">
-                  Switch between the legacy look and the redesigned interface.
-                </div>
-              </div>
-              <div className="segmented" role="radiogroup" aria-label="Visual style">
-                <button
-                  type="button"
-                  role="radio"
-                  aria-checked={visualStyle === 'modern'}
-                  className={`segmented-btn${visualStyle === 'modern' ? ' active' : ''}`}
-                  onClick={() => void setSetting('visualStyle', 'modern')}
-                >
-                  Modern
-                </button>
-                <button
-                  type="button"
-                  role="radio"
-                  aria-checked={visualStyle === 'legacy'}
-                  className={`segmented-btn${visualStyle === 'legacy' ? ' active' : ''}`}
-                  onClick={() => void setSetting('visualStyle', 'legacy')}
-                >
-                  Legacy
-                </button>
+        <section className="modal-section">
+          <div className="modal-section-header">Visual style</div>
+          <div className="modal-section-row">
+            <div>
+              <div className="modal-section-label">Interface style</div>
+              <div className="modal-section-hint">
+                Switch between the legacy look and the redesigned interface.
               </div>
             </div>
-          </section>
-        )}
+            <div className="segmented" role="radiogroup" aria-label="Visual style">
+              <button
+                type="button"
+                role="radio"
+                aria-checked={visualStyle === 'modern'}
+                className={`segmented-btn${visualStyle === 'modern' ? ' active' : ''}`}
+                onClick={() => void setSetting('visualStyle', 'modern')}
+              >
+                Modern
+              </button>
+              <button
+                type="button"
+                role="radio"
+                aria-checked={visualStyle === 'legacy'}
+                className={`segmented-btn${visualStyle === 'legacy' ? ' active' : ''}`}
+                onClick={() => void setSetting('visualStyle', 'legacy')}
+              >
+                Legacy
+              </button>
+            </div>
+          </div>
+        </section>
 
         <section className="modal-section">
           <div className="modal-section-header">Layout</div>
