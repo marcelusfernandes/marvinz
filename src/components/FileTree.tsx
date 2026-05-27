@@ -531,7 +531,7 @@ function FileTreeNodeImpl({
     <li
       role="treeitem"
       aria-level={depth + 1}
-      aria-selected={isSelected}
+      aria-selected={isSelected || isActiveFile}
       aria-posinset={posinset}
       aria-setsize={setsize}
       style={style}

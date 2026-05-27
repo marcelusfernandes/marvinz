@@ -220,9 +220,8 @@ function currentFolderFromSelection(
   vaultPath: string,
 ): string {
   if (selectedPaths.size === 0) return vaultPath
-  let last: string | null = null
+  let last = ''
   for (const p of selectedPaths) last = p
-  if (!last) return vaultPath
   const node = findNodeByPath(nodes, last)
   if (node?.isDir) return node.path
   return dirOf(last)
