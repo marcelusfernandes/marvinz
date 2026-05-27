@@ -2,7 +2,7 @@ import { app, BrowserWindow, WebContentsView, ipcMain, dialog, protocol, shell, 
 import path from 'node:path'
 import fs from 'node:fs/promises'
 import { existsSync, statSync } from 'node:fs'
-import { execSync } from 'node:child_process'
+import { spawnSync, type SpawnSyncOptionsWithStringEncoding } from 'node:child_process'
 import chokidar, { type FSWatcher } from 'chokidar'
 import * as pty from 'node-pty'
 import {
@@ -43,11 +43,23 @@ function getShellEnv(): NodeJS.ProcessEnv {
   }
   const userShell = process.env.SHELL || '/bin/zsh'
   try {
-    const out = execSync(`${userShell} -ilc 'env'`, {
+    // The interactive (-i) shell does job control: it grabs the controlling
+    // terminal's foreground process group via tcsetpgrp and, since our parent
+    // (Electron/node) is not a job-control shell, never restores it on exit —
+    // leaving the launching terminal's foreground pointing at a dead group, so
+    // Ctrl+C reaches nothing and the dev app can't be stopped. `detached: true`
+    // (setsid) runs the shell in its own session with no controlling terminal,
+    // so it cannot touch the terminal we were launched from. .zshrc is still
+    // sourced (-i is preserved). `detached` is honored by the runtime but absent
+    // from @types/node's spawnSync options, so the option type is widened here.
+    const envOpts: SpawnSyncOptionsWithStringEncoding & { detached?: boolean } = {
       encoding: 'utf8',
       timeout: 4000,
       env: { ...process.env, ELECTRON_RUN_AS_NODE: '' },
-    })
+      stdio: ['ignore', 'pipe', 'ignore'],
+      detached: true,
+    }
+    const out = spawnSync(userShell, ['-ilc', 'env'], envOpts).stdout ?? ''
     const parsed: NodeJS.ProcessEnv = {}
     for (const line of out.split('\n')) {
       const eq = line.indexOf('=')
