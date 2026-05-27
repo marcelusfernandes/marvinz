@@ -635,6 +635,28 @@ ipcMain.handle('file:write', async (_e, filePath: string, content: string) => {
   await fs.writeFile(safe, content, 'utf8')
 })
 
+ipcMain.handle('office:readDocx', async (_e, filePath: string) => {
+  const mammoth = await import('mammoth')
+  const safe = await assertInVault(filePath)
+  const stats = await fs.stat(safe)
+  if (stats.size > 25 * 1024 * 1024) throw new Error(`MARVIN_TOO_LARGE: ${stats.size}`)
+  const buf = await fs.readFile(safe)
+  const result = await mammoth.convertToHtml({ buffer: buf })
+  return { html: result.value, messages: result.messages }
+})
+
+ipcMain.handle('office:writeDocx', async (_e, filePath: string, plainText: string) => {
+  if (plainText.length > 10 * 1024 * 1024) throw new Error('MARVIN_TOO_LARGE')
+  const { Document, Paragraph, TextRun, Packer } = await import('docx')
+  const safe = await assertInVault(filePath)
+  const paragraphs = plainText.split(/\n\n+/).map(
+    (text) => new Paragraph({ children: [new TextRun(text)] })
+  )
+  const doc = new Document({ sections: [{ children: paragraphs }] })
+  const buf = await Packer.toBuffer(doc)
+  await fs.writeFile(safe, buf)
+})
+
 ipcMain.handle('file:create', async (_e, parentDir: string, name: string) => {
   const safeName = name.endsWith('.md') ? name : `${name}.md`
   const full = path.join(parentDir, safeName)

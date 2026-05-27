@@ -68,6 +68,12 @@ const api = {
       return () => ipcRenderer.removeListener('file:changed', listener)
     },
   },
+  office: {
+    readDocx: (filePath: string) =>
+      ipcRenderer.invoke('office:readDocx', filePath) as Promise<{ html: string; messages: unknown[] }>,
+    writeDocx: (filePath: string, plainText: string) =>
+      ipcRenderer.invoke('office:writeDocx', filePath, plainText) as Promise<void>,
+  },
   folder: {
     create: (parentDir: string, name: string) =>
       ipcRenderer.invoke('folder:create', parentDir, name) as Promise<string>,
