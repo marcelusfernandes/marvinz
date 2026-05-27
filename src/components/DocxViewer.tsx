@@ -61,6 +61,14 @@ function sanitizeHtml(html: string): string {
  */
 function htmlToPlainText(html: string): string {
   let out = html
+  // Replace <img> with a placeholder before stripping tags.
+  out = out.replace(/<img\b[^>]*\balt\s*=\s*"([^"]*)"[^>]*\/?>/gi, (_, alt) =>
+    alt.trim() ? `[Image: ${alt.trim()}]` : '[Image]',
+  )
+  out = out.replace(/<img\b[^>]*\balt\s*=\s*'([^']*)'[^>]*\/?>/gi, (_, alt) =>
+    alt.trim() ? `[Image: ${alt.trim()}]` : '[Image]',
+  )
+  out = out.replace(/<img\b[^>]*\/?>/gi, '[Image]')
   out = out.replace(/<br\s*\/?>/gi, '\n')
   out = out.replace(/<\/(p|div|h[1-6]|li|tr|blockquote)>/gi, '\n\n')
   out = out.replace(/<[^>]+>/g, '')
