@@ -7,6 +7,7 @@ import type { AgentDef } from './components/AgentTerminal'
 import { BrowserPane } from './components/BrowserPane'
 import { Splitter } from './components/Splitter'
 import { ImageViewer } from './components/ImageViewer'
+import { PdfViewer } from './components/PdfViewer'
 import { InputDialog } from './components/InputDialog'
 import { FileTreeToolbar } from './components/FileTreeToolbar'
 import { Icon } from './components/Icon'
@@ -105,11 +106,18 @@ type ImageTab = {
   path: string
 }
 
-type Tab = NoteTab | BrowserTabState | ImageTab
+type PdfTab = {
+  type: 'pdf'
+  id: string
+  path: string
+}
+
+type Tab = NoteTab | BrowserTabState | ImageTab | PdfTab
 
 const isNoteTab = (t: Tab): t is NoteTab => t.type === 'note'
 const isBrowserTab = (t: Tab): t is BrowserTabState => t.type === 'browser'
 const isImageTab = (t: Tab): t is ImageTab => t.type === 'image'
+const isPdfTab = (t: Tab): t is PdfTab => t.type === 'pdf'
 
 type Dialog =
   | { kind: 'rename'; target: string; isDir: boolean }
@@ -134,14 +142,6 @@ function isPdfPath(p: string): boolean {
 
 function isHtmlPath(p: string): boolean {
   return /\.html?$/i.test(p)
-}
-
-/** Build a marvin:// URL for a vault-local absolute path. The
- * `localhost` host is a placeholder so the standard URL parser doesn't
- * eat the first path segment as the hostname. */
-function marvinFileUrl(absPath: string): string {
-  const encoded = absPath.split('/').map(encodeURIComponent).join('/')
-  return `marvin://localhost${encoded}`
 }
 
 function basenameOf(p: string): string {
@@ -594,7 +594,8 @@ export default function App() {
       const existing = tabs.find(
         (t) =>
           (isNoteTab(t) && t.path === path) ||
-          (isImageTab(t) && t.path === path),
+          (isImageTab(t) && t.path === path) ||
+          (isPdfTab(t) && t.path === path),
       )
       if (existing) {
         setActiveTabId(existing.id)
@@ -608,27 +609,9 @@ export default function App() {
         setActiveTabId(id)
         return
       }
-      // PDFs: open in a browser tab pointing at the marvin:// URL so
-      // Chromium's built-in PDF viewer handles them. HTML files go through
-      // the NoteTab branch — Editor.tsx's HTML branch renders the preview
-      // via HtmlPreview while keeping the source editable.
       if (isPdfPath(path)) {
-        const url = marvinFileUrl(path)
         const id = newTabId()
-        setTabs((prev) => [
-          ...prev,
-          {
-            type: 'browser',
-            id,
-            url,
-            draftUrl: url,
-            title: basenameOf(path),
-            canBack: false,
-            canForward: false,
-            loading: true,
-            ready: false,
-          },
-        ])
+        setTabs((prev) => [...prev, { type: 'pdf', id, path }])
         setActiveTabId(id)
         return
       }
@@ -1657,6 +1640,13 @@ export default function App() {
           )}
           {activeTab && isImageTab(activeTab) && (
             <ImageViewer
+              key={activeTab.id}
+              path={activeTab.path}
+              onRevealInFinder={(p) => void window.marvin.shell.reveal(p)}
+            />
+          )}
+          {activeTab && isPdfTab(activeTab) && (
+            <PdfViewer
               key={activeTab.id}
               path={activeTab.path}
               onRevealInFinder={(p) => void window.marvin.shell.reveal(p)}
