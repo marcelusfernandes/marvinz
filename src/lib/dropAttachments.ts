@@ -2,7 +2,28 @@ import { attachmentMarkdown, buildAttachmentRelPath } from './attachments'
 
 export const ATTACHMENT_MAX_BYTES = 25 * 1024 * 1024
 export const MARVIN_PATH_MIME = 'application/x-marvin-path'
+export const MARVIN_PATHS_MIME = 'application/x-marvin-paths'
 export const IMAGE_EXT_RE = /\.(png|jpe?g|gif|svg|webp|avif|bmp|ico|heic|heif)$/i
+
+// Read the list of vault paths off a drag's DataTransfer. Prefers the plural
+// MIME (JSON array, written when a multi-selection is dragged); falls back to
+// the singular MIME for single-item drags and legacy producers. Returns an
+// empty array when neither MIME is present or the plural payload is malformed.
+export function readDraggedPaths(dt: DataTransfer): string[] {
+  const plural = dt.getData(MARVIN_PATHS_MIME)
+  if (plural) {
+    try {
+      const arr = JSON.parse(plural) as unknown
+      if (Array.isArray(arr) && arr.every((p) => typeof p === 'string') && arr.length > 0) {
+        return arr as string[]
+      }
+    } catch {
+      // fall through to singular
+    }
+  }
+  const single = dt.getData(MARVIN_PATH_MIME)
+  return single ? [single] : []
+}
 
 export type ImportToast = {
   state: 'success' | 'error' | 'partial'

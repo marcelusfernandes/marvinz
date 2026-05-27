@@ -29,10 +29,12 @@ import { mentionTrigger } from '../lib/pmMentionTrigger'
 import { MentionPicker } from './MentionPicker'
 import {
   MARVIN_PATH_MIME,
+  MARVIN_PATHS_MIME,
   collectFiles,
   emitSummaryToast,
   internalDragMarkdown,
   persistDroppedFiles,
+  readDraggedPaths,
 } from '../lib/dropAttachments'
 import type { ImportToastState } from './ImportToast'
 
@@ -360,7 +362,12 @@ function LiveMarkdownInner({
             handleDOMEvents: {
               dragover(_view, event) {
                 const types = event.dataTransfer?.types ?? []
-                if (!types.includes('Files') && !types.includes(MARVIN_PATH_MIME)) return false
+                if (
+                  !types.includes('Files') &&
+                  !types.includes(MARVIN_PATH_MIME) &&
+                  !types.includes(MARVIN_PATHS_MIME)
+                )
+                  return false
                 event.preventDefault()
                 // 'move' suppresses the macOS green-plus copy badge while
                 // staying compatible with the file tree's effectAllowed.
@@ -370,12 +377,17 @@ function LiveMarkdownInner({
               drop(view, event) {
                 const dt = event.dataTransfer
                 if (!dt) return false
-                const internalPath = dt.getData(MARVIN_PATH_MIME)
+                const internalPaths = readDraggedPaths(dt)
                 const files = collectFiles(dt)
-                if (internalPath) {
+                if (internalPaths.length > 0) {
                   event.preventDefault()
                   event.stopPropagation()
-                  const md = internalDragMarkdown(filePathRef.current, internalPath)
+                  // Multi-drag: one markdown line per path joined by '\n' so
+                  // the parser produces N successive blocks and the whole
+                  // drop lands in a single PM transaction (undo-atomic).
+                  const md = internalPaths
+                    .map((p) => internalDragMarkdown(filePathRef.current, p))
+                    .join('\n')
                   insertMarkdownAt(view, event, md, ctx)
                   return true
                 }
