@@ -4,12 +4,14 @@ import type { IconName } from './Icon'
 type Props = {
   onOpenBrowser: () => void
   onCreateNote: () => void
-  /** Disables the "Nova nota" card when there is no vault open. */
+  onChooseFile: () => void
+  onChooseReview: () => void
+  /** Disables vault-scoped cards when there is no vault open. */
   isVaultOpen?: boolean
 }
 
 type Card = {
-  id: 'browser' | 'note'
+  id: 'browser' | 'note' | 'file' | 'review'
   icon: IconName
   title: string
   description: string
@@ -17,7 +19,13 @@ type Card = {
   disabled?: boolean
 }
 
-export function EmptyTab({ onOpenBrowser, onCreateNote, isVaultOpen = true }: Props) {
+export function EmptyTab({
+  onOpenBrowser,
+  onCreateNote,
+  onChooseFile,
+  onChooseReview,
+  isVaultOpen = true,
+}: Props) {
   const cards: Card[] = [
     {
       id: 'browser',
@@ -32,6 +40,22 @@ export function EmptyTab({ onOpenBrowser, onCreateNote, isVaultOpen = true }: Pr
       title: 'Nova nota',
       description: isVaultOpen ? 'Criar nota markdown' : 'Abra um vault primeiro',
       onClick: onCreateNote,
+      disabled: !isVaultOpen,
+    },
+    {
+      id: 'file',
+      icon: 'folder-opened',
+      title: 'Arquivos',
+      description: isVaultOpen ? 'Abrir um arquivo do vault' : 'Abra um vault primeiro',
+      onClick: onChooseFile,
+      disabled: !isVaultOpen,
+    },
+    {
+      id: 'review',
+      icon: 'git-compare',
+      title: 'Revisão',
+      description: isVaultOpen ? 'Ver mudanças do projeto' : 'Abra um vault primeiro',
+      onClick: onChooseReview,
       disabled: !isVaultOpen,
     },
   ]

@@ -439,6 +439,34 @@ ipcMain.handle('shell:openExternal', async (_e, url: string) => {
   await shell.openExternal(url)
 })
 
+ipcMain.handle('file:pick', async () => {
+  if (!activeVaultPath) return null
+  const result = await dialog.showOpenDialog({
+    properties: ['openFile'],
+    defaultPath: activeVaultPath,
+    filters: [
+      { name: 'Markdown', extensions: ['md', 'markdown'] },
+      { name: 'Code', extensions: ['ts', 'tsx', 'js', 'jsx', 'json', 'yaml', 'yml', 'toml', 'sh', 'py', 'rb', 'go', 'rs', 'css', 'html'] },
+      { name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp'] },
+      { name: 'Documents', extensions: ['pdf', 'docx'] },
+      { name: 'All Files', extensions: ['*'] },
+    ],
+  })
+  if (result.canceled || result.filePaths.length === 0) return null
+  const chosen = result.filePaths[0]
+  let resolvedChosen: string
+  try {
+    resolvedChosen = await fs.realpath(path.resolve(chosen))
+  } catch {
+    return null
+  }
+  if (!resolvedChosen.startsWith(activeVaultPath + path.sep) && resolvedChosen !== activeVaultPath) {
+    console.warn('[file:pick] path outside vault allowlist, rejecting:', resolvedChosen)
+    return null
+  }
+  return resolvedChosen
+})
+
 ipcMain.handle('vault:pick', async () => {
   const result = await dialog.showOpenDialog({
     properties: ['openDirectory', 'createDirectory'],

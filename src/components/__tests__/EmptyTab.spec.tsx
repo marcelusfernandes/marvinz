@@ -14,6 +14,9 @@ function renderEmptyTab(overrides: Partial<Parameters<typeof EmptyTab>[0]> = {})
   const props = {
     onOpenBrowser: vi.fn(),
     onCreateNote: vi.fn(),
+    onChooseFile: vi.fn(),
+    onChooseReview: vi.fn(),
+    isVaultOpen: true,
     ...overrides,
   }
   const utils = render(<EmptyTab {...props} />)
@@ -117,14 +120,21 @@ describe('EmptyTab — keyboard accessibility', () => {
 // Disabled cards — Arquivos and Revisão are not interactive
 // ---------------------------------------------------------------------------
 
-describe('EmptyTab — disabled cards (sibling sub-issue #307)', () => {
-  // Arquivos + Revisão cards aren't rendered in this sub-issue. When #307 lands
-  // them as disabled placeholders, replace these `.todo`s with real assertions.
-  it.todo('Arquivos card is marked disabled or aria-disabled')
-  it.todo('Revisão card is marked disabled or aria-disabled')
+describe('EmptyTab — disabled cards (vault closed)', () => {
+  it('Arquivos card is disabled when isVaultOpen is false', () => {
+    renderEmptyTab({ isVaultOpen: false })
+    const card = screen.getByText('Arquivos').closest('button') as HTMLButtonElement
+    expect(card.disabled).toBe(true)
+  })
+
+  it('Revisão card is disabled when isVaultOpen is false', () => {
+    renderEmptyTab({ isVaultOpen: false })
+    const card = screen.getByText('Revisão').closest('button') as HTMLButtonElement
+    expect(card.disabled).toBe(true)
+  })
 
   it('Nova nota card is disabled when isVaultOpen is false', () => {
-    render(<EmptyTab onOpenBrowser={vi.fn()} onCreateNote={vi.fn()} isVaultOpen={false} />)
+    renderEmptyTab({ isVaultOpen: false })
     const card = screen.getByText('Nova nota').closest('button') as HTMLButtonElement
     expect(card.disabled).toBe(true)
   })
@@ -133,6 +143,80 @@ describe('EmptyTab — disabled cards (sibling sub-issue #307)', () => {
     renderEmptyTab()
     const card = screen.getByText('Nova nota').closest('button') as HTMLButtonElement
     expect(card.disabled).toBe(false)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Arquivos card — enabled when vault open, calls onChooseFile on click
+// ---------------------------------------------------------------------------
+
+describe('EmptyTab — Arquivos card', () => {
+  it('renders Arquivos card title', () => {
+    renderEmptyTab()
+    expect(screen.getByText('Arquivos')).toBeInTheDocument()
+  })
+
+  it('is enabled when isVaultOpen is true', () => {
+    renderEmptyTab({ isVaultOpen: true })
+    const card = screen.getByText('Arquivos').closest('button') as HTMLButtonElement
+    expect(card.disabled).toBe(false)
+  })
+
+  it('calls onChooseFile once when clicked', () => {
+    const { onChooseFile } = renderEmptyTab()
+    fireEvent.click(screen.getByText('Arquivos'))
+    expect(onChooseFile).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not call other handlers when Arquivos is clicked', () => {
+    const { onOpenBrowser, onCreateNote, onChooseReview } = renderEmptyTab()
+    fireEvent.click(screen.getByText('Arquivos'))
+    expect(onOpenBrowser).not.toHaveBeenCalled()
+    expect(onCreateNote).not.toHaveBeenCalled()
+    expect(onChooseReview).not.toHaveBeenCalled()
+  })
+
+  it('does not call onChooseFile when disabled (vault closed)', () => {
+    const { onChooseFile } = renderEmptyTab({ isVaultOpen: false })
+    fireEvent.click(screen.getByText('Arquivos'))
+    expect(onChooseFile).not.toHaveBeenCalled()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Revisão card — enabled when vault open, calls onChooseReview on click
+// ---------------------------------------------------------------------------
+
+describe('EmptyTab — Revisão card', () => {
+  it('renders Revisão card title', () => {
+    renderEmptyTab()
+    expect(screen.getByText('Revisão')).toBeInTheDocument()
+  })
+
+  it('is enabled when isVaultOpen is true', () => {
+    renderEmptyTab({ isVaultOpen: true })
+    const card = screen.getByText('Revisão').closest('button') as HTMLButtonElement
+    expect(card.disabled).toBe(false)
+  })
+
+  it('calls onChooseReview once when clicked', () => {
+    const { onChooseReview } = renderEmptyTab()
+    fireEvent.click(screen.getByText('Revisão'))
+    expect(onChooseReview).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not call other handlers when Revisão is clicked', () => {
+    const { onOpenBrowser, onCreateNote, onChooseFile } = renderEmptyTab()
+    fireEvent.click(screen.getByText('Revisão'))
+    expect(onOpenBrowser).not.toHaveBeenCalled()
+    expect(onCreateNote).not.toHaveBeenCalled()
+    expect(onChooseFile).not.toHaveBeenCalled()
+  })
+
+  it('does not call onChooseReview when disabled (vault closed)', () => {
+    const { onChooseReview } = renderEmptyTab({ isVaultOpen: false })
+    fireEvent.click(screen.getByText('Revisão'))
+    expect(onChooseReview).not.toHaveBeenCalled()
   })
 })
 

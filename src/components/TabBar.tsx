@@ -3,7 +3,7 @@ import { useHorizontalWheelScroll } from '../lib/useHorizontalWheelScroll'
 import { Icon } from './Icon'
 import { fileIconFor } from '../lib/fileIcons'
 import type { MenuItemSpec } from '../types'
-import type { EmptyTab } from '../App'
+import type { DiffTab, EmptyTab } from '../App'
 
 type NoteTab = {
   type: 'note'
@@ -37,7 +37,7 @@ type DocxTab = {
   path: string
 }
 
-type Tab = NoteTab | BrowserTab | ImageTab | PdfTab | DocxTab | EmptyTab
+type Tab = NoteTab | BrowserTab | ImageTab | PdfTab | DocxTab | EmptyTab | DiffTab
 
 type Props = {
   tabs: Tab[]
@@ -90,7 +90,9 @@ export function TabBar({
       const others = tabs.filter((t) => t.id !== tabId)
       const toRight = tabs.slice(idx + 1)
       const revealPath =
-        target.type === 'browser' || target.type === 'empty' ? null : target.path
+        target.type === 'browser' || target.type === 'empty' || target.type === 'diff'
+          ? null
+          : target.path
       const items: MenuItemSpec[] = [
         { kind: 'item', id: 'close', label: 'Close' },
         { kind: 'item', id: 'closeOthers', label: 'Close Others', enabled: others.length > 0 },
@@ -126,17 +128,21 @@ export function TabBar({
     <div className="tab-bar" ref={barRef}>
       {tabs.map((t) => {
         const active = t.id === activeId
-        const kind: 'note' | 'browser' | 'image' | 'pdf' | 'docx' | 'empty' = t.type
+        const kind: 'note' | 'browser' | 'image' | 'pdf' | 'docx' | 'empty' | 'diff' = t.type
         const label =
           t.type === 'browser'
             ? browserLabel(t)
             : t.type === 'note'
               ? noteLabel(t.path)
-              : t.type === 'empty'
+              : t.type === 'empty' || t.type === 'diff'
                 ? t.title
                 : basename(t.path)
         const tooltip =
-          t.type === 'browser' ? t.url : t.type === 'empty' ? undefined : t.path
+          t.type === 'browser'
+            ? t.url
+            : t.type === 'empty' || t.type === 'diff'
+              ? undefined
+              : t.path
         return (
           <div
             key={t.id}
@@ -197,6 +203,9 @@ function TabIcon({ tab, loading }: { tab: Tab; loading: boolean }) {
   }
   if (tab.type === 'empty') {
     return <Icon name="add" className="tab-icon" size={12} />
+  }
+  if (tab.type === 'diff') {
+    return <Icon name="git-compare" className="tab-icon" size={12} />
   }
   // note & image both have a path → use file-type icon based on extension
   return <Icon name={fileIconFor(basename(tab.path))} className="tab-icon" size={12} />
