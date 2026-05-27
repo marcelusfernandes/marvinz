@@ -53,6 +53,10 @@ vi.mock('@codemirror/view', () => ({
     mark: () => ({ range: (from: number, to: number) => ({ from, to }) }),
     none: { update: () => null },
   },
+  // `mentionTrigger` calls ViewPlugin.define at module load. The returned
+  // extension shape is never executed in these tests because the fake
+  // CodeMirror mock doesn't run extensions — a sentinel object suffices.
+  ViewPlugin: { define: () => ({}) },
 }))
 
 vi.mock('@codemirror/search', () => ({
@@ -85,6 +89,7 @@ vi.mock('@codemirror/language', () => ({
   indentUnit: { of: () => ({}) },
   HighlightStyle: { define: () => ({}) },
   syntaxHighlighting: () => ({}),
+  syntaxTree: () => ({ resolveInner: () => ({ name: '', parent: null }) }),
 }))
 
 vi.mock('@codemirror/state', () => ({
@@ -135,6 +140,7 @@ vi.mock('../lib/wikilinks', () => ({
   resolveWikilink: () => null,
 }))
 vi.mock('../lib/paletteRanker', () => ({}))
+vi.mock('./MentionPicker', () => ({ MentionPicker: () => null }))
 
 // ---------------------------------------------------------------------------
 // Import Editor after all mocks

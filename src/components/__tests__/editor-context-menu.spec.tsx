@@ -151,11 +151,13 @@ vi.mock('@codemirror/language', () => ({
   indentUnit: { of: () => ({}) },
   HighlightStyle: { define: () => ({}) },
   syntaxHighlighting: () => ({}),
+  syntaxTree: () => ({ resolveInner: () => ({ name: '', parent: null }) }),
 }))
 vi.mock('@codemirror/view', () => ({
   EditorView: { lineWrapping: {}, domEventHandlers: () => ({}) },
   keymap: { of: () => ({}) },
   Decoration: { mark: () => ({ range: () => ({}) }), none: { update: () => null } },
+  ViewPlugin: { define: () => ({}) },
 }))
 vi.mock('@codemirror/state', () => ({
   StateEffect: { define: () => ({ of: () => ({}) }) },
@@ -182,6 +184,7 @@ vi.mock('../lib/wikilinks', () => ({
   resolveWikilink: () => null,
 }))
 vi.mock('../lib/paletteRanker', () => ({}))
+vi.mock('./MentionPicker', () => ({ MentionPicker: () => null }))
 
 // ---------------------------------------------------------------------------
 // Mock LiveMarkdown inside Editor.tsx (Editor imports LiveMarkdown)

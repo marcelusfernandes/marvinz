@@ -132,6 +132,7 @@ vi.mock('@codemirror/view', () => ({
     mark: () => ({ range: (from: number, to: number) => ({ from, to }) }),
     none: { update: () => null },
   },
+  ViewPlugin: { define: () => ({}) },
 }))
 
 vi.mock('@codemirror/commands', () => ({
@@ -160,6 +161,7 @@ vi.mock('@codemirror/language', () => ({
   indentUnit: { of: () => ({}) },
   HighlightStyle: { define: () => ({}) },
   syntaxHighlighting: () => ({}),
+  syntaxTree: () => ({ resolveInner: () => ({ name: '', parent: null }) }),
 }))
 vi.mock('@codemirror/state', () => ({
   // Both effects are no-op factories in the test environment — none of these
@@ -192,6 +194,7 @@ vi.mock('../lib/wikilinks', () => ({
   resolveWikilink: () => null,
 }))
 vi.mock('../lib/paletteRanker', () => ({}))
+vi.mock('./MentionPicker', () => ({ MentionPicker: () => null }))
 
 // ---------------------------------------------------------------------------
 // Import Editor after all mocks
