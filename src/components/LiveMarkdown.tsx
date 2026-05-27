@@ -543,10 +543,9 @@ function LiveMarkdownInner({
     [paletteItems],
   )
 
-  // Mention selection: replace the `@`+query span with `[[name]]`. We use
-  // the current selection head as the upper bound because the user may
-  // have typed beyond what onUpdate last reported (PM state lags React
-  // state by one render tick). Clearing `mention` tears the picker down.
+  // Uses the live selection head as the upper bound because PM state lags
+  // React state by one render tick — `mention.query` may be one keystroke
+  // behind by the time the user clicks.
   const handleMentionSelect = useCallback(
     (item: PaletteItem) => {
       const editor = editorInfo.get()
@@ -562,15 +561,34 @@ function LiveMarkdownInner({
         return
       }
       const to = view.state.selection.from
-      // Obsidian-style wikilinks omit the `.md` extension: `[[My Note]]`.
       const insertText = `[[${stripMdExt(item.name)}]]`
-      const tr = view.state.tr.replaceWith(
-        mention.from,
-        to,
-        view.state.schema.text(insertText),
-      )
-      const cursorPos = mention.from + insertText.length
-      tr.setSelection(TextSelection.near(tr.doc.resolve(cursorPos)))
+      const wikiMarkdown = parseWikilinks(insertText)
+      let parsed: PMNode | null
+      try {
+        parsed = editor.ctx.get(parserCtx)(wikiMarkdown)
+      } catch {
+        parsed = null
+      }
+      // Expected shape: paragraph > text(linked). Anything else means the
+      // parser couldn't produce a link node — fall back to a literal-text
+      // insert so the user at least sees a visible `[[Name]]` chip and can
+      // recover via mode-switch round-trip.
+      const inlineNode = parsed?.firstChild?.firstChild
+      let tr = view.state.tr
+      let cursorAdvance: number
+      if (inlineNode) {
+        tr = tr.replaceWith(mention.from, to, inlineNode)
+        cursorAdvance = inlineNode.nodeSize
+      } else {
+        console.warn(
+          '[mention] parserCtx returned an unexpected shape; falling back to literal text insert',
+          { wikiMarkdown },
+        )
+        tr = tr.replaceWith(mention.from, to, view.state.schema.text(insertText))
+        cursorAdvance = insertText.length
+      }
+      tr.setSelection(TextSelection.near(tr.doc.resolve(mention.from + cursorAdvance)))
+      tr.setStoredMarks([])
       view.dispatch(tr)
       setMention(null)
       view.focus()
