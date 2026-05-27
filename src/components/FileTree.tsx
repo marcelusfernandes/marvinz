@@ -41,6 +41,8 @@ export type ImportOutcome =
 
 export type CreatingIn = { parentDir: string; kind: 'file' | 'folder' }
 
+export type SelectModifiers = { cmdOrCtrl: boolean; shift: boolean }
+
 type Props = {
   nodes: FileNode[]
   vaultPath: string
@@ -49,7 +51,8 @@ type Props = {
   openPaths: Set<string>
   creatingIn?: CreatingIn | null
   onToggleOpen: (path: string) => void
-  onSelect: (node: FileNode) => void
+  onSelect: (node: FileNode, mods: SelectModifiers) => void
+  onClearSelection?: () => void
   onCreatingInChange?: (value: CreatingIn | null) => void
   onContextMenu: (e: React.MouseEvent, node: FileNode) => void
   onMove: (srcPath: string, destDir: string) => void
@@ -119,6 +122,7 @@ export function FileTree({
   creatingIn = null,
   onToggleOpen,
   onSelect,
+  onClearSelection,
   onCreatingInChange = noopCreatingInChange,
   onContextMenu,
   onMove,
@@ -255,12 +259,19 @@ export function FileTree({
   const virtualItems = virtualizer.getVirtualItems()
   const totalSize = virtualizer.getTotalSize()
 
+  const handleEmptyAreaClick = (e: React.MouseEvent) => {
+    if (!onClearSelection) return
+    if ((e.target as HTMLElement).closest('.file-tree-row')) return
+    onClearSelection()
+  }
+
   return (
     <ul
       ref={scrollRef}
       className={`file-tree${rootHover ? ' drop-root' : ''}`}
       role="tree"
       aria-label="File tree"
+      onClick={handleEmptyAreaClick}
       onDragOverCapture={handleRootDragOverCapture}
       onDragOver={handleRootDragOver}
       onDragLeave={(e) => {
@@ -339,7 +350,7 @@ type FileTreeNodeProps = {
   hoveredPath: string | null
   iconTheme: string
   onToggleOpen: (path: string) => void
-  onSelect: (node: FileNode) => void
+  onSelect: (node: FileNode, mods: SelectModifiers) => void
   onCreatingInChange: (value: CreatingIn | null) => void
   onContextMenu: (e: React.MouseEvent, node: FileNode) => void
   onMove: (srcPath: string, destDir: string) => void
@@ -496,9 +507,10 @@ function FileTreeNodeImpl({
           onDragOver={handleDragOver}
           onDragLeave={() => onHoverChange(null)}
           onDrop={handleDrop}
-          onClick={() => {
-            onSelect(node)
-            onToggleOpen(node.path)
+          onClick={(e) => {
+            const mods = { cmdOrCtrl: e.metaKey || e.ctrlKey, shift: e.shiftKey }
+            onSelect(node, mods)
+            if (!mods.cmdOrCtrl && !mods.shift) onToggleOpen(node.path)
           }}
           onContextMenu={(e) => onContextMenu(e, node)}
         >
@@ -542,7 +554,9 @@ function FileTreeNodeImpl({
         style={{ paddingLeft: padding + 20 }}
         draggable
         onDragStart={handleDragStart}
-        onClick={() => onSelect(node)}
+        onClick={(e) =>
+          onSelect(node, { cmdOrCtrl: e.metaKey || e.ctrlKey, shift: e.shiftKey })
+        }
         onContextMenu={(e) => onContextMenu(e, node)}
       >
         {iconTheme === 'material' ? (
