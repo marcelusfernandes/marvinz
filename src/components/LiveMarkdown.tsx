@@ -21,6 +21,7 @@ import { Plugin, TextSelection } from 'prosemirror-state'
 import { dropCursor } from 'prosemirror-dropcursor'
 import type { EditorView } from 'prosemirror-view'
 import { imageNodeView } from '../lib/imageNodeView'
+import { mermaidNodeView } from '../lib/mermaidNodeView'
 import { justInsertedPlugin, justInsertedPluginKey } from '../lib/pmJustInsertedHighlight'
 import { justReplacedPlugin } from '../lib/pmJustReplacedHighlight'
 import type { PaletteItem } from '../lib/paletteRanker'
@@ -339,6 +340,12 @@ function LiveMarkdownInner({
     [],
   )
 
+  // Render-only mermaid diagrams in Page mode. A `$view` over the existing
+  // `code_block` node — renders when the fence language is `mermaid`, falls
+  // through to an editable code view otherwise. No schema change, so the fence
+  // round-trips losslessly.
+  const mermaidView = useMemo(() => mermaidNodeView(), [])
+
   const editorInfo = useEditor((root) => {
     return MilkdownEditor.make()
       .config((ctx) => {
@@ -445,6 +452,7 @@ function LiveMarkdownInner({
       .use(gfm)
       .use(listener)
       .use(imageView)
+      .use(mermaidView)
   }, [])
 
   // Single delegated click handler for the editor surface — intercepts

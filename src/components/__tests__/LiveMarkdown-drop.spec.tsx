@@ -198,6 +198,7 @@ vi.mock('prosemirror-search', () => ({
 }))
 
 vi.mock('../../lib/imageNodeView', () => ({ imageNodeView: () => ({}) }))
+vi.mock('../../lib/mermaidNodeView', () => ({ mermaidNodeView: () => ({}) }))
 vi.mock('../../lib/pmJustReplacedHighlight', () => ({ justReplacedPlugin: () => ({}) }))
 vi.mock('../../lib/wikilinks', () => ({
   parseWikilinks: (s: string) => s,
