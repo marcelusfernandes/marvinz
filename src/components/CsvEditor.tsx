@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Papa from 'papaparse'
 import { DataGrid, type Column, type SortColumn } from 'react-data-grid'
 import 'react-data-grid/lib/styles.css'
-import { ContextMenu, type MenuItem } from './ContextMenu'
+import type { MenuItemSpec } from '../types'
 import { Icon } from './Icon'
 
 type Col = { key: string; name: string }
@@ -20,8 +20,6 @@ type Props = {
   initialContent: string
   onChange: (next: string) => void
 }
-
-type CtxMenuState = { x: number; y: number; items: MenuItem[] } | null
 
 const FALLBACK_DELIMITER = ','
 
@@ -85,7 +83,6 @@ function compareCells(a: string, b: string): number {
 export function CsvEditor({ filePath, initialContent, onChange }: Props) {
   const [parsed, setParsed] = useState<Parsed>(() => parseCsv(initialContent))
   const [sortColumns, setSortColumns] = useState<readonly SortColumn[]>([])
-  const [ctxMenu, setCtxMenu] = useState<CtxMenuState>(null)
   // Track what we last serialized to avoid re-parsing our own edits when the
   // parent re-passes initialContent through the save → state cycle.
   const lastSerializedRef = useRef<string>(initialContent)
@@ -173,65 +170,99 @@ export function CsvEditor({ filePath, initialContent, onChange }: Props) {
     [commit, parsed],
   )
 
-  const buildColumnMenu = useCallback(
-    (key: string): MenuItem[] => [
-      { kind: 'item', label: '← Insert Left', onClick: () => insertColumn(key, 'before') },
-      { kind: 'item', label: '→ Insert Right', onClick: () => insertColumn(key, 'after') },
-      { kind: 'separator' },
-      { kind: 'item', label: 'Order Ascending (A–z)', onClick: () => sortByColumn(key, 'ASC') },
-      { kind: 'item', label: 'Order Descending (Z–a)', onClick: () => sortByColumn(key, 'DESC') },
-      { kind: 'separator' },
-      { kind: 'item', label: 'Delete Column', danger: true, onClick: () => removeColumn(key) },
-    ],
+  const openColumnMenu = useCallback(
+    async (key: string) => {
+      const items: MenuItemSpec[] = [
+        { kind: 'item', id: 'insertLeft', label: '← Insert Left' },
+        { kind: 'item', id: 'insertRight', label: '→ Insert Right' },
+        { kind: 'separator' },
+        { kind: 'item', id: 'sortAsc', label: 'Order Ascending (A–z)' },
+        { kind: 'item', id: 'sortDesc', label: 'Order Descending (Z–a)' },
+        { kind: 'separator' },
+        { kind: 'item', id: 'delete', label: 'Delete Column' },
+      ]
+      const action = await window.marvin.app.showContextMenu(items)
+      if (!action) return
+      switch (action) {
+        case 'insertLeft':
+          insertColumn(key, 'before')
+          break
+        case 'insertRight':
+          insertColumn(key, 'after')
+          break
+        case 'sortAsc':
+          sortByColumn(key, 'ASC')
+          break
+        case 'sortDesc':
+          sortByColumn(key, 'DESC')
+          break
+        case 'delete':
+          removeColumn(key)
+          break
+      }
+    },
     [insertColumn, sortByColumn, removeColumn],
   )
 
-  const buildRowMenu = useCallback(
-    (id: string): MenuItem[] => [
-      { kind: 'item', label: 'Insert Row Above', onClick: () => insertRow(id, 'above') },
-      { kind: 'item', label: 'Insert Row Below', onClick: () => insertRow(id, 'below') },
-      { kind: 'separator' },
-      { kind: 'item', label: 'Delete Row', danger: true, onClick: () => removeRow(id) },
-    ],
+  const openRowMenu = useCallback(
+    async (id: string) => {
+      const items: MenuItemSpec[] = [
+        { kind: 'item', id: 'insertAbove', label: 'Insert Row Above' },
+        { kind: 'item', id: 'insertBelow', label: 'Insert Row Below' },
+        { kind: 'separator' },
+        { kind: 'item', id: 'delete', label: 'Delete Row' },
+      ]
+      const action = await window.marvin.app.showContextMenu(items)
+      if (!action) return
+      switch (action) {
+        case 'insertAbove':
+          insertRow(id, 'above')
+          break
+        case 'insertBelow':
+          insertRow(id, 'below')
+          break
+        case 'delete':
+          removeRow(id)
+          break
+      }
+    },
     [insertRow, removeRow],
   )
 
-  const openColumnMenu = useCallback(
+  const handleColumnContextMenu = useCallback(
     (e: React.MouseEvent, key: string) => {
       e.preventDefault()
       e.stopPropagation()
-      setCtxMenu({ x: e.clientX, y: e.clientY, items: buildColumnMenu(key) })
+      void openColumnMenu(key)
     },
-    [buildColumnMenu],
+    [openColumnMenu],
   )
 
-  const openColumnMenuFromButton = useCallback(
+  const handleColumnMenuButton = useCallback(
     (e: React.MouseEvent<HTMLButtonElement>, key: string) => {
       e.preventDefault()
       e.stopPropagation()
-      const rect = e.currentTarget.getBoundingClientRect()
-      setCtxMenu({ x: rect.left, y: rect.bottom + 2, items: buildColumnMenu(key) })
+      void openColumnMenu(key)
     },
-    [buildColumnMenu],
+    [openColumnMenu],
   )
 
-  const openRowMenu = useCallback(
+  const handleRowContextMenu = useCallback(
     (e: React.MouseEvent, id: string) => {
       e.preventDefault()
       e.stopPropagation()
-      setCtxMenu({ x: e.clientX, y: e.clientY, items: buildRowMenu(id) })
+      void openRowMenu(id)
     },
-    [buildRowMenu],
+    [openRowMenu],
   )
 
-  const openRowMenuFromButton = useCallback(
+  const handleRowMenuButton = useCallback(
     (e: React.MouseEvent<HTMLButtonElement>, id: string) => {
       e.preventDefault()
       e.stopPropagation()
-      const rect = e.currentTarget.getBoundingClientRect()
-      setCtxMenu({ x: rect.left, y: rect.bottom + 2, items: buildRowMenu(id) })
+      void openRowMenu(id)
     },
-    [buildRowMenu],
+    [openRowMenu],
   )
 
   const columns = useMemo<Column<Row>[]>(() => {
@@ -250,7 +281,7 @@ export function CsvEditor({ filePath, initialContent, onChange }: Props) {
       renderCell: ({ rowIdx, row }) => (
         <div
           className="csv-row-gutter-inner"
-          onContextMenu={(e) => openRowMenu(e, row.__id)}
+          onContextMenu={(e) => handleRowContextMenu(e, row.__id)}
         >
           <span className="csv-row-num">{rowIdx + 1}</span>
           <button
@@ -258,7 +289,7 @@ export function CsvEditor({ filePath, initialContent, onChange }: Props) {
             className="csv-row-menu"
             title="Row actions"
             aria-label={`Actions for row ${rowIdx + 1}`}
-            onClick={(e) => openRowMenuFromButton(e, row.__id)}
+            onClick={(e) => handleRowMenuButton(e, row.__id)}
           >
             <Icon name="kebab-vertical" />
           </button>
@@ -275,13 +306,19 @@ export function CsvEditor({ filePath, initialContent, onChange }: Props) {
       renderHeaderCell: ({ column }) => (
         <CsvHeaderCell
           name={column.name as string}
-          onMenu={(e) => openColumnMenuFromButton(e, col.key)}
-          onContextMenu={(e) => openColumnMenu(e, col.key)}
+          onMenu={(e) => handleColumnMenuButton(e, col.key)}
+          onContextMenu={(e) => handleColumnContextMenu(e, col.key)}
         />
       ),
     }))
     return [gutter, ...dataCols]
-  }, [parsed.columns, openColumnMenu, openColumnMenuFromButton, openRowMenu, openRowMenuFromButton])
+  }, [
+    parsed.columns,
+    handleColumnContextMenu,
+    handleColumnMenuButton,
+    handleRowContextMenu,
+    handleRowMenuButton,
+  ])
 
   const rowKeyGetter = useCallback((r: Row) => r.__id, [])
 
@@ -357,14 +394,6 @@ export function CsvEditor({ filePath, initialContent, onChange }: Props) {
           <code>{parsed.delimiter === '\t' ? '\\t' : parsed.delimiter}</code>
         </span>
       </div>
-      {ctxMenu && (
-        <ContextMenu
-          x={ctxMenu.x}
-          y={ctxMenu.y}
-          items={ctxMenu.items}
-          onClose={() => setCtxMenu(null)}
-        />
-      )}
     </div>
   )
 }

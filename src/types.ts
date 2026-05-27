@@ -1,8 +1,27 @@
+import type {
+  AgentRequest,
+  AgentEvent,
+  ApprovalDecision,
+} from './shared/agent-protocol.js'
+
+export type { AgentRequest, AgentEvent, ApprovalDecision }
+
 export type FileNode = {
   name: string
   path: string
   isDir: boolean
   children?: FileNode[]
+}
+
+// Geometry descriptor for an embedded WebContentsView: the placeholder's
+// distance (in DIPs) from each window content edge. Lets main recompute bounds
+// synchronously during an OS window resize instead of round-tripping to the
+// renderer per frame (issue #259).
+export type BrowserViewInsets = {
+  leftInset: number
+  topInset: number
+  rightInset: number
+  bottomInset: number
 }
 
 export type BrowserEvent =
@@ -45,9 +64,21 @@ export type SnapshotTurnCompletedEvent = {
   files: string[]
 }
 
+export type MenuItemSpec =
+  | { kind: 'item'; id: string; label: string; accelerator?: string; enabled?: boolean }
+  | { kind: 'separator' }
+
 export type Settings = {
   vaultPath?: string
   iconTheme?: 'codicon' | 'material'
+  colorTheme?: 'light' | 'dark' | 'system'
+  visualStyle?: 'modern' | 'legacy'
+  /**
+   * When true, new agent tabs default to the legacy PTY terminal instead of
+   * the native chat panel. Per-tab type is preserved across the toggle.
+   */
+  terminalModeEnabled?: boolean
+  saveMode?: 'auto' | 'manual'
 }
 
 export type MarvinAPI = {
@@ -57,6 +88,7 @@ export type MarvinAPI = {
   }
   vault: {
     pick: () => Promise<string | null>
+    current: () => Promise<string | null>
     tree: (vaultPath: string) => Promise<FileNode[]>
     watch: (vaultPath: string) => Promise<void>
     onChanged: (cb: () => void) => () => void
@@ -64,8 +96,14 @@ export type MarvinAPI = {
   file: {
     read: (filePath: string) => Promise<string>
     write: (filePath: string, content: string) => Promise<void>
+    exportPdf: (filePath: string) => Promise<void>
     create: (parentDir: string, name: string) => Promise<string>
+    writeBinary: (payload: { vaultPath: string; relPath: string; base64Bytes: string; maxBytes?: number }) => Promise<string>
     onChanged: (cb: (filePath: string, source: FileChangeSource) => void) => () => void
+  }
+  office: {
+    readDocx: (filePath: string) => Promise<{ html: string; messages: unknown[] }>
+    writeDocx: (filePath: string, plainText: string) => Promise<void>
   }
   folder: {
     create: (parentDir: string, name: string) => Promise<string>
@@ -79,6 +117,9 @@ export type MarvinAPI = {
   }
   agent: {
     detect: (name: string) => Promise<string | null>
+    request: (req: AgentRequest) => Promise<{ ok: true } | { ok: false; error: string }>
+    approve: (sessionId: string, toolUseId: string, decision: ApprovalDecision) => Promise<{ ok: true } | { ok: false; error: string }>
+    onEvent: (sessionId: string, cb: (event: AgentEvent) => void) => () => void
   }
   browser: {
     create: (opts: {
@@ -92,6 +133,7 @@ export type MarvinAPI = {
     reload: (id: string) => Promise<void>
     stop: (id: string) => Promise<void>
     setBounds: (id: string, bounds: { x: number; y: number; width: number; height: number }) => Promise<void>
+    setGeometry: (id: string, insets: BrowserViewInsets) => Promise<void>
     setActive: (id: string | null) => Promise<void>
     setAllHidden: (hidden: boolean) => Promise<void>
     close: (id: string) => Promise<void>
@@ -125,7 +167,40 @@ export type MarvinAPI = {
     saveExternalChange: (relPath: string, content: string) => Promise<SnapshotEnvelope<{ turnId: string; saved: boolean }>>
     onTurnCompleted: (cb: (event: SnapshotTurnCompletedEvent) => void) => () => void
   }
+  editor: {
+    readClipboard: () => Promise<string>
+    writeClipboard: (text: string) => Promise<void>
+  }
+  app: {
+    showContextMenu: (items: MenuItemSpec[]) => Promise<string | null>
+    canPaste: () => Promise<boolean>
+  }
+  fs: {
+    importExternal: (sources: string[], destDir: string) => Promise<ImportExternalResult>
+    getPathForFile: (file: File) => string
+  }
+  search: {
+    content: (query: string) => Promise<SearchResult>
+  }
 }
+
+export type ImportExternalResult = {
+  imported: string[]
+  skipped: { source: string; reason: 'not-found' | 'denied' | 'fs-error' }[]
+}
+
+export type ContentHit = {
+  path: string
+  rel: string
+  name: string
+  line: number
+  lineText: string
+  matchRanges: Array<{ start: number; end: number }>
+}
+
+export type SearchResult =
+  | ContentHit[]
+  | { unavailable: true }
 
 declare global {
   interface Window {

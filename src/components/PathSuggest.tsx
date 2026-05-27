@@ -8,6 +8,7 @@ import {
 import { HighlightedMatch } from './HighlightedMatch'
 import { Icon } from './Icon'
 import { fileIconFor } from '../lib/fileIcons'
+import { useVisualStyle } from '../lib/visualStyle'
 
 type Props = {
   /** Vault-relative path currently committed (the open file's location). */
@@ -22,12 +23,14 @@ type Props = {
 }
 
 const ERROR_FLASH_MS = 1400
-const MAX_DROPDOWN_WIDTH = 520
 const MAX_DROPDOWN_HEIGHT = 320
 const DROPDOWN_LIMIT = 12
+const LEGACY_DROPDOWN_MIN_WIDTH = 280
+const LEGACY_DROPDOWN_MAX_WIDTH = 520
 
 export function PathSuggest({ value, items, onCommit, placeholder }: Props) {
   const inputRef = useRef<HTMLInputElement>(null)
+  const visualStyle = useVisualStyle()
   const [draft, setDraft] = useState(value)
   const [open, setOpen] = useState(false)
   const [activeIdx, setActiveIdx] = useState(0)
@@ -58,9 +61,12 @@ export function PathSuggest({ value, items, onCommit, placeholder }: Props) {
     const el = inputRef.current
     if (!el) return
     const rect = el.getBoundingClientRect()
-    const width = Math.min(Math.max(rect.width, 280), MAX_DROPDOWN_WIDTH)
+    const width =
+      visualStyle === 'legacy'
+        ? Math.min(Math.max(rect.width, LEGACY_DROPDOWN_MIN_WIDTH), LEGACY_DROPDOWN_MAX_WIDTH)
+        : rect.width
     setAnchor({ left: rect.left, top: rect.bottom + 4, width })
-  }, [])
+  }, [visualStyle])
 
   useLayoutEffect(() => {
     if (!open) return

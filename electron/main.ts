@@ -1,8 +1,8 @@
-import { app, BrowserWindow, WebContentsView, ipcMain, dialog, protocol, shell } from 'electron'
+import { app, BrowserWindow, WebContentsView, ipcMain, dialog, protocol, shell, Menu, MenuItem, clipboard } from 'electron'
 import path from 'node:path'
 import fs from 'node:fs/promises'
 import { existsSync, statSync } from 'node:fs'
-import { execSync } from 'node:child_process'
+import { spawnSync, type SpawnSyncOptionsWithStringEncoding } from 'node:child_process'
 import chokidar, { type FSWatcher } from 'chokidar'
 import * as pty from 'node-pty'
 import {
@@ -17,8 +17,20 @@ import {
 } from './snapshot.js'
 import { assertInsideVaultAsync } from './vault-boundary.js'
 import { assertAllowedVault } from './vault-allowlist.js'
+import { isNoisy, relPathIsNoisy } from './noisyPaths.js'
 import { assertPtySpawnAllowed, registerDynamicShell } from './pty-spawn-guard.js'
 import { assertAgentDetectAllowed, registerDetectedAgent } from './agent-detect-guard.js'
+import {
+  spawnAgent,
+  cancelAgent,
+  killAgentSession,
+  handleApproval,
+  killAllAgents,
+} from './agent/index.js'
+import type { AgentRequest, AgentEvent } from './agent/protocol.js'
+import { importExternal } from './fs-import-external.js'
+import { searchContent } from './search-content.js'
+import { killProcessTree } from './proc-group.js'
 
 process.env.APP_ROOT = path.join(__dirname, '..')
 
@@ -32,11 +44,23 @@ function getShellEnv(): NodeJS.ProcessEnv {
   }
   const userShell = process.env.SHELL || '/bin/zsh'
   try {
-    const out = execSync(`${userShell} -ilc 'env'`, {
+    // The interactive (-i) shell does job control: it grabs the controlling
+    // terminal's foreground process group via tcsetpgrp and, since our parent
+    // (Electron/node) is not a job-control shell, never restores it on exit —
+    // leaving the launching terminal's foreground pointing at a dead group, so
+    // Ctrl+C reaches nothing and the dev app can't be stopped. `detached: true`
+    // (setsid) runs the shell in its own session with no controlling terminal,
+    // so it cannot touch the terminal we were launched from. .zshrc is still
+    // sourced (-i is preserved). `detached` is honored by the runtime but absent
+    // from @types/node's spawnSync options, so the option type is widened here.
+    const envOpts: SpawnSyncOptionsWithStringEncoding & { detached?: boolean } = {
       encoding: 'utf8',
       timeout: 4000,
       env: { ...process.env, ELECTRON_RUN_AS_NODE: '' },
-    })
+      stdio: ['ignore', 'pipe', 'ignore'],
+      detached: true,
+    }
+    const out = spawnSync(userShell, ['-ilc', 'env'], envOpts).stdout ?? ''
     const parsed: NodeJS.ProcessEnv = {}
     for (const line of out.split('\n')) {
       const eq = line.indexOf('=')
@@ -55,6 +79,13 @@ const RENDERER_DIST = path.join(process.env.APP_ROOT, 'dist')
 let win: BrowserWindow | null = null
 let vaultWatcher: FSWatcher | null = null
 let activeVaultPath: string | null = null
+
+// Push a tree-refresh signal to the renderer. Mutation handlers call this
+// after their op so the UI doesn't depend on chokidar/fsevents catching a
+// rapid unlink+add sequence (which it sometimes coalesces on macOS).
+const notifyTree = (): void => {
+  win?.webContents.send('vault:changed')
+}
 // Allowlist of vault paths that were opened via OS dialog (vault:pick) or loaded
 // from the persisted settings file. vault:watch only accepts paths in this set.
 const allowedVaultPaths = new Set<string>()
@@ -103,10 +134,21 @@ function scheduleTurnEnd(vaultRoot: string, turnId: string) {
 // detection and in-process state.
 const fileContentCache = new Map<string, string>()
 
+// Geometry descriptor: insets from each contentView edge to the browser-host
+// element. Registered by the renderer once and reused by main on every resize.
+type BrowserGeometry = {
+  leftInset: number
+  topInset: number
+  rightInset: number
+  bottomInset: number
+}
+
 type BrowserEntry = {
   view: WebContentsView
-  /** Last known bounds set from the renderer; we reapply them when un-hiding. */
+  /** Last known bounds set from the renderer; fallback when no geometry registered. */
   lastBounds: { x: number; y: number; width: number; height: number }
+  /** Geometry descriptor for synchronous main-side resize recompute. */
+  geometry: BrowserGeometry | null
   /** Whether this view is currently the active browser tab. */
   active: boolean
   /** When true, all browsers are temporarily hidden (e.g. a React modal is open). */
@@ -117,6 +159,19 @@ let browsersGloballyHidden = false
 
 const HIDDEN_BOUNDS = { x: 0, y: 0, width: 0, height: 0 }
 
+function boundsFromGeometry(
+  geometry: BrowserGeometry,
+  contentWidth: number,
+  contentHeight: number,
+): { x: number; y: number; width: number; height: number } {
+  return {
+    x: geometry.leftInset,
+    y: geometry.topInset,
+    width: Math.max(0, contentWidth - geometry.leftInset - geometry.rightInset),
+    height: Math.max(0, contentHeight - geometry.topInset - geometry.bottomInset),
+  }
+}
+
 function applyBounds(entry: BrowserEntry) {
   if (!entry.active || entry.globallyHidden) {
     entry.view.setBounds(HIDDEN_BOUNDS)
@@ -125,11 +180,33 @@ function applyBounds(entry: BrowserEntry) {
   entry.view.setBounds(entry.lastBounds)
 }
 
+// Recompute bounds from stored geometry descriptors using current window size.
+// Called synchronously on every resize event to avoid an IPC round-trip.
+// Uses getContentBounds() — same coordinate space as getBoundingClientRect() in
+// the renderer and as WebContentsView.setBounds() (content area, excludes frame).
+function reapplyAllWithGeometry() {
+  if (!win || win.isDestroyed()) return
+  const { width: contentWidth, height: contentHeight } = win.getContentBounds()
+  for (const entry of browserViews.values()) {
+    if (!entry.geometry) {
+      applyBounds(entry)
+      continue
+    }
+    const newBounds = boundsFromGeometry(entry.geometry, contentWidth, contentHeight)
+    entry.lastBounds = newBounds
+    applyBounds(entry)
+  }
+}
+
 const SETTINGS_FILE = () => path.join(app.getPath('userData'), 'settings.json')
 
 type Settings = {
   vaultPath?: string
   iconTheme?: 'codicon' | 'material'
+  colorTheme?: 'light' | 'dark' | 'system'
+  visualStyle?: 'modern' | 'legacy'
+  terminalModeEnabled?: boolean
+  saveMode?: 'auto' | 'manual'
 }
 
 async function readSettings(): Promise<Settings> {
@@ -153,8 +230,15 @@ function createWindow() {
     minWidth: 900,
     minHeight: 600,
     titleBarStyle: process.platform === 'darwin' ? 'hidden' : 'default',
-    trafficLightPosition: { x: 14, y: 13 },
-    backgroundColor: '#1e1e1e',
+    trafficLightPosition: { x: 18, y: 16 },
+    // Transparent + frameless on macOS so .shell can own rounded corners +
+    // translucent vibrancy blur (Tahoe-friendly look). Traffic lights still
+    // draw via titleBarStyle 'hidden'.
+    transparent: process.platform === 'darwin',
+    frame: process.platform !== 'darwin',
+    backgroundColor: process.platform === 'darwin' ? '#00000000' : '#1e1e1e',
+    vibrancy: process.platform === 'darwin' ? 'fullscreen-ui' : undefined,
+    visualEffectState: process.platform === 'darwin' ? 'active' : undefined,
     webPreferences: {
       preload: path.join(__dirname, 'preload.mjs'),
       contextIsolation: true,
@@ -173,6 +257,11 @@ function createWindow() {
     shell.openExternal(url)
     return { action: 'deny' }
   })
+
+  win.on('resize', () => reapplyAllWithGeometry())
+  win.on('maximize', () => reapplyAllWithGeometry())
+  win.on('unmaximize', () => reapplyAllWithGeometry())
+  win.on('restore', () => reapplyAllWithGeometry())
 }
 
 // Custom protocol for serving vault-local resources (images, etc.) into
@@ -194,6 +283,9 @@ const MIME_BY_EXT: Record<string, string> = {
   gif: 'image/gif',
   webp: 'image/webp',
   bmp: 'image/bmp',
+  // SVGs may only be embedded via `<img>`; `<object>/<iframe>/<embed>` would
+  // enable script execution. The CSP header on the response is the second line
+  // of defence — see the handler below.
   svg: 'image/svg+xml',
   ico: 'image/x-icon',
   avif: 'image/avif',
@@ -246,7 +338,15 @@ app.whenReady().then(() => {
       // Buffer is a Uint8Array subclass; Response accepts BodyInit which
       // includes ArrayBuffer / Uint8Array — cast to satisfy TS.
       return new Response(data as unknown as Uint8Array, {
-        headers: { 'Content-Type': mimeFor(safePath) },
+        headers: {
+          'Content-Type': mimeFor(safePath),
+          // Defense-in-depth: SVGs served here may carry inline `<script>`.
+          // Chromium already blocks script execution when SVG is loaded via
+          // `<img>` (secure animation mode); this CSP locks the response down
+          // unconditionally so a future regression in the embed path cannot
+          // enable script or plugin execution.
+          'Content-Security-Policy': "script-src 'none'; object-src 'none'",
+        },
       })
     } catch (err) {
       console.error('[marvin] handler failed', request.url, err)
@@ -274,11 +374,48 @@ app.whenReady().then(() => {
   createWindow()
 })
 
-app.on('window-all-closed', () => {
-  for (const p of ptyProcesses.values()) p.kill()
+// Kill every long-lived child (pty shells + their trees, agent CLIs + their
+// grandchildren) and close the vault watcher. Returns the agent-kill promise so
+// callers can await the full SIGTERM→grace→SIGKILL sequence before exiting.
+// Tracked in `pendingTeardowns` so a quit triggered while a teardown is still
+// in flight (e.g. window closed then Cmd+Q) waits for it instead of cutting it
+// off and orphaning children.
+const pendingTeardowns = new Set<Promise<unknown>>()
+function teardownChildren(): Promise<void> {
+  for (const p of ptyProcesses.values()) killProcessTree(p.pid, 'SIGKILL')
   ptyProcesses.clear()
   vaultWatcher?.close()
-  if (process.platform !== 'darwin') app.quit()
+  const done = killAllAgents()
+  pendingTeardowns.add(done)
+  done.finally(() => pendingTeardowns.delete(done))
+  return done
+}
+
+app.on('window-all-closed', () => {
+  if (process.platform === 'darwin') {
+    // App stays in the dock; the closed window's ptys/agents are now
+    // unreachable, so reap them. before-quit handles the real-quit path.
+    void teardownChildren()
+  } else {
+    app.quit()
+  }
+})
+
+// Authoritative teardown for every quit path (Cmd+Q, app.quit() from anywhere,
+// auto-update relaunch) — window-all-closed alone misses these and on macOS
+// never fires. Defer the quit until children are reaped, with a hard ceiling so
+// a stuck child can't block exit forever.
+let isQuitting = false
+app.on('before-quit', (event) => {
+  if (isQuitting) return
+  event.preventDefault()
+  isQuitting = true
+  const forceExit = setTimeout(() => app.exit(0), 5000)
+  void teardownChildren()
+  Promise.allSettled([...pendingTeardowns]).finally(() => {
+    clearTimeout(forceExit)
+    app.exit(0)
+  })
 })
 
 app.on('activate', () => {
@@ -329,13 +466,6 @@ type FileNode = {
   children?: FileNode[]
 }
 
-const NOISY_DIRS = new Set(['.git', 'node_modules', '.DS_Store', '.svn', '.hg', '.idea', '.marvin'])
-const NOISY_FILES = new Set(['.DS_Store', 'Thumbs.db'])
-
-function isNoisy(name: string, isDir: boolean): boolean {
-  return isDir ? NOISY_DIRS.has(name) : NOISY_FILES.has(name)
-}
-
 async function readVaultTree(root: string, current = root): Promise<FileNode[]> {
   const entries = await fs.readdir(current, { withFileTypes: true })
   const nodes: FileNode[] = []
@@ -359,6 +489,8 @@ async function readVaultTree(root: string, current = root): Promise<FileNode[]> 
   })
   return nodes
 }
+
+ipcMain.handle('vault:current', () => activeVaultPath)
 
 ipcMain.handle('vault:tree', async () => {
   if (!activeVaultPath || !existsSync(activeVaultPath)) return []
@@ -384,14 +516,14 @@ ipcMain.handle('vault:watch', async (_e, vaultPath: string) => {
     console.error('[snapshot] ensureVaultGitignore failed', err),
   )
   vaultWatcher = chokidar.watch(resolvedVault, {
-    ignored: (p) => {
-      const base = path.basename(p)
-      return NOISY_DIRS.has(base) || NOISY_FILES.has(base)
-    },
+    // Test every vault-relative path segment, not just the basename: under the
+    // macOS fsevents backend the watcher receives deep paths, and a basename-only
+    // check let internal files leak (.marvin/.../_manifest.json,
+    // .obsidian/workspace.json) into snapshots and the turn's modified-files list.
+    ignored: (p) => relPathIsNoisy(path.relative(resolvedVault, p)),
     ignoreInitial: true,
     persistent: true,
   })
-  const notifyTree = () => win?.webContents.send('vault:changed')
   const notifyFile = (filePath: string, source: 'agent' | 'external') =>
     win?.webContents.send('file:changed', filePath, source)
 
@@ -503,6 +635,28 @@ ipcMain.handle('file:write', async (_e, filePath: string, content: string) => {
   await fs.writeFile(safe, content, 'utf8')
 })
 
+ipcMain.handle('office:readDocx', async (_e, filePath: string) => {
+  const mammoth = await import('mammoth')
+  const safe = await assertInVault(filePath)
+  const stats = await fs.stat(safe)
+  if (stats.size > 25 * 1024 * 1024) throw new Error(`MARVIN_TOO_LARGE: ${stats.size}`)
+  const buf = await fs.readFile(safe)
+  const result = await mammoth.convertToHtml({ buffer: buf })
+  return { html: result.value, messages: result.messages }
+})
+
+ipcMain.handle('office:writeDocx', async (_e, filePath: string, plainText: string) => {
+  if (plainText.length > 10 * 1024 * 1024) throw new Error('MARVIN_TOO_LARGE')
+  const { Document, Paragraph, TextRun, Packer } = await import('docx')
+  const safe = await assertInVault(filePath)
+  const paragraphs = plainText.split(/\n\n+/).map(
+    (text) => new Paragraph({ children: [new TextRun(text)] })
+  )
+  const doc = new Document({ sections: [{ children: paragraphs }] })
+  const buf = await Packer.toBuffer(doc)
+  await fs.writeFile(safe, buf)
+})
+
 ipcMain.handle('file:create', async (_e, parentDir: string, name: string) => {
   const safeName = name.endsWith('.md') ? name : `${name}.md`
   const full = path.join(parentDir, safeName)
@@ -510,7 +664,21 @@ ipcMain.handle('file:create', async (_e, parentDir: string, name: string) => {
   if (existsSync(safe)) throw new Error('File already exists')
   await fs.mkdir(path.dirname(safe), { recursive: true })
   await fs.writeFile(safe, '', 'utf8')
+  notifyTree()
   return safe
+})
+
+ipcMain.handle('file:writeBinary', async (_e, payload: { vaultPath: string; relPath: string; base64Bytes: string; maxBytes?: number }) => {
+  const { vaultPath, relPath, base64Bytes, maxBytes } = payload
+  const absolute = path.join(vaultPath, relPath)
+  const safe = await assertInVault(absolute)
+  // Size check on decoded length — base64 inflates by ~33%, so we must check after decoding.
+  const decoded = Buffer.from(base64Bytes, 'base64')
+  const limit = maxBytes ?? 25 * 1024 * 1024
+  if (decoded.length > limit) throw new Error(`MARVIN_TOO_LARGE: ${decoded.length}`)
+  await fs.mkdir(path.dirname(safe), { recursive: true })
+  await fs.writeFile(safe, decoded)
+  return path.relative(vaultPath, safe)
 })
 
 ipcMain.handle('folder:create', async (_e, parentDir: string, name: string) => {
@@ -518,6 +686,7 @@ ipcMain.handle('folder:create', async (_e, parentDir: string, name: string) => {
   const safe = await assertInVault(full)
   if (existsSync(safe)) throw new Error('Folder already exists')
   await fs.mkdir(safe, { recursive: false })
+  notifyTree()
   return safe
 })
 
@@ -723,12 +892,74 @@ ipcMain.handle('path:rename', async (_e, oldPath: string, newPath: string) => {
       console.error('[rewriteLinksAfterMove] failed', err)
     }
   }
+  notifyTree()
   return safeNew
 })
 
 ipcMain.handle('path:trash', async (_e, target: string) => {
   const safe = await assertInVault(target)
   await shell.trashItem(safe)
+  notifyTree()
+})
+
+ipcMain.handle('file:exportPdf', async (_e, filePath: string) => {
+  const content = await fs.readFile(filePath, 'utf-8')
+  const dir = path.dirname(filePath)
+
+  const { marked } = await import('marked')
+  const bodyHtml = await marked(content)
+
+  const html = `<!DOCTYPE html>
+<html><head>
+<meta charset="utf-8">
+<style>
+  body { font-family: system-ui, -apple-system, sans-serif; max-width: 800px; margin: 0 auto; padding: 2rem; line-height: 1.6; color: #1a1a1a; }
+  h1, h2, h3, h4, h5, h6 { margin-top: 1.5em; }
+  img { max-width: 100%; height: auto; }
+  pre { background: #f5f5f5; padding: 1rem; border-radius: 4px; overflow-x: auto; }
+  code { font-family: monospace; font-size: 0.9em; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { border: 1px solid #ddd; padding: 0.5rem; }
+  blockquote { border-left: 4px solid #ddd; margin: 0; padding-left: 1rem; color: #555; }
+</style>
+</head><body>${bodyHtml}</body></html>`
+
+  const tmpPath = path.join(dir, `._marvinz_export_${Date.now()}.html`)
+  await fs.writeFile(tmpPath, html, 'utf-8')
+
+  const exportWin = new BrowserWindow({
+    show: false,
+    webPreferences: { nodeIntegration: false, contextIsolation: true },
+  })
+
+  try {
+    await exportWin.loadFile(tmpPath)
+
+    const { canceled, filePath: savePath } = await dialog.showSaveDialog({
+      defaultPath: filePath.replace(/\.md$/, '.pdf'),
+      filters: [{ name: 'PDF', extensions: ['pdf'] }],
+    })
+
+    if (!canceled && savePath) {
+      const pdfBuffer = await exportWin.webContents.printToPDF({ printBackground: true })
+      await fs.writeFile(savePath, Buffer.from(pdfBuffer))
+    }
+  } finally {
+    exportWin.destroy()
+    await fs.unlink(tmpPath).catch(() => {})
+  }
+})
+
+ipcMain.handle('fs:importExternal', async (_e, sources: string[], destDir: string) => {
+  if (!activeVaultPath) throw new Error('MARVIN_OUTSIDE_VAULT')
+  const result = await importExternal(activeVaultPath, sources, destDir)
+  notifyTree()
+  return result
+})
+
+ipcMain.handle('search:content', async (_e, query: string) => {
+  if (!activeVaultPath) return []
+  return searchContent(activeVaultPath, query)
 })
 
 ipcMain.handle('shell:reveal', async (_e, target: string) => {
@@ -736,6 +967,46 @@ ipcMain.handle('shell:reveal', async (_e, target: string) => {
   shell.showItemInFolder(safe)
 })
 
+type MenuItemSpec =
+  | { kind: 'item'; id: string; label: string; accelerator?: string; enabled?: boolean }
+  | { kind: 'separator' }
+
+function showContextMenu(e: Electron.IpcMainInvokeEvent, items: MenuItemSpec[]): Promise<string | null> {
+  return new Promise<string | null>(resolve => {
+    let chosen: string | null = null
+    const menu = new Menu()
+    for (const spec of items) {
+      if (spec.kind === 'separator') {
+        menu.append(new MenuItem({ type: 'separator' }))
+      } else {
+        menu.append(new MenuItem({
+          label: spec.label,
+          accelerator: spec.accelerator,
+          enabled: spec.enabled ?? true,
+          click: () => { chosen = spec.id },
+        }))
+      }
+    }
+    const win = BrowserWindow.fromWebContents(e.sender)
+    menu.popup({ window: win ?? undefined, callback: () => resolve(chosen) })
+  })
+}
+
+ipcMain.handle('app:show-context-menu', (e, items: MenuItemSpec[]): Promise<string | null> => {
+  return showContextMenu(e, items)
+})
+
+ipcMain.handle('app:can-paste', (): boolean =>
+  clipboard.availableFormats().some(f => f.startsWith('text/') || f === 'text')
+)
+
+ipcMain.handle('editor:clipboard-read', (): string => {
+  return clipboard.readText()
+})
+
+ipcMain.handle('editor:clipboard-write', (_e, text: string): void => {
+  clipboard.writeText(text)
+})
 
 function detectBinary(name: string): string | null {
   // Defensive: only allow simple binary names — no path traversal or shell.
@@ -763,8 +1034,11 @@ ipcMain.handle('agent:detect', async (_e, name: string) => {
   assertAgentDetectAllowed(name)
   const detected = detectBinary(name)
   if (detected) {
-    registerDynamicShell(detected)
     registerDetectedAgent(detected)
+    // Also register on the pty allowlist so users can open the agent in the
+    // legacy xterm terminal via pty:spawn (the chat panel uses child_process.spawn,
+    // but the terminal panel uses pty.spawn and needs the binary allowlisted).
+    registerDynamicShell(detected)
   }
   return detected
 })
@@ -908,6 +1182,7 @@ ipcMain.handle(
     const entry: BrowserEntry = {
       view,
       lastBounds: opts.bounds,
+      geometry: null,
       active: true,
       globallyHidden: browsersGloballyHidden,
     }
@@ -1028,6 +1303,27 @@ ipcMain.handle('browser:setBounds', (_e, id: string, bounds: BrowserBounds) => {
   entry.lastBounds = bounds
   applyBounds(entry)
 })
+
+// Geometry descriptor path: renderer registers insets from window edges once
+// (and on panel layout changes). Main recomputes absolute bounds synchronously
+// on every win.on('resize') without a renderer round-trip — eliminates the
+// "wait then snap" on macOS maximize/restore.
+ipcMain.handle(
+  'browser:setGeometry',
+  (
+    _e,
+    id: string,
+    geometry: { leftInset: number; topInset: number; rightInset: number; bottomInset: number },
+  ) => {
+    const entry = browserViews.get(id)
+    if (!entry || !win || win.isDestroyed()) return
+    entry.geometry = geometry
+    const { width: contentWidth, height: contentHeight } = win.getContentBounds()
+    const newBounds = boundsFromGeometry(geometry, contentWidth, contentHeight)
+    entry.lastBounds = newBounds
+    applyBounds(entry)
+  },
+)
 
 ipcMain.handle('browser:setActive', (_e, activeId: string | null) => {
   for (const [id, entry] of browserViews.entries()) {
@@ -1164,6 +1460,7 @@ ipcMain.handle('snapshot:restore', async (_e, turnId: unknown, relPath: unknown)
     // Invalidate cache so the next file:read picks up the restored content
     const absPath = path.join(vault, rel)
     fileContentCache.delete(absPath)
+    notifyTree()
     return ok({ preTurnId })
   } catch (e) {
     return err(e)
@@ -1200,4 +1497,96 @@ ipcMain.handle('snapshot:saveExternalChange', async (_e, relPath: unknown, conte
     const saved = await writeSnapshot(vault, turnId, rel, content, 'external-rejected')
     return ok({ turnId, saved })
   } catch (e) { return err(e) }
+})
+
+// --- Agent IPC handlers (agent namespace) ------------------------------------
+
+type AgentResponse = { ok: true } | { ok: false; error: string }
+
+// L2: sessionId must be alphanumeric + dash/underscore only — no path traversal.
+const SESSION_ID_RE = /^[a-zA-Z0-9_-]+$/
+
+function requireAgentRequest(raw: unknown): AgentRequest {
+  if (!raw || typeof raw !== 'object' || !('type' in raw)) {
+    throw new Error('AGENT_INVALID_REQUEST')
+  }
+  const obj = raw as Record<string, unknown>
+  if ('sessionId' in obj) {
+    if (typeof obj.sessionId !== 'string' || !SESSION_ID_RE.test(obj.sessionId)) {
+      throw new Error('AGENT_INVALID_REQUEST')
+    }
+  }
+  // M3: validate decision.kind for approval requests.
+  if (obj.type === 'approval') {
+    const d = obj.decision as Record<string, unknown> | undefined
+    if (!d || (d.kind !== 'allow' && d.kind !== 'deny')) {
+      throw new Error('AGENT_INVALID_REQUEST')
+    }
+  }
+  return raw as AgentRequest
+}
+
+ipcMain.handle('agent:request', async (e, raw: unknown): Promise<AgentResponse> => {
+  try {
+    const req = requireAgentRequest(raw)
+
+    // Events go back to the renderer that made the request, not a global win ref.
+    const sender = e.sender
+    function senderSend(channel: string, payload: AgentEvent) {
+      try {
+        if (!sender.isDestroyed()) sender.send(channel, payload)
+      } catch {
+        // renderer being torn down — ignore
+      }
+    }
+
+    if (req.type === 'start') {
+      // C2: vaultRoot must be an allowed vault path (opened via dialog or settings).
+      let resolvedVault: string
+      try {
+        resolvedVault = await fs.realpath(path.resolve(req.vaultRoot))
+      } catch {
+        throw new Error('MARVIN_VAULT_NOT_ALLOWED')
+      }
+      assertAllowedVault(resolvedVault, allowedVaultPaths)
+
+      const binary = (process.env.NODE_ENV === 'test' && process.env.MOCK_CLAUDE_BIN)
+        ? process.env.MOCK_CLAUDE_BIN
+        : detectBinary('claude')
+      if (!binary) {
+        senderSend(`agent:event:${req.sessionId}`, {
+          type: 'error',
+          sessionId: req.sessionId,
+          code: 'AGENT_NOT_FOUND',
+          message: 'claude binary not found in PATH',
+          recoverable: false,
+        })
+        return { ok: true }
+      }
+      // Register the binary so pty-spawn-guard validates it if ever needed.
+      registerDynamicShell(binary)
+      await spawnAgent({ ...req, vaultRoot: resolvedVault }, binary, senderSend)
+      return { ok: true }
+    }
+
+    if (req.type === 'cancel') {
+      await cancelAgent(req.sessionId)
+      return { ok: true }
+    }
+
+    if (req.type === 'kill') {
+      await killAgentSession(req.sessionId)
+      return { ok: true }
+    }
+
+    if (req.type === 'approval') {
+      handleApproval(req.sessionId, req.toolUseId, req.decision)
+      return { ok: true }
+    }
+
+    return { ok: true }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    return { ok: false, error: message }
+  }
 })

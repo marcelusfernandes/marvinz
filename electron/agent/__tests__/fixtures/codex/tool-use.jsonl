@@ -1,0 +1,6 @@
+{"type":"thread.started","thread_id":"019e52fc-d004-70a0-83ec-9207e5a798b4"}
+{"type":"turn.started"}
+{"type":"item.started","item":{"id":"item_0","type":"command_execution","command":"/bin/zsh -lc 'echo hello world'","aggregated_output":"","exit_code":null,"status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_0","type":"command_execution","command":"/bin/zsh -lc 'echo hello world'","aggregated_output":"hello world\n","exit_code":0,"status":"completed"}}
+{"type":"item.completed","item":{"id":"item_1","type":"agent_message","text":"hello world"}}
+{"type":"turn.completed","usage":{"input_tokens":49319,"cached_input_tokens":31488,"output_tokens":51,"reasoning_output_tokens":0}}

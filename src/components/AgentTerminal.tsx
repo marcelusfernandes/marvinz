@@ -4,6 +4,26 @@ import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import '@xterm/xterm/css/xterm.css'
 import { Icon } from './Icon'
+import { useColorTheme } from '../lib/colorTheme'
+import {
+  createTerminalLinkProvider,
+  createOsc8LinkHandler,
+} from '../lib/terminalLinkProvider'
+
+function readCssVar(name: string): string {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim()
+}
+
+function xtermThemeFromCss() {
+  return {
+    // Transparent so the terminal inherits the claude-pane surface.
+    background: 'rgba(0, 0, 0, 0)',
+    foreground: readCssVar('--text-primary'),
+    cursor: readCssVar('--text-primary'),
+    black: readCssVar('--surface-1'),
+    brightBlack: readCssVar('--text-tertiary'),
+  }
+}
 
 export type AgentDef = {
   /** Stable identifier (`'claude'`, `'codex'`, …). */
@@ -30,9 +50,25 @@ type Props = {
   /** Notifies the parent when this terminal's status changes (used to
    * paint the tab dot). */
   onStatusChange?: (ptyId: string, status: Status, exitCode: number | null) => void
+  /** Opens a vault file when the user Cmd/Ctrl+Clicks a path in the output. */
+  onOpenFile?: (absolutePath: string) => void
 }
 
-export function AgentTerminal({ agent, ptyId, vaultPath, isActive, onStatusChange }: Props) {
+export function AgentTerminal({
+  agent,
+  ptyId,
+  vaultPath,
+  isActive,
+  onStatusChange,
+  onOpenFile,
+}: Props) {
+  const resolvedTheme = useColorTheme()
+  // Keep the latest callback in a ref so changing its identity doesn't tear
+  // down and rebuild the terminal (which would kill the PTY).
+  const onOpenFileRef = useRef(onOpenFile)
+  useEffect(() => {
+    onOpenFileRef.current = onOpenFile
+  }, [onOpenFile])
   const hostRef = useRef<HTMLDivElement>(null)
   const termRef = useRef<Terminal | null>(null)
   const fitRef = useRef<FitAddon | null>(null)
@@ -50,18 +86,20 @@ export function AgentTerminal({ agent, ptyId, vaultPath, isActive, onStatusChang
 
     const term = new Terminal({
       fontFamily: 'ui-monospace, SF Mono, Menlo, Monaco, Consolas, monospace',
-      fontSize: 13,
+      fontSize: 12,
+      lineHeight: 1.2,
       cursorBlink: true,
-      theme: {
-        background: '#181818',
-        foreground: '#e6e6e6',
-        cursor: '#e6e6e6',
-        black: '#1e1e1e',
-        brightBlack: '#5c5c5c',
-      },
+      theme: xtermThemeFromCss(),
+      allowTransparency: true,
       convertEol: true,
       scrollback: 5000,
       allowProposedApi: true,
+      // Routes OSC 8 hyperlinks (Claude Code marks file references this way) to
+      // our editor on Cmd/Ctrl+Click instead of xterm's default confirm().
+      linkHandler: createOsc8LinkHandler({
+        vaultPath,
+        onOpenFile: (p) => onOpenFileRef.current?.(p),
+      }),
     })
     const fit = new FitAddon()
     term.loadAddon(fit)
@@ -73,6 +111,16 @@ export function AgentTerminal({ agent, ptyId, vaultPath, isActive, onStatusChang
 
     const disposers: Array<() => void> = []
     let killed = false
+
+    // Cmd/Ctrl+Click on a relative file path in the output opens it in the
+    // editor pane. The resolver guards against paths outside the vault.
+    const linkProvider = term.registerLinkProvider(
+      createTerminalLinkProvider(term, {
+        vaultPath,
+        onOpenFile: (p) => onOpenFileRef.current?.(p),
+      }),
+    )
+    disposers.push(() => linkProvider.dispose())
 
     const start = async () => {
       if (!agent.binaryPath) {
@@ -168,6 +216,12 @@ export function AgentTerminal({ agent, ptyId, vaultPath, isActive, onStatusChang
       }
     })
   }, [isActive])
+
+  // Re-read theme colors from CSS vars when the user switches color theme.
+  useEffect(() => {
+    if (!termRef.current) return
+    termRef.current.options.theme = xtermThemeFromCss()
+  }, [resolvedTheme])
 
   const handleRestart = useCallback(() => {
     setStatus('starting')

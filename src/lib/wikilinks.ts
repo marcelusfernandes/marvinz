@@ -1,19 +1,33 @@
 import type { PaletteItem } from './paletteRanker'
 
 const WIKILINK_HREF_PREFIX = 'wikilink:'
+const WIKILINK_IMAGE_HREF_PREFIX = 'wikilink-image:'
+const WIKILINK_IMAGE_RE = /!\[\[([^\[\]\n|]+)(?:\|([^\[\]\n]+))?\]\]/g
 const WIKILINK_RE = /\[\[([^\[\]\n|]+)(?:\|([^\[\]\n]+))?\]\]/g
 const WIKILINK_LINK_RE = /\[([^\]\n]+)\]\(wikilink:([^)\s]+)\)/g
+const WIKILINK_IMAGE_LINK_RE = /!\[([^\]\n]*)\]\(wikilink-image:([^)\s]+)\)/g
 
 /**
- * Convert `[[Name]]` and `[[Name|Display]]` into ordinary markdown links
- * using a `wikilink:` URI scheme, so Milkdown can render them as `<a>`.
- * Inverse of {@link unparseWikilinks}.
+ * Convert `[[Name]]`/`[[Name|Display]]` and the embed form
+ * `![[Name]]`/`![[Name|Alt]]` into ordinary markdown link/image syntax using
+ * sentinel URI schemes (`wikilink:` and `wikilink-image:`) so Milkdown can
+ * render them as `<a>` / `<img>`. Inverse of {@link unparseWikilinks}.
+ *
+ * Order matters: the image form is matched first (its `!` would otherwise be
+ * left as a literal next to the link form's output).
  *
  * Known limitation: literal `[[...]]` inside fenced or inline code is also
  * rewritten. Unlikely in note bodies; document and accept.
  */
 export function parseWikilinks(md: string): string {
-  return md.replace(WIKILINK_RE, (match, rawName, rawDisplay) => {
+  const withImages = md.replace(WIKILINK_IMAGE_RE, (match, rawName, rawAlt) => {
+    const name = String(rawName).trim()
+    if (!name) return match
+    const alt = (rawAlt ? String(rawAlt).trim() : '') || name
+    const encoded = encodeURI(name)
+    return `![${alt}](${WIKILINK_IMAGE_HREF_PREFIX}${encoded})`
+  })
+  return withImages.replace(WIKILINK_RE, (match, rawName, rawDisplay) => {
     const name = String(rawName).trim()
     if (!name) return match
     const display = (rawDisplay ? String(rawDisplay).trim() : '') || name
@@ -24,18 +38,24 @@ export function parseWikilinks(md: string): string {
 
 /**
  * Inverse of {@link parseWikilinks}: recover `[[Name]]` / `[[Name|Display]]`
- * syntax from the rendered markdown emitted by Milkdown.
+ * and `![[Name]]` / `![[Name|Alt]]` syntax from the rendered markdown emitted
+ * by Milkdown.
  */
 export function unparseWikilinks(md: string): string {
-  return md.replace(WIKILINK_LINK_RE, (_match, display, target) => {
+  const withoutLinks = md.replace(WIKILINK_LINK_RE, (_match, display, target) => {
     const name = safeDecode(target)
     if (display === name) return `[[${name}]]`
     return `[[${name}|${display}]]`
   })
+  return withoutLinks.replace(WIKILINK_IMAGE_LINK_RE, (_match, alt, target) => {
+    const name = safeDecode(target)
+    if (alt === name || alt === '') return `![[${name}]]`
+    return `![[${name}|${alt}]]`
+  })
 }
 
 /**
- * Returns the decoded wikilink target when the href uses the wikilink:
+ * Returns the decoded wikilink target when the href uses the `wikilink:`
  * scheme, otherwise null.
  */
 export function isWikilinkHref(href: string): { name: string } | null {
@@ -43,6 +63,14 @@ export function isWikilinkHref(href: string): { name: string } | null {
   const raw = href.slice(WIKILINK_HREF_PREFIX.length)
   if (!raw) return null
   return { name: safeDecode(raw) }
+}
+
+/**
+ * Returns true when the given image `src` uses the embed wikilink sentinel
+ * scheme produced by {@link parseWikilinks}.
+ */
+export function isWikilinkImageSrc(src: string): boolean {
+  return src.startsWith(WIKILINK_IMAGE_HREF_PREFIX)
 }
 
 /**
@@ -86,7 +114,49 @@ export function resolveWikilink(
   return sameDir ? sameDir.path : matches[0].path
 }
 
-function stripMdExt(name: string): string {
+/**
+ * Resolve an embed wikilink image (`wikilink-image:<encoded-name>`) to an
+ * absolute file path inside the vault. Unlike {@link resolveWikilink}, this
+ * does not filter by `isMarkdown` — image and other non-markdown items are
+ * the whole point.
+ *
+ * `nameOrSrc` may be either the raw decoded name or the full
+ * `wikilink-image:…` src — both are accepted.
+ */
+export function resolveWikilinkImage(
+  nameOrSrc: string,
+  currentFile: string,
+  vaultPath: string,
+  items: PaletteItem[],
+): string | null {
+  const raw = nameOrSrc.startsWith(WIKILINK_IMAGE_HREF_PREFIX)
+    ? safeDecode(nameOrSrc.slice(WIKILINK_IMAGE_HREF_PREFIX.length))
+    : nameOrSrc
+  const name = raw.trim()
+  if (!name) return null
+
+  if (name.includes('/')) {
+    const absPath = `${vaultPath}/${name}`
+    const exact = items.find((it) => it.path === absPath)
+    return exact ? exact.path : null
+  }
+
+  const matches = items.filter((it) => it.name === name)
+  if (matches.length === 0) return null
+  if (matches.length === 1) return matches[0].path
+
+  const currentDir = currentFile.replace(/\/[^/]+$/, '')
+  const sameDir = matches.find((it) => it.path.startsWith(`${currentDir}/`))
+  return sameDir ? sameDir.path : matches[0].path
+}
+
+/**
+ * Strip a trailing `.md` / `.markdown` extension (case-insensitive) so
+ * wikilinks render with the bare basename — Obsidian-style. Used both by
+ * the resolver above (to match by stripped basename) and by surfaces that
+ * compose new wikilinks from `PaletteItem.name`.
+ */
+export function stripMdExt(name: string): string {
   return name.replace(/\.(md|markdown)$/i, '')
 }
 

@@ -139,6 +139,7 @@ EOF
 - **Sem markdown quebrado**: valide que blocos de código fecham, listas estão consistentes, links válidos.
 - **Não crie commits, branches ou PRs** — esta skill cria **somente issue**.
 - **Não rotacione secrets nem invente CVEs** — issues de segurança descrevem o problema; mitigação operacional é responsabilidade de quem implementa.
+- **Issues sized `L` viram milestone com sub-issues, não issue monolítica.** Se o size do header for `L` (ou se o escopo projetado exceder ~2k LOC excluindo lockfiles/snapshots/fixtures), NÃO crie a issue como um bloco único — crie um milestone no GitHub (`gh api repos/:owner/:repo/milestones -f title="..."`) e gere sub-issues em loop até cada uma ser `S`. Cada sub-issue tem User Story + ACs próprios e vai virar uma PR separada. O caminho `L`-monolítica só é permitido com nota explícita do usuário (linha `> override-l-monolithic: <justificativa>` no body).
 
 ## Anti-patterns
 

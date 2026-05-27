@@ -1,20 +1,52 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AgentTerminal, type AgentDef, type AgentStatus } from './AgentTerminal'
-import { ContextMenu, type MenuItem } from './ContextMenu'
 import { Icon } from './Icon'
+import { InputDialog } from './InputDialog'
+import { ChatPanel, type TurnSummary } from './chat/ChatPanel'
+import { useSetting } from '../lib/settingsStore'
+import type { Provider } from '../lib/chat/types'
+import {
+  clearTabLabel,
+  readTabLabels,
+  writeTabLabels,
+} from '../lib/chat/tabLabels'
+import { CHAT_UI_ENABLED, resolveTabMode, type TabMode } from '../lib/featureFlags'
+import { useHorizontalWheelScroll } from '../lib/useHorizontalWheelScroll'
+import type { MenuItemSpec } from '../types'
 
 type Props = {
   agents: AgentDef[]
   vaultPath: string
   /** Increments to request opening a new tab (Cmd+Shift+T from App). */
   newTabTick: number
+  /** Open the SnapshotPanel pre-selected to this turn id (from UserBubble). */
+  onRewind?: (turnId: string) => void
+  /** Fires when a chat turn finishes with >=1 Edit/Write — drives SnapshotToast. */
+  onTurnSummary?: (summary: TurnSummary) => void
+  /** Opens a vault file when a path in terminal output is Cmd/Ctrl+Clicked. */
+  onOpenFile?: (absolutePath: string) => void
 }
 
-type AgentTab = { id: string; agentId: string; num: number }
-type CtxState = { x: number; y: number; items: MenuItem[] } | null
+type AgentTab = {
+  id: string
+  agentId: string
+  num: number
+  mode: TabMode
+  /** User-supplied label from the Rename action. Falls back to "<agent> <num>". */
+  displayLabel?: string
+}
 type StatusEntry = { status: AgentStatus; exitCode: number | null }
 
+const PICKER_ITEMS: MenuItemSpec[] = [
+  { kind: 'item', id: 'claude', label: 'Claude Code' },
+  { kind: 'item', id: 'codex', label: 'Codex' },
+]
+
 const DEFAULT_AGENT_KEY = 'marvin:defaultAgent'
+
+function isChatProvider(id: string): id is Provider {
+  return id === 'claude' || id === 'codex'
+}
 
 function readStoredDefault(agents: AgentDef[]): string | null {
   try {
@@ -26,20 +58,58 @@ function readStoredDefault(agents: AgentDef[]): string | null {
   return null
 }
 
-export function AgentsPane({ agents, vaultPath, newTabTick }: Props) {
+export function AgentsPane({
+  agents,
+  vaultPath,
+  newTabTick,
+  onRewind,
+  onTurnSummary,
+  onOpenFile,
+}: Props) {
   const installed = useMemo(
     () => agents.filter((a) => a.binaryPath != null),
     [agents],
   )
+  const terminalModeDefault = useSetting('terminalModeEnabled') ?? false
   const [tabs, setTabs] = useState<AgentTab[]>([])
   const [activeId, setActiveId] = useState<string>('')
   const [defaultAgentId, setDefaultAgentId] = useState<string | null>(() =>
     readStoredDefault(agents),
   )
   const [statuses, setStatuses] = useState<Record<string, StatusEntry>>({})
-  const [ctxMenu, setCtxMenu] = useState<CtxState>(null)
+  const [renameTarget, setRenameTarget] = useState<AgentTab | null>(null)
   const counterRef = useRef<Record<string, number>>({})
   const newButtonRef = useRef<HTMLDivElement>(null)
+  const tabsRef = useRef<AgentTab[]>(tabs)
+  useEffect(() => {
+    tabsRef.current = tabs
+  }, [tabs])
+
+  // Hydrate displayLabel from localStorage on mount and GC orphan entries.
+  useEffect(() => {
+    const stored = readTabLabels()
+    if (Object.keys(stored).length === 0) return
+    setTabs((prev) => {
+      const ids = new Set(prev.map((t) => t.id))
+      const cleaned: Record<string, string> = {}
+      for (const [id, label] of Object.entries(stored)) {
+        if (ids.has(id)) cleaned[id] = label
+      }
+      writeTabLabels(cleaned)
+      if (prev.length === 0) return prev
+      let changed = false
+      const next = prev.map((t) => {
+        const label = cleaned[t.id]
+        if (label && label !== t.displayLabel) {
+          changed = true
+          return { ...t, displayLabel: label }
+        }
+        return t
+      })
+      return changed ? next : prev
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Persist default agent.
   useEffect(() => {
@@ -62,12 +132,22 @@ export function AgentsPane({ agents, vaultPath, newTabTick }: Props) {
     [agents],
   )
 
+  const tabLabel = useCallback(
+    (t: AgentTab) => {
+      if (t.displayLabel) return t.displayLabel
+      const a = findAgent(t.agentId)
+      return a ? `${a.name} ${t.num}` : t.agentId
+    },
+    [findAgent],
+  )
+
   const addTab = useCallback(
     (agentId: string) => {
       const a = findAgent(agentId)
       if (!a || a.binaryPath == null) return
-      // Monotonic counter for the PTY id so killed/spawned PTYs never share
-      // a backing id (avoids races in the main-process pty map).
+      // Monotonic counter for the PTY/session id so killed/spawned PTYs
+      // never share a backing id (avoids races in the main-process pty map
+      // and gives chat sessions a stable Zustand key).
       const ptySeq = (counterRef.current[agentId] ?? 0) + 1
       counterRef.current[agentId] = ptySeq
       // Display number reuses the lowest free slot — closing tab N frees N
@@ -77,11 +157,24 @@ export function AgentsPane({ agents, vaultPath, newTabTick }: Props) {
       )
       let num = 1
       while (used.has(num)) num++
-      const tab: AgentTab = { id: `${agentId}-${ptySeq}`, agentId, num }
+      // Default to chat for native-chat-eligible providers unless the user
+      // opted into terminal mode. Gated entirely off in release builds via
+      // CHAT_UI_ENABLED (see featureFlags.ts).
+      const mode: TabMode = resolveTabMode(
+        CHAT_UI_ENABLED,
+        terminalModeDefault,
+        isChatProvider(agentId),
+      )
+      const tab: AgentTab = {
+        id: `${agentId}-${ptySeq}`,
+        agentId,
+        num,
+        mode,
+      }
       setTabs((prev) => [...prev, tab])
       setActiveId(tab.id)
     },
-    [findAgent, tabs],
+    [findAgent, tabs, terminalModeDefault],
   )
 
   const removeTab = useCallback(
@@ -102,6 +195,7 @@ export function AgentsPane({ agents, vaultPath, newTabTick }: Props) {
         delete next[id]
         return next
       })
+      clearTabLabel(id)
     },
     [activeId],
   )
@@ -114,24 +208,124 @@ export function AgentsPane({ agents, vaultPath, newTabTick }: Props) {
     [addTab],
   )
 
-  const buildMenu = useCallback(
-    (): MenuItem[] =>
-      installed.map((a) => ({
-        kind: 'item' as const,
-        label: a.name,
-        onClick: () => pickAndOpen(a.id),
-      })),
-    [installed, pickAndOpen],
-  )
+  const renameTab = useCallback((id: string, label: string) => {
+    setTabs((prev) => {
+      const idx = prev.findIndex((t) => t.id === id)
+      if (idx === -1) return prev
+      const trimmed = label.trim()
+      const next = prev.slice()
+      // Empty label clears the override → fall back to default "<agent> <num>".
+      next[idx] = { ...next[idx], displayLabel: trimmed || undefined }
+      return next
+    })
+    const trimmed = label.trim()
+    if (trimmed) {
+      const stored = readTabLabels()
+      stored[id] = trimmed
+      writeTabLabels(stored)
+    } else {
+      clearTabLabel(id)
+    }
+  }, [])
 
-  const openMenuAtRect = useCallback(
-    (rect: DOMRect) => {
-      setCtxMenu({ x: rect.left, y: rect.bottom + 4, items: buildMenu() })
+  const restartTab = useCallback(
+    (id: string) => {
+      const target = tabsRef.current.find((t) => t.id === id)
+      if (!target) return
+      const savedLabel = target.displayLabel
+      removeTab(id)
+      addTab(target.agentId)
+      if (!savedLabel) return
+      // addTab synchronously bumped counterRef and queued a setTabs with id
+      // `${agentId}-<new ptySeq>`. Compute that id and reapply the label.
+      const newPtySeq = counterRef.current[target.agentId]
+      const newId = `${target.agentId}-${newPtySeq}`
+      setTabs((prev) => {
+        const idx = prev.findIndex((t) => t.id === newId)
+        if (idx === -1) return prev
+        if (prev[idx].displayLabel === savedLabel) return prev
+        const next = prev.slice()
+        next[idx] = { ...next[idx], displayLabel: savedLabel }
+        return next
+      })
+      clearTabLabel(id)
+      const stored = readTabLabels()
+      stored[newId] = savedLabel
+      writeTabLabels(stored)
     },
-    [buildMenu],
+    [removeTab, addTab],
   )
 
-  const handlePlus = useCallback(() => {
+  const closeOthers = useCallback(
+    (keepId: string) => {
+      const droppedIds = tabsRef.current
+        .filter((t) => t.id !== keepId)
+        .map((t) => t.id)
+      setTabs((prev) => {
+        const keep = prev.find((t) => t.id === keepId)
+        if (!keep) return prev
+        return [keep]
+      })
+      setActiveId(keepId)
+      setStatuses((prev) => {
+        if (keepId in prev) return { [keepId]: prev[keepId] }
+        return {}
+      })
+      if (droppedIds.length > 0) {
+        const stored = readTabLabels()
+        let changed = false
+        for (const id of droppedIds) {
+          if (id in stored) {
+            delete stored[id]
+            changed = true
+          }
+        }
+        if (changed) writeTabLabels(stored)
+      }
+    },
+    [],
+  )
+
+  const handleTabContextMenu = useCallback(
+    async (e: React.MouseEvent, tabId: string) => {
+      e.preventDefault()
+      e.stopPropagation()
+      const otherCount = tabs.filter((t) => t.id !== tabId).length
+      const items: MenuItemSpec[] = [
+        { kind: 'item', id: 'close', label: 'Close' },
+        {
+          kind: 'item',
+          id: 'closeOthers',
+          label: 'Close Others',
+          enabled: otherCount > 0,
+        },
+        { kind: 'separator' },
+        { kind: 'item', id: 'restart', label: 'Restart' },
+        { kind: 'item', id: 'rename', label: 'Rename…' },
+      ]
+      const action = await window.marvin.app.showContextMenu(items)
+      if (!action) return
+      switch (action) {
+        case 'close':
+          removeTab(tabId)
+          break
+        case 'closeOthers':
+          closeOthers(tabId)
+          break
+        case 'restart':
+          restartTab(tabId)
+          break
+        case 'rename': {
+          const target = tabs.find((t) => t.id === tabId)
+          if (target) setRenameTarget(target)
+          break
+        }
+      }
+    },
+    [tabs, removeTab, closeOthers, restartTab],
+  )
+
+  const handlePlus = useCallback(async () => {
     if (installed.length === 0) return
     if (defaultAgentId) {
       addTab(defaultAgentId)
@@ -141,19 +335,19 @@ export function AgentsPane({ agents, vaultPath, newTabTick }: Props) {
       pickAndOpen(installed[0].id)
       return
     }
-    if (newButtonRef.current) {
-      openMenuAtRect(newButtonRef.current.getBoundingClientRect())
-    }
-  }, [installed, defaultAgentId, addTab, pickAndOpen, openMenuAtRect])
+    const action = await window.marvin.app.showContextMenu(PICKER_ITEMS)
+    if (action === 'claude' || action === 'codex') pickAndOpen(action)
+  }, [installed, defaultAgentId, addTab, pickAndOpen])
 
   const handleChevron = useCallback(
-    (e: React.MouseEvent<HTMLButtonElement>) => {
+    async (e: React.MouseEvent<HTMLButtonElement>) => {
       e.preventDefault()
       e.stopPropagation()
       if (installed.length === 0) return
-      openMenuAtRect(e.currentTarget.getBoundingClientRect())
+      const action = await window.marvin.app.showContextMenu(PICKER_ITEMS)
+      if (action === 'claude' || action === 'codex') addTab(action)
     },
-    [installed, openMenuAtRect],
+    [installed, addTab],
   )
 
   // React to Cmd+Shift+T from the App-level shortcut.
@@ -177,14 +371,12 @@ export function AgentsPane({ agents, vaultPath, newTabTick }: Props) {
     [],
   )
 
-  const tabLabel = (t: AgentTab) => {
-    const a = findAgent(t.agentId)
-    return a ? `${a.name} ${t.num}` : t.agentId
-  }
+  const tabsBarRef = useRef<HTMLDivElement>(null)
+  useHorizontalWheelScroll(tabsBarRef)
 
   return (
     <div className="agents-pane-inner">
-      <div className="agent-tabs" role="tablist">
+      <div className="agent-tabs" role="tablist" ref={tabsBarRef}>
         {tabs.map((t) => {
           const s = statuses[t.id]?.status
           const label = tabLabel(t)
@@ -192,6 +384,8 @@ export function AgentsPane({ agents, vaultPath, newTabTick }: Props) {
             <div
               key={t.id}
               className={`agent-tab${activeId === t.id ? ' active' : ''}`}
+              data-agent={t.agentId}
+              onContextMenu={(e) => handleTabContextMenu(e, t.id)}
             >
               <button
                 type="button"
@@ -214,7 +408,7 @@ export function AgentsPane({ agents, vaultPath, newTabTick }: Props) {
                   removeTab(t.id)
                 }}
               >
-                <Icon name="close"/>
+                <Icon name="close" size={14}/>
               </button>
             </div>
           )
@@ -233,25 +427,50 @@ export function AgentsPane({ agents, vaultPath, newTabTick }: Props) {
           tabs.map((t) => {
             const a = findAgent(t.agentId)
             if (!a) return null
+            const isActive = activeId === t.id
+            if (CHAT_UI_ENABLED && t.mode === 'chat' && isChatProvider(t.agentId)) {
+              // Keep mounted but hidden when inactive so streaming state and
+              // composer drafts survive tab switches.
+              return (
+                <div
+                  key={t.id}
+                  className="agent-stack-pane"
+                  style={{ display: isActive ? 'flex' : 'none' }}
+                >
+                  <ChatPanel
+                    sessionId={t.id}
+                    provider={t.agentId}
+                    vaultPath={vaultPath}
+                    onRewind={onRewind}
+                    onTurnSummary={onTurnSummary}
+                  />
+                </div>
+              )
+            }
             return (
               <AgentTerminal
                 key={t.id}
                 agent={a}
                 ptyId={t.id}
                 vaultPath={vaultPath}
-                isActive={activeId === t.id}
+                isActive={isActive}
                 onStatusChange={handleStatusChange}
+                onOpenFile={onOpenFile}
               />
             )
           })
         )}
       </div>
-      {ctxMenu && (
-        <ContextMenu
-          x={ctxMenu.x}
-          y={ctxMenu.y}
-          items={ctxMenu.items}
-          onClose={() => setCtxMenu(null)}
+      {renameTarget && (
+        <InputDialog
+          title="Rename tab"
+          initialValue={tabLabel(renameTarget)}
+          submitLabel="Rename"
+          onSubmit={(value) => {
+            renameTab(renameTarget.id, value)
+            setRenameTarget(null)
+          }}
+          onCancel={() => setRenameTarget(null)}
         />
       )}
     </div>
@@ -325,8 +544,9 @@ function EmptyState({
   return (
     <div className="agent-empty">
       <p>No terminal open.</p>
-      <button type="button" className="agent-empty-cta" onClick={onNew}>
-        + New terminal
+      <button type="button" className="btn" onClick={onNew}>
+        <Icon name="add" size={14} />
+        New terminal
       </button>
     </div>
   )

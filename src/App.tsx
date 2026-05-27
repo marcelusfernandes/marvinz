@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { FileChangeSource, FileNode } from './types'
+import type { FileChangeSource, FileNode, MenuItemSpec } from './types'
 import { FileTree } from './components/FileTree'
 import { Editor } from './components/Editor'
 import { AgentsPane } from './components/AgentsPane'
@@ -7,24 +7,34 @@ import type { AgentDef } from './components/AgentTerminal'
 import { BrowserPane } from './components/BrowserPane'
 import { Splitter } from './components/Splitter'
 import { ImageViewer } from './components/ImageViewer'
+import { PdfViewer } from './components/PdfViewer'
+import { DocxViewer } from './components/DocxViewer'
 import { InputDialog } from './components/InputDialog'
-import { ContextMenu, type MenuItem } from './components/ContextMenu'
-import { SidebarMenu } from './components/SidebarMenu'
+import { FileTreeToolbar } from './components/FileTreeToolbar'
+import { Icon } from './components/Icon'
 import { TabBar } from './components/TabBar'
-import { TopBar } from './components/TopBar'
 import { CommandPalette } from './components/CommandPalette'
 import { SettingsModal } from './components/SettingsModal'
-import { seedFromMain } from './lib/settingsStore'
+import { seedFromMain, useSetting } from './lib/settingsStore'
+import { resolveAppFindShortcut } from './lib/appFindShortcut'
+import { useColorTheme } from './lib/colorTheme'
+import { useVisualStyle } from './lib/visualStyle'
+import { TopBar } from './components/TopBar'
 import { SnapshotPanel } from './components/SnapshotPanel'
 import { SnapshotToast } from './components/SnapshotToast'
+import { ImportToast, type ImportToastState } from './components/ImportToast'
+import type { CreatingIn, ImportOutcome } from './components/FileTree'
 import { ExternalChangeBanner } from './components/ExternalChangeBanner'
 import type { PaletteItem } from './lib/paletteRanker'
+import { flattenTree } from './lib/paletteItems'
 import type { LayoutMode } from './components/LayoutToggle'
 import './App.css'
+import './styles/legacy.css'
 
 const LAYOUT_STORAGE_KEY = 'marvin:layoutMode'
 const SIDEBAR_WIDTH_KEY = 'marvin:sidebarWidth'
 const AGENTS_WIDTH_KEY = 'marvin:agentsWidth'
+const SIDEBAR_HIDDEN_KEY = 'marvin:sidebarHidden'
 
 const DEFAULT_SIDEBAR_WIDTH = 240
 const DEFAULT_AGENTS_WIDTH = 588
@@ -97,23 +107,29 @@ type ImageTab = {
   path: string
 }
 
-type Tab = NoteTab | BrowserTabState | ImageTab
+type PdfTab = {
+  type: 'pdf'
+  id: string
+  path: string
+}
+
+type DocxTab = {
+  type: 'docx'
+  id: string
+  path: string
+}
+
+type Tab = NoteTab | BrowserTabState | ImageTab | PdfTab | DocxTab
 
 const isNoteTab = (t: Tab): t is NoteTab => t.type === 'note'
 const isBrowserTab = (t: Tab): t is BrowserTabState => t.type === 'browser'
 const isImageTab = (t: Tab): t is ImageTab => t.type === 'image'
+const isPdfTab = (t: Tab): t is PdfTab => t.type === 'pdf'
+const isDocxTab = (t: Tab): t is DocxTab => t.type === 'docx'
 
 type Dialog =
-  | { kind: 'newNote'; parentDir: string }
-  | { kind: 'newFolder'; parentDir: string }
   | { kind: 'rename'; target: string; isDir: boolean }
   | null
-
-type ContextState = {
-  x: number
-  y: number
-  items: MenuItem[]
-} | null
 
 let tabCounter = 0
 const newTabId = () => `tab-${++tabCounter}`
@@ -132,16 +148,12 @@ function isPdfPath(p: string): boolean {
   return /\.pdf$/i.test(p)
 }
 
-function isHtmlPath(p: string): boolean {
-  return /\.html?$/i.test(p)
+function isDocxPath(p: string): boolean {
+  return /\.docx$/i.test(p)
 }
 
-/** Build a marvin:// URL for a vault-local absolute path. The
- * `localhost` host is a placeholder so the standard URL parser doesn't
- * eat the first path segment as the hostname. */
-function marvinFileUrl(absPath: string): string {
-  const encoded = absPath.split('/').map(encodeURIComponent).join('/')
-  return `marvin://localhost${encoded}`
+function isHtmlPath(p: string): boolean {
+  return /\.html?$/i.test(p)
 }
 
 function basenameOf(p: string): string {
@@ -172,22 +184,12 @@ function normalizeUrl(input: string): string {
   return `https://www.google.com/search?q=${q}`
 }
 
-function flattenTree(nodes: FileNode[], vaultPath: string): PaletteItem[] {
-  const out: PaletteItem[] = []
+function collectDirPaths(nodes: FileNode[]): string[] {
+  const out: string[] = []
   const walk = (n: FileNode) => {
-    if (n.isDir) {
-      n.children?.forEach(walk)
-      return
-    }
-    const rel = n.path.startsWith(vaultPath + '/')
-      ? n.path.slice(vaultPath.length + 1)
-      : n.path
-    out.push({
-      path: n.path,
-      rel,
-      name: n.name,
-      isMarkdown: isMarkdownPath(n.name),
-    })
+    if (!n.isDir) return
+    out.push(n.path)
+    n.children?.forEach(walk)
   }
   nodes.forEach(walk)
   return out
@@ -196,6 +198,32 @@ function flattenTree(nodes: FileNode[], vaultPath: string): PaletteItem[] {
 function dirOf(p: string): string {
   const idx = p.lastIndexOf('/')
   return idx >= 0 ? p.slice(0, idx) : p
+}
+
+function findNodeByPath(nodes: FileNode[], path: string): FileNode | null {
+  for (const n of nodes) {
+    if (n.path === path) return n
+    if (n.isDir && n.children) {
+      const hit = findNodeByPath(n.children, path)
+      if (hit) return hit
+    }
+  }
+  return null
+}
+
+// Resolves the parent dir for new-file/new-folder actions from the current
+// selection: a selected folder hosts the create row directly; a selected file
+// uses its parent dir. Falls back to vault root when nothing is selected.
+function currentFolderFromSelection(
+  selectedPaths: Set<string>,
+  nodes: FileNode[],
+  vaultPath: string,
+): string {
+  if (selectedPaths.size === 0) return vaultPath
+  const [path] = selectedPaths
+  const node = findNodeByPath(nodes, path)
+  if (node?.isDir) return node.path
+  return dirOf(path)
 }
 
 function humanizeError(err: unknown): string {
@@ -223,6 +251,9 @@ function humanizeError(err: unknown): string {
 }
 
 export default function App() {
+  useColorTheme()
+  const visualStyle = useVisualStyle()
+  const saveMode = useSetting('saveMode') ?? 'auto'
   const [vaultPath, setVaultPath] = useState<string | null>(null)
   const [tree, setTree] = useState<FileNode[]>([])
   const [tabs, setTabs] = useState<Tab[]>([])
@@ -230,10 +261,12 @@ export default function App() {
   const [agents, setAgents] = useState<AgentDef[]>([])
   const [bootstrapped, setBootstrapped] = useState(false)
   const [dialog, setDialog] = useState<Dialog>(null)
-  const [ctx, setCtx] = useState<ContextState>(null)
   const [error, setError] = useState<string | null>(null)
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [openPaths, setOpenPaths] = useState<Set<string>>(() => new Set())
+  const [selectedPaths, setSelectedPaths] = useState<Set<string>>(() => new Set())
+  const [creatingIn, setCreatingIn] = useState<CreatingIn | null>(null)
   const [snapshotPanel, setSnapshotPanel] = useState<
     | {
         filePath: string
@@ -248,9 +281,35 @@ export default function App() {
     filePath: string
     source: FileChangeSource
   } | null>(null)
+  const [importToast, setImportToast] = useState<{
+    state: ImportToastState
+    message: string
+  } | null>(null)
   const [layoutMode, setLayoutModeState] = useState<LayoutMode>(() => readStoredLayout())
   const [urlBarFocusTick, setUrlBarFocusTick] = useState(0)
   const [newAgentTabTick, setNewAgentTabTick] = useState(0)
+  // Window-level Cmd+F / Cmd+Alt+F → bumps a tick that the Editor watches
+  // so the find bar opens even when focus is on the sidebar / agents / tab
+  // bar. Keep separate ticks so the variant (find vs replace-expanded)
+  // survives a same-frame double-fire.
+  const [openFindTick, setOpenFindTick] = useState(0)
+  const [openReplaceTick, setOpenReplaceTick] = useState(0)
+  const [isDirty, setIsDirty] = useState(false)
+  const flushSaveRef = useRef<(() => Promise<void>) | null>(null)
+  const [sidebarHidden, setSidebarHidden] = useState(() => {
+    try {
+      return window.localStorage.getItem(SIDEBAR_HIDDEN_KEY) === '1'
+    } catch {
+      return false
+    }
+  })
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(SIDEBAR_HIDDEN_KEY, sidebarHidden ? '1' : '0')
+    } catch {
+      // ignore quota / private-mode errors
+    }
+  }, [sidebarHidden])
   const [sidebarWidth, setSidebarWidthState] = useState<number>(() =>
     readStoredWidth(SIDEBAR_WIDTH_KEY, DEFAULT_SIDEBAR_WIDTH, MIN_SIDEBAR, MAX_SIDEBAR),
   )
@@ -488,6 +547,30 @@ export default function App() {
     [vaultPath, tabs],
   )
 
+  const handleRewindToTurn = useCallback(
+    async (turnId: string) => {
+      if (!vaultPath) return
+      try {
+        const res = await window.marvin.snapshot.listTurns()
+        if (!res.ok) {
+          setError('Failed to load snapshot turns')
+          return
+        }
+        const turn = res.data.find((t) => t.turnId === turnId)
+        if (!turn || turn.files.length === 0) {
+          setError('No saved files for this turn')
+          return
+        }
+        const firstRel = turn.files[0].relPath
+        const absPath = `${vaultPath}/${firstRel}`
+        await openSnapshotPanel(absPath, turnId)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to open versions panel')
+      }
+    },
+    [vaultPath, openSnapshotPanel],
+  )
+
   const handleSnapshotRestored = useCallback(
     async (filePath: string) => {
       try {
@@ -506,8 +589,12 @@ export default function App() {
     [readFreshContent],
   )
 
-  const paletteItems = useMemo<PaletteItem[]>(
+  const paletteItemsBase = useMemo<PaletteItem[]>(
     () => (vaultPath ? flattenTree(tree, vaultPath) : []),
+    [tree, vaultPath],
+  )
+  const paletteItemsWithMeta = useMemo<PaletteItem[]>(
+    () => (vaultPath ? flattenTree(tree, vaultPath, { includeClaudeDir: true }) : []),
     [tree, vaultPath],
   )
 
@@ -531,6 +618,8 @@ export default function App() {
     setTree([])
     setTabs([])
     setActiveTabId(null)
+    setSelectedPaths(new Set())
+    setCreatingIn(null)
     lastDiskContentRef.current.clear()
     bufferContentRef.current.clear()
     // The useEffect on `vaultPath` is the single trigger for loadTree —
@@ -543,7 +632,9 @@ export default function App() {
       const existing = tabs.find(
         (t) =>
           (isNoteTab(t) && t.path === path) ||
-          (isImageTab(t) && t.path === path),
+          (isImageTab(t) && t.path === path) ||
+          (isPdfTab(t) && t.path === path) ||
+          (isDocxTab(t) && t.path === path),
       )
       if (existing) {
         setActiveTabId(existing.id)
@@ -557,26 +648,15 @@ export default function App() {
         setActiveTabId(id)
         return
       }
-      // PDFs and HTML: open in a browser tab pointing at the marvin:// URL.
-      // PDFs use Chromium's built-in viewer; HTML renders via the custom
-      // protocol so relative asset paths resolve against the vault.
-      if (isPdfPath(path) || isHtmlPath(path)) {
-        const url = marvinFileUrl(path)
+      if (isPdfPath(path)) {
         const id = newTabId()
-        setTabs((prev) => [
-          ...prev,
-          {
-            type: 'browser',
-            id,
-            url,
-            draftUrl: url,
-            title: basenameOf(path),
-            canBack: false,
-            canForward: false,
-            loading: true,
-            ready: false,
-          },
-        ])
+        setTabs((prev) => [...prev, { type: 'pdf', id, path }])
+        setActiveTabId(id)
+        return
+      }
+      if (isDocxPath(path)) {
+        const id = newTabId()
+        setTabs((prev) => [...prev, { type: 'docx', id, path }])
         setActiveTabId(id)
         return
       }
@@ -732,10 +812,33 @@ export default function App() {
     [activeTabId],
   )
 
-  const handleSelectFile = (node: FileNode) => {
-    if (node.isDir) return
-    void openInTab(node.path)
-  }
+  // Latest-ref hub for handlers passed to FileTree. We capture volatile
+  // dependencies via refs so the handler identities can stay stable, which is
+  // what React.memo on FileTree relies on to skip re-renders.
+  const openInTabRef = useRef(openInTab)
+  useEffect(() => {
+    openInTabRef.current = openInTab
+  })
+
+  const handleTreeSelect = useCallback((node: FileNode) => {
+    setSelectedPaths(new Set([node.path]))
+    if (!node.isDir) void openInTabRef.current(node.path)
+  }, [])
+
+  // Cmd/Ctrl+Click on a path in the agent terminal opens it via the same
+  // primitive as the file tree — including its missing/binary error toasts.
+  const handleOpenFileFromTerminal = useCallback((absolutePath: string) => {
+    void openInTabRef.current(absolutePath)
+  }, [])
+
+  const handleToggleOpen = useCallback((p: string) => {
+    setOpenPaths((prev) => {
+      const next = new Set(prev)
+      if (next.has(p)) next.delete(p)
+      else next.add(p)
+      return next
+    })
+  }, [])
 
   // Path-field navigation. `replaceCurrent` swaps the active note tab's
   // content (preserving its history); falls back to opening a new tab when
@@ -749,7 +852,6 @@ export default function App() {
         isNoteTab(activeTab) &&
         !isImagePath(path) &&
         !isPdfPath(path) &&
-        !isHtmlPath(path) &&
         path !== activeTab.path
       ) {
         const noteTab = activeTab
@@ -863,15 +965,27 @@ export default function App() {
   }, [])
 
   // Tell main which browser is currently the active visible one (or null).
+  // HtmlPreview also rides on the browser-view IPC, so when an HTML NoteTab
+  // is active we point the active id at its synthetic preview id.
   useEffect(() => {
-    const activeBrowserId =
-      activeTab && isBrowserTab(activeTab) ? activeTab.id : null
+    let activeBrowserId: string | null = null
+    if (activeTab && isBrowserTab(activeTab)) {
+      activeBrowserId = activeTab.id
+    } else if (activeTab && isNoteTab(activeTab) && isHtmlPath(activeTab.path)) {
+      activeBrowserId = `html-preview-${activeTab.path}`
+    }
     void window.marvin.browser.setActive(activeBrowserId)
   }, [activeTab])
 
+  useEffect(() => {
+    if (!error) return
+    const id = window.setTimeout(() => setError(null), 5000)
+    return () => window.clearTimeout(id)
+  }, [error])
+
   // Hide all browser views while any React modal/popover is open, so they
   // don't paint over the modal (WebContentsView is always above the renderer).
-  const modalOpen = paletteOpen || settingsOpen || dialog != null || ctx != null || error != null
+  const modalOpen = paletteOpen || settingsOpen || dialog != null
   useEffect(() => {
     void window.marvin.browser.setAllHidden(modalOpen)
   }, [modalOpen])
@@ -916,10 +1030,35 @@ export default function App() {
         setSettingsOpen(true)
         return
       }
+      // Cmd+S → flush save on the active editor (works in both auto and
+      // manual save modes; in manual mode this is the only way to save).
+      if (!e.shiftKey && (e.key === 's' || e.key === 'S')) {
+        if (!activeTab || !isNoteTab(activeTab)) return
+        e.preventDefault()
+        void flushSaveRef.current?.()
+        return
+      }
+      // Cmd+F / Cmd+Alt+F → open the find bar in the active markdown editor
+      // even when focus sits outside the editor surface. Predicate is
+      // extracted (see resolveAppFindShortcut) so it can be unit-tested
+      // without spinning up the entire App tree.
+      const findVariant = resolveAppFindShortcut(e, {
+        modalOpen,
+        activeMarkdownPath:
+          activeTab && isNoteTab(activeTab) && isMarkdownPath(activeTab.path)
+            ? activeTab.path
+            : null,
+      })
+      if (findVariant) {
+        e.preventDefault()
+        if (findVariant === 'replace') setOpenReplaceTick((t) => t + 1)
+        else setOpenFindTick((t) => t + 1)
+        return
+      }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [vaultPath, openNewBrowserTab])
+  }, [vaultPath, openNewBrowserTab, modalOpen, activeTab])
 
   const handlePalettePick = useCallback(
     async (item: PaletteItem, replaceCurrent: boolean) => {
@@ -940,9 +1079,16 @@ export default function App() {
   const handleSave = useCallback(
     async (content: string) => {
       if (!activeTab || !isNoteTab(activeTab)) return
-      await window.marvin.file.write(activeTab.path, content)
-      lastDiskContentRef.current.set(activeTab.path, content)
-      bufferContentRef.current.set(activeTab.path, content)
+      try {
+        await window.marvin.file.write(activeTab.path, content)
+        lastDiskContentRef.current.set(activeTab.path, content)
+        bufferContentRef.current.set(activeTab.path, content)
+      } catch (err) {
+        const name = basenameOf(activeTab.path)
+        const detail = err instanceof Error ? err.message : String(err)
+        setError(`Failed to save ${name}: ${detail}`)
+        throw err
+      }
     },
     [activeTab],
   )
@@ -1098,14 +1244,7 @@ export default function App() {
     const d = dialog
     setDialog(null)
     try {
-      if (d.kind === 'newNote') {
-        const newPath = await window.marvin.file.create(d.parentDir, name)
-        await loadTree(vaultPath)
-        await openInTab(newPath)
-      } else if (d.kind === 'newFolder') {
-        await window.marvin.folder.create(d.parentDir, name)
-        await loadTree(vaultPath)
-      } else if (d.kind === 'rename') {
+      if (d.kind === 'rename') {
         const newPath = `${dirOf(d.target)}/${name}`
         await window.marvin.path.rename(d.target, newPath)
         renameInTabs(d.target, newPath)
@@ -1127,76 +1266,205 @@ export default function App() {
     }
   }
 
+  // Latest-ref hub for plain functions and volatile callbacks captured by
+  // FileTree handlers. Refs are reassigned after every render so the handlers
+  // below can read fresh values while keeping a stable identity for React.memo.
+  const renameInTabsRef = useRef(renameInTabs)
+  const reportErrorRef = useRef(reportError)
+  const openSnapshotPanelRef = useRef(openSnapshotPanel)
+  const handleTrashRef = useRef(handleTrash)
+  const vaultPathRef = useRef(vaultPath)
+  useEffect(() => {
+    renameInTabsRef.current = renameInTabs
+    reportErrorRef.current = reportError
+    openSnapshotPanelRef.current = openSnapshotPanel
+    handleTrashRef.current = handleTrash
+    vaultPathRef.current = vaultPath
+  })
+
   // Drag-and-drop: move src into destDir via rename.
-  const handleDropMove = async (srcPath: string, destDir: string) => {
+  const handleDropMove = useCallback(
+    async (srcPath: string, destDir: string) => {
+      const vp = vaultPathRef.current
+      if (!vp) return
+      if (srcPath === destDir) return
+      if (destDir.startsWith(`${srcPath}/`) || destDir === srcPath) return // dest is descendant of src
+      const baseName = srcPath.split('/').pop() ?? srcPath
+      const newPath = `${destDir}/${baseName}`
+      if (newPath === srcPath) return // same parent
+      try {
+        await window.marvin.path.rename(srcPath, newPath)
+        renameInTabsRef.current(srcPath, newPath)
+        await loadTree(vp)
+      } catch (err) {
+        reportErrorRef.current(err)
+      }
+    },
+    [loadTree],
+  )
+
+  const handleNodeContextMenu = useCallback(
+    async (e: React.MouseEvent, node: FileNode) => {
+      e.preventDefault()
+      e.stopPropagation()
+      const items: MenuItemSpec[] = []
+      if (node.isDir) {
+        items.push(
+          { kind: 'item', id: 'new-note', label: 'New note here' },
+          { kind: 'item', id: 'new-folder', label: 'New folder here' },
+          { kind: 'separator' },
+        )
+      }
+      items.push(
+        { kind: 'item', id: 'rename', label: 'Rename' },
+        { kind: 'item', id: 'reveal', label: 'Reveal in Finder' },
+      )
+      if (!node.isDir) {
+        items.push({ kind: 'item', id: 'versions', label: 'View versions…' })
+      }
+      if (!node.isDir && node.path.endsWith('.md')) {
+        items.push({ kind: 'item', id: 'export-pdf', label: 'Export as PDF…' })
+      }
+      items.push(
+        { kind: 'separator' },
+        {
+          kind: 'item',
+          id: 'trash',
+          label: node.isDir ? 'Move folder to Trash' : 'Move file to Trash',
+        },
+      )
+      const action = await window.marvin.app.showContextMenu(items)
+      if (!action) return
+      switch (action) {
+        case 'new-note':
+          setCreatingIn({ parentDir: node.path, kind: 'file' })
+          break
+        case 'new-folder':
+          setCreatingIn({ parentDir: node.path, kind: 'folder' })
+          break
+        case 'rename':
+          setDialog({ kind: 'rename', target: node.path, isDir: node.isDir })
+          break
+        case 'reveal':
+          void window.marvin.shell.reveal(node.path)
+          break
+        case 'versions':
+          void openSnapshotPanelRef.current(node.path)
+          break
+        case 'export-pdf':
+          await window.marvin.file.exportPdf(node.path)
+          break
+        case 'trash':
+          await handleTrashRef.current(node.path)
+          break
+      }
+    },
+    [],
+  )
+
+  const handleImportResult = useCallback(
+    (outcome: ImportOutcome) => {
+      if (!outcome.ok) {
+        setImportToast({ state: 'error', message: `Import failed: ${outcome.error}` })
+        return
+      }
+      const { imported, skipped } = outcome.result
+      if (imported.length === 0 && skipped.length === 0) return
+      let relDest = outcome.destDir
+      if (vaultPath) {
+        if (outcome.destDir === vaultPath) relDest = '/'
+        else if (outcome.destDir.startsWith(vaultPath + '/'))
+          relDest = outcome.destDir.slice(vaultPath.length)
+      }
+      const fileWord = (n: number) => (n === 1 ? 'file' : 'files')
+      if (imported.length === 0) {
+        const reason = skipped[0]?.reason ?? 'unknown'
+        setImportToast({
+          state: 'error',
+          message: `Import failed: ${skipped.length} ${fileWord(skipped.length)} skipped (${reason}).`,
+        })
+        return
+      }
+      if (skipped.length > 0) {
+        const reason = skipped[0]?.reason ?? 'unknown'
+        setImportToast({
+          state: 'partial',
+          message: `Imported ${imported.length} of ${imported.length + skipped.length} files. ${skipped.length} skipped (${reason}).`,
+        })
+        return
+      }
+      setImportToast({
+        state: 'success',
+        message: `Imported ${imported.length} ${fileWord(imported.length)} to ${relDest}`,
+      })
+    },
+    [vaultPath],
+  )
+
+  const handleSidebarPaste = (e: React.ClipboardEvent<HTMLElement>) => {
     if (!vaultPath) return
-    if (srcPath === destDir) return
-    if (destDir.startsWith(`${srcPath}/`) || destDir === srcPath) return // dest is descendant of src
-    const baseName = srcPath.split('/').pop() ?? srcPath
-    const newPath = `${destDir}/${baseName}`
-    if (newPath === srcPath) return // same parent
-    try {
-      await window.marvin.path.rename(srcPath, newPath)
-      renameInTabs(srcPath, newPath)
-      await loadTree(vaultPath)
-    } catch (err) {
-      reportError(err)
+    const target = e.target as HTMLElement
+    if (
+      target.tagName === 'INPUT' ||
+      target.tagName === 'TEXTAREA' ||
+      target.isContentEditable
+    ) {
+      return
     }
+    const files = Array.from(e.clipboardData?.files ?? [])
+    if (files.length === 0) return
+    e.preventDefault()
+    const paths: string[] = []
+    for (const file of files) {
+      const p = window.marvin.fs.getPathForFile(file)
+      if (p) paths.push(p)
+    }
+    if (paths.length === 0) return
+    const destDir =
+      activeTab && isNoteTab(activeTab) ? dirOf(activeTab.path) : vaultPath
+    void window.marvin.fs
+      .importExternal(paths, destDir)
+      .then((result) => {
+        handleImportResult({ ok: true, result, destDir })
+      })
+      .catch((err: unknown) => {
+        const message = err instanceof Error ? err.message : String(err)
+        handleImportResult({ ok: false, error: message })
+      })
   }
 
-  const handleNodeContextMenu = (e: React.MouseEvent, node: FileNode) => {
-    e.preventDefault()
-    e.stopPropagation()
-    const items: MenuItem[] = []
-    if (node.isDir) {
-      items.push(
-        {
-          kind: 'item',
-          label: 'New note here',
-          icon: 'new-file',
-          onClick: () => setDialog({ kind: 'newNote', parentDir: node.path }),
-        },
-        {
-          kind: 'item',
-          label: 'New folder here',
-          icon: 'new-folder',
-          onClick: () => setDialog({ kind: 'newFolder', parentDir: node.path }),
-        },
-        { kind: 'separator' },
+  const handleSidebarContextMenu = async (e: React.MouseEvent<HTMLElement>) => {
+    if (!vaultPath) return
+    const target = e.target as HTMLElement
+    // Only fire on empty space — bail when the click lands on a file row, the
+    // search bar, the header, the footer, or any interactive child.
+    if (
+      target.closest(
+        '.file-tree-row, .sidebar-icon-strip, .sidebar-header, .sidebar-footer, button, input, a',
       )
+    ) {
+      return
     }
-    items.push(
-      {
-        kind: 'item',
-        label: 'Rename',
-        icon: 'edit',
-        onClick: () => setDialog({ kind: 'rename', target: node.path, isDir: node.isDir }),
-      },
-      {
-        kind: 'item',
-        label: 'Reveal in Finder',
-        icon: 'go-to-file',
-        onClick: () => void window.marvin.shell.reveal(node.path),
-      },
-    )
-    if (!node.isDir) {
-      items.push({
-        kind: 'item',
-        label: 'View versions…',
-        onClick: () => void openSnapshotPanel(node.path),
-      })
-    }
-    items.push(
+    e.preventDefault()
+    const items: MenuItemSpec[] = [
+      { kind: 'item', id: 'new-file', label: 'New File' },
+      { kind: 'item', id: 'new-folder', label: 'New Folder' },
       { kind: 'separator' },
-      {
-        kind: 'item',
-        label: node.isDir ? 'Move folder to Trash' : 'Move file to Trash',
-        icon: 'trash',
-        danger: true,
-        onClick: () => handleTrash(node.path),
-      },
-    )
-    setCtx({ x: e.clientX, y: e.clientY, items })
+      { kind: 'item', id: 'refresh', label: 'Refresh' },
+    ]
+    const action = await window.marvin.app.showContextMenu(items)
+    if (!action) return
+    switch (action) {
+      case 'new-file':
+        setCreatingIn({ parentDir: vaultPath, kind: 'file' })
+        break
+      case 'new-folder':
+        setCreatingIn({ parentDir: vaultPath, kind: 'folder' })
+        break
+      case 'refresh':
+        void loadTree(vaultPath)
+        break
+    }
   }
 
   if (!bootstrapped) {
@@ -1217,12 +1485,6 @@ export default function App() {
 
   const dialogConfig = (() => {
     if (!dialog) return null
-    if (dialog.kind === 'newNote') {
-      return { title: 'New note', placeholder: 'note-name', submit: 'Create', initial: '' }
-    }
-    if (dialog.kind === 'newFolder') {
-      return { title: 'New folder', placeholder: 'folder-name', submit: 'Create', initial: '' }
-    }
     return {
       title: dialog.isDir ? 'Rename folder' : 'Rename file',
       placeholder: '',
@@ -1231,14 +1493,46 @@ export default function App() {
     }
   })()
 
+  const sidebarIconButtons = visualStyle === 'modern' && (
+    <>
+      <button
+        type="button"
+        className="sidebar-icon-btn"
+        onClick={() => setSidebarHidden((h) => !h)}
+        aria-label={sidebarHidden ? 'Show sidebar' : 'Hide sidebar'}
+        title={sidebarHidden ? 'Show sidebar' : 'Hide sidebar'}
+      >
+        <Icon
+          name={sidebarHidden ? 'layout-sidebar-left' : 'layout-sidebar-left-off'}
+          size={16}
+        />
+      </button>
+      <button
+        type="button"
+        className="sidebar-icon-btn"
+        onClick={() => setPaletteOpen(true)}
+        aria-label="Search (⌘P)"
+        title="Search (⌘P)"
+      >
+        <Icon name="search" size={16} />
+      </button>
+    </>
+  )
+
+
   return (
-    <div className="shell">
-      <TopBar
-        onOpenPalette={() => setPaletteOpen(true)}
-        onOpenSettings={() => setSettingsOpen(true)}
-        layoutMode={layoutMode}
-        onLayoutChange={setLayoutMode}
-      />
+    <div className={`shell${sidebarHidden ? ' sidebar-hidden' : ''}`}>
+      {visualStyle === 'legacy' && (
+        <TopBar
+          onOpenPalette={() => setPaletteOpen(true)}
+          onOpenSettings={() => setSettingsOpen(true)}
+          layoutMode={layoutMode}
+          onLayoutChange={setLayoutMode}
+        />
+      )}
+      {visualStyle === 'modern' && (
+        <div className="sidebar-icon-strip">{sidebarIconButtons}</div>
+      )}
       <div
         className="app"
         data-layout={layoutMode}
@@ -1249,26 +1543,82 @@ export default function App() {
           } as React.CSSProperties
         }
       >
-      <aside className="sidebar">
+      <aside
+        className="sidebar"
+        onContextMenu={handleSidebarContextMenu}
+        onPaste={handleSidebarPaste}
+      >
         <div className="sidebar-header">
-          <span className="vault-name">{vaultPath.split('/').pop()}</span>
-          <SidebarMenu
-            onNewNote={() => setDialog({ kind: 'newNote', parentDir: vaultPath })}
-            onNewFolder={() => setDialog({ kind: 'newFolder', parentDir: vaultPath })}
+          {visualStyle === 'legacy' ? (
+            <span className="vault-name">{vaultPath.split('/').pop()}</span>
+          ) : (
+            <div className="sidebar-project-info">
+              <div className="sidebar-project-text">
+                <span className="sidebar-project-name">{vaultPath.split('/').pop()}</span>
+              </div>
+            </div>
+          )}
+          <FileTreeToolbar
+            isAnyOpen={openPaths.size > 0}
+            onNewFile={() =>
+              setCreatingIn({
+                parentDir: currentFolderFromSelection(selectedPaths, tree, vaultPath),
+                kind: 'file',
+              })
+            }
+            onNewFolder={() =>
+              setCreatingIn({
+                parentDir: currentFolderFromSelection(selectedPaths, tree, vaultPath),
+                kind: 'folder',
+              })
+            }
+            onRefresh={() => void loadTree(vaultPath)}
+            onToggleAll={() =>
+              setOpenPaths((prev) =>
+                prev.size > 0 ? new Set() : new Set(collectDirPaths(tree)),
+              )
+            }
           />
         </div>
         <FileTree
           nodes={tree}
           vaultPath={vaultPath}
-          selectedPath={activeTab && isNoteTab(activeTab) ? activeTab.path : null}
-          onSelect={handleSelectFile}
+          selectedPaths={selectedPaths}
+          activeFilePath={activeTab && isNoteTab(activeTab) ? activeTab.path : null}
+          openPaths={openPaths}
+          creatingIn={creatingIn}
+          onToggleOpen={handleToggleOpen}
+          onSelect={handleTreeSelect}
+          onCreatingInChange={setCreatingIn}
           onContextMenu={handleNodeContextMenu}
           onMove={handleDropMove}
+          onImportResult={handleImportResult}
         />
         <div className="sidebar-footer">
-          <button type="button" className="text-btn" onClick={handlePickVault}>
-            Switch vault
-          </button>
+          {visualStyle === 'legacy' ? (
+            <button type="button" className="text-btn" onClick={handlePickVault}>
+              Switch vault
+            </button>
+          ) : (
+            <>
+              <button
+                type="button"
+                className="sidebar-footer-btn"
+                onClick={handlePickVault}
+              >
+                <Icon name="folder" size={16} />
+                <span>Switch Folder</span>
+              </button>
+              <button
+                type="button"
+                className="sidebar-footer-btn"
+                onClick={() => setSettingsOpen(true)}
+              >
+                <Icon name="gear" size={16} />
+                <span>Settings</span>
+              </button>
+            </>
+          )}
         </div>
       </aside>
 
@@ -1278,6 +1628,7 @@ export default function App() {
         <TabBar
           tabs={tabs}
           activeId={activeTabId}
+          dirtyTabId={isDirty ? activeTabId : null}
           onActivate={setActiveTabId}
           onClose={closeTab}
           onNewBrowserTab={openNewBrowserTab}
@@ -1312,11 +1663,13 @@ export default function App() {
                 />
               )}
               <Editor
-                key={`${activeTab.id}#${activeTab.path}#${activeTab.version}`}
+                key={`${activeTab.id}#${activeTab.path}`}
                 filePath={activeTab.path}
                 vaultPath={vaultPath}
                 initialContent={activeTab.content}
-                paletteItems={paletteItems}
+                version={activeTab.version}
+                geometryKey={`${layoutMode}#${sidebarWidth}#${agentsWidth}`}
+                paletteItems={paletteItemsWithMeta}
                 onSave={handleSave}
                 onBufferChange={(content) => handleBufferChange(activeTab.path, content)}
                 onNavigate={navigateOrOpen}
@@ -1324,11 +1677,33 @@ export default function App() {
                 canForward={activeTab.forward.length > 0}
                 onBack={goBack}
                 onForward={goForward}
+                openFindTick={openFindTick}
+                openReplaceTick={openReplaceTick}
+                onImportToast={setImportToast}
+                saveMode={saveMode}
+                onDirtyChange={setIsDirty}
+                onFlushSave={(fn) => {
+                  flushSaveRef.current = fn
+                }}
               />
             </div>
           )}
           {activeTab && isImageTab(activeTab) && (
             <ImageViewer
+              key={activeTab.id}
+              path={activeTab.path}
+              onRevealInFinder={(p) => void window.marvin.shell.reveal(p)}
+            />
+          )}
+          {activeTab && isPdfTab(activeTab) && (
+            <PdfViewer
+              key={activeTab.id}
+              path={activeTab.path}
+              onRevealInFinder={(p) => void window.marvin.shell.reveal(p)}
+            />
+          )}
+          {activeTab && isDocxTab(activeTab) && (
+            <DocxViewer
               key={activeTab.id}
               path={activeTab.path}
               onRevealInFinder={(p) => void window.marvin.shell.reveal(p)}
@@ -1362,6 +1737,11 @@ export default function App() {
           agents={agents}
           vaultPath={vaultPath}
           newTabTick={newAgentTabTick}
+          onRewind={handleRewindToTurn}
+          onTurnSummary={(summary) =>
+            setTurnToast({ turnId: summary.turnId, files: summary.fileNames })
+          }
+          onOpenFile={handleOpenFileFromTerminal}
         />
       </aside>
 
@@ -1376,15 +1756,6 @@ export default function App() {
         />
       )}
 
-      {ctx && (
-        <ContextMenu
-          x={ctx.x}
-          y={ctx.y}
-          items={ctx.items}
-          onClose={() => setCtx(null)}
-        />
-      )}
-
       {error && (
         <div className="error-toast" onClick={() => setError(null)}>
           {error}
@@ -1393,13 +1764,20 @@ export default function App() {
 
       {paletteOpen && (
         <CommandPalette
-          items={paletteItems}
+          items={paletteItemsBase}
           onPick={handlePalettePick}
           onClose={() => setPaletteOpen(false)}
+          vaultPath={vaultPath ?? ''}
         />
       )}
 
-      {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} />}
+      {settingsOpen && (
+        <SettingsModal
+          onClose={() => setSettingsOpen(false)}
+          layoutMode={layoutMode}
+          onLayoutChange={setLayoutMode}
+        />
+      )}
 
       {snapshotPanel && (
         <SnapshotPanel
@@ -1439,6 +1817,14 @@ export default function App() {
             setExternalToast(null)
           }}
           onDismiss={() => setExternalToast(null)}
+        />
+      )}
+
+      {importToast && (
+        <ImportToast
+          state={importToast.state}
+          message={importToast.message}
+          onDismiss={() => setImportToast(null)}
         />
       )}
       </div>

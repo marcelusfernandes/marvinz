@@ -15,6 +15,24 @@ function readFromLocalStorage(): Settings {
     if (iconTheme === 'codicon' || iconTheme === 'material') {
       out.iconTheme = iconTheme
     }
+    const colorTheme = window.localStorage.getItem(`${LS_PREFIX}colorTheme`)
+    if (colorTheme === 'light' || colorTheme === 'dark' || colorTheme === 'system') {
+      out.colorTheme = colorTheme
+    }
+    const visualStyle = window.localStorage.getItem(`${LS_PREFIX}visualStyle`)
+    if (visualStyle === 'modern' || visualStyle === 'legacy') {
+      out.visualStyle = visualStyle
+    }
+    const terminalModeEnabled = window.localStorage.getItem(
+      `${LS_PREFIX}terminalModeEnabled`,
+    )
+    if (terminalModeEnabled === 'true' || terminalModeEnabled === 'false') {
+      out.terminalModeEnabled = terminalModeEnabled === 'true'
+    }
+    const saveMode = window.localStorage.getItem(`${LS_PREFIX}saveMode`)
+    if (saveMode === 'auto' || saveMode === 'manual') {
+      out.saveMode = saveMode
+    }
   } catch {
     // ignore
   }

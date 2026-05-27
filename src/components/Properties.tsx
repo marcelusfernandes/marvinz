@@ -6,7 +6,17 @@ import {
   type Frontmatter,
   type PropertyType,
 } from '../lib/frontmatter'
-import { Icon } from './Icon'
+import type { MenuItemSpec } from '../types'
+import { Icon, type IconName } from './Icon'
+
+const PROP_TYPES_FOR_PICKER: Array<{ type: PropertyType; label: string; icon: IconName }> = [
+  { type: 'string', label: 'Text', icon: 'symbol-string' },
+  { type: 'number', label: 'Number', icon: 'symbol-numeric' },
+  { type: 'boolean', label: 'Checkbox', icon: 'symbol-boolean' },
+  { type: 'date', label: 'Date', icon: 'calendar' },
+  { type: 'tags', label: 'Tags', icon: 'tag' },
+  { type: 'list', label: 'List', icon: 'list-unordered' },
+]
 
 type Props = {
   data: Frontmatter
@@ -81,7 +91,8 @@ export function Properties({ data, onChange }: Props) {
         />
       ) : (
         <button type="button" className="props-add" onClick={() => setAdding(true)}>
-          + Add property
+          <Icon name="add" size={14} />
+          <span>Add property</span>
         </button>
       )}
     </div>
@@ -353,7 +364,7 @@ function TagsEditor({
   return (
     <span className="prop-pills editable">
       {tags.map((tag, i) => (
-        <span key={`${tag}-${i}`} className="prop-pill prop-pill-tag">
+        <span key={`${tag}-${i}`} className="prop-pill">
           <span className="prop-pill-hash">#</span>
           {tag}
           <button
@@ -453,10 +464,28 @@ function AddPropertyRow({
   const [name, setName] = useState('')
   const [type, setType] = useState<PropertyType>('string')
 
+  const currentTypeMeta =
+    PROP_TYPES_FOR_PICKER.find((t) => t.type === type) ?? PROP_TYPES_FOR_PICKER[0]
+
   const submit = () => {
     const key = name.trim()
     if (!key || existingKeys.has(key)) return
     onSubmit(key, type)
+  }
+
+  const openTypeMenu = async (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    const items: MenuItemSpec[] = PROP_TYPES_FOR_PICKER.map((t) => ({
+      kind: 'item' as const,
+      id: t.type,
+      label: t.label,
+      enabled: type !== t.type,
+    }))
+    const choice = await window.marvin.app.showContextMenu(items)
+    if (!choice) return
+    const match = PROP_TYPES_FOR_PICKER.find((t) => t.type === choice)
+    if (match) setType(match.type)
   }
 
   return (
@@ -472,22 +501,20 @@ function AddPropertyRow({
           if (e.key === 'Escape') onCancel()
         }}
       />
-      <select
-        className="prop-type-select"
-        value={type}
-        onChange={(e) => setType(e.target.value as PropertyType)}
+      <button
+        type="button"
+        className="prop-type-picker"
+        onClick={openTypeMenu}
+        title="Property type"
       >
-        <option value="string">Text</option>
-        <option value="number">Number</option>
-        <option value="boolean">Checkbox</option>
-        <option value="date">Date</option>
-        <option value="tags">Tags</option>
-        <option value="list">List</option>
-      </select>
-      <button type="button" className="props-add-btn primary" onClick={submit}>
+        <Icon name={currentTypeMeta.icon} size={16} />
+        <span>{currentTypeMeta.label}</span>
+        <Icon name="chevron-down" size={14} />
+      </button>
+      <button type="button" className="btn btn--primary" onClick={submit}>
         Add
       </button>
-      <button type="button" className="props-add-btn ghost" onClick={onCancel}>
+      <button type="button" className="btn btn--ghost" onClick={onCancel}>
         Cancel
       </button>
     </div>
@@ -506,5 +533,5 @@ const PROP_ICON_BY_TYPE: Record<PropertyType, 'symbol-string' | 'symbol-numeric'
 }
 
 function PropertyIcon({ type }: { type: PropertyType }) {
-  return <Icon name={PROP_ICON_BY_TYPE[type]} size={14} />
+  return <Icon name={PROP_ICON_BY_TYPE[type]} size={20} />
 }

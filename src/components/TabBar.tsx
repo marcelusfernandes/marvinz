@@ -1,5 +1,8 @@
+import { useCallback, useRef } from 'react'
+import { useHorizontalWheelScroll } from '../lib/useHorizontalWheelScroll'
 import { Icon } from './Icon'
 import { fileIconFor } from '../lib/fileIcons'
+import type { MenuItemSpec } from '../types'
 
 type NoteTab = {
   type: 'note'
@@ -21,11 +24,24 @@ type ImageTab = {
   path: string
 }
 
-type Tab = NoteTab | BrowserTab | ImageTab
+type PdfTab = {
+  type: 'pdf'
+  id: string
+  path: string
+}
+
+type DocxTab = {
+  type: 'docx'
+  id: string
+  path: string
+}
+
+type Tab = NoteTab | BrowserTab | ImageTab | PdfTab | DocxTab
 
 type Props = {
   tabs: Tab[]
   activeId: string | null
+  dirtyTabId?: string | null
   onActivate: (id: string) => void
   onClose: (id: string) => void
   onNewBrowserTab: () => void
@@ -52,18 +68,69 @@ function basename(p: string): string {
   return p.split('/').pop() ?? p
 }
 
-export function TabBar({ tabs, activeId, onActivate, onClose, onNewBrowserTab }: Props) {
+export function TabBar({
+  tabs,
+  activeId,
+  dirtyTabId,
+  onActivate,
+  onClose,
+  onNewBrowserTab,
+}: Props) {
+  const barRef = useRef<HTMLDivElement>(null)
+  useHorizontalWheelScroll(barRef)
+
+  const handleContextMenu = useCallback(
+    async (e: React.MouseEvent, tabId: string) => {
+      e.preventDefault()
+      e.stopPropagation()
+      const idx = tabs.findIndex((t) => t.id === tabId)
+      if (idx === -1) return
+      const target = tabs[idx]
+      const others = tabs.filter((t) => t.id !== tabId)
+      const toRight = tabs.slice(idx + 1)
+      const revealPath = target.type === 'browser' ? null : target.path
+      const items: MenuItemSpec[] = [
+        { kind: 'item', id: 'close', label: 'Close' },
+        { kind: 'item', id: 'closeOthers', label: 'Close Others', enabled: others.length > 0 },
+        { kind: 'item', id: 'closeRight', label: 'Close to the Right', enabled: toRight.length > 0 },
+        { kind: 'item', id: 'closeAll', label: 'Close All' },
+        { kind: 'separator' },
+        { kind: 'item', id: 'reveal', label: 'Reveal in Finder', enabled: revealPath !== null },
+      ]
+      const action = await window.marvin.app.showContextMenu(items)
+      if (!action) return
+      switch (action) {
+        case 'close':
+          onClose(tabId)
+          break
+        case 'closeOthers':
+          for (const t of others) onClose(t.id)
+          break
+        case 'closeRight':
+          for (const t of toRight) onClose(t.id)
+          break
+        case 'closeAll':
+          for (const t of tabs) onClose(t.id)
+          break
+        case 'reveal':
+          if (revealPath) void window.marvin.shell.reveal(revealPath)
+          break
+      }
+    },
+    [tabs, onClose],
+  )
+
   return (
-    <div className="tab-bar">
+    <div className="tab-bar" ref={barRef}>
       {tabs.map((t) => {
         const active = t.id === activeId
-        const kind: 'note' | 'browser' | 'image' = t.type
+        const kind: 'note' | 'browser' | 'image' | 'pdf' | 'docx' = t.type
         const label =
           t.type === 'browser'
             ? browserLabel(t)
-            : t.type === 'image'
-              ? basename(t.path)
-              : noteLabel(t.path)
+            : t.type === 'note'
+              ? noteLabel(t.path)
+              : basename(t.path)
         const tooltip = t.type === 'browser' ? t.url : t.path
         return (
           <div
@@ -77,6 +144,7 @@ export function TabBar({ tabs, activeId, onActivate, onClose, onNewBrowserTab }:
                 onActivate(t.id)
               }
             }}
+            onContextMenu={(e) => handleContextMenu(e, t.id)}
             title={tooltip}
           >
             <TabIcon
@@ -84,6 +152,11 @@ export function TabBar({ tabs, activeId, onActivate, onClose, onNewBrowserTab }:
               loading={t.type === 'browser' ? t.loading : false}
             />
             <span className="tab-title">{label}</span>
+            {dirtyTabId === t.id && (
+              <span className="tab-dirty" aria-label="Unsaved changes" title="Unsaved changes">
+                •
+              </span>
+            )}
             <button
               type="button"
               className="tab-close"
@@ -94,7 +167,7 @@ export function TabBar({ tabs, activeId, onActivate, onClose, onNewBrowserTab }:
                 onClose(t.id)
               }}
             >
-              <Icon name="close"/>
+              <Icon name="close" size={14}/>
             </button>
           </div>
         )

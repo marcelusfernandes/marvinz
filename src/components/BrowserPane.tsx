@@ -1,5 +1,6 @@
-import { useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { Icon } from './Icon'
+import { computeViewBounds, computeViewInsets } from '../lib/browserBounds'
 
 type BrowserTabState = {
   type: 'browser'
@@ -50,25 +51,17 @@ export function BrowserPane({
   }, [isActive, urlBarFocusTick])
 
   // Compute bounds for the embedded WebContentsView from the placeholder.
-  // `getBoundingClientRect` is in the renderer's CSS-pixel viewport, but
-  // `view.setBounds` in the main process expects DIPs of the window's
-  // contentView. The two diverge whenever the renderer's zoomFactor is not
-  // 1 (Cmd+/-) or the display uses fractional scaling. The ratio of
-  // `outerWidth/innerWidth` is the per-axis scale that maps one to the
-  // other; multiplying by it makes bounds correct regardless of zoom.
-  const computeBounds = () => {
-    const el = hostRef.current
-    if (!el) return null
-    const r = el.getBoundingClientRect()
-    const sx = window.innerWidth > 0 ? window.outerWidth / window.innerWidth : 1
-    const sy = window.innerHeight > 0 ? window.outerHeight / window.innerHeight : 1
-    return {
-      x: Math.round(r.left * sx),
-      y: Math.round(r.top * sy),
-      width: Math.max(0, Math.round(r.width * sx)),
-      height: Math.max(0, Math.round(r.height * sy)),
-    }
-  }
+  const computeBounds = () => computeViewBounds(hostRef.current)
+
+  // Push the absolute bounds (drives panel drags + the create path) and the
+  // geometry descriptor (lets main recompute during OS window resize, #259) in
+  // one shot, on every trigger that can move the placeholder.
+  const pushGeometry = useCallback(() => {
+    const bounds = computeViewBounds(hostRef.current)
+    if (bounds) void window.marvin.browser.setBounds(tab.id, bounds)
+    const insets = computeViewInsets(hostRef.current, window.innerWidth, window.innerHeight)
+    if (insets) void window.marvin.browser.setGeometry(tab.id, insets)
+  }, [tab.id])
 
   // Lazy-create the WebContentsView on first mount + push subsequent bounds
   // changes via ResizeObserver and window-resize.
@@ -84,7 +77,17 @@ export function BrowserPane({
           url: tab.url,
           bounds,
         })
-        if (!cancelled) onReady(tab.id)
+        if (!cancelled) {
+          // Register the geometry descriptor right after create so main can
+          // recompute bounds on the very first OS window resize.
+          const insets = computeViewInsets(
+            hostRef.current,
+            window.innerWidth,
+            window.innerHeight,
+          )
+          if (insets) void window.marvin.browser.setGeometry(tab.id, insets)
+          onReady(tab.id)
+        }
       } catch (err) {
         console.error('[BrowserPane] create failed', err)
       }
@@ -92,11 +95,7 @@ export function BrowserPane({
     void create()
     createdRef.current = true
 
-    const sync = () => {
-      const next = computeBounds()
-      if (!next) return
-      void window.marvin.browser.setBounds(tab.id, next)
-    }
+    const sync = () => pushGeometry()
     const ro = new ResizeObserver(sync)
     if (hostRef.current) ro.observe(hostRef.current)
     window.addEventListener('resize', sync)
@@ -116,9 +115,8 @@ export function BrowserPane({
   // ancestors, etc.).
   useEffect(() => {
     if (!isActive) return
-    const r = computeBounds()
-    if (r) void window.marvin.browser.setBounds(tab.id, r)
-  }, [isActive, tab.id])
+    pushGeometry()
+  }, [isActive, pushGeometry])
 
   // Re-sync after the React tree shifts position without resizing
   // (e.g. layout swap that reorders grid columns). ResizeObserver doesn't
@@ -126,12 +124,9 @@ export function BrowserPane({
   // push fresh bounds. Runs for ALL mounted browser tabs so an inactive
   // tab's bounds are correct the next time it becomes active.
   useEffect(() => {
-    const id = requestAnimationFrame(() => {
-      const r = computeBounds()
-      if (r) void window.marvin.browser.setBounds(tab.id, r)
-    })
+    const id = requestAnimationFrame(() => pushGeometry())
     return () => cancelAnimationFrame(id)
-  }, [geometryKey, tab.id])
+  }, [geometryKey, pushGeometry])
 
   const submitUrl = () => {
     onNavigate(tab.id, tab.draftUrl)

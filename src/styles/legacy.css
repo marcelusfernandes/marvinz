@@ -1,0 +1,610 @@
+/* Legacy visual style overrides.
+   Every selector is scoped to [data-style='legacy'] so Modern is the baseline
+   and these rules only activate when the user has selected the pre-redesign look.
+   Loaded via `import './styles/legacy.css'` in src/App.tsx (after App.css so
+   legacy rules win the cascade when their selectors match).
+   Delete this file (and the import in App.tsx) when legacy support is retired. */
+
+/* ─── Design tokens ────────────────────────────────────────────────────────── */
+
+[data-style='legacy'] {
+  --radius-sm: 3px;
+  --radius-md: 6px;
+
+  /* pill tokens are unused in legacy DOM but reset here for safety */
+  --pill-bg: var(--surface-3);
+  --pill-border: var(--border);
+  --pill-text: var(--text-primary);
+}
+
+[data-style='legacy'][data-theme='dark'] {
+  --bg-app: #121212;
+  --surface-1: #1e1e1e;
+  --surface-2: #181818;
+  --surface-3: #232323;
+  --border: #2e2e2e;
+  --border-strong: #3a3a3a;
+  --text-primary: #e6e6e6;
+  --text-secondary: #a0a0a0;
+  --text-tertiary: #6a6a6a;
+}
+
+/* ─── Shell & layout ───────────────────────────────────────────────────────── */
+
+[data-style='legacy'] #root {
+  background: var(--bg-app);
+}
+
+[data-style='legacy'] .shell {
+  background: var(--surface-1);
+  padding: 0;
+  border-radius: 0;
+  -webkit-app-region: unset;
+}
+
+[data-style='legacy'][data-theme='dark'] .shell {
+  background: var(--surface-1);
+}
+
+[data-style='legacy'] .app {
+  background: var(--surface-1);
+  grid-template-columns: var(--sidebar-w, 240px) 1px 1fr 1px var(--agents-w, 588px);
+}
+
+[data-style='legacy'] .app[data-layout='claude-center'] {
+  grid-template-columns: var(--sidebar-w, 240px) 1px var(--agents-w, 588px) 1px 1fr;
+}
+
+[data-style='legacy'] .splitter {
+  background: var(--border);
+}
+
+[data-style='legacy'] .splitter::before {
+  top: 0;
+  bottom: 0;
+  left: -3px;
+  right: -3px;
+  inset: unset;
+}
+
+[data-style='legacy'] .splitter:hover,
+[data-style='legacy'] .splitter.dragging {
+  background: var(--accent);
+}
+
+/* ─── Topbar (restored in legacy) ─────────────────────────────────────────── */
+
+[data-style='legacy'] .topbar {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  height: 38px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+  -webkit-app-region: drag;
+  padding: 0 var(--space-2);
+}
+
+[data-style='legacy'] .topbar-left,
+[data-style='legacy'] .topbar-right {
+  height: 100%;
+}
+
+[data-style='legacy'] .topbar-left {
+  min-width: 78px;
+}
+
+[data-style='legacy'] .topbar-right {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: var(--space-2);
+}
+
+[data-style='legacy'] .topbar-search {
+  -webkit-app-region: no-drag;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 26px;
+  padding: 0 10px 0 var(--space-3);
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+  min-width: 360px;
+  max-width: 540px;
+  width: 40vw;
+  justify-content: space-between;
+  cursor: text;
+}
+
+[data-style='legacy'] .topbar-search:hover {
+  border-color: var(--text-tertiary);
+  color: var(--text-secondary);
+}
+
+[data-style='legacy'] .topbar-search-icon {
+  font-size: var(--font-size-md);
+  color: var(--text-tertiary);
+}
+
+[data-style='legacy'] .topbar-search-text {
+  flex: 1;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+[data-style='legacy'] .topbar-search-shortcut {
+  display: inline-flex;
+  gap: 2px;
+}
+
+[data-style='legacy'] .topbar-search-shortcut kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  font-size: 11px;
+  font-family: var(--font-family-sans);
+  color: var(--text-secondary);
+}
+
+[data-style='legacy'] .topbar-icon-btn {
+  -webkit-app-region: no-drag;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  margin-left: var(--space-2);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-md);
+  color: var(--text-tertiary);
+  cursor: pointer;
+  line-height: 0;
+}
+
+[data-style='legacy'] .topbar-icon-btn:hover {
+  background: var(--surface-3);
+  color: var(--text-secondary);
+}
+
+[data-style='legacy'] .topbar-icon-btn.active {
+  color: var(--text-primary);
+}
+
+[data-style='legacy'] .layout-toggle {
+  -webkit-app-region: no-drag;
+  display: inline-flex;
+  align-items: center;
+  background: transparent;
+  border: none;
+  padding: 0;
+  gap: 2px;
+  height: 26px;
+}
+
+[data-style='legacy'] .layout-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: var(--radius-sm);
+  color: var(--text-tertiary);
+  cursor: pointer;
+}
+
+[data-style='legacy'] .layout-btn:hover {
+  color: var(--text-secondary);
+}
+
+[data-style='legacy'] .layout-btn.active {
+  background: var(--surface-3);
+  color: var(--text-primary);
+}
+
+/* ─── Sidebar ──────────────────────────────────────────────────────────────── */
+
+[data-style='legacy'] .sidebar {
+  background: var(--surface-2);
+  border-radius: 0;
+}
+
+[data-style='legacy'] .sidebar-header {
+  border-bottom: 1px solid var(--border);
+  height: 38px;
+  gap: 0;
+  /* Modern adds 36px top padding to clear the floating icon strip; legacy
+     has no floating strip, so revert to symmetric padding. */
+  padding: var(--space-2) var(--space-3);
+}
+
+[data-style='legacy'] .vault-name {
+  font-weight: var(--font-weight-semibold);
+  font-size: 13px;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+[data-style='legacy'] .sidebar-footer {
+  border-top: 1px solid var(--border);
+  padding: 6px var(--space-2);
+  flex-direction: row;
+  gap: 0;
+}
+
+[data-style='legacy'] .text-btn {
+  padding: var(--space-1) 6px;
+}
+
+[data-style='legacy'] .file-tree-row {
+  color: var(--text-secondary);
+}
+
+[data-style='legacy'] .file-tree-row .icon-wrap {
+  color: var(--text-tertiary);
+}
+
+[data-style='legacy'] .file-tree-row .folder-icon,
+[data-style='legacy'] .file-tree-row .file-icon {
+  color: var(--text-tertiary);
+}
+
+/* ─── Tab bar ──────────────────────────────────────────────────────────────── */
+
+[data-style='legacy'] .tab-bar {
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border);
+  padding: 0 var(--space-1);
+  height: 38px;
+  align-items: stretch;
+  gap: 0;
+}
+
+[data-style='legacy'] .tab {
+  height: auto;
+  border-radius: 0;
+  background: transparent;
+  border-right: 1px solid var(--border);
+  font-weight: var(--font-weight-regular);
+  padding: 0 10px 0 var(--space-3);
+  position: relative;
+}
+
+[data-style='legacy'] .tab.active {
+  background: var(--surface-1);
+}
+
+[data-style='legacy'] .tab.active::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--accent);
+}
+
+[data-style='legacy'] .tab-close {
+  display: flex;
+  width: 20px;
+  height: 20px;
+}
+
+[data-style='legacy'] .tab.active .tab-close {
+  display: flex;
+}
+
+[data-style='legacy'] .tab.active .tab-icon {
+  color: var(--text-secondary);
+}
+
+[data-style='legacy'] .tab-new {
+  height: 100%;
+  border-radius: 0;
+}
+
+[data-style='legacy'] .file-tree-row.file.non-md .name {
+  color: var(--text-tertiary);
+}
+
+/* ─── Editor pane ──────────────────────────────────────────────────────────── */
+
+[data-style='legacy'] .editor-pane,
+[data-style='legacy'] .editor {
+  border-radius: 0;
+}
+
+/* ─── Edit/Preview mode toggle ─────────────────────────────────────────────── */
+
+[data-style='legacy'] .mode-toggle {
+  display: flex;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 2px;
+  gap: 2px;
+}
+
+[data-style='legacy'] .mode-btn {
+  font-size: var(--font-size-xs);
+  padding: 3px 10px;
+  border-radius: var(--radius-md);
+  gap: 4px;
+  transition: none;
+}
+
+[data-style='legacy'] .mode-btn.active {
+  box-shadow: none;
+}
+
+/* ─── CodeMirror editor ────────────────────────────────────────────────────── */
+
+[data-style='legacy'] .cm-host .cm-content {
+  font-family: var(--font-family-sans);
+  color: unset;
+  caret-color: unset;
+}
+
+/* Undo per-mode font overrides — these classes won't appear in legacy DOM
+   but defensively reset in case of partial renders */
+[data-style='legacy'] .cm-host.cm-host-code .cm-content,
+[data-style='legacy'] .cm-host.cm-host-prose .cm-content {
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-md);
+}
+
+[data-style='legacy'] .cm-host .cm-activeLine,
+[data-style='legacy'] .cm-host .cm-activeLineGutter {
+  background: transparent;
+}
+
+[data-style='legacy'] .cm-host .cm-selectionBackground,
+[data-style='legacy'] .cm-host.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground {
+  background: unset !important;
+}
+
+[data-style='legacy'] .cm-host ::selection,
+[data-style='legacy'] .cm-host *::selection {
+  background-color: unset !important;
+  color: unset !important;
+}
+
+[data-style='legacy'] .cm-host .cm-cursor,
+[data-style='legacy'] .cm-host .cm-dropCursor {
+  border-left: 1px solid black !important;
+}
+
+[data-style='legacy'][data-theme='dark'] .cm-host .cm-cursor,
+[data-style='legacy'][data-theme='dark'] .cm-host .cm-dropCursor {
+  border-left: 1px solid white !important;
+}
+
+[data-style='legacy'] .cm-host .cm-activeLineGutter {
+  color: var(--text-tertiary);
+  opacity: unset;
+}
+
+[data-style='legacy'] .cm-host .cm-lineNumbers {
+  font-weight: unset;
+}
+
+[data-style='legacy'] .cm-host.cm-host-code .cm-lineNumbers,
+[data-style='legacy'] .cm-host.cm-host-prose .cm-lineNumbers {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-md);
+}
+
+[data-style='legacy'] .cm-host .cm-gutterElement {
+  opacity: unset;
+}
+
+[data-style='legacy'] .cm-host .cm-gutters {
+  padding-top: 24px;
+}
+
+/* ─── Path suggest dropdown ────────────────────────────────────────────────── */
+
+[data-style='legacy'] .path-suggest-dropdown {
+  background: var(--surface-2);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border-radius: var(--radius-md);
+  padding: 4px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
+}
+
+/* ─── Claude pane & agent tabs ─────────────────────────────────────────────── */
+
+[data-style='legacy'] .claude-pane {
+  background: var(--surface-2);
+  border-radius: 0;
+}
+
+[data-style='legacy'] .claude-host .xterm-viewport,
+[data-style='legacy'] .claude-host .xterm-screen {
+  background: unset !important;
+}
+
+[data-style='legacy'] .agent-terminal,
+[data-style='legacy'] .agent-stack {
+  background: unset;
+}
+
+[data-style='legacy'] .agent-tabs {
+  height: 38px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+  padding: 0 var(--space-1);
+  align-items: stretch;
+  gap: 0;
+}
+
+[data-style='legacy'] .agent-tab {
+  height: auto;
+  border-radius: 0;
+  background: transparent;
+  border-right: 1px solid var(--border);
+  color: var(--text-tertiary);
+  position: relative;
+}
+
+[data-style='legacy'] .agent-tab:hover {
+  background: transparent;
+  color: var(--text-secondary);
+}
+
+[data-style='legacy'] .agent-tab.active {
+  background: var(--surface-1);
+}
+
+[data-style='legacy'] .agent-tab[data-agent='claude'].active,
+[data-style='legacy'] .agent-tab[data-agent='codex'].active {
+  background: var(--surface-1);
+}
+
+[data-style='legacy'] .agent-tab.active::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--accent);
+}
+
+[data-style='legacy'] .agent-tab:hover .agent-tab-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 18px;
+}
+
+[data-style='legacy'] .agent-tab-close {
+  width: 18px;
+  height: auto;
+  padding: unset;
+}
+
+[data-style='legacy'] .agent-new-plus {
+  width: 38px;
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+  height: 100%;
+  border: 1px solid transparent;
+}
+
+[data-style='legacy'] .agent-new-chevron {
+  width: 38px;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  border-left: 1px solid var(--border);
+  height: 100%;
+  border-top: 1px solid transparent;
+  border-bottom: 1px solid transparent;
+  border-right: 1px solid transparent;
+}
+
+/* ─── Properties panel ─────────────────────────────────────────────────────── */
+
+[data-style='legacy'] .prop-row {
+  gap: 10px;
+  padding: 5px 6px;
+  min-height: 28px;
+}
+
+[data-style='legacy'] .prop-bool {
+  gap: 8px;
+}
+
+[data-style='legacy'] .prop-bool-box {
+  border-radius: 3px;
+}
+
+[data-style='legacy'] .prop-pills {
+  gap: 4px;
+}
+
+[data-style='legacy'] .prop-pill {
+  gap: 2px;
+  background: var(--surface-3);
+  color: var(--text-primary);
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+}
+
+[data-style='legacy'] .prop-pill-hash {
+  color: var(--text-secondary);
+}
+
+[data-style='legacy'] .prop-row .prop-remove {
+  right: 6px;
+  top: 4px;
+}
+
+[data-style='legacy'] .prop-display {
+  border-radius: 3px;
+}
+
+[data-style='legacy'] .prop-edit {
+  padding: 3px 8px;
+}
+
+[data-style='legacy'] button.prop-bool {
+  gap: 8px;
+}
+
+/* second .prop-pill block (interactive pill row) */
+[data-style='legacy'] .prop-pill {
+  gap: 4px;
+}
+
+[data-style='legacy'] .prop-pill-remove {
+  border-radius: 50%;
+  margin-left: 2px;
+}
+
+[data-style='legacy'] .props-add {
+  margin-top: 6px;
+  font-size: 12px;
+  padding: 4px 6px;
+  display: block;
+}
+
+[data-style='legacy'] .props-add-row {
+  gap: 6px;
+  margin-top: 6px;
+  padding: 6px;
+}
+
+/* Restore legacy native select; hide Modern codicon picker */
+[data-style='legacy'] .prop-type-select {
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 12px;
+  padding: 3px 6px;
+  outline: none;
+}
+
+[data-style='legacy'] .prop-type-picker {
+  display: none;
+}
+
+[data-style='legacy'] .props-add-row .btn {
+  font-size: 12px;
+  padding: 4px 10px;
+}
