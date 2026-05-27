@@ -31,14 +31,24 @@ function sanitizeHtml(html: string): string {
   out = out.replace(/[\s/]on[a-z]+\s*=\s*"[^"]*"/gi, ' ')
   out = out.replace(/[\s/]on[a-z]+\s*=\s*'[^']*'/gi, ' ')
   out = out.replace(/[\s/]on[a-z]+\s*=\s*[^\s>]+/gi, ' ')
-  // Neutralize javascript:/vbscript:/data: hrefs and srcs — quoted form.
+  // Neutralize javascript:/vbscript: in href/src — quoted form.
   out = out.replace(
-    /\s(href|src|xlink:href)\s*=\s*(['"])\s*(?:javascript|vbscript|data)\s*:[^'"]*\2/gi,
+    /\s(href|src|xlink:href)\s*=\s*(['"])\s*(?:javascript|vbscript)\s*:[^'"]*\2/gi,
     ' $1=$2#$2',
   )
-  // Neutralize unquoted javascript:/vbscript:/data: attribute values (F2).
+  // Neutralize unquoted javascript:/vbscript: (F2).
   out = out.replace(
-    /\s(href|src|xlink:href)\s*=\s*(?:javascript|vbscript|data)\s*:[^\s>]*/gi,
+    /\s(href|src|xlink:href)\s*=\s*(?:javascript|vbscript)\s*:[^\s>]*/gi,
+    ' $1=#',
+  )
+  // Neutralize data: URIs — allow safe raster formats in src only; block all others.
+  // data:image/svg+xml is blocked (can embed <script>); png/jpeg/gif/webp are safe.
+  out = out.replace(
+    /\s(href|src|xlink:href)\s*=\s*(['"])\s*data\s*:(?!image\/(?:png|jpeg|gif|webp);base64,)[^'"]*\2/gi,
+    ' $1=$2#$2',
+  )
+  out = out.replace(
+    /\s(href|src|xlink:href)\s*=\s*data\s*:(?!image\/(?:png|jpeg|gif|webp);base64,)[^\s>]*/gi,
     ' $1=#',
   )
   return out

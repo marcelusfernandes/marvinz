@@ -245,4 +245,33 @@ describe('DocxViewer', () => {
     expect(container.innerHTML).not.toContain('<script>')
     expect(container.querySelector('.docx-viewer-content')!.textContent).toContain('Safe')
   })
+
+  it('preserves inline raster images (data:image/png) from mammoth output', async () => {
+    const dataUri = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
+    readDocxMock.mockResolvedValue({
+      html: `<p>Doc with image</p><img src="${dataUri}" alt="chart">`,
+      messages: [],
+    })
+    const { container } = render(<DocxViewer path="/vault/doc.docx" />)
+    await waitFor(() =>
+      expect(container.querySelector('.docx-viewer-content')).not.toBeNull(),
+    )
+    const img = container.querySelector<HTMLImageElement>('img')
+    expect(img).not.toBeNull()
+    expect(img!.getAttribute('src')).toBe(dataUri)
+  })
+
+  it('strips data:image/svg+xml src (can embed scripts)', async () => {
+    const svgUri = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPjxzY3JpcHQ+YWxlcnQoMSk8L3NjcmlwdD48L3N2Zz4='
+    readDocxMock.mockResolvedValue({
+      html: `<img src="${svgUri}" alt="svg">`,
+      messages: [],
+    })
+    const { container } = render(<DocxViewer path="/vault/doc.docx" />)
+    await waitFor(() =>
+      expect(container.querySelector('.docx-viewer-content')).not.toBeNull(),
+    )
+    const img = container.querySelector<HTMLImageElement>('img')
+    expect(img?.getAttribute('src')).not.toContain('data:image/svg')
+  })
 })
