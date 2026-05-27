@@ -217,6 +217,7 @@ vi.mock('prosemirror-state', async () => {
 })
 
 vi.mock('../../lib/imageNodeView', () => ({ imageNodeView: () => ({}) }))
+vi.mock('../../lib/mermaidNodeView', () => ({ mermaidNodeView: () => ({}) }))
 vi.mock('../../lib/pmJustReplacedHighlight', () => ({ justReplacedPlugin: () => ({}) }))
 vi.mock('../../lib/pmJustInsertedHighlight', () => ({
   justInsertedPlugin: () => ({}),

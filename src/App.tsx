@@ -14,6 +14,7 @@ import { InputDialog } from './components/InputDialog'
 import { FileTreeToolbar } from './components/FileTreeToolbar'
 import { Icon } from './components/Icon'
 import { TabBar } from './components/TabBar'
+import { EmptyTab } from './components/EmptyTab'
 import { CommandPalette } from './components/CommandPalette'
 import { SettingsModal } from './components/SettingsModal'
 import { seedFromMain, useSetting } from './lib/settingsStore'
@@ -24,10 +25,11 @@ import { TopBar } from './components/TopBar'
 import { SnapshotPanel } from './components/SnapshotPanel'
 import { SnapshotToast } from './components/SnapshotToast'
 import { ImportToast, type ImportToastState } from './components/ImportToast'
-import type { CreatingIn, ImportOutcome } from './components/FileTree'
+import type { CreatingIn, ImportOutcome, SelectModifiers } from './components/FileTree'
 import { ExternalChangeBanner } from './components/ExternalChangeBanner'
 import type { PaletteItem } from './lib/paletteRanker'
 import { flattenTree } from './lib/paletteItems'
+import { flattenVisibleTree } from './lib/flattenVisibleTree'
 import type { LayoutMode } from './components/LayoutToggle'
 import './App.css'
 import './styles/legacy.css'
@@ -126,7 +128,15 @@ type XlsxTab = {
   path: string
 }
 
-type Tab = NoteTab | BrowserTabState | ImageTab | PdfTab | DocxTab | XlsxTab
+export type EmptyTab = {
+  type: 'empty'
+  id: string
+  title: string
+}
+
+type Tab = NoteTab | BrowserTabState | ImageTab | PdfTab | DocxTab | XlsxTab | EmptyTab
+
+const DEFAULT_BROWSER_URL = 'https://www.google.com'
 
 const isNoteTab = (t: Tab): t is NoteTab => t.type === 'note'
 const isBrowserTab = (t: Tab): t is BrowserTabState => t.type === 'browser'
@@ -134,6 +144,7 @@ const isImageTab = (t: Tab): t is ImageTab => t.type === 'image'
 const isPdfTab = (t: Tab): t is PdfTab => t.type === 'pdf'
 const isDocxTab = (t: Tab): t is DocxTab => t.type === 'docx'
 const isXlsxTab = (t: Tab): t is XlsxTab => t.type === 'xlsx'
+const isEmptyTab = (t: Tab): t is EmptyTab => t.type === 'empty'
 
 type Dialog =
   | { kind: 'rename'; target: string; isDir: boolean }
@@ -212,6 +223,32 @@ function dirOf(p: string): string {
   return idx >= 0 ? p.slice(0, idx) : p
 }
 
+function findNodeByPath(nodes: FileNode[], path: string): FileNode | null {
+  for (const n of nodes) {
+    if (n.path === path) return n
+    if (n.isDir && n.children) {
+      const hit = findNodeByPath(n.children, path)
+      if (hit) return hit
+    }
+  }
+  return null
+}
+
+// Resolves the parent dir for new-file/new-folder actions from the current
+// selection: a selected folder hosts the create row directly; a selected file
+// uses its parent dir. Falls back to vault root when nothing is selected.
+function currentFolderFromSelection(
+  selectedPaths: Set<string>,
+  nodes: FileNode[],
+  vaultPath: string,
+): string {
+  if (selectedPaths.size === 0) return vaultPath
+  const [path] = selectedPaths
+  const node = findNodeByPath(nodes, path)
+  if (node?.isDir) return node.path
+  return dirOf(path)
+}
+
 function humanizeError(err: unknown): string {
   const raw = err instanceof Error ? err.message : String(err)
   const enoent = raw.match(/ENOENT[^']*'([^']+)'/)
@@ -251,7 +288,10 @@ export default function App() {
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [openPaths, setOpenPaths] = useState<Set<string>>(() => new Set())
-  const [selectedFolderPath, setSelectedFolderPath] = useState<string | null>(null)
+  const [selectedPaths, setSelectedPaths] = useState<Set<string>>(() => new Set())
+  // Anchor for shift-click ranges — the last path that was selected via a
+  // non-shift gesture (plain click or Cmd-click).
+  const [anchorPath, setAnchorPath] = useState<string | null>(null)
   const [creatingIn, setCreatingIn] = useState<CreatingIn | null>(null)
   const [snapshotPanel, setSnapshotPanel] = useState<
     | {
@@ -604,7 +644,8 @@ export default function App() {
     setTree([])
     setTabs([])
     setActiveTabId(null)
-    setSelectedFolderPath(null)
+    setSelectedPaths(new Set())
+    setAnchorPath(null)
     setCreatingIn(null)
     lastDiskContentRef.current.clear()
     bufferContentRef.current.clear()
@@ -809,13 +850,61 @@ export default function App() {
   // dependencies via refs so the handler identities can stay stable, which is
   // what React.memo on FileTree relies on to skip re-renders.
   const openInTabRef = useRef(openInTab)
+  const treeRef = useRef(tree)
+  const openPathsRef = useRef(openPaths)
+  const anchorPathRef = useRef(anchorPath)
   useEffect(() => {
     openInTabRef.current = openInTab
+    treeRef.current = tree
+    openPathsRef.current = openPaths
+    anchorPathRef.current = anchorPath
   })
 
-  const handleSelectFile = useCallback((node: FileNode) => {
-    if (node.isDir) return
-    void openInTabRef.current(node.path)
+  const handleTreeSelect = useCallback(
+    (node: FileNode, mods: SelectModifiers) => {
+      const path = node.path
+      if (mods.cmdOrCtrl) {
+        // Cmd-click only toggles selection; does not open the file.
+        setSelectedPaths((prev) => {
+          const next = new Set(prev)
+          if (next.has(path)) next.delete(path)
+          else next.add(path)
+          return next
+        })
+        setAnchorPath(path)
+        return
+      }
+      if (mods.shift) {
+        const anchor = anchorPathRef.current
+        const flat = flattenVisibleTree(treeRef.current, openPathsRef.current)
+        const anchorIdx = anchor
+          ? flat.findIndex((it) => it.node.path === anchor)
+          : -1
+        const currentIdx = flat.findIndex((it) => it.node.path === path)
+        if (anchorIdx >= 0) {
+          const [lo, hi] =
+            anchorIdx < currentIdx ? [anchorIdx, currentIdx] : [currentIdx, anchorIdx]
+          const range = flat.slice(lo, hi + 1).map((it) => it.node.path)
+          setSelectedPaths(new Set(range))
+          // anchor preserved on shift-click
+          return
+        }
+        // Anchor missing or no longer visible — fall back to single-select.
+        setSelectedPaths(new Set([path]))
+        setAnchorPath(path)
+        if (!node.isDir) void openInTabRef.current(path)
+        return
+      }
+      setSelectedPaths(new Set([path]))
+      setAnchorPath(path)
+      if (!node.isDir) void openInTabRef.current(path)
+    },
+    [],
+  )
+
+  const handleClearSelection = useCallback(() => {
+    setSelectedPaths(new Set())
+    setAnchorPath(null)
   }, [])
 
   // Cmd/Ctrl+Click on a path in the agent terminal opens it via the same
@@ -882,7 +971,7 @@ export default function App() {
 
   const openNewBrowserTab = useCallback(() => {
     const id = newTabId()
-    const url = 'https://www.google.com'
+    const url = DEFAULT_BROWSER_URL
     setTabs((prev) => [
       ...prev,
       {
@@ -901,6 +990,44 @@ export default function App() {
     // Focus URL bar on open so the user can immediately type a different URL.
     setUrlBarFocusTick((t) => t + 1)
   }, [])
+
+  const openEmptyTab = useCallback(() => {
+    const id = newTabId()
+    setTabs((prev) => [...prev, { type: 'empty', id, title: 'New tab' }])
+    setActiveTabId(id)
+  }, [])
+
+  const convertEmptyToBrowser = useCallback((emptyTabId: string) => {
+    const url = DEFAULT_BROWSER_URL
+    setTabs((prev) =>
+      prev.map((t) =>
+        isEmptyTab(t) && t.id === emptyTabId
+          ? {
+              type: 'browser',
+              id: t.id,
+              url,
+              draftUrl: url,
+              title: 'New tab',
+              canBack: false,
+              canForward: false,
+              loading: true,
+              ready: false,
+            }
+          : t,
+      ),
+    )
+    setUrlBarFocusTick((t) => t + 1)
+  }, [])
+
+  const startNoteFromEmpty = useCallback(
+    (emptyTabId: string) => {
+      if (!vaultPath) return
+      setTabs((prev) => prev.filter((t) => t.id !== emptyTabId))
+      setActiveTabId((id) => (id === emptyTabId ? null : id))
+      setCreatingIn({ parentDir: vaultPath, kind: 'file' })
+    },
+    [vaultPath],
+  )
 
   const handleBrowserDraftChange = useCallback((id: string, value: string) => {
     setTabs((prev) =>
@@ -1554,10 +1681,16 @@ export default function App() {
           <FileTreeToolbar
             isAnyOpen={openPaths.size > 0}
             onNewFile={() =>
-              setCreatingIn({ parentDir: selectedFolderPath ?? vaultPath, kind: 'file' })
+              setCreatingIn({
+                parentDir: currentFolderFromSelection(selectedPaths, tree, vaultPath),
+                kind: 'file',
+              })
             }
             onNewFolder={() =>
-              setCreatingIn({ parentDir: selectedFolderPath ?? vaultPath, kind: 'folder' })
+              setCreatingIn({
+                parentDir: currentFolderFromSelection(selectedPaths, tree, vaultPath),
+                kind: 'folder',
+              })
             }
             onRefresh={() => void loadTree(vaultPath)}
             onToggleAll={() =>
@@ -1570,13 +1703,13 @@ export default function App() {
         <FileTree
           nodes={tree}
           vaultPath={vaultPath}
-          selectedPath={activeTab && isNoteTab(activeTab) ? activeTab.path : null}
-          selectedFolderPath={selectedFolderPath}
+          selectedPaths={selectedPaths}
+          activeFilePath={activeTab && isNoteTab(activeTab) ? activeTab.path : null}
           openPaths={openPaths}
           creatingIn={creatingIn}
           onToggleOpen={handleToggleOpen}
-          onSelect={handleSelectFile}
-          onSelectFolder={setSelectedFolderPath}
+          onSelect={handleTreeSelect}
+          onClearSelection={handleClearSelection}
           onCreatingInChange={setCreatingIn}
           onContextMenu={handleNodeContextMenu}
           onMove={handleDropMove}
@@ -1619,7 +1752,7 @@ export default function App() {
           dirtyTabId={isDirty ? activeTabId : null}
           onActivate={setActiveTabId}
           onClose={closeTab}
-          onNewBrowserTab={openNewBrowserTab}
+          onNewTab={openEmptyTab}
         />
         <div className="editor-stack">
           {activeTab && isNoteTab(activeTab) && (
@@ -1699,6 +1832,14 @@ export default function App() {
           )}
           {activeTab && isXlsxTab(activeTab) && (
             <XlsxViewer path={activeTab.path} />
+          )}
+          {activeTab && isEmptyTab(activeTab) && (
+            <EmptyTab
+              key={activeTab.id}
+              onOpenBrowser={() => convertEmptyToBrowser(activeTab.id)}
+              onCreateNote={() => startNoteFromEmpty(activeTab.id)}
+              isVaultOpen={!!vaultPath}
+            />
           )}
           {!activeTab && (
             <div className="empty-editor">Select a note or create a new one.</div>

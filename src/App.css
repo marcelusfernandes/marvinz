@@ -707,9 +707,9 @@ button {
   color: var(--text-primary);
 }
 
-.file-tree-row.dir.folder-selected {
-  color: var(--accent-text);
-  /* font-weight: var(--font-weight-semibold); */
+.file-tree-row.active-file.file .name,
+.file-tree-row.active-file.file.non-md .name {
+  color: var(--accent);
 }
 
 .file-tree-row.inline-edit {
@@ -864,6 +864,76 @@ button {
   align-items: center;
   justify-content: center;
   color: var(--text-tertiary);
+}
+
+.empty-tab {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-7);
+  background: var(--surface-1);
+  border-radius: var(--radius-lg);
+}
+
+.empty-tab-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 240px));
+  gap: var(--space-4);
+  width: 100%;
+  max-width: 520px;
+}
+
+@media (max-width: 640px) {
+  .empty-tab-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.empty-tab-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-5);
+  background: var(--surface-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  color: var(--text-primary);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out);
+}
+
+.empty-tab-card:hover {
+  background: var(--bg-hover);
+  border-color: var(--border);
+  box-shadow: var(--shadow-md);
+}
+
+.empty-tab-card:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.empty-tab-card-icon {
+  color: var(--accent);
+}
+
+.empty-tab-card-title {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-tight);
+}
+
+.empty-tab-card-description {
+  font-size: var(--font-size-md);
+  color: var(--text-secondary);
+  line-height: var(--line-height-normal);
 }
 
 .editor {
@@ -3266,6 +3336,87 @@ button {
   background: var(--surface-2);
   border: 1px dashed var(--border);
   border-radius: var(--radius-sm);
+}
+
+/* Mermaid diagrams rendered in Page mode (issue #353). The container reads as
+   a subtle inset card; the SVG is rendered into the inner __canvas. */
+.mermaid-diagram {
+  display: block;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  margin-top: var(--space-4);
+  margin-bottom: var(--space-4);
+  box-shadow: var(--shadow-sm);
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+/* Dark theme already carries heavier shadows; a lift on dark surfaces reads
+   as noise, so drop it. */
+[data-theme='dark'] .mermaid-diagram {
+  box-shadow: none;
+}
+
+.mermaid-diagram__canvas {
+  display: flex;
+  justify-content: center;
+  transition: min-height var(--duration-fast) var(--ease-out);
+}
+
+.mermaid-diagram__canvas svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.mermaid-diagram--loading .mermaid-diagram__canvas {
+  min-height: 80px;
+  background: linear-gradient(
+    90deg,
+    var(--surface-2) 25%,
+    var(--surface-3) 50%,
+    var(--surface-2) 75%
+  );
+  background-size: 200% 100%;
+  animation: mermaid-shimmer var(--duration-slow) ease-in-out infinite;
+  border-radius: var(--radius-md);
+}
+
+@keyframes mermaid-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.mermaid-diagram--error {
+  border-color: var(--border-error);
+  background: var(--bg-error-subtle);
+}
+
+.mermaid-diagram__error {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.mermaid-diagram__error-label {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-error);
+}
+
+.mermaid-diagram__error-detail {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-regular);
+  color: var(--text-secondary);
+  font-family: var(--font-family-mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .md-preview-inner input[type='checkbox'] {

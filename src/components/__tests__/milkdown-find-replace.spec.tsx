@@ -173,6 +173,7 @@ vi.mock('@milkdown/react', () => ({
 vi.mock('@milkdown/preset-commonmark', () => ({
   commonmark: {},
   imageSchema: { node: {} },
+  codeBlockSchema: { node: {} },
 }))
 vi.mock('@milkdown/preset-gfm', () => ({ gfm: {} }))
 vi.mock('@milkdown/plugin-listener', () => ({

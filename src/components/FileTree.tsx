@@ -8,19 +8,27 @@ import { MaterialIcon } from './MaterialIcon'
 import { fileIconFor } from '../lib/fileIcons'
 import { useSetting } from '../lib/settingsStore'
 import { toMarvinUrl } from '../lib/marvinUrl'
+import { MARVIN_PATHS_MIME } from '../lib/dropAttachments'
 
 const IMAGE_EXT_RE = /\.(png|jpe?g|gif|svg|webp|avif|bmp|ico|heic|heif)$/i
 
 // Build a compact drag ghost so the preview shown while dragging isn't the
 // full file-tree row. Images get a small thumbnail (relies on the marvin://
 // URL being cached if previously rendered); everything else gets a small
-// chip with just the file name. Wrapped in a spacer so the visible content
-// sits slightly below the pointer instead of crowding it.
-function buildDragGhost(name: string, absolutePath: string): HTMLElement {
+// chip with just the file name. When `count > 1`, the ghost shows an
+// "N items" chip instead so the user sees how many paths are attached to
+// the gesture. Wrapped in a spacer so the visible content sits slightly
+// below the pointer instead of crowding it.
+function buildDragGhost(name: string, absolutePath: string, count = 1): HTMLElement {
   const wrapper = document.createElement('div')
   wrapper.className = 'file-tree-drag-ghost'
   let body: HTMLElement
-  if (IMAGE_EXT_RE.test(name)) {
+  if (count > 1) {
+    const chip = document.createElement('div')
+    chip.className = 'file-tree-drag-chip'
+    chip.textContent = `${count} items`
+    body = chip
+  } else if (IMAGE_EXT_RE.test(name)) {
     const img = document.createElement('img')
     img.src = toMarvinUrl(absolutePath)
     img.className = 'file-tree-drag-thumb'
@@ -41,23 +49,24 @@ export type ImportOutcome =
 
 export type CreatingIn = { parentDir: string; kind: 'file' | 'folder' }
 
+export type SelectModifiers = { cmdOrCtrl: boolean; shift: boolean }
+
 type Props = {
   nodes: FileNode[]
   vaultPath: string
-  selectedPath: string | null
-  selectedFolderPath?: string | null
+  selectedPaths: Set<string>
+  activeFilePath: string | null
   openPaths: Set<string>
   creatingIn?: CreatingIn | null
   onToggleOpen: (path: string) => void
-  onSelect: (node: FileNode) => void
-  onSelectFolder?: (path: string | null) => void
+  onSelect: (node: FileNode, mods: SelectModifiers) => void
+  onClearSelection?: () => void
   onCreatingInChange?: (value: CreatingIn | null) => void
   onContextMenu: (e: React.MouseEvent, node: FileNode) => void
   onMove: (srcPath: string, destDir: string) => void
   onImportResult?: (outcome: ImportOutcome) => void
 }
 
-const noopSelectFolder: (path: string | null) => void = () => {}
 const noopCreatingInChange: (value: CreatingIn | null) => void = () => {}
 
 const DRAG_MIME = 'application/x-marvin-path'
@@ -115,13 +124,13 @@ function buildVirtualRows(
 export function FileTree({
   nodes,
   vaultPath,
-  selectedPath,
-  selectedFolderPath = null,
+  selectedPaths,
+  activeFilePath,
   openPaths,
   creatingIn = null,
   onToggleOpen,
   onSelect,
-  onSelectFolder = noopSelectFolder,
+  onClearSelection,
   onCreatingInChange = noopCreatingInChange,
   onContextMenu,
   onMove,
@@ -258,15 +267,19 @@ export function FileTree({
   const virtualItems = virtualizer.getVirtualItems()
   const totalSize = virtualizer.getTotalSize()
 
+  const handleEmptyAreaClick = (e: React.MouseEvent) => {
+    if (!onClearSelection) return
+    if ((e.target as HTMLElement).closest('.file-tree-row')) return
+    onClearSelection()
+  }
+
   return (
     <ul
       ref={scrollRef}
       className={`file-tree${rootHover ? ' drop-root' : ''}`}
       role="tree"
       aria-label="File tree"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onSelectFolder(null)
-      }}
+      onClick={handleEmptyAreaClick}
       onDragOverCapture={handleRootDragOverCapture}
       onDragOver={handleRootDragOver}
       onDragLeave={(e) => {
@@ -314,15 +327,14 @@ export function FileTree({
               key={item.node.path}
               item={item}
               style={style}
-              selectedPath={selectedPath}
-              selectedFolderPath={selectedFolderPath}
+              selectedPaths={selectedPaths}
+              activeFilePath={activeFilePath}
               openPaths={openPaths}
               creatingIn={creatingIn ?? null}
               hoveredPath={hoveredPath}
               iconTheme={iconTheme}
               onToggleOpen={onToggleOpen}
               onSelect={onSelect}
-              onSelectFolder={onSelectFolder}
               onCreatingInChange={onCreatingInChange}
               onContextMenu={onContextMenu}
               onMove={onMove}
@@ -339,15 +351,14 @@ export function FileTree({
 type FileTreeNodeProps = {
   item: FlatTreeItem
   style: React.CSSProperties
-  selectedPath: string | null
-  selectedFolderPath: string | null
+  selectedPaths: Set<string>
+  activeFilePath: string | null
   openPaths: Set<string>
   creatingIn: CreatingIn | null
   hoveredPath: string | null
   iconTheme: string
   onToggleOpen: (path: string) => void
-  onSelect: (node: FileNode) => void
-  onSelectFolder: (path: string | null) => void
+  onSelect: (node: FileNode, mods: SelectModifiers) => void
   onCreatingInChange: (value: CreatingIn | null) => void
   onContextMenu: (e: React.MouseEvent, node: FileNode) => void
   onMove: (srcPath: string, destDir: string) => void
@@ -356,7 +367,7 @@ type FileTreeNodeProps = {
 }
 
 // Custom equality for FileTreeNode. Compares DERIVED booleans for openPaths,
-// selectedPath, selectedFolderPath, hoveredPath, and creatingIn against this
+// selectedPaths, activeFilePath, hoveredPath, and creatingIn against this
 // node's own path — not the raw values. Raw comparison would invalidate every
 // node on any hover/toggle/select, cascading O(n) re-renders on every interaction
 // (the exact trap documented in issue #266; perf goal in issue #255).
@@ -378,11 +389,9 @@ function areEqual(prev: FileTreeNodeProps, next: FileTreeNodeProps): boolean {
   // Derived: isOpen
   if (prev.openPaths.has(prevPath) !== next.openPaths.has(nextPath)) return false
   // Derived: isSelected
-  if ((prev.selectedPath === prevPath) !== (next.selectedPath === nextPath)) return false
-  // Derived: isFolderSelected
-  const prevFolderSel = prev.item.node.isDir && prev.selectedFolderPath === prevPath
-  const nextFolderSel = next.item.node.isDir && next.selectedFolderPath === nextPath
-  if (prevFolderSel !== nextFolderSel) return false
+  if (prev.selectedPaths.has(prevPath) !== next.selectedPaths.has(nextPath)) return false
+  // Derived: isActiveFile
+  if ((prev.activeFilePath === prevPath) !== (next.activeFilePath === nextPath)) return false
   // Derived: isHovered
   if ((prev.hoveredPath === prevPath) !== (next.hoveredPath === nextPath)) return false
   // Derived: hosts the inline-create row (must also compare kind when host)
@@ -395,7 +404,6 @@ function areEqual(prev: FileTreeNodeProps, next: FileTreeNodeProps): boolean {
   // setState/setLocalState refs. Identity compare is sufficient.
   if (prev.onToggleOpen !== next.onToggleOpen) return false
   if (prev.onSelect !== next.onSelect) return false
-  if (prev.onSelectFolder !== next.onSelectFolder) return false
   if (prev.onCreatingInChange !== next.onCreatingInChange) return false
   if (prev.onContextMenu !== next.onContextMenu) return false
   if (prev.onMove !== next.onMove) return false
@@ -410,14 +418,13 @@ const FileTreeNode = memo(FileTreeNodeImpl, areEqual)
 function FileTreeNodeImpl({
   item,
   style,
-  selectedPath,
-  selectedFolderPath,
+  selectedPaths,
+  activeFilePath,
   openPaths,
   hoveredPath,
   iconTheme,
   onToggleOpen,
   onSelect,
-  onSelectFolder,
   onContextMenu,
   onMove,
   onHoverChange,
@@ -426,20 +433,33 @@ function FileTreeNodeImpl({
   const { node, depth, posinset, setsize } = item
   const open = openPaths.has(node.path)
   const hovered = hoveredPath === node.path
-  const isSelected = selectedPath === node.path
-  const isFolderSelected = node.isDir && selectedFolderPath === node.path
+  const isSelected = selectedPaths.has(node.path)
+  const isActiveFile = activeFilePath === node.path
   const padding = 8 + depth * 14
 
   const handleDragStart = (e: React.DragEvent) => {
-    e.dataTransfer.setData(DRAG_MIME, node.path)
-    e.dataTransfer.setData('text/plain', node.path) // fallback
+    // When the dragged item is part of a multi-selection, ship the entire
+    // selection in the plural MIME (JSON-encoded) so drop handlers can
+    // insert one reference per path. Dragging an item that isn't selected
+    // keeps the singular-MIME behavior intact (compat retro). Set insertion
+    // order is the click order — don't sort.
+    const isSelected = selectedPaths.has(node.path)
+    const paths = isSelected && selectedPaths.size > 1
+      ? Array.from(selectedPaths)
+      : [node.path]
+    if (paths.length > 1) {
+      e.dataTransfer.setData(MARVIN_PATHS_MIME, JSON.stringify(paths))
+    } else {
+      e.dataTransfer.setData(DRAG_MIME, node.path)
+    }
+    e.dataTransfer.setData('text/plain', paths.join('\n')) // fallback
     // 'copyMove' lets the editor accept this drag as a copy (insert link) while
     // the tree's own drop handlers still default to move (rearrange).
     e.dataTransfer.effectAllowed = 'copyMove'
     // Some test environments stub dataTransfer without setDragImage; guard
     // so the production path can use it without breaking unit tests.
     if (typeof e.dataTransfer.setDragImage === 'function') {
-      const ghost = buildDragGhost(node.name, node.path)
+      const ghost = buildDragGhost(node.name, node.path, paths.length)
       document.body.appendChild(ghost)
       // anchor: x ≈ 16px in from the left edge; y = 0 so the wrapper's top
       // sits at the pointer. The wrapper's top padding pushes the visible
@@ -501,16 +521,17 @@ function FileTreeNodeImpl({
       >
         <button
           type="button"
-          className={`file-tree-row dir${hovered ? ' drop-target' : ''}${isFolderSelected ? ' folder-selected' : ''}`}
+          className={`file-tree-row dir${hovered ? ' drop-target' : ''}${isSelected ? ' selected' : ''}`}
           style={{ paddingLeft: padding }}
           draggable
           onDragStart={handleDragStart}
           onDragOver={handleDragOver}
           onDragLeave={() => onHoverChange(null)}
           onDrop={handleDrop}
-          onClick={() => {
-            onSelectFolder(node.path)
-            onToggleOpen(node.path)
+          onClick={(e) => {
+            const mods = { cmdOrCtrl: e.metaKey || e.ctrlKey, shift: e.shiftKey }
+            onSelect(node, mods)
+            if (!mods.cmdOrCtrl && !mods.shift) onToggleOpen(node.path)
           }}
           onContextMenu={(e) => onContextMenu(e, node)}
         >
@@ -543,18 +564,20 @@ function FileTreeNodeImpl({
     <li
       role="treeitem"
       aria-level={depth + 1}
-      aria-selected={isSelected}
+      aria-selected={isSelected || isActiveFile}
       aria-posinset={posinset}
       aria-setsize={setsize}
       style={style}
     >
       <button
         type="button"
-        className={`file-tree-row file${isSelected ? ' selected' : ''}${md ? '' : ' non-md'}`}
+        className={`file-tree-row file${isSelected ? ' selected' : ''}${isActiveFile ? ' active-file' : ''}${md ? '' : ' non-md'}`}
         style={{ paddingLeft: padding + 20 }}
         draggable
         onDragStart={handleDragStart}
-        onClick={() => onSelect(node)}
+        onClick={(e) =>
+          onSelect(node, { cmdOrCtrl: e.metaKey || e.ctrlKey, shift: e.shiftKey })
+        }
         onContextMenu={(e) => onContextMenu(e, node)}
       >
         {iconTheme === 'material' ? (

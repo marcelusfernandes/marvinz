@@ -207,18 +207,25 @@ function defaultProps() {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function makeDragEvent(files: File[], internalPath = ''): DragEvent {
+function makeDragEvent(
+  files: File[],
+  internalPath = '',
+  internalPaths: string[] = [],
+): DragEvent {
   const event = new Event('drop', { bubbles: true, cancelable: true }) as DragEvent
   const types: string[] = []
-  if (internalPath) types.push('application/x-marvin-path')
+  if (internalPaths.length > 0) types.push('application/x-marvin-paths')
+  else if (internalPath) types.push('application/x-marvin-path')
   if (files.length > 0) types.push('Files')
+  const mimeData: Record<string, string> = {}
+  if (internalPath) mimeData['application/x-marvin-path'] = internalPath
+  if (internalPaths.length > 0) mimeData['application/x-marvin-paths'] = JSON.stringify(internalPaths)
   Object.defineProperty(event, 'dataTransfer', {
     value: {
       files: files as unknown as FileList,
       items: [],
       types,
-      getData: (k: string) =>
-        k === 'application/x-marvin-path' ? internalPath : '',
+      getData: (k: string) => mimeData[k] ?? '',
       dropEffect: 'none',
     },
     writable: false,
@@ -398,5 +405,68 @@ describe('Editor — CodeMirror drop handler (issue #289)', () => {
     expect(toast.state).toBe('error')
     expect(toast.message).toContain('secret.md')
     expect(toast.message).toContain('MARVIN_FS_EACCES')
+  })
+
+  it('plural MIME (3 paths): inserts 3 markdown lines joined by \\n in one dispatch', async () => {
+    const onImportToast = vi.fn()
+    render(<Editor {...defaultProps()} onImportToast={onImportToast} />)
+    await new Promise((r) => setTimeout(r, 10))
+    // Clear any dispatches from initialization before measuring drop behavior.
+    fakeView.dispatch.mockClear()
+    fakeView.state._text = ''
+
+    const paths = ['/vault/a.md', '/vault/b.md', '/vault/c.md']
+    editorContentDOM.dispatchEvent(makeDragEvent([], '', paths))
+    await new Promise((r) => setTimeout(r, 20))
+
+    expect(writeBinaryMock).not.toHaveBeenCalled()
+    // Filter to content-changing dispatches only — a follow-up decoration-clear
+    // setTimeout fires after 500ms and must not break the undo-atomicity assertion.
+    const contentDispatches = fakeView.dispatch.mock.calls.filter(
+      (c) => (c[0] as { changes?: unknown })?.changes != null,
+    )
+    expect(contentDispatches).toHaveLength(1)
+    // Each path relative to /vault/note.ts → file name only (same dir)
+    expect(fakeView.state._text).toContain('[a.md](a.md)')
+    expect(fakeView.state._text).toContain('[b.md](b.md)')
+    expect(fakeView.state._text).toContain('[c.md](c.md)')
+    const lines = fakeView.state._text.split('\n')
+    expect(lines).toHaveLength(3)
+  })
+
+  it('singular MIME only: backward-compat single line inserted (no regression)', async () => {
+    const onImportToast = vi.fn()
+    render(<Editor {...defaultProps()} onImportToast={onImportToast} />)
+    await new Promise((r) => setTimeout(r, 10))
+
+    editorContentDOM.dispatchEvent(makeDragEvent([], '/vault/note2.md'))
+    await new Promise((r) => setTimeout(r, 20))
+
+    expect(writeBinaryMock).not.toHaveBeenCalled()
+    expect(fakeView.state._text).toBe('[note2.md](note2.md)')
+  })
+
+  it('dragover accepts plural MIME type', async () => {
+    render(<Editor {...defaultProps()} onImportToast={vi.fn()} />)
+    await new Promise((r) => setTimeout(r, 10))
+
+    const dragoverEvent = new Event('dragover', {
+      bubbles: true,
+      cancelable: true,
+    }) as DragEvent
+    const preventDefaultSpy = vi.fn()
+    Object.defineProperty(dragoverEvent, 'dataTransfer', {
+      value: {
+        types: ['application/x-marvin-paths'],
+        dropEffect: 'none',
+      },
+      writable: false,
+    })
+    Object.defineProperty(dragoverEvent, 'preventDefault', {
+      value: preventDefaultSpy,
+      writable: false,
+    })
+    editorContentDOM.dispatchEvent(dragoverEvent)
+    expect(preventDefaultSpy).toHaveBeenCalled()
   })
 })

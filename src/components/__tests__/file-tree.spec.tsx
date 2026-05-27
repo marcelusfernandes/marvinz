@@ -88,13 +88,12 @@ function baseProps(overrides: Partial<Parameters<typeof FileTree>[0]> = {}) {
   return {
     nodes: smallTree,
     vaultPath: '/vault',
-    selectedPath: null,
-    selectedFolderPath: null,
+    selectedPaths: new Set<string>(),
+    activeFilePath: null as string | null,
     openPaths: new Set<string>(),
     creatingIn: null,
     onToggleOpen: vi.fn(),
     onSelect: vi.fn(),
-    onSelectFolder: vi.fn(),
     onCreatingInChange: vi.fn(),
     onContextMenu: vi.fn(),
     onMove: vi.fn(),
@@ -209,12 +208,16 @@ describe('FileTree — toggle folder', () => {
     expect(onToggleOpen).toHaveBeenCalledTimes(1)
   })
 
-  it('does not call onSelect when clicking a folder', () => {
+  it('calls onSelect with the folder node when clicking a folder', () => {
     const onSelect = vi.fn()
     const onToggleOpen = vi.fn()
     render(<FileTree {...baseProps({ onSelect, onToggleOpen })} />)
     fireEvent.click(screen.getByText('docs').closest('button')!)
-    expect(onSelect).not.toHaveBeenCalled()
+    expect(onSelect).toHaveBeenCalledTimes(1)
+    expect(onSelect).toHaveBeenCalledWith(
+      expect.objectContaining({ path: '/vault/docs', isDir: true }),
+      { cmdOrCtrl: false, shift: false },
+    )
   })
 })
 
@@ -231,6 +234,7 @@ describe('FileTree — file selection', () => {
     expect(onSelect).toHaveBeenCalledTimes(1)
     expect(onSelect).toHaveBeenCalledWith(
       expect.objectContaining({ path: '/vault/readme.md', isDir: false }),
+      { cmdOrCtrl: false, shift: false },
     )
   })
 
@@ -243,22 +247,22 @@ describe('FileTree — file selection', () => {
     expect(onSelect).toHaveBeenCalledTimes(1)
     expect(onSelect).toHaveBeenCalledWith(
       expect.objectContaining({ path: '/vault/docs/intro.md' }),
+      { cmdOrCtrl: false, shift: false },
     )
   })
 
   it('applies the selected class to the selected file row', () => {
-    render(<FileTree {...baseProps({ selectedPath: '/vault/readme.md' })} />)
+    render(<FileTree {...baseProps({ selectedPaths: new Set(['/vault/readme.md']) })} />)
     const fileBtn = screen.getByText('readme').closest('button')!
     expect(fileBtn.classList.contains('selected')).toBe(true)
   })
 
   it('does not apply selected class to a non-selected file', () => {
-    render(<FileTree {...baseProps({ selectedPath: '/vault/readme.md' })} />)
     const nodes: FileNode[] = [
       { path: '/vault/readme.md', name: 'readme.md', isDir: false, children: [] },
       { path: '/vault/other.md', name: 'other.md', isDir: false, children: [] },
     ]
-    const { container } = render(<FileTree {...baseProps({ nodes, selectedPath: '/vault/readme.md' })} />)
+    const { container } = render(<FileTree {...baseProps({ nodes, selectedPaths: new Set(['/vault/readme.md']) })} />)
     const buttons = container.querySelectorAll('button.file-tree-row.file')
     const readmeBtn = Array.from(buttons).find(b => b.textContent?.includes('readme'))
     const otherBtn = Array.from(buttons).find(b => b.textContent?.includes('other'))
@@ -993,7 +997,7 @@ describe('FileTree — ARIA semantics', () => {
     const openPaths = new Set(['/vault/docs'])
     render(
       <FileTree
-        {...baseProps({ openPaths, selectedPath: '/vault/docs/intro.md' })}
+        {...baseProps({ openPaths, selectedPaths: new Set(['/vault/docs/intro.md']) })}
       />,
     )
     expect(itemByName('intro').getAttribute('aria-selected')).toBe('true')
@@ -1001,8 +1005,8 @@ describe('FileTree — ARIA semantics', () => {
     expect(itemByName('readme').getAttribute('aria-selected')).toBe('false')
   })
 
-  it('marks folder treeitems as selected when selectedPath matches them', () => {
-    render(<FileTree {...baseProps({ selectedPath: '/vault/docs' })} />)
+  it('marks folder treeitems as selected when selectedPaths contains them', () => {
+    render(<FileTree {...baseProps({ selectedPaths: new Set(['/vault/docs']) })} />)
     expect(itemByName('docs').getAttribute('aria-selected')).toBe('true')
     expect(itemByName('assets').getAttribute('aria-selected')).toBe('false')
   })
