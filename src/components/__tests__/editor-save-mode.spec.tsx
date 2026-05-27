@@ -17,6 +17,7 @@ vi.mock('@codemirror/view', () => ({
     mark: () => ({ range: () => ({}) }),
     none: { update: () => null },
   },
+  ViewPlugin: { define: () => ({}) },
 }))
 
 vi.mock('@codemirror/search', () => ({
