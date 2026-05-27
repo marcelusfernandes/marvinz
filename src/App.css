@@ -866,6 +866,76 @@ button {
   color: var(--text-tertiary);
 }
 
+.empty-tab {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-7);
+  background: var(--surface-1);
+  border-radius: var(--radius-lg);
+}
+
+.empty-tab-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 240px));
+  gap: var(--space-4);
+  width: 100%;
+  max-width: 520px;
+}
+
+@media (max-width: 640px) {
+  .empty-tab-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.empty-tab-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-5);
+  background: var(--surface-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  color: var(--text-primary);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out);
+}
+
+.empty-tab-card:hover {
+  background: var(--bg-hover);
+  border-color: var(--border);
+  box-shadow: var(--shadow-md);
+}
+
+.empty-tab-card:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.empty-tab-card-icon {
+  color: var(--accent);
+}
+
+.empty-tab-card-title {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-tight);
+}
+
+.empty-tab-card-description {
+  font-size: var(--font-size-md);
+  color: var(--text-secondary);
+  line-height: var(--line-height-normal);
+}
+
 .editor {
   display: flex;
   flex-direction: column;
