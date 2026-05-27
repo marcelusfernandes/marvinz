@@ -200,6 +200,34 @@ function dirOf(p: string): string {
   return idx >= 0 ? p.slice(0, idx) : p
 }
 
+function findNodeByPath(nodes: FileNode[], path: string): FileNode | null {
+  for (const n of nodes) {
+    if (n.path === path) return n
+    if (n.isDir && n.children) {
+      const hit = findNodeByPath(n.children, path)
+      if (hit) return hit
+    }
+  }
+  return null
+}
+
+// Resolves the parent dir for new-file/new-folder actions from the current
+// selection: a selected folder hosts the create row directly; a selected file
+// uses its parent dir. Falls back to vault root when nothing is selected.
+function currentFolderFromSelection(
+  selectedPaths: Set<string>,
+  nodes: FileNode[],
+  vaultPath: string,
+): string {
+  if (selectedPaths.size === 0) return vaultPath
+  let last: string | null = null
+  for (const p of selectedPaths) last = p
+  if (!last) return vaultPath
+  const node = findNodeByPath(nodes, last)
+  if (node?.isDir) return node.path
+  return dirOf(last)
+}
+
 function humanizeError(err: unknown): string {
   const raw = err instanceof Error ? err.message : String(err)
   const enoent = raw.match(/ENOENT[^']*'([^']+)'/)
@@ -239,7 +267,7 @@ export default function App() {
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [openPaths, setOpenPaths] = useState<Set<string>>(() => new Set())
-  const [selectedFolderPath, setSelectedFolderPath] = useState<string | null>(null)
+  const [selectedPaths, setSelectedPaths] = useState<Set<string>>(() => new Set())
   const [creatingIn, setCreatingIn] = useState<CreatingIn | null>(null)
   const [snapshotPanel, setSnapshotPanel] = useState<
     | {
@@ -592,7 +620,7 @@ export default function App() {
     setTree([])
     setTabs([])
     setActiveTabId(null)
-    setSelectedFolderPath(null)
+    setSelectedPaths(new Set())
     setCreatingIn(null)
     lastDiskContentRef.current.clear()
     bufferContentRef.current.clear()
@@ -794,9 +822,9 @@ export default function App() {
     openInTabRef.current = openInTab
   })
 
-  const handleSelectFile = useCallback((node: FileNode) => {
-    if (node.isDir) return
-    void openInTabRef.current(node.path)
+  const handleTreeSelect = useCallback((node: FileNode) => {
+    setSelectedPaths(new Set([node.path]))
+    if (!node.isDir) void openInTabRef.current(node.path)
   }, [])
 
   // Cmd/Ctrl+Click on a path in the agent terminal opens it via the same
@@ -1535,10 +1563,16 @@ export default function App() {
           <FileTreeToolbar
             isAnyOpen={openPaths.size > 0}
             onNewFile={() =>
-              setCreatingIn({ parentDir: selectedFolderPath ?? vaultPath, kind: 'file' })
+              setCreatingIn({
+                parentDir: currentFolderFromSelection(selectedPaths, tree, vaultPath),
+                kind: 'file',
+              })
             }
             onNewFolder={() =>
-              setCreatingIn({ parentDir: selectedFolderPath ?? vaultPath, kind: 'folder' })
+              setCreatingIn({
+                parentDir: currentFolderFromSelection(selectedPaths, tree, vaultPath),
+                kind: 'folder',
+              })
             }
             onRefresh={() => void loadTree(vaultPath)}
             onToggleAll={() =>
@@ -1551,13 +1585,12 @@ export default function App() {
         <FileTree
           nodes={tree}
           vaultPath={vaultPath}
-          selectedPath={activeTab && isNoteTab(activeTab) ? activeTab.path : null}
-          selectedFolderPath={selectedFolderPath}
+          selectedPaths={selectedPaths}
+          activeFilePath={activeTab && isNoteTab(activeTab) ? activeTab.path : null}
           openPaths={openPaths}
           creatingIn={creatingIn}
           onToggleOpen={handleToggleOpen}
-          onSelect={handleSelectFile}
-          onSelectFolder={setSelectedFolderPath}
+          onSelect={handleTreeSelect}
           onCreatingInChange={setCreatingIn}
           onContextMenu={handleNodeContextMenu}
           onMove={handleDropMove}

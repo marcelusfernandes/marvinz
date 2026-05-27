@@ -128,13 +128,12 @@ function baseProps(overrides: Partial<Parameters<typeof FileTree>[0]> = {}) {
   return {
     nodes: [docsNode, assetsNode, readmeNode],
     vaultPath: '/vault',
-    selectedPath: null as string | null,
-    selectedFolderPath: null as string | null,
+    selectedPaths: new Set<string>(),
+    activeFilePath: null as string | null,
     openPaths: new Set<string>(),
     creatingIn: null,
     onToggleOpen: vi.fn(),
     onSelect: vi.fn(),
-    onSelectFolder: vi.fn(),
     onCreatingInChange: vi.fn(),
     onContextMenu: vi.fn(),
     onMove: vi.fn(),
@@ -195,14 +194,14 @@ describe('Memoization — render counts', () => {
   // -------------------------------------------------------------------------
   it('selecting a file applies selected class only to that file row', () => {
     const { rerender } = render(
-      <FileTree {...baseProps({ selectedPath: null })} />,
+      <FileTree {...baseProps({ selectedPaths: new Set<string>() })} />,
     )
 
     const docsBtn = screen.getByText('docs').closest('button')!
     const docsBtnHtmlBefore = docsBtn.outerHTML
 
     rerender(
-      <FileTree {...baseProps({ selectedPath: '/vault/readme.md' })} />,
+      <FileTree {...baseProps({ selectedPaths: new Set<string>(['/vault/readme.md']) })} />,
     )
 
     const readmeBtn = screen.getByText('readme').closest('button')!
@@ -302,7 +301,7 @@ describe('Memoization — render counts', () => {
   // -------------------------------------------------------------------------
   it('deselecting a file removes selected class only from that node', () => {
     const { rerender } = render(
-      <FileTree {...baseProps({ selectedPath: '/vault/readme.md' })} />,
+      <FileTree {...baseProps({ selectedPaths: new Set<string>(['/vault/readme.md']) })} />,
     )
 
     const readmeBtn = screen.getByText('readme').closest('button')!
@@ -311,7 +310,7 @@ describe('Memoization — render counts', () => {
     const docsBtnBefore = screen.getByText('docs').closest('button')!.outerHTML
     const assetsBtnBefore = screen.getByText('assets').closest('button')!.outerHTML
 
-    rerender(<FileTree {...baseProps({ selectedPath: null })} />)
+    rerender(<FileTree {...baseProps({ selectedPaths: new Set<string>() })} />)
 
     expect(screen.getByText('readme').closest('button')!.classList.contains('selected')).toBe(false)
     expect(screen.getByText('docs').closest('button')!.outerHTML).toBe(docsBtnBefore)
@@ -333,7 +332,6 @@ describe('Memoization — render counts', () => {
     const stableHandlers = {
       onToggleOpen: vi.fn(),
       onSelect: vi.fn(),
-      onSelectFolder: vi.fn(),
       onCreatingInChange: vi.fn(),
       onContextMenu: vi.fn(),
       onMove: vi.fn(),
@@ -341,14 +339,15 @@ describe('Memoization — render counts', () => {
     }
 
     function App({ selectedPath }: AppProps) {
+      const selectedPaths = selectedPath ? new Set([selectedPath]) : new Set<string>()
       return (
         <>
           <Profiler id="readme-subtree" onRender={onRender}>
             <FileTree
               nodes={[readmeNode]}
               vaultPath="/vault"
-              selectedPath={selectedPath}
-              selectedFolderPath={null}
+              selectedPaths={selectedPaths}
+              activeFilePath={null}
               openPaths={new Set()}
               creatingIn={null}
               {...stableHandlers}
@@ -358,8 +357,8 @@ describe('Memoization — render counts', () => {
             <FileTree
               nodes={[assetsNode]}
               vaultPath="/vault"
-              selectedPath={selectedPath}
-              selectedFolderPath={null}
+              selectedPaths={selectedPaths}
+              activeFilePath={null}
               openPaths={new Set()}
               creatingIn={null}
               {...stableHandlers}

@@ -1,10 +1,9 @@
 /**
- * TDD tests for FileTree selected folder state (issue #252).
- * Tests are RED until react implements selectedFolderPath + onSelectFolder props.
+ * Tests for FileTree unified selection (issue #348).
  *
- * Props under test:
- *   selectedFolderPath: string | null
- *   onSelectFolder: (path: string) => void
+ * The old selectedFolderPath + onSelectFolder API is gone.
+ * Selection is now a Set<string> (selectedPaths) covering both files and folders.
+ * activeFilePath drives the .active-file CSS class on file rows.
  */
 
 // @vitest-environment jsdom
@@ -14,10 +13,7 @@ import { render, screen, fireEvent, cleanup } from '@testing-library/react'
 import { FileTree } from '../FileTree'
 import { smallTree } from './file-tree-fixtures'
 import { setupVirtualizerMocks } from './_virtualizerSetup'
-
-// ---------------------------------------------------------------------------
-// Mocks
-// ---------------------------------------------------------------------------
+import type { FileNode } from '../../types'
 
 vi.mock('../../lib/settingsStore', () => ({
   seedFromMain: vi.fn(),
@@ -49,25 +45,20 @@ function setupMarvinMock() {
   })
 }
 
-// ---------------------------------------------------------------------------
-// Base props builder — includes new selectedFolderPath / onSelectFolder
-// ---------------------------------------------------------------------------
-
 function baseProps(overrides: Partial<Parameters<typeof FileTree>[0]> = {}) {
   return {
     nodes: smallTree,
     vaultPath: '/vault',
-    selectedPath: null,
+    selectedPaths: new Set<string>(),
+    activeFilePath: null as string | null,
     openPaths: new Set<string>(),
     onToggleOpen: vi.fn(),
     onSelect: vi.fn(),
+    onCreatingInChange: vi.fn(),
     onContextMenu: vi.fn(),
     onMove: vi.fn(),
     onImportResult: vi.fn(),
-    selectedFolderPath: null,
-    onSelectFolder: vi.fn(),
     creatingIn: null,
-    onCreatingInChange: vi.fn(),
     ...overrides,
   }
 }
@@ -86,105 +77,151 @@ afterEach(() => {
 })
 
 // ===========================================================================
-// Scenario A — folder-selected CSS class
+// Scenario A — folder .selected class via selectedPaths Set
 // ===========================================================================
 
-describe('FileTree — folder-selected class (issue #252)', () => {
-  it('applies folder-selected class to the folder button matching selectedFolderPath', () => {
-    render(
-      <FileTree
-        {...baseProps({ selectedFolderPath: '/vault/docs' })}
-      />,
-    )
+describe('FileTree — folder selected class (issue #348)', () => {
+  it('applies selected class to the folder button whose path is in selectedPaths', () => {
+    render(<FileTree {...baseProps({ selectedPaths: new Set(['/vault/docs']) })} />)
     const docsBtn = screen.getByText('docs').closest('button')!
-    expect(docsBtn.classList.contains('folder-selected')).toBe(true)
+    expect(docsBtn.classList.contains('selected')).toBe(true)
   })
 
-  it('does NOT apply folder-selected to a folder that is not selected', () => {
-    render(
-      <FileTree
-        {...baseProps({ selectedFolderPath: '/vault/docs' })}
-      />,
-    )
+  it('does NOT apply selected to a folder not in selectedPaths', () => {
+    render(<FileTree {...baseProps({ selectedPaths: new Set(['/vault/docs']) })} />)
     const assetsBtn = screen.getByText('assets').closest('button')!
-    expect(assetsBtn.classList.contains('folder-selected')).toBe(false)
+    expect(assetsBtn.classList.contains('selected')).toBe(false)
   })
 
-  it('does NOT apply folder-selected to any folder when selectedFolderPath is null', () => {
+  it('does NOT apply selected to any folder when selectedPaths is empty', () => {
     const { container } = render(<FileTree {...baseProps()} />)
     const folderBtns = container.querySelectorAll('button.file-tree-row.dir')
     folderBtns.forEach((btn) => {
-      expect(btn.classList.contains('folder-selected')).toBe(false)
+      expect(btn.classList.contains('selected')).toBe(false)
+    })
+  })
+
+  it('applies selected to a folder and a file simultaneously when both are in selectedPaths', () => {
+    render(
+      <FileTree
+        {...baseProps({
+          selectedPaths: new Set(['/vault/docs', '/vault/readme.md']),
+        })}
+      />,
+    )
+    const docsBtn = screen.getByText('docs').closest('button')!
+    const readmeBtn = screen.getByText('readme').closest('button')!
+    expect(docsBtn.classList.contains('selected')).toBe(true)
+    expect(readmeBtn.classList.contains('selected')).toBe(true)
+  })
+})
+
+// ===========================================================================
+// Scenario B — .active-file class driven by activeFilePath
+// ===========================================================================
+
+describe('FileTree — active-file class (issue #348)', () => {
+  it('applies active-file class to the file row matching activeFilePath', () => {
+    render(
+      <FileTree
+        {...baseProps({
+          selectedPaths: new Set(['/vault/readme.md']),
+          activeFilePath: '/vault/readme.md',
+        })}
+      />,
+    )
+    const readmeBtn = screen.getByText('readme').closest('button')!
+    expect(readmeBtn.classList.contains('active-file')).toBe(true)
+  })
+
+  it('does NOT apply active-file when activeFilePath is null', () => {
+    render(
+      <FileTree
+        {...baseProps({
+          selectedPaths: new Set(['/vault/readme.md']),
+          activeFilePath: null,
+        })}
+      />,
+    )
+    const readmeBtn = screen.getByText('readme').closest('button')!
+    expect(readmeBtn.classList.contains('active-file')).toBe(false)
+  })
+
+  it('selected and active-file can coexist on the same file row', () => {
+    render(
+      <FileTree
+        {...baseProps({
+          selectedPaths: new Set(['/vault/readme.md']),
+          activeFilePath: '/vault/readme.md',
+        })}
+      />,
+    )
+    const readmeBtn = screen.getByText('readme').closest('button')!
+    expect(readmeBtn.classList.contains('selected')).toBe(true)
+    expect(readmeBtn.classList.contains('active-file')).toBe(true)
+  })
+
+  it('active-file is absent on all rows when activeFilePath does not match any visible node', () => {
+    const { container } = render(
+      <FileTree {...baseProps({ activeFilePath: '/vault/docs/intro.md' })} />,
+    )
+    // intro.md is inside docs which is closed — not visible
+    const allBtns = container.querySelectorAll('button.file-tree-row')
+    allBtns.forEach((btn) => {
+      expect(btn.classList.contains('active-file')).toBe(false)
     })
   })
 })
 
 // ===========================================================================
-// Scenario B — onSelectFolder callback
+// Scenario C — folder click calls onSelect (unified callback)
 // ===========================================================================
 
-describe('FileTree — onSelectFolder callback (issue #252)', () => {
-  it('calls onSelectFolder with the folder path when clicking a folder', () => {
-    const onSelectFolder = vi.fn()
-    render(<FileTree {...baseProps({ onSelectFolder })} />)
+describe('FileTree — folder click calls onSelect (issue #348)', () => {
+  it('calls onSelect with the folder node when clicking a folder', () => {
+    const onSelect = vi.fn<(node: FileNode) => void>()
+    render(<FileTree {...baseProps({ onSelect })} />)
     const docsBtn = screen.getByText('docs').closest('button')!
     fireEvent.click(docsBtn)
-    expect(onSelectFolder).toHaveBeenCalledTimes(1)
-    expect(onSelectFolder).toHaveBeenCalledWith('/vault/docs')
+    expect(onSelect).toHaveBeenCalledTimes(1)
+    expect(onSelect).toHaveBeenCalledWith(
+      expect.objectContaining({ path: '/vault/docs', isDir: true }),
+    )
   })
 
-  it('still calls onToggleOpen when clicking a folder (behavior preserved)', () => {
-    const onToggleOpen = vi.fn()
-    const onSelectFolder = vi.fn()
-    render(<FileTree {...baseProps({ onToggleOpen, onSelectFolder })} />)
+  it('still calls onToggleOpen when clicking a folder', () => {
+    const onToggleOpen = vi.fn<(path: string) => void>()
+    const onSelect = vi.fn()
+    render(<FileTree {...baseProps({ onToggleOpen, onSelect })} />)
     const docsBtn = screen.getByText('docs').closest('button')!
     fireEvent.click(docsBtn)
-    expect(onToggleOpen).toHaveBeenCalledTimes(1)
     expect(onToggleOpen).toHaveBeenCalledWith('/vault/docs')
-    expect(onSelectFolder).toHaveBeenCalledWith('/vault/docs')
-  })
-
-  it('does NOT call onSelectFolder when clicking a file', () => {
-    const onSelectFolder = vi.fn()
-    render(<FileTree {...baseProps({ onSelectFolder })} />)
-    const readmeBtn = screen.getByText('readme').closest('button')!
-    fireEvent.click(readmeBtn)
-    expect(onSelectFolder).not.toHaveBeenCalled()
-  })
-})
-
-// ===========================================================================
-// Scenario C — click on empty root area clears selection
-// ===========================================================================
-
-describe('FileTree — click empty area clears selectedFolderPath (issue #252)', () => {
-  it('calls onSelectFolder(null) when clicking the root ul outside any row', () => {
-    const onSelectFolder = vi.fn()
-    const { container } = render(
-      <FileTree
-        {...baseProps({ selectedFolderPath: '/vault/docs', onSelectFolder })}
-      />,
+    expect(onSelect).toHaveBeenCalledWith(
+      expect.objectContaining({ path: '/vault/docs', isDir: true }),
     )
-    const ul = container.querySelector('ul.file-tree')!
-    fireEvent.click(ul)
-    expect(onSelectFolder).toHaveBeenCalledWith(null)
   })
 })
 
 // ===========================================================================
-// Scenario D — selectedFolderPath clears on vault switch (re-render with null)
+// Scenario D — selected clears on re-render with empty Set
 // ===========================================================================
 
-describe('FileTree — selectedFolderPath clears on vault change (issue #252)', () => {
-  it('removes folder-selected class when selectedFolderPath becomes null on re-render', () => {
+describe('FileTree — selectedPaths clears on vault change (issue #348)', () => {
+  it('removes selected class when selectedPaths becomes empty on re-render', () => {
     const { rerender } = render(
-      <FileTree {...baseProps({ selectedFolderPath: '/vault/docs' })} />,
+      <FileTree {...baseProps({ selectedPaths: new Set(['/vault/docs']) })} />,
     )
     const docsBtn = screen.getByText('docs').closest('button')!
-    expect(docsBtn.classList.contains('folder-selected')).toBe(true)
+    expect(docsBtn.classList.contains('selected')).toBe(true)
 
-    // Simulate App.tsx clearing selectedFolderPath when vault changes
-    rerender(<FileTree {...baseProps({ selectedFolderPath: null })} />)
-    expect(docsBtn.classList.contains('folder-selected')).toBe(false)
+    rerender(<FileTree {...baseProps({ selectedPaths: new Set() })} />)
+    expect(docsBtn.classList.contains('selected')).toBe(false)
+  })
+
+  it('no .folder-selected class exists anywhere (old class removed)', () => {
+    const { container } = render(
+      <FileTree {...baseProps({ selectedPaths: new Set(['/vault/docs']) })} />,
+    )
+    expect(container.querySelector('.folder-selected')).toBeNull()
   })
 })

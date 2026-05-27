@@ -707,9 +707,8 @@ button {
   color: var(--text-primary);
 }
 
-.file-tree-row.dir.folder-selected {
-  color: var(--accent-text);
-  /* font-weight: var(--font-weight-semibold); */
+.file-tree-row.active-file {
+  box-shadow: inset 2px 0 0 var(--accent);
 }
 
 .file-tree-row.inline-edit {
