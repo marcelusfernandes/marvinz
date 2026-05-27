@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import DOMPurify from 'dompurify'
 import { Icon } from './Icon'
 
 type Props = {
@@ -11,47 +12,22 @@ function basename(p: string): string {
   return p.split('/').pop() ?? p
 }
 
-/**
- * Allowlist-based HTML scrub for mammoth output. Mammoth emits a known tag set
- * (p, h1-h6, ul/ol/li, strong, em, a, table, img, etc.) and we run inside an
- * Electron renderer with no network XSS surface, but we still strip <script>,
- * event handlers, and javascript:/data: hrefs as defense-in-depth.
- */
+// DOMPurify URI allowlist: http(s), mailto, tel + safe raster data URIs from mammoth.
+// data:image/svg+xml is intentionally excluded — SVG can embed <script> and event handlers.
+const ALLOWED_URI_REGEXP =
+  /^(?:(?:(?:f|ht)tps?|mailto|tel|callto|sms|cid|xmpp):|data:image\/(?:png|jpeg|gif|webp);base64,|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i
+
 function sanitizeHtml(html: string): string {
-  let out = html
-  // Remove <script>...</script> blocks (and any stray <script ...>).
-  out = out.replace(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi, '')
-  out = out.replace(/<script\b[^>]*\/?>/gi, '')
-  // Remove <style>...</style> blocks — mammoth doesn't emit them, but be safe.
-  out = out.replace(/<style\b[^>]*>[\s\S]*?<\/style\s*>/gi, '')
-  // Strip navigation-capable and embedder tags entirely (F3: no CSP backstop).
-  out = out.replace(/<\/?(iframe|object|embed|meta|base|frame|frameset|link|form)\b[^>]*>/gi, '')
-  // Strip inline event handlers: on<word>="..." | '...' | bareword.
-  // Use [\s/] separator so <img src=x/onerror=alert(1)> is also caught (F1).
-  out = out.replace(/[\s/]on[a-z]+\s*=\s*"[^"]*"/gi, ' ')
-  out = out.replace(/[\s/]on[a-z]+\s*=\s*'[^']*'/gi, ' ')
-  out = out.replace(/[\s/]on[a-z]+\s*=\s*[^\s>]+/gi, ' ')
-  // Neutralize javascript:/vbscript: in href/src — quoted form.
-  out = out.replace(
-    /\s(href|src|xlink:href)\s*=\s*(['"])\s*(?:javascript|vbscript)\s*:[^'"]*\2/gi,
-    ' $1=$2#$2',
+  const clean = DOMPurify.sanitize(html, {
+    USE_PROFILES: { html: true },
+    ALLOWED_URI_REGEXP,
+  })
+  // DOMPurify may not strip data:image/svg+xml in all DOM environments
+  // (notably jsdom). SVG data URIs can embed <script> — strip explicitly.
+  return clean.replace(
+    /(\s(?:src|xlink:href)\s*=\s*['"])\s*data:image\/svg[^'"]*(?=['"])/gi,
+    '$1#',
   )
-  // Neutralize unquoted javascript:/vbscript: (F2).
-  out = out.replace(
-    /\s(href|src|xlink:href)\s*=\s*(?:javascript|vbscript)\s*:[^\s>]*/gi,
-    ' $1=#',
-  )
-  // Neutralize data: URIs — allow safe raster formats in src only; block all others.
-  // data:image/svg+xml is blocked (can embed <script>); png/jpeg/gif/webp are safe.
-  out = out.replace(
-    /\s(href|src|xlink:href)\s*=\s*(['"])\s*data\s*:(?!image\/(?:png|jpeg|gif|webp);base64,)[^'"]*\2/gi,
-    ' $1=$2#$2',
-  )
-  out = out.replace(
-    /\s(href|src|xlink:href)\s*=\s*data\s*:(?!image\/(?:png|jpeg|gif|webp);base64,)[^\s>]*/gi,
-    ' $1=#',
-  )
-  return out
 }
 
 /**
