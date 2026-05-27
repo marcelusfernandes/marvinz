@@ -101,6 +101,10 @@ export type MarvinAPI = {
     writeBinary: (payload: { vaultPath: string; relPath: string; base64Bytes: string; maxBytes?: number }) => Promise<string>
     onChanged: (cb: (filePath: string, source: FileChangeSource) => void) => () => void
   }
+  office: {
+    readDocx: (filePath: string) => Promise<{ html: string; messages: unknown[] }>
+    writeDocx: (filePath: string, plainText: string) => Promise<void>
+  }
   folder: {
     create: (parentDir: string, name: string) => Promise<string>
   }

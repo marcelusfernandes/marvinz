@@ -30,7 +30,13 @@ type PdfTab = {
   path: string
 }
 
-type Tab = NoteTab | BrowserTab | ImageTab | PdfTab
+type DocxTab = {
+  type: 'docx'
+  id: string
+  path: string
+}
+
+type Tab = NoteTab | BrowserTab | ImageTab | PdfTab | DocxTab
 
 type Props = {
   tabs: Tab[]
@@ -118,7 +124,7 @@ export function TabBar({
     <div className="tab-bar" ref={barRef}>
       {tabs.map((t) => {
         const active = t.id === activeId
-        const kind: 'note' | 'browser' | 'image' | 'pdf' = t.type
+        const kind: 'note' | 'browser' | 'image' | 'pdf' | 'docx' = t.type
         const label =
           t.type === 'browser'
             ? browserLabel(t)
