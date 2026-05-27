@@ -3,7 +3,50 @@ import react from '@vitejs/plugin-react'
 import electron from 'vite-plugin-electron/simple'
 import { copyFileSync, mkdirSync, chmodSync } from 'node:fs'
 import { resolve } from 'node:path'
+import { execSync } from 'node:child_process'
 import type { Plugin } from 'vite'
+
+// SIGKILL the whole process subtree rooted at `pid`, children first.
+function sigkillTree(pid: number): void {
+  let children: number[] = []
+  try {
+    children = execSync(`pgrep -P ${pid}`, { encoding: 'utf8' })
+      .split('\n')
+      .map(Number)
+      .filter((n) => n > 0)
+  } catch {
+    // pgrep exits non-zero when there are no children — nothing to recurse.
+  }
+  for (const child of children) sigkillTree(child)
+  try {
+    process.kill(pid, 'SIGKILL')
+  } catch {
+    // Already gone — ignore.
+  }
+}
+
+// Ctrl+C in the dev terminal must terminate the spawned Electron app. The
+// Electron main process cannot do this itself: node-pty resets every signal
+// handler to SIG_DFL on pty.spawn() (so process.on('SIGINT') stops firing once
+// a terminal is opened), and Electron hijacks SIGINT into an app.quit() that
+// only schedules on a starved Chromium message loop. The reliable fix lives in
+// the launcher (this vite/node process, which never spawns a pty): on
+// SIGINT/SIGTERM, force-kill the entire Electron process tree, then exit.
+function killElectronOnSignal(): Plugin {
+  return {
+    name: 'kill-electron-on-signal',
+    apply: 'serve',
+    configureServer() {
+      const onSignal = (): never => {
+        const pid = (process as { electronApp?: { pid?: number } }).electronApp?.pid
+        if (pid != null) sigkillTree(pid)
+        process.exit(0)
+      }
+      process.once('SIGINT', onSignal)
+      process.once('SIGTERM', onSignal)
+    },
+  }
+}
 
 // Copy the hook bridge script (plain CJS, no build step) into dist-electron/
 // so it lands alongside main.cjs and __dirname resolves in resolveBridgePath().
@@ -30,6 +73,7 @@ export default defineConfig({
   base: './',
   plugins: [
     react(),
+    killElectronOnSignal(),
     copyBridgePlugin(),
     electron({
       main: {
