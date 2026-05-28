@@ -1558,7 +1558,7 @@ export default function App() {
             selectedPathsRef.current.size === 0
               ? [node.path]
               : Array.from(selectedPathsRef.current)
-          useClipboardStore.getState().set(id, paths)
+          useClipboardStore.getState().set(action, paths)
           break
         }
         case 'paste':
