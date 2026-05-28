@@ -1108,6 +1108,54 @@ button {
   font-weight: 700;
 }
 
+/* Selection-to-agent chip — floats above CodeMirror selection end */
+.selection-chip {
+  position: fixed;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  margin-top: var(--space-1);
+  background: var(--accent);
+  color: var(--on-accent);
+  border: 0;
+  font: inherit;
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-sm);
+  z-index: var(--z-popover);
+  cursor: pointer;
+  overflow: hidden;
+  max-width: 24px;
+  white-space: nowrap;
+  transition:
+    max-width var(--duration-fast) var(--ease-out),
+    opacity var(--duration-fast) var(--ease-out);
+  opacity: 0.85;
+}
+
+.selection-chip:hover,
+.selection-chip:focus-visible {
+  max-width: 120px;
+  opacity: 1;
+}
+
+.selection-chip:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.selection-chip__label {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  opacity: 0;
+  transition: opacity var(--duration-fast) var(--ease-out);
+}
+
+.selection-chip:hover .selection-chip__label,
+.selection-chip:focus-visible .selection-chip__label {
+  opacity: 1;
+}
+
 .tab-bar {
   display: flex;
   align-items: center;
