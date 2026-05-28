@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { useClipboardStore } from '../clipboardStore'
+import { useClipboardStore, clipPasteLabel } from '../clipboardStore'
 
 describe('clipboardStore', () => {
   beforeEach(() => {
@@ -33,5 +33,19 @@ describe('clipboardStore', () => {
     const s = useClipboardStore.getState()
     expect(s.mode).toBeNull()
     expect(s.paths.size).toBe(0)
+  })
+})
+
+describe('clipPasteLabel', () => {
+  it('returns "Paste" when mode is null', () => {
+    expect(clipPasteLabel({ mode: null, paths: new Set() })).toBe('Paste')
+  })
+  it('returns "Paste" for single-path clipboard', () => {
+    expect(clipPasteLabel({ mode: 'copy', paths: new Set(['/v/a.md']) })).toBe('Paste')
+  })
+  it('pluralizes for multi-path clipboard', () => {
+    expect(clipPasteLabel({ mode: 'cut', paths: new Set(['/v/a.md', '/v/b.md']) })).toBe(
+      'Paste 2 items',
+    )
   })
 })

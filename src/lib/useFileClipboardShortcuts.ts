@@ -8,13 +8,15 @@ type Options = {
   tree: FileNode[]
   onClearSelection: () => void
   onPaste: (target: string) => void | Promise<void>
+  onError?: (message: string) => void
 }
 
 type PasteTarget = { target: string } | { ambiguous: true }
 
 function dirOf(p: string): string {
   const idx = p.lastIndexOf('/')
-  return idx >= 0 ? p.slice(0, idx) : p
+  // idx === 0 → root-level path like "/foo.md"; slice(0, 0) would be empty.
+  return idx > 0 ? p.slice(0, idx) : p
 }
 
 function findNodeByPath(nodes: FileNode[], path: string): FileNode | null {
@@ -49,7 +51,7 @@ function isEditableTarget(el: Element | null): boolean {
 }
 
 export function useFileClipboardShortcuts(opts: Options): void {
-  const { vaultPath, selectedPaths, tree, onClearSelection, onPaste } = opts
+  const { vaultPath, selectedPaths, tree, onClearSelection, onPaste, onError } = opts
 
   useEffect(() => {
     if (!vaultPath) return
@@ -87,12 +89,16 @@ export function useFileClipboardShortcuts(opts: Options): void {
         const clip = useClipboardStore.getState()
         if (clip.mode === null || clip.paths.size === 0) return
         const resolved = resolvePasteTarget(selectedPaths, tree, vaultPath)
-        if ('ambiguous' in resolved) return
+        if ('ambiguous' in resolved) {
+          e.preventDefault()
+          onError?.('Select a single folder to paste into')
+          return
+        }
         e.preventDefault()
         void onPaste(resolved.target)
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [vaultPath, selectedPaths, tree, onClearSelection, onPaste])
+  }, [vaultPath, selectedPaths, tree, onClearSelection, onPaste, onError])
 }

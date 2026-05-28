@@ -20,7 +20,7 @@ import { CommandPalette } from './components/CommandPalette'
 import { SettingsModal } from './components/SettingsModal'
 import { seedFromMain, useSetting } from './lib/settingsStore'
 import { resolveAppFindShortcut } from './lib/appFindShortcut'
-import { useClipboardStore } from './lib/clipboardStore'
+import { useClipboardStore, clipPasteLabel } from './lib/clipboardStore'
 import { useFileClipboardShortcuts } from './lib/useFileClipboardShortcuts'
 import { useColorTheme } from './lib/colorTheme'
 import { useVisualStyle } from './lib/visualStyle'
@@ -1474,9 +1474,14 @@ export default function App() {
           for (const r of results) {
             if (r.ok) renameInTabsRef.current(r.src, r.dest)
           }
-          useClipboardStore.getState().clear()
-          const failed = results.find((r) => !r.ok)
-          if (failed?.error) reportErrorRef.current(new Error(failed.error))
+          const failed = results.filter((r) => !r.ok)
+          if (failed.length === 0) {
+            useClipboardStore.getState().clear()
+          } else {
+            reportErrorRef.current(
+              new Error(`Failed to move: ${failed.map((f) => f.error ?? f.src).join(', ')}`),
+            )
+          }
         }
         await loadTree(vp)
       } catch (err) {
@@ -1492,6 +1497,7 @@ export default function App() {
     tree,
     onClearSelection: handleClearSelection,
     onPaste: executePaste,
+    onError: (msg) => reportErrorRef.current(new Error(msg)),
   })
 
   const handleNodeContextMenu = useCallback(
@@ -1512,14 +1518,10 @@ export default function App() {
         { kind: 'item', id: 'cut', label: 'Cut', accelerator: 'CmdOrCtrl+X' },
       )
       if (node.isDir) {
-        const pasteLabel =
-          clip.mode && clip.paths.size > 1
-            ? `Paste ${clip.paths.size} items`
-            : 'Paste'
         items.push({
           kind: 'item',
           id: 'paste',
-          label: pasteLabel,
+          label: clipPasteLabel(clip),
           accelerator: 'CmdOrCtrl+V',
           enabled: clip.mode !== null,
         })
@@ -1669,10 +1671,6 @@ export default function App() {
     }
     e.preventDefault()
     const clip = useClipboardStore.getState()
-    const pasteLabel =
-      clip.mode && clip.paths.size > 1
-        ? `Paste ${clip.paths.size} items`
-        : 'Paste'
     const items: MenuItemSpec[] = [
       { kind: 'item', id: 'new-file', label: 'New File' },
       { kind: 'item', id: 'new-folder', label: 'New Folder' },
@@ -1680,7 +1678,7 @@ export default function App() {
       {
         kind: 'item',
         id: 'paste',
-        label: pasteLabel,
+        label: clipPasteLabel(clip),
         accelerator: 'CmdOrCtrl+V',
         enabled: clip.mode !== null,
       },
