@@ -150,7 +150,7 @@ describe('AgentTerminal — drop target (issue #365)', () => {
     container.dispatchEvent(makeDragEvent('drop', '/vault/foo.md'))
 
     expect(ptyWriteMock).toHaveBeenCalledTimes(1)
-    expect(ptyWriteMock).toHaveBeenCalledWith(PTY_ID, '@foo.md ')
+    expect(ptyWriteMock).toHaveBeenCalledWith(PTY_ID, '@/vault/foo.md ')
   })
 
   it('plural MIME (3 paths): writes all three @-prefixed paths joined by space', async () => {
@@ -163,7 +163,10 @@ describe('AgentTerminal — drop target (issue #365)', () => {
     )
 
     expect(ptyWriteMock).toHaveBeenCalledTimes(1)
-    expect(ptyWriteMock).toHaveBeenCalledWith(PTY_ID, '@a.md @sub/b.md @c.md ')
+    expect(ptyWriteMock).toHaveBeenCalledWith(
+      PTY_ID,
+      '@/vault/a.md @/vault/sub/b.md @/vault/c.md ',
+    )
   })
 
   it('drop without any marvin MIME: no PTY write (no-op)', async () => {
@@ -244,6 +247,6 @@ describe('AgentTerminal — drop target (issue #365)', () => {
     const container = getTerminalContainer()
     container.dispatchEvent(makeDragEvent('drop', '/vault/foo.md'))
 
-    expect(ptyWriteMock).toHaveBeenCalledWith(PTY_ID, '@foo.md ')
+    expect(ptyWriteMock).toHaveBeenCalledWith(PTY_ID, '@/vault/foo.md ')
   })
 })
