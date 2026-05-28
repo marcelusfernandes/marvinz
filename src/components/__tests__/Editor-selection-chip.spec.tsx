@@ -46,6 +46,12 @@ function makeFakeView(docText = 'hello world\nfoo bar') {
       sliceDoc(f: number, t: number) {
         return this._docText.slice(f, t)
       },
+      doc: {
+        lineAt(pos: number) {
+          const before = docText.slice(0, pos)
+          return { number: before.split('\n').length }
+        },
+      },
     },
     coordsAtPos: vi.fn((_pos: number) => ({ top: 50, bottom: 66, left: 120, right: 160 })),
     focus: vi.fn(),
@@ -350,7 +356,8 @@ describe('Editor selection chip — click calls onSendSelection', () => {
       fireEvent.click(screen.getByTestId('editor-selection-chip'))
     })
 
-    const expectedText = formatSelectionForAgent(docText.slice(0, 5), 'codex')
+    const formatted = formatSelectionForAgent(docText.slice(0, 5), 'codex')
+    const expectedText = `@/vault/note.ts:1\n\n${formatted}`
     expect(onSendSelection).toHaveBeenCalledTimes(1)
     expect(onSendSelection).toHaveBeenCalledWith(expectedText)
   })
@@ -379,8 +386,9 @@ describe('Editor selection chip — multi-line selection is fenced', () => {
       fireEvent.click(screen.getByTestId('editor-selection-chip'))
     })
 
-    const expectedText = formatSelectionForAgent(selectedText, 'codex')
-    expect(expectedText).toMatch(/^```\n/)
+    const formatted = formatSelectionForAgent(selectedText, 'codex')
+    const expectedText = `@/vault/note.ts:1-2\n\n${formatted}`
+    expect(formatted).toMatch(/^```\n/)
     expect(onSendSelection).toHaveBeenCalledWith(expectedText)
   })
 })
@@ -408,9 +416,10 @@ describe('Editor selection chip — single-line selection is bare text', () => {
       fireEvent.click(screen.getByTestId('editor-selection-chip'))
     })
 
-    const expectedText = formatSelectionForAgent(selectedText, 'codex')
-    expect(expectedText).toBe('hello')
-    expect(expectedText).not.toMatch(/^```/)
+    const formatted = formatSelectionForAgent(selectedText, 'codex')
+    const expectedText = `@/vault/note.ts:1\n\n${formatted}`
+    expect(formatted).toBe('hello')
+    expect(formatted).not.toMatch(/^```/)
     expect(onSendSelection).toHaveBeenCalledWith(expectedText)
   })
 })

@@ -4,6 +4,7 @@ import { FileTree } from './components/FileTree'
 import { Editor } from './components/Editor'
 import { AgentsPane } from './components/AgentsPane'
 import type { AgentDef } from './components/AgentTerminal'
+import type { AgentKind } from './lib/agent-drop-format'
 import { BrowserPane } from './components/BrowserPane'
 import { Splitter } from './components/Splitter'
 import { ImageViewer } from './components/ImageViewer'
@@ -314,6 +315,10 @@ export default function App() {
   const [layoutMode, setLayoutModeState] = useState<LayoutMode>(() => readStoredLayout())
   const [urlBarFocusTick, setUrlBarFocusTick] = useState(0)
   const [newAgentTabTick, setNewAgentTabTick] = useState(0)
+  const [focusedAgent, setFocusedAgent] = useState<{
+    ptyId: string
+    agentKind: AgentKind
+  } | null>(null)
   // Window-level Cmd+F / Cmd+Alt+F → bumps a tick that the Editor watches
   // so the find bar opens even when focus is on the sidebar / agents / tab
   // bar. Keep separate ticks so the variant (find vs replace-expanded)
@@ -912,6 +917,14 @@ export default function App() {
   const handleOpenFileFromTerminal = useCallback((absolutePath: string) => {
     void openInTabRef.current(absolutePath)
   }, [])
+
+  const handleSendSelectionToFocusedAgent = useCallback(
+    (formatted: string) => {
+      if (!focusedAgent) return
+      void window.marvin.pty.write(focusedAgent.ptyId, formatted)
+    },
+    [focusedAgent],
+  )
 
   const handleToggleOpen = useCallback((p: string) => {
     setOpenPaths((prev) => {
@@ -1816,6 +1829,10 @@ export default function App() {
                 onFlushSave={(fn) => {
                   flushSaveRef.current = fn
                 }}
+                onSendSelection={
+                  focusedAgent ? handleSendSelectionToFocusedAgent : undefined
+                }
+                agentKind={focusedAgent?.agentKind}
               />
             </div>
           )}
@@ -1885,6 +1902,7 @@ export default function App() {
             setTurnToast({ turnId: summary.turnId, files: summary.fileNames })
           }
           onOpenFile={handleOpenFileFromTerminal}
+          onFocusChange={setFocusedAgent}
         />
       </aside>
 

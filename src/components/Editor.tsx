@@ -617,8 +617,12 @@ export function Editor({
     const text = view.state.sliceDoc(selectionChip.from, selectionChip.to)
     const formatted = formatSelectionForAgent(text, agentKind)
     if (formatted === '') return
-    onSendSelection(formatted)
-  }, [selectionChip, onSendSelection, agentKind])
+    const startLine = view.state.doc.lineAt(selectionChip.from).number
+    const endLine = view.state.doc.lineAt(selectionChip.to).number
+    const range = startLine === endLine ? `${startLine}` : `${startLine}-${endLine}`
+    const prefix = agentKind === 'codex' ? `@${filePath}:${range}` : `${filePath}:${range}`
+    onSendSelection(`${prefix}\n\n${formatted}`)
+  }, [selectionChip, onSendSelection, agentKind, filePath])
 
   // Reposition the chip when the editor scrolls or the viewport resizes.
   // The chip's coords come from `view.coordsAtPos(to)` (viewport-relative),
@@ -925,6 +929,8 @@ export function Editor({
                 onOpenFind={openFind}
                 onViewReady={setPmView}
                 onImportToast={onImportToast}
+                onSendSelection={onSendSelection}
+                agentKind={agentKind}
               />
             </div>
           </div>
