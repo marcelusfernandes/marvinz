@@ -20,6 +20,8 @@ import { CommandPalette } from './components/CommandPalette'
 import { SettingsModal } from './components/SettingsModal'
 import { seedFromMain, useSetting } from './lib/settingsStore'
 import { resolveAppFindShortcut } from './lib/appFindShortcut'
+import { useClipboardStore } from './lib/clipboardStore'
+import { useFileClipboardShortcuts } from './lib/useFileClipboardShortcuts'
 import { useColorTheme } from './lib/colorTheme'
 import { useVisualStyle } from './lib/visualStyle'
 import { TopBar } from './components/TopBar'
@@ -1417,12 +1419,14 @@ export default function App() {
   const openSnapshotPanelRef = useRef(openSnapshotPanel)
   const handleTrashRef = useRef(handleTrash)
   const vaultPathRef = useRef(vaultPath)
+  const selectedPathsRef = useRef(selectedPaths)
   useEffect(() => {
     renameInTabsRef.current = renameInTabs
     reportErrorRef.current = reportError
     openSnapshotPanelRef.current = openSnapshotPanel
     handleTrashRef.current = handleTrash
     vaultPathRef.current = vaultPath
+    selectedPathsRef.current = selectedPaths
   })
 
   // Drag-and-drop: move src into destDir via rename.
@@ -1446,6 +1450,50 @@ export default function App() {
     [loadTree],
   )
 
+  const executePaste = useCallback(
+    async (target: string) => {
+      const clip = useClipboardStore.getState()
+      if (clip.mode === null || clip.paths.size === 0) return
+      const vp = vaultPathRef.current
+      if (!vp) return
+      try {
+        if (clip.mode === 'copy') {
+          const failed: string[] = []
+          for (const p of clip.paths) {
+            try {
+              await window.marvin.file.copy(p, target)
+            } catch {
+              failed.push(p)
+            }
+          }
+          if (failed.length > 0) {
+            reportErrorRef.current(new Error(`Failed to copy: ${failed.join(', ')}`))
+          }
+        } else {
+          const results = await window.marvin.file.moveBatch(Array.from(clip.paths), target)
+          for (const r of results) {
+            if (r.ok) renameInTabsRef.current(r.src, r.dest)
+          }
+          useClipboardStore.getState().clear()
+          const failed = results.find((r) => !r.ok)
+          if (failed?.error) reportErrorRef.current(new Error(failed.error))
+        }
+        await loadTree(vp)
+      } catch (err) {
+        reportErrorRef.current(err)
+      }
+    },
+    [loadTree],
+  )
+
+  useFileClipboardShortcuts({
+    vaultPath,
+    selectedPaths,
+    tree,
+    onClearSelection: handleClearSelection,
+    onPaste: executePaste,
+  })
+
   const handleNodeContextMenu = useCallback(
     async (e: React.MouseEvent, node: FileNode) => {
       e.preventDefault()
@@ -1458,7 +1506,26 @@ export default function App() {
           { kind: 'separator' },
         )
       }
+      const clip = useClipboardStore.getState()
       items.push(
+        { kind: 'item', id: 'copy', label: 'Copy', accelerator: 'CmdOrCtrl+C' },
+        { kind: 'item', id: 'cut', label: 'Cut', accelerator: 'CmdOrCtrl+X' },
+      )
+      if (node.isDir) {
+        const pasteLabel =
+          clip.mode && clip.paths.size > 1
+            ? `Paste ${clip.paths.size} items`
+            : 'Paste'
+        items.push({
+          kind: 'item',
+          id: 'paste',
+          label: pasteLabel,
+          accelerator: 'CmdOrCtrl+V',
+          enabled: clip.mode !== null,
+        })
+      }
+      items.push(
+        { kind: 'separator' },
         { kind: 'item', id: 'rename', label: 'Rename' },
         { kind: 'item', id: 'reveal', label: 'Reveal in Finder' },
       )
@@ -1485,6 +1552,18 @@ export default function App() {
         case 'new-folder':
           setCreatingIn({ parentDir: node.path, kind: 'folder' })
           break
+        case 'copy':
+        case 'cut': {
+          const paths =
+            selectedPathsRef.current.size === 0
+              ? [node.path]
+              : Array.from(selectedPathsRef.current)
+          useClipboardStore.getState().set(action, paths)
+          break
+        }
+        case 'paste':
+          void executePaste(node.path)
+          break
         case 'rename':
           setDialog({ kind: 'rename', target: node.path, isDir: node.isDir })
           break
@@ -1502,7 +1581,7 @@ export default function App() {
           break
       }
     },
-    [],
+    [executePaste],
   )
 
   const handleImportResult = useCallback(
@@ -1589,9 +1668,22 @@ export default function App() {
       return
     }
     e.preventDefault()
+    const clip = useClipboardStore.getState()
+    const pasteLabel =
+      clip.mode && clip.paths.size > 1
+        ? `Paste ${clip.paths.size} items`
+        : 'Paste'
     const items: MenuItemSpec[] = [
       { kind: 'item', id: 'new-file', label: 'New File' },
       { kind: 'item', id: 'new-folder', label: 'New Folder' },
+      { kind: 'separator' },
+      {
+        kind: 'item',
+        id: 'paste',
+        label: pasteLabel,
+        accelerator: 'CmdOrCtrl+V',
+        enabled: clip.mode !== null,
+      },
       { kind: 'separator' },
       { kind: 'item', id: 'refresh', label: 'Refresh' },
     ]
@@ -1603,6 +1695,9 @@ export default function App() {
         break
       case 'new-folder':
         setCreatingIn({ parentDir: vaultPath, kind: 'folder' })
+        break
+      case 'paste':
+        void executePaste(vaultPath)
         break
       case 'refresh':
         void loadTree(vaultPath)
