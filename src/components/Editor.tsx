@@ -43,6 +43,9 @@ import { Icon } from './Icon'
 import { useVisualStyle } from '../lib/visualStyle'
 import { mentionTrigger } from '../lib/cmMentionTrigger'
 import { MentionPicker } from './MentionPicker'
+import type { AgentKind } from '../lib/agent-drop-format'
+import { formatSelectionForAgent } from '../lib/agent-selection-format'
+import { EditorSelectionChip } from './EditorSelectionChip'
 
 const codeHighlightStyle = HighlightStyle.define([
   // Language tokens (TS/JS/JSON/etc.)
@@ -122,6 +125,12 @@ type Props = {
   saveMode?: 'auto' | 'manual'
   onDirtyChange?: (dirty: boolean) => void
   onFlushSave?: (flush: () => Promise<void>) => void
+  /** Called when the user clicks the selection chip; receives the
+   * pre-formatted snippet ready for pty.write. */
+  onSendSelection?: (formatted: string) => void
+  /** Which agent the selection chip should format for. Defaults to
+   * 'codex'; sub-4 will plumb the focused agent's kind. */
+  agentKind?: AgentKind
 }
 
 type Mode = 'edit' | 'preview'
@@ -162,6 +171,8 @@ export function Editor({
   saveMode = 'auto',
   onDirtyChange,
   onFlushSave,
+  onSendSelection,
+  agentKind = 'codex',
 }: Props) {
   const visualStyle = useVisualStyle()
   const [value, setValue] = useState(initialContent)
@@ -211,6 +222,15 @@ export function Editor({
     from: number
     query: string
     anchor: { x: number; y: number }
+  } | null>(null)
+  // Selection chip state. Pinned to viewport coords of `sel.to` (caret end)
+  // and cleared when the selection becomes empty. Driven from CodeMirror's
+  // `onUpdate` callback below so a single render path covers both the
+  // production view and the test surface (which mocks ViewPlugin).
+  const [selectionChip, setSelectionChip] = useState<{
+    from: number
+    to: number
+    coords: { left: number; right: number; top: number; bottom: number }
   } | null>(null)
   // Lightweight in-pane confirmation that floats over the editor body
   // (top-center) after Replace / Replace All. Two-phase lifecycle:
@@ -567,6 +587,94 @@ export function Editor({
   )
   const handleMentionDismiss = useCallback(() => setMention(null), [])
 
+  // Drives the selection chip from CodeMirror's `onUpdate`. `selectionSet`
+  // gates the read so we don't re-measure every doc keystroke. When the
+  // selection range goes empty (or coordsAtPos returns null because the
+  // caret is off-screen), tear the chip down. Also mirrors the live `view`
+  // into `viewRef` — `onCreateEditor` is the canonical source, but tests
+  // mock @uiw/react-codemirror in a way that can leave the ref unset when
+  // the chip's click runs, so we top it up from each update.
+  const handleCmUpdate = useCallback(
+    (update: {
+      selectionSet?: boolean
+      state: { selection: { main: { from: number; to: number; empty: boolean } } }
+      view: EditorView
+    }) => {
+      viewRef.current = update.view
+      if (!update.selectionSet) return
+      const sel = update.state.selection.main
+      if (sel.empty) {
+        setSelectionChip(null)
+        return
+      }
+      const c = update.view.coordsAtPos(sel.to)
+      if (!c) {
+        setSelectionChip(null)
+        return
+      }
+      setSelectionChip({
+        from: sel.from,
+        to: sel.to,
+        coords: { left: c.left, right: c.right, top: c.top, bottom: c.bottom },
+      })
+    },
+    [],
+  )
+
+  const handleChipClick = useCallback(() => {
+    const view = viewRef.current
+    if (!view || !selectionChip || !onSendSelection) return
+    const text = view.state.sliceDoc(selectionChip.from, selectionChip.to)
+    const formatted = formatSelectionForAgent(text, agentKind)
+    if (formatted === '') return
+    onSendSelection(formatted)
+  }, [selectionChip, onSendSelection, agentKind])
+
+  // Reposition the chip when the editor scrolls or the viewport resizes.
+  // The chip's coords come from `view.coordsAtPos(to)` (viewport-relative),
+  // so the doc offsets stay stable but the screen position drifts as the
+  // user scrolls. rAF-throttle so a burst of wheel events collapses into
+  // one re-measure. Effect dep is the `to` offset only: re-measures
+  // inside the setState updater don't restart the effect, so attach /
+  // detach happens once per distinct selection range. Viewport clamping
+  // is intentionally deferred to a follow-up (needs visual direction).
+  const chipActiveTo = selectionChip?.to ?? null
+  useEffect(() => {
+    if (chipActiveTo === null) return
+    const view = viewRef.current
+    if (!view) return
+    let frame = 0
+    const reposition = () => {
+      if (frame) return
+      frame = window.requestAnimationFrame(() => {
+        frame = 0
+        const liveView = viewRef.current
+        if (!liveView) return
+        const c = liveView.coordsAtPos(chipActiveTo)
+        if (!c) {
+          setSelectionChip(null)
+          return
+        }
+        setSelectionChip((prev) =>
+          prev
+            ? {
+                ...prev,
+                coords: { left: c.left, right: c.right, top: c.top, bottom: c.bottom },
+              }
+            : prev,
+        )
+      })
+    }
+    const scrollEl = view.scrollDOM
+    scrollEl?.addEventListener('scroll', reposition, { passive: true })
+    window.addEventListener?.('resize', reposition)
+    return () => {
+      if (frame) window.cancelAnimationFrame?.(frame)
+      scrollEl?.removeEventListener('scroll', reposition)
+      window.removeEventListener?.('resize', reposition)
+    }
+  }, [chipActiveTo])
+
   const handleContextMenu = useCallback(async (e: React.MouseEvent<HTMLDivElement>) => {
     const view = viewRef.current
     if (!view) return
@@ -771,6 +879,12 @@ export function Editor({
               : `${replaceToast.count} replacements made`}
           </div>
         )}
+        {selectionChip && effectiveMode === 'edit' && onSendSelection && (
+          <EditorSelectionChip
+            coords={selectionChip.coords}
+            onClick={handleChipClick}
+          />
+        )}
         {effectiveMode === 'edit' ? (
           <CodeMirror
             value={value}
@@ -783,6 +897,7 @@ export function Editor({
               viewRef.current = view
               setCmView(view)
             }}
+            onUpdate={handleCmUpdate}
             basicSetup={{
               lineNumbers: true,
               foldGutter: false,
