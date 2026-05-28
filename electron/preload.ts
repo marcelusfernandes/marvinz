@@ -157,6 +157,10 @@ const api = {
     readClipboard: () => ipcRenderer.invoke('editor:clipboard-read') as Promise<string>,
     writeClipboard: (text: string) =>
       ipcRenderer.invoke('editor:clipboard-write', text) as Promise<void>,
+    writeClipboardRich: (payload: { html: string; text: string }) =>
+      ipcRenderer.invoke('editor:clipboard-write-rich', payload) as Promise<void>,
+    readClipboardRich: () =>
+      ipcRenderer.invoke('editor:clipboard-read-rich') as Promise<{ html: string; text: string }>,
   },
   app: {
     showContextMenu: (items: MenuItemSpec[]) =>

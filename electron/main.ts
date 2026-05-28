@@ -1168,6 +1168,14 @@ ipcMain.handle('editor:clipboard-write', (_e, text: string): void => {
   clipboard.writeText(text)
 })
 
+ipcMain.handle('editor:clipboard-write-rich', (_e, payload: { html: string; text: string }): void => {
+  clipboard.write({ html: payload.html, text: payload.text })
+})
+
+ipcMain.handle('editor:clipboard-read-rich', (): { html: string; text: string } => {
+  return { html: clipboard.readHTML(), text: clipboard.readText() }
+})
+
 function detectBinary(name: string): string | null {
   // Defensive: only allow simple binary names — no path traversal or shell.
   if (!/^[a-zA-Z0-9_-]+$/.test(name)) return null
