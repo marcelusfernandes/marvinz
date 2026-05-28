@@ -38,6 +38,9 @@ import {
   readDraggedPaths,
 } from '../lib/dropAttachments'
 import type { ImportToastState } from './ImportToast'
+import type { AgentKind } from '../lib/agent-drop-format'
+import { formatSelectionForAgent } from '../lib/agent-selection-format'
+import { EditorSelectionChip } from './EditorSelectionChip'
 
 type Props = {
   /** Markdown body (without frontmatter) to render. */
@@ -70,6 +73,11 @@ type Props = {
   onViewReady?: (view: EditorView | null) => void
   /** Surfaces drag-drop import outcomes (success / error / partial). */
   onImportToast?: (toast: { state: ImportToastState; message: string }) => void
+  /** Click handler for the floating selection chip. Receives the formatted
+   * selection text ready to send to the focused agent. */
+  onSendSelection?: (formatted: string) => void
+  /** Agent the formatted selection targets. */
+  agentKind?: AgentKind
 }
 
 type ParserCtxGetter = { get: (key: typeof parserCtx) => (text: string) => PMNode | null }
@@ -240,6 +248,8 @@ function LiveMarkdownInner({
   onOpenFind,
   onViewReady,
   onImportToast,
+  onSendSelection,
+  agentKind = 'codex',
 }: Props) {
   // Refs avoid re-creating the editor on every change of these props.
   const onChangeRef = useRef(onChange)
@@ -638,6 +648,62 @@ function LiveMarkdownInner({
     }
   }, [editorInfo])
 
+  // Selection chip — pinned to viewport coords from Range.getBoundingClientRect.
+  const [selectionRect, setSelectionRect] = useState<{
+    left: number
+    right: number
+    top: number
+    bottom: number
+  } | null>(null)
+  useEffect(() => {
+    if (!onSendSelection) return
+    let debounceId: number | null = null
+    const evaluate = () => {
+      debounceId = null
+      const root = containerRef.current
+      if (!root) {
+        setSelectionRect(null)
+        return
+      }
+      const sel = window.getSelection()
+      if (!sel || sel.rangeCount === 0 || sel.toString() === '') {
+        setSelectionRect(null)
+        return
+      }
+      const anchor = sel.anchorNode
+      if (!anchor || !root.contains(anchor)) {
+        setSelectionRect(null)
+        return
+      }
+      const rect = sel.getRangeAt(0).getBoundingClientRect()
+      setSelectionRect({
+        left: rect.left,
+        right: rect.right,
+        top: rect.top,
+        bottom: rect.bottom,
+      })
+    }
+    const onSelectionChange = () => {
+      if (debounceId !== null) window.clearTimeout(debounceId)
+      // ~50ms debounce keeps the chip steady during drag-to-extend selections.
+      debounceId = window.setTimeout(evaluate, 50)
+    }
+    document.addEventListener('selectionchange', onSelectionChange)
+    return () => {
+      document.removeEventListener('selectionchange', onSelectionChange)
+      if (debounceId !== null) window.clearTimeout(debounceId)
+    }
+  }, [onSendSelection])
+
+  const handleChipClick = useCallback(() => {
+    if (!onSendSelection) return
+    const text = window.getSelection()?.toString()
+    if (!text) return
+    const formatted = formatSelectionForAgent(text, agentKind)
+    if (formatted === '') return
+    onSendSelection(formatted)
+  }, [onSendSelection, agentKind])
+
   return (
     <div ref={containerRef} className="live-md" onContextMenu={handleContextMenu}>
       <Milkdown />
@@ -649,6 +715,9 @@ function LiveMarkdownInner({
           onSelect={handleMentionSelect}
           onDismiss={handleMentionDismiss}
         />
+      )}
+      {selectionRect && onSendSelection && (
+        <EditorSelectionChip coords={selectionRect} onClick={handleChipClick} />
       )}
     </div>
   )
