@@ -36,16 +36,21 @@ type MarvinWin = Window & {
 // ---------------------------------------------------------------------------
 
 async function closeApp(app: Awaited<ReturnType<typeof electron.launch>>): Promise<void> {
+  let killTimer: ReturnType<typeof setTimeout> | undefined
   await Promise.race([
     app.close().catch(() => {}),
-    new Promise<void>((resolve) =>
-      setTimeout(() => {
+    new Promise<void>((resolve) => {
+      killTimer = setTimeout(() => {
         try { app.process().kill() } catch { /* already dead */ }
         resolve()
-      }, 5_000),
-    ),
+      }, 5_000)
+    }),
   ])
+  if (killTimer !== undefined) clearTimeout(killTimer)
 }
+
+// CI runs Linux where the copy/cut shortcut is Control, not Meta.
+const cmdKey = process.platform === 'darwin' ? 'Meta' : 'Control'
 
 async function seedVault(): Promise<string> {
   const raw = await fs.mkdtemp(path.join(os.tmpdir(), 'marvin-e2e-clipboard-vault-'))
@@ -86,9 +91,22 @@ test.describe('File tree clipboard — IPC and store contract (issue #147)', () 
   })
 
   test.afterEach(async () => {
-    await fs.rm(vaultRoot, { recursive: true, force: true }).catch(() => {})
-    await fs.rm(userDataDir, { recursive: true, force: true }).catch(() => {})
+    await fs
+      .rm(vaultRoot, { recursive: true, force: true })
+      .catch((e) => console.warn('cleanup vaultRoot failed:', e))
+    await fs
+      .rm(userDataDir, { recursive: true, force: true })
+      .catch((e) => console.warn('cleanup userDataDir failed:', e))
   })
+
+  // Readiness guard — surfaces broken IPC bridge with an explicit failure rather
+  // than an opaque "cannot read properties of undefined" inside scenarios.
+  async function assertIpcReady(page: Awaited<ReturnType<typeof launchApp>>['page']): Promise<void> {
+    const ready = await page.evaluate(
+      () => typeof (window as unknown as Partial<MarvinWin>).marvin?.file?.copy,
+    )
+    expect(ready).toBe('function')
+  }
 
   // -------------------------------------------------------------------------
   // Scenario 1: copy single file → "Copy of" prefix, source intact
@@ -97,6 +115,7 @@ test.describe('File tree clipboard — IPC and store contract (issue #147)', () 
   test('Scenario 1: copy single file → archive/Copy of a.md exists, notes/a.md intact', async () => {
     const { app, page } = await launchApp(userDataDir)
     try {
+      await assertIpcReady(page)
       // Wait for the vault to load — notes dir is visible at the top level
       await expect(
         page.locator('.sidebar .file-tree-row.dir', { hasText: /^notes$/ }),
@@ -127,6 +146,7 @@ test.describe('File tree clipboard — IPC and store contract (issue #147)', () 
 
     const { app, page } = await launchApp(userDataDir)
     try {
+      await assertIpcReady(page)
       await expect(
         page.locator('.sidebar .file-tree-row.dir', { hasText: /^notes$/ }),
       ).toBeVisible({ timeout: 15_000 })
@@ -145,7 +165,9 @@ test.describe('File tree clipboard — IPC and store contract (issue #147)', () 
       )
 
       expect(results).toHaveLength(2)
-      expect(results.every((r: MoveResult) => r.ok)).toBe(true)
+      for (const r of results as MoveResult[]) {
+        expect(r.ok).toBe(true)
+      }
 
       // Sources must be gone
       await expect(fs.access(path.join(vaultRoot, 'notes', 'a.md'))).rejects.toThrow()
@@ -168,6 +190,7 @@ test.describe('File tree clipboard — IPC and store contract (issue #147)', () 
 
     const { app, page } = await launchApp(userDataDir)
     try {
+      await assertIpcReady(page)
       await expect(
         page.locator('.sidebar .file-tree-row.dir', { hasText: /^notes$/ }),
       ).toBeVisible({ timeout: 15_000 })
@@ -275,12 +298,15 @@ test.describe('File tree clipboard — IPC and store contract (issue #147)', () 
   )
 
   // -------------------------------------------------------------------------
-  // Scenario 6: Editor focus bails Cmd+C — clipboard store stays null
+  // Scenario 6: Editor focus bails the file-tree clipboard shortcut.
+  // Uses Cmd+X because cut produces an observable .cut class on selected rows —
+  // Cmd+C only mutates the store, which the renderer doesn't expose to e2e.
   // -------------------------------------------------------------------------
 
-  test('Scenario 6: Cmd+C while editor cm-content is focused does not set clipboard store', async () => {
+  test('Scenario 6: cut shortcut while editor is focused does not mark rows as cut', async () => {
     const { app, page } = await launchApp(userDataDir)
     try {
+      await assertIpcReady(page)
       // Expand the notes folder so a.md becomes visible
       const notesDir = page.locator('.sidebar .file-tree-row.dir', { hasText: /^notes$/ })
       await expect(notesDir).toBeVisible({ timeout: 15_000 })
@@ -289,32 +315,34 @@ test.describe('File tree clipboard — IPC and store contract (issue #147)', () 
       const fileRow = page.locator('.sidebar .file-tree-row.file', { hasText: /^a$/ })
       await expect(fileRow).toBeVisible({ timeout: 5_000 })
 
-      // Open file in editor by clicking the row
+      // Select the row first — without selectedPaths > 0, Cmd+X bails before reaching
+      // isEditableTarget, which would make the test pass for the wrong reason.
       await fileRow.click()
+      await expect(fileRow).toHaveClass(/selected/)
 
-      // Editor opens in preview mode by default — wait for the mode toggle then switch to
-      // the raw-edit surface. The first .mode-btn is always the source/edit toggle regardless
-      // of label text (labels differ between bundle versions: "Edit" vs "Source").
-      const editBtn = page.locator('.mode-toggle .mode-btn').first()
+      // Mode toggle label differs between bundle versions ("Edit" vs "Source") — match either.
+      const editBtn = page.locator('.mode-toggle .mode-btn', { hasText: /Source|Edit/ }).first()
       await expect(editBtn).toBeVisible({ timeout: 8_000 })
       await editBtn.click()
 
-      // cm-content is the contenteditable div rendered by CodeMirror
+      // CodeMirror 6 host: .cm-content is the contenteditable; .cm-editor wraps it with tabIndex=0.
+      // Click cm-content for focus, then verify document.activeElement matches either.
       const cmContent = page.locator('.cm-content').first()
       await expect(cmContent).toBeVisible({ timeout: 8_000 })
-
-      // Focus the CodeMirror content area
       await cmContent.click()
-      await expect(cmContent).toBeFocused()
+      const focused = async () =>
+        page.evaluate(() => {
+          const el = document.activeElement
+          return el?.matches('.cm-content, .cm-editor') ?? false
+        })
+      expect(await focused()).toBe(true)
 
-      // Cmd+C with an editable target active — isEditableTarget bails the handler
-      await page.keyboard.press('Meta+C')
+      // Cmd+X with an editable target active — isEditableTarget bails the handler.
+      // If the bail-out regressed, the file-tree row would gain the .cut class.
+      await page.keyboard.press(`${cmdKey}+X`)
 
-      // No row should have .cut class — the keydown handler was skipped
       await expect(page.locator('.sidebar .file-tree-row.cut')).toHaveCount(0, { timeout: 1_000 })
-
-      // Editor focus must be intact
-      await expect(cmContent).toBeFocused()
+      expect(await focused()).toBe(true)
     } finally {
       await closeApp(app)
     }
