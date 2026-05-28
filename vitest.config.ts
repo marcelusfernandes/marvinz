@@ -26,6 +26,7 @@ export default defineConfig({
           environment: 'jsdom',
           include: [
             'src/components/__tests__/**/*.spec.{ts,tsx}',
+            'src/lib/__tests__/**/*.spec.tsx',
           ],
           setupFiles: ['src/lib/chat/__tests__/setup.ts'],
         },

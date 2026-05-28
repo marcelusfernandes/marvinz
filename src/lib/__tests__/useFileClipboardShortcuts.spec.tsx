@@ -68,7 +68,7 @@ describe('useFileClipboardShortcuts', () => {
     })
     const s = useClipboardStore.getState()
     expect(s.mode).toBe('copy')
-    expect(s.paths).toEqual(['/vault/a.md', '/vault/b.md'])
+    expect(Array.from(s.paths)).toEqual(['/vault/a.md', '/vault/b.md'])
   })
 
   it('Cmd+X populates clipboard with cut mode', () => {
@@ -86,7 +86,7 @@ describe('useFileClipboardShortcuts', () => {
     })
     const s = useClipboardStore.getState()
     expect(s.mode).toBe('cut')
-    expect(s.paths).toEqual(['/vault/a.md'])
+    expect(Array.from(s.paths)).toEqual(['/vault/a.md'])
   })
 
   it('Cmd+V calls onPaste with selected folder as target', () => {

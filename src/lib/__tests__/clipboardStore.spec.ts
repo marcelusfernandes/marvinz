@@ -9,14 +9,14 @@ describe('clipboardStore', () => {
   it('initial state is mode=null and empty paths', () => {
     const s = useClipboardStore.getState()
     expect(s.mode).toBeNull()
-    expect(s.paths).toEqual([])
+    expect(s.paths.size).toBe(0)
   })
 
   it('set("copy", paths) populates mode and paths', () => {
     useClipboardStore.getState().set('copy', ['/v/a.md', '/v/b.md'])
     const s = useClipboardStore.getState()
     expect(s.mode).toBe('copy')
-    expect(s.paths).toEqual(['/v/a.md', '/v/b.md'])
+    expect(Array.from(s.paths)).toEqual(['/v/a.md', '/v/b.md'])
   })
 
   it('set("cut", paths) overrides a prior copy', () => {
@@ -24,7 +24,7 @@ describe('clipboardStore', () => {
     useClipboardStore.getState().set('cut', ['/v/b.md'])
     const s = useClipboardStore.getState()
     expect(s.mode).toBe('cut')
-    expect(s.paths).toEqual(['/v/b.md'])
+    expect(Array.from(s.paths)).toEqual(['/v/b.md'])
   })
 
   it('clear() resets to initial state', () => {
@@ -32,6 +32,6 @@ describe('clipboardStore', () => {
     useClipboardStore.getState().clear()
     const s = useClipboardStore.getState()
     expect(s.mode).toBeNull()
-    expect(s.paths).toEqual([])
+    expect(s.paths.size).toBe(0)
   })
 })

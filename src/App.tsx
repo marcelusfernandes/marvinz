@@ -1453,16 +1453,24 @@ export default function App() {
   const executePaste = useCallback(
     async (target: string) => {
       const clip = useClipboardStore.getState()
-      if (clip.mode === null || clip.paths.length === 0) return
+      if (clip.mode === null || clip.paths.size === 0) return
       const vp = vaultPathRef.current
       if (!vp) return
       try {
         if (clip.mode === 'copy') {
+          const failed: string[] = []
           for (const p of clip.paths) {
-            await window.marvin.file.copy(p, target)
+            try {
+              await window.marvin.file.copy(p, target)
+            } catch {
+              failed.push(p)
+            }
+          }
+          if (failed.length > 0) {
+            reportErrorRef.current(new Error(`Failed to copy: ${failed.join(', ')}`))
           }
         } else {
-          const results = await window.marvin.file.moveBatch(clip.paths, target)
+          const results = await window.marvin.file.moveBatch(Array.from(clip.paths), target)
           for (const r of results) {
             if (r.ok) renameInTabsRef.current(r.src, r.dest)
           }
@@ -1505,8 +1513,8 @@ export default function App() {
       )
       if (node.isDir) {
         const pasteLabel =
-          clip.mode && clip.paths.length > 1
-            ? `Paste ${clip.paths.length} items`
+          clip.mode && clip.paths.size > 1
+            ? `Paste ${clip.paths.size} items`
             : 'Paste'
         items.push({
           kind: 'item',
@@ -1545,23 +1553,14 @@ export default function App() {
           setCreatingIn({ parentDir: node.path, kind: 'folder' })
           break
         case 'copy':
-          if (selectedPathsRef.current.size === 0) {
-            useClipboardStore.getState().set('copy', [node.path])
-          } else {
-            useClipboardStore
-              .getState()
-              .set('copy', Array.from(selectedPathsRef.current))
-          }
+        case 'cut': {
+          const paths =
+            selectedPathsRef.current.size === 0
+              ? [node.path]
+              : Array.from(selectedPathsRef.current)
+          useClipboardStore.getState().set(id, paths)
           break
-        case 'cut':
-          if (selectedPathsRef.current.size === 0) {
-            useClipboardStore.getState().set('cut', [node.path])
-          } else {
-            useClipboardStore
-              .getState()
-              .set('cut', Array.from(selectedPathsRef.current))
-          }
-          break
+        }
         case 'paste':
           void executePaste(node.path)
           break
@@ -1671,8 +1670,8 @@ export default function App() {
     e.preventDefault()
     const clip = useClipboardStore.getState()
     const pasteLabel =
-      clip.mode && clip.paths.length > 1
-        ? `Paste ${clip.paths.length} items`
+      clip.mode && clip.paths.size > 1
+        ? `Paste ${clip.paths.size} items`
         : 'Paste'
     const items: MenuItemSpec[] = [
       { kind: 'item', id: 'new-file', label: 'New File' },

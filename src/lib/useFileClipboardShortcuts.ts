@@ -60,6 +60,7 @@ export function useFileClipboardShortcuts(opts: Options): void {
       if (e.key === 'Escape') {
         const store = useClipboardStore.getState()
         if (store.mode === null && selectedPaths.size === 0) return
+        e.preventDefault()
         store.clear()
         onClearSelection()
         return
@@ -84,7 +85,7 @@ export function useFileClipboardShortcuts(opts: Options): void {
 
       if (key === 'v') {
         const clip = useClipboardStore.getState()
-        if (clip.mode === null || clip.paths.length === 0) return
+        if (clip.mode === null || clip.paths.size === 0) return
         const resolved = resolvePasteTarget(selectedPaths, tree, vaultPath)
         if ('ambiguous' in resolved) return
         e.preventDefault()

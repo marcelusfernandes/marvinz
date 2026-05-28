@@ -436,9 +436,7 @@ function FileTreeNodeImpl({
   const hovered = hoveredPath === node.path
   const isSelected = selectedPaths.has(node.path)
   const isActiveFile = activeFilePath === node.path
-  const isCut = useClipboardStore((s) =>
-    s.mode === 'cut' && s.paths.includes(node.path),
-  )
+  const isCut = useClipboardStore((s) => s.mode === 'cut' && s.paths.has(node.path))
   const padding = 8 + depth * 14
 
   const handleDragStart = (e: React.DragEvent) => {
