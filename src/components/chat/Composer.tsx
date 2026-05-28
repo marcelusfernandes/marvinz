@@ -155,9 +155,11 @@ export function Composer({
       onDrop={handleDrop}
     >
       {dragOver && (
-        <div className="chat-composer-drop-overlay" aria-hidden="true">
-          <span className="chat-composer-drop-overlay-label">Drop to insert path</span>
-        </div>
+        <div
+          className="chat-composer-drop-overlay"
+          aria-label="Drop to insert path"
+          role="presentation"
+        />
       )}
       <div className="chat-composer-input-row">
         <textarea

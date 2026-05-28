@@ -286,9 +286,11 @@ export function AgentTerminal({
       )}
       <div ref={hostRef} className="claude-host" />
       {dragOver && (
-        <div className="agent-terminal-drop-overlay" aria-hidden="true">
-          <span className="agent-terminal-drop-overlay-label">Drop to insert path</span>
-        </div>
+        <div
+          className="agent-terminal-drop-overlay"
+          aria-label="Drop to insert path"
+          role="presentation"
+        />
       )}
     </div>
   )

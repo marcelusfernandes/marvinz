@@ -194,7 +194,7 @@ describe('Composer — drop target (issue #366)', () => {
     expect(
       (event as DragEvent & { preventDefault: ReturnType<typeof vi.fn> }).preventDefault,
     ).toHaveBeenCalled()
-    expect(screen.getByText('Drop to insert path')).toBeInTheDocument()
+    expect(screen.getByLabelText('Drop to insert path')).toBeInTheDocument()
   })
 
   it('dragover without marvin MIME: no preventDefault, no overlay', async () => {
@@ -209,7 +209,7 @@ describe('Composer — drop target (issue #366)', () => {
     expect(
       (event as DragEvent & { preventDefault: ReturnType<typeof vi.fn> }).preventDefault,
     ).not.toHaveBeenCalled()
-    expect(screen.queryByText('Drop to insert path')).toBeNull()
+    expect(screen.queryByLabelText('Drop to insert path')).toBeNull()
   })
 
   it('dragleave: overlay hides after dragover', async () => {
@@ -219,12 +219,12 @@ describe('Composer — drop target (issue #366)', () => {
     await act(async () => {
       getComposer().dispatchEvent(makeDragEvent('dragover', '/vault/foo.md'))
     })
-    expect(screen.getByText('Drop to insert path')).toBeInTheDocument()
+    expect(screen.getByLabelText('Drop to insert path')).toBeInTheDocument()
 
     await act(async () => {
       getComposer().dispatchEvent(makeDragEvent('dragleave'))
     })
-    expect(screen.queryByText('Drop to insert path')).toBeNull()
+    expect(screen.queryByLabelText('Drop to insert path')).toBeNull()
   })
 
   it('drop with no vault (vaultPath empty): no setComposerDraft call', async () => {
@@ -245,7 +245,7 @@ describe('Composer — drop target (issue #366)', () => {
     await act(async () => {
       getComposer().dispatchEvent(makeDragEvent('dragover', '/vault/foo.md'))
     })
-    expect(screen.getByText('Drop to insert path')).toBeInTheDocument()
+    expect(screen.getByLabelText('Drop to insert path')).toBeInTheDocument()
 
     // Plural MIME present in types but payload is '[]' → readDraggedPaths returns []
     const malformedDrop = new Event('drop', { bubbles: true, cancelable: true }) as DragEvent
@@ -265,7 +265,7 @@ describe('Composer — drop target (issue #366)', () => {
     })
 
     expect(setDraftMock).not.toHaveBeenCalled()
-    expect(screen.queryByText('Drop to insert path')).toBeNull()
+    expect(screen.queryByLabelText('Drop to insert path')).toBeNull()
   })
 
   it('caret advances after insert: setSelectionRange called with end of inserted text', async () => {

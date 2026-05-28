@@ -192,7 +192,7 @@ describe('AgentTerminal — drop target (issue #365)', () => {
     })
 
     expect((event as DragEvent & { preventDefault: ReturnType<typeof vi.fn> }).preventDefault).toHaveBeenCalled()
-    expect(screen.getByText('Drop to insert path')).toBeInTheDocument()
+    expect(screen.getByLabelText('Drop to insert path')).toBeInTheDocument()
   })
 
   it('dragover without marvin MIME: preventDefault not called, overlay absent', async () => {
@@ -207,7 +207,7 @@ describe('AgentTerminal — drop target (issue #365)', () => {
     })
 
     expect((event as DragEvent & { preventDefault: ReturnType<typeof vi.fn> }).preventDefault).not.toHaveBeenCalled()
-    expect(screen.queryByText('Drop to insert path')).toBeNull()
+    expect(screen.queryByLabelText('Drop to insert path')).toBeNull()
   })
 
   it('dragleave: overlay hides after dragover', async () => {
@@ -219,12 +219,12 @@ describe('AgentTerminal — drop target (issue #365)', () => {
     await act(async () => {
       container.dispatchEvent(makeDragEvent('dragover', '/vault/foo.md'))
     })
-    expect(screen.getByText('Drop to insert path')).toBeInTheDocument()
+    expect(screen.getByLabelText('Drop to insert path')).toBeInTheDocument()
 
     await act(async () => {
       container.dispatchEvent(makeDragEvent('dragleave'))
     })
-    expect(screen.queryByText('Drop to insert path')).toBeNull()
+    expect(screen.queryByLabelText('Drop to insert path')).toBeNull()
   })
 
   it('drop with no vault (vaultPath empty): no PTY write', async () => {
@@ -259,7 +259,7 @@ describe('AgentTerminal — drop target (issue #365)', () => {
     await act(async () => {
       container.dispatchEvent(makeDragEvent('dragover', '/vault/foo.md'))
     })
-    expect(screen.getByText('Drop to insert path')).toBeInTheDocument()
+    expect(screen.getByLabelText('Drop to insert path')).toBeInTheDocument()
 
     // Plural MIME present in types, but payload is '[]' → readDraggedPaths returns []
     const malformedDrop = new Event('drop', { bubbles: true, cancelable: true }) as DragEvent
@@ -279,7 +279,7 @@ describe('AgentTerminal — drop target (issue #365)', () => {
     })
 
     expect(ptyWriteMock).not.toHaveBeenCalled()
-    expect(screen.queryByText('Drop to insert path')).toBeNull()
+    expect(screen.queryByLabelText('Drop to insert path')).toBeNull()
   })
 
   it('claude-code agent: writes bare absolute path (no @ prefix)', async () => {
