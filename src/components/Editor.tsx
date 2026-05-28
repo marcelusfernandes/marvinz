@@ -45,6 +45,7 @@ import { mentionTrigger } from '../lib/cmMentionTrigger'
 import { MentionPicker } from './MentionPicker'
 import type { AgentKind } from '../lib/agent-drop-format'
 import { formatSelectionForAgent } from '../lib/agent-selection-format'
+import { clampToViewport } from '../lib/chipViewportClamp'
 import { EditorSelectionChip } from './EditorSelectionChip'
 
 const codeHighlightStyle = HighlightStyle.define([
@@ -605,7 +606,7 @@ export function Editor({
       setSelectionChip({
         from: sel.from,
         to: sel.to,
-        coords: { left: c.left, right: c.right, top: c.top, bottom: c.bottom },
+        coords: clampToViewport({ left: c.left, right: c.right, top: c.top, bottom: c.bottom }),
       })
     },
     [],
@@ -630,8 +631,7 @@ export function Editor({
   // user scrolls. rAF-throttle so a burst of wheel events collapses into
   // one re-measure. Effect dep is the `to` offset only: re-measures
   // inside the setState updater don't restart the effect, so attach /
-  // detach happens once per distinct selection range. Viewport clamping
-  // is intentionally deferred to a follow-up (needs visual direction).
+  // detach happens once per distinct selection range.
   const chipActiveTo = selectionChip?.to ?? null
   useEffect(() => {
     if (chipActiveTo === null) return
@@ -653,7 +653,7 @@ export function Editor({
           prev
             ? {
                 ...prev,
-                coords: { left: c.left, right: c.right, top: c.top, bottom: c.bottom },
+                coords: clampToViewport({ left: c.left, right: c.right, top: c.top, bottom: c.bottom }),
               }
             : prev,
         )
