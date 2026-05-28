@@ -281,4 +281,20 @@ describe('AgentTerminal — drop target (issue #365)', () => {
     expect(ptyWriteMock).not.toHaveBeenCalled()
     expect(screen.queryByText('Drop to insert path')).toBeNull()
   })
+
+  it('claude-code agent: writes bare absolute path (no @ prefix)', async () => {
+    render(
+      <AgentTerminal
+        {...defaultProps({
+          agent: { id: 'claude-code', name: 'Claude Code', binaryPath: '/usr/bin/claude' },
+        })}
+      />,
+    )
+    await act(async () => {})
+
+    const container = getTerminalContainer()
+    container.dispatchEvent(makeDragEvent('drop', '/vault/foo.md'))
+
+    expect(ptyWriteMock).toHaveBeenCalledWith(PTY_ID, '/vault/foo.md ')
+  })
 })
