@@ -4,6 +4,7 @@ import { Icon } from './Icon'
 import { fileIconFor } from '../lib/fileIcons'
 import type { MenuItemSpec } from '../types'
 import type { EmptyTab } from '../App'
+import { MARVIN_PATH_MIME } from '../lib/dropAttachments'
 
 type NoteTab = {
   type: 'note'
@@ -147,10 +148,30 @@ export function TabBar({
             : t.type === 'empty'
               ? undefined
               : t.path
+        // Tabs that wrap a vault file expose their path on dragstart so the
+        // agent panes / editor (any drop target that consumes MARVIN_PATH_MIME)
+        // can read it as a drag source. Empty + browser tabs have no path to
+        // share, so they aren't draggable.
+        const isFileTab =
+          t.type === 'note' ||
+          t.type === 'image' ||
+          t.type === 'pdf' ||
+          t.type === 'docx' ||
+          t.type === 'xlsx'
         return (
           <div
             key={t.id}
             className={`tab${active ? ' active' : ''} tab-${kind}`}
+            draggable={isFileTab}
+            onDragStart={
+              isFileTab
+                ? (e) => {
+                    e.dataTransfer.setData(MARVIN_PATH_MIME, t.path)
+                    e.dataTransfer.setData('text/plain', t.path)
+                    e.dataTransfer.effectAllowed = 'copy'
+                  }
+                : undefined
+            }
             onMouseDown={(e) => {
               if (e.button === 1) {
                 e.preventDefault()
