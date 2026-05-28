@@ -16,3 +16,7 @@ export const useClipboardStore = create<State>((set) => ({
   set: (mode, paths) => set({ mode, paths: new Set(paths) }),
   clear: () => set({ mode: null, paths: new Set() }),
 }))
+
+export function clipPasteLabel(clip: { mode: ClipboardMode; paths: Set<string> }): string {
+  return clip.mode && clip.paths.size > 1 ? `Paste ${clip.paths.size} items` : 'Paste'
+}

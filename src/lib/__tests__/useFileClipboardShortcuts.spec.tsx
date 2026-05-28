@@ -142,8 +142,9 @@ describe('useFileClipboardShortcuts', () => {
     expect(onPaste).not.toHaveBeenCalled()
   })
 
-  it('Cmd+V with multi-selection is ambiguous and bails', () => {
+  it('Cmd+V with multi-selection is ambiguous, bails, and reports via onError', () => {
     const onPaste = vi.fn()
+    const onError = vi.fn()
     useClipboardStore.getState().set('copy', ['/vault/a.md'])
     renderHook(() =>
       useFileClipboardShortcuts({
@@ -152,12 +153,16 @@ describe('useFileClipboardShortcuts', () => {
         tree,
         onClearSelection: vi.fn(),
         onPaste,
+        onError,
       }),
     )
+    let ev: KeyboardEvent
     act(() => {
-      dispatchKey({ key: 'v', meta: true })
+      ev = dispatchKey({ key: 'v', meta: true })
     })
     expect(onPaste).not.toHaveBeenCalled()
+    expect(onError).toHaveBeenCalledWith('Select a single folder to paste into')
+    expect(ev!.defaultPrevented).toBe(true)
   })
 
   it('Escape clears clipboard and selection', () => {
@@ -235,5 +240,11 @@ describe('resolvePasteTarget', () => {
     expect(
       resolvePasteTarget(new Set(['/vault/a.md', '/vault/b.md']), tree, VAULT),
     ).toEqual({ ambiguous: true })
+  })
+  it('falls back to the path itself when single file is at filesystem root', () => {
+    const rootTree: FileNode[] = [{ name: 'foo.md', path: '/foo.md', isDir: false }]
+    expect(resolvePasteTarget(new Set(['/foo.md']), rootTree, '/vault')).toEqual({
+      target: '/foo.md',
+    })
   })
 })
