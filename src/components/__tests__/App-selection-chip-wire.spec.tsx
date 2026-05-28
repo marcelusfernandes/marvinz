@@ -235,7 +235,7 @@ describe('App selection chip wire — 1 codex agent focused', () => {
   it('Editor receives onSendSelection (function) when codex agent is focused', async () => {
     await renderWithNoteTab()
 
-    act(() => {
+    await act(async () => {
       agentsPaneOnFocusChange.fire?.({ ptyId: 'codex-1', agentKind: 'codex' })
     })
 
@@ -245,7 +245,7 @@ describe('App selection chip wire — 1 codex agent focused', () => {
   it("Editor receives agentKind='codex' when codex agent is focused", async () => {
     await renderWithNoteTab()
 
-    act(() => {
+    await act(async () => {
       agentsPaneOnFocusChange.fire?.({ ptyId: 'codex-1', agentKind: 'codex' })
     })
 
@@ -264,7 +264,7 @@ describe('App selection chip wire — 1 claude agent focused', () => {
   it("Editor receives agentKind='claude-code' when claude agent is focused", async () => {
     await renderWithNoteTab()
 
-    act(() => {
+    await act(async () => {
       agentsPaneOnFocusChange.fire?.({ ptyId: 'claude-1', agentKind: 'claude-code' })
     })
 
@@ -274,7 +274,7 @@ describe('App selection chip wire — 1 claude agent focused', () => {
   it('Editor receives onSendSelection (function) when claude agent is focused', async () => {
     await renderWithNoteTab()
 
-    act(() => {
+    await act(async () => {
       agentsPaneOnFocusChange.fire?.({ ptyId: 'claude-1', agentKind: 'claude-code' })
     })
 
@@ -293,7 +293,7 @@ describe('App selection chip wire — onSendSelection routes text to focused pty
   it('calls pty.write with focused ptyId and formatted text when invoked', async () => {
     await renderWithNoteTab()
 
-    act(() => {
+    await act(async () => {
       agentsPaneOnFocusChange.fire?.({ ptyId: 'codex-42', agentKind: 'codex' })
     })
 
@@ -302,7 +302,7 @@ describe('App selection chip wire — onSendSelection routes text to focused pty
       | undefined
     expect(typeof sendSelection).toBe('function')
 
-    act(() => {
+    await act(async () => {
       sendSelection?.('some selected text')
     })
 
@@ -328,11 +328,11 @@ describe('App selection chip wire — focus switch updates ptyId routing', () =>
   it('routes to new ptyId after focus switches to a different agent tab', async () => {
     await renderWithNoteTab()
 
-    act(() => {
+    await act(async () => {
       agentsPaneOnFocusChange.fire?.({ ptyId: 'codex-1', agentKind: 'codex' })
     })
 
-    act(() => {
+    await act(async () => {
       agentsPaneOnFocusChange.fire?.({ ptyId: 'codex-2', agentKind: 'codex' })
     })
 
@@ -340,7 +340,7 @@ describe('App selection chip wire — focus switch updates ptyId routing', () =>
       | ((text: string) => void)
       | undefined
 
-    act(() => {
+    await act(async () => {
       sendSelection?.('hello')
     })
 
@@ -351,12 +351,12 @@ describe('App selection chip wire — focus switch updates ptyId routing', () =>
   it('onSendSelection becomes undefined when focus is cleared (no active tab)', async () => {
     await renderWithNoteTab()
 
-    act(() => {
+    await act(async () => {
       agentsPaneOnFocusChange.fire?.({ ptyId: 'codex-1', agentKind: 'codex' })
     })
     expect(typeof lastEditorProps.current?.onSendSelection).toBe('function')
 
-    act(() => {
+    await act(async () => {
       agentsPaneOnFocusChange.fire?.(null)
     })
 

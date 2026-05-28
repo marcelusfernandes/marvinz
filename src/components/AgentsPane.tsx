@@ -96,7 +96,19 @@ export function AgentsPane({
       onFocusChange(null)
       return
     }
-    const agentKind: AgentKind = active.agentId === 'codex' ? 'codex' : 'claude-code'
+    // Exhaustive: unknown agentId emits null instead of silently misclassifying.
+    let agentKind: AgentKind
+    switch (active.agentId) {
+      case 'codex':
+        agentKind = 'codex'
+        break
+      case 'claude':
+        agentKind = 'claude-code'
+        break
+      default:
+        onFocusChange(null)
+        return
+    }
     onFocusChange({ ptyId: active.id, agentKind })
   }, [activeId, tabs, onFocusChange])
 

@@ -1832,7 +1832,7 @@ export default function App() {
                 onSendSelection={
                   focusedAgent ? handleSendSelectionToFocusedAgent : undefined
                 }
-                agentKind={focusedAgent?.agentKind ?? 'codex'}
+                agentKind={focusedAgent?.agentKind}
               />
             </div>
           )}
