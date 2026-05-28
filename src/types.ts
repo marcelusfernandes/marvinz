@@ -33,6 +33,8 @@ export type BrowserEvent =
 
 export type FileChangeSource = 'agent' | 'external'
 
+export type MoveResult = { src: string; dest: string; ok: boolean; error?: string }
+
 export type SnapshotTrigger = 'file:write' | 'watcher' | 'restore' | 'cascade' | 'buffer-save' | 'external-rejected'
 
 export type SnapshotStatus = 'active' | 'completed'
@@ -100,6 +102,8 @@ export type MarvinAPI = {
     exportPdf: (filePath: string) => Promise<void>
     create: (parentDir: string, name: string) => Promise<string>
     writeBinary: (payload: { vaultPath: string; relPath: string; base64Bytes: string; maxBytes?: number }) => Promise<string>
+    copy: (srcPath: string, destDir: string) => Promise<string>
+    moveBatch: (srcs: string[], destDir: string) => Promise<MoveResult[]>
     onChanged: (cb: (filePath: string, source: FileChangeSource) => void) => () => void
   }
   office: {

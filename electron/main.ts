@@ -31,6 +31,8 @@ import type { AgentRequest, AgentEvent } from './agent/protocol.js'
 import { importExternal } from './fs-import-external.js'
 import { searchContent } from './search-content.js'
 import { killProcessTree } from './proc-group.js'
+import { resolveConflict } from './conflictResolver.js'
+import type { MoveResult } from '../src/types.js'
 
 process.env.APP_ROOT = path.join(__dirname, '..')
 
@@ -773,6 +775,80 @@ ipcMain.handle('folder:create', async (_e, parentDir: string, name: string) => {
   notifyTree()
   return safe
 })
+
+ipcMain.handle('file:copy', async (_e, srcPath: string, destDir: string): Promise<string> => {
+  const safeSrc = await assertInVault(srcPath)
+  const safeDir = await assertInVault(destDir)
+  const destPath = await resolveConflict(safeDir, path.basename(safeSrc), 'copy')
+  await fs.cp(safeSrc, destPath, { recursive: true, errorOnExist: false })
+  notifyTree()
+  return destPath
+})
+
+ipcMain.handle('file:move-batch', async (_e, srcs: string[], destDir: string): Promise<MoveResult[]> => {
+  const safeDir = await assertInVault(destDir)
+  const results: MoveResult[] = []
+  const moved: { src: string; dest: string }[] = []
+  for (const src of srcs) {
+    try {
+      const safeSrc = await assertInVault(src)
+      const destPath = await resolveConflict(safeDir, path.basename(safeSrc), 'move')
+      await fs.mkdir(path.dirname(destPath), { recursive: true })
+      try {
+        await fs.rename(safeSrc, destPath)
+      } catch (err) {
+        // EXDEV: src and dest on different filesystems (e.g., USB vault → internal disk).
+        if ((err as NodeJS.ErrnoException).code !== 'EXDEV') throw err
+        await fs.cp(safeSrc, destPath, { recursive: true })
+        await fs.rm(safeSrc, { recursive: true, force: true })
+      }
+      moved.push({ src: safeSrc, dest: destPath })
+      results.push({ src, dest: destPath, ok: true })
+    } catch (err) {
+      results.push({ src, dest: '', ok: false, error: (err as Error).message })
+    }
+  }
+  // Single vault walk for all successful moves — avoids O(N×M) listAllMarkdown calls.
+  if (activeVaultPath && moved.length > 0) {
+    try {
+      await rewriteLinksAfterMoveBatch(activeVaultPath, moved)
+    } catch (err) {
+      console.error('[rewriteLinksAfterMove] move-batch failed', err)
+    }
+  }
+  notifyTree()
+  return results
+})
+
+async function rewriteLinksAfterMoveBatch(
+  vaultRoot: string,
+  moves: { src: string; dest: string }[],
+): Promise<void> {
+  const files = await listAllMarkdown(vaultRoot)
+  const cascadeTurnId = newTurnId()
+  await Promise.all(
+    files.map(async (file) => {
+      try {
+        const original = await fs.readFile(file, 'utf8')
+        let content = original
+        for (const { src, dest } of moves) {
+          content = rewriteOneFile(file, vaultRoot, src, dest, content)
+          content = rewriteWikilinksOneFile(vaultRoot, src, dest, content)
+        }
+        if (content !== original) {
+          const relPath = path.relative(vaultRoot, file)
+          await writeSnapshot(vaultRoot, cascadeTurnId, relPath, original, 'cascade')
+          await fs.writeFile(file, content, 'utf8')
+        }
+      } catch (err) {
+        // Tolerate files that vanished mid-walk; surface anything else.
+        if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+          console.error('[rewriteLinksAfterMoveBatch] skipping file', file, err)
+        }
+      }
+    }),
+  )
+}
 
 async function listAllMarkdown(root: string, current = root): Promise<string[]> {
   const out: string[] = []
