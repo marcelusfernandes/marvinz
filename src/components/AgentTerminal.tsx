@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type DragEvent } from 'react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
@@ -9,6 +9,12 @@ import {
   createTerminalLinkProvider,
   createOsc8LinkHandler,
 } from '../lib/terminalLinkProvider'
+import {
+  MARVIN_PATH_MIME,
+  MARVIN_PATHS_MIME,
+  readDraggedPaths,
+} from '../lib/dropAttachments'
+import { formatPathsForAgent, type AgentKind } from '../lib/agent-drop-format'
 
 function readCssVar(name: string): string {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim()
@@ -75,6 +81,7 @@ export function AgentTerminal({
   const [status, setStatus] = useState<Status>('starting')
   const [exitCode, setExitCode] = useState<number | null>(null)
   const [restartTick, setRestartTick] = useState(0)
+  const [dragOver, setDragOver] = useState(false)
 
   // Notify parent whenever status changes.
   useEffect(() => {
@@ -231,8 +238,41 @@ export function AgentTerminal({
 
   const showRestart = status === 'exited' || status === 'error'
 
+  const agentKind: AgentKind = agent.id === 'codex' ? 'codex' : 'claude-code'
+
+  const handleDragOver = useCallback((e: DragEvent<HTMLDivElement>) => {
+    const types = e.dataTransfer.types
+    if (!types.includes(MARVIN_PATH_MIME) && !types.includes(MARVIN_PATHS_MIME)) return
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'copy'
+    setDragOver(true)
+  }, [])
+
+  const handleDragLeave = useCallback(() => {
+    setDragOver(false)
+  }, [])
+
+  const handleDrop = useCallback(
+    (e: DragEvent<HTMLDivElement>) => {
+      const paths = readDraggedPaths(e.dataTransfer)
+      if (paths.length === 0) return
+      e.preventDefault()
+      e.stopPropagation()
+      setDragOver(false)
+      if (!vaultPath) return
+      const text = formatPathsForAgent(paths, agentKind, vaultPath) + ' '
+      void window.marvin.pty.write(ptyId, text)
+    },
+    [agentKind, ptyId, vaultPath],
+  )
+
   return (
-    <div className={`agent-terminal${isActive ? ' active' : ''}`}>
+    <div
+      className={`agent-terminal${isActive ? ' active' : ''}`}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
       {showRestart && (
         <div className="agent-restart-bar">
           <button type="button" className="claude-restart" onClick={handleRestart}>
@@ -242,6 +282,11 @@ export function AgentTerminal({
         </div>
       )}
       <div ref={hostRef} className="claude-host" />
+      {dragOver && (
+        <div className="agent-terminal-drop-overlay" aria-hidden="true">
+          <span className="agent-terminal-drop-overlay-label">Drop to insert path</span>
+        </div>
+      )}
     </div>
   )
 }
