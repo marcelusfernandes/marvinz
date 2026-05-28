@@ -4,7 +4,8 @@ import type {
   ApprovalDecision,
   AgentRequest,
   AgentEvent,
-} from '../src/shared/agent-protocol.js'
+  MoveResult,
+} from '../src/types.js'
 
 type FileNode = {
   name: string
@@ -63,6 +64,10 @@ const api = {
       ipcRenderer.invoke('file:create', parentDir, name) as Promise<string>,
     writeBinary: (payload: { vaultPath: string; relPath: string; base64Bytes: string; maxBytes?: number }) =>
       ipcRenderer.invoke('file:writeBinary', payload) as Promise<string>,
+    copy: (srcPath: string, destDir: string) =>
+      ipcRenderer.invoke('file:copy', srcPath, destDir) as Promise<string>,
+    moveBatch: (srcs: string[], destDir: string) =>
+      ipcRenderer.invoke('file:move-batch', srcs, destDir) as Promise<MoveResult[]>,
     onChanged: (cb: (filePath: string, source: FileChangeSource) => void) => {
       const listener = (_: unknown, filePath: string, source: FileChangeSource) => cb(filePath, source)
       ipcRenderer.on('file:changed', listener)
