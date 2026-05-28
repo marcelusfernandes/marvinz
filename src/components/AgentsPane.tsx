@@ -12,6 +12,7 @@ import {
 } from '../lib/chat/tabLabels'
 import { CHAT_UI_ENABLED, resolveTabMode, type TabMode } from '../lib/featureFlags'
 import { useHorizontalWheelScroll } from '../lib/useHorizontalWheelScroll'
+import type { AgentKind } from '../lib/agent-drop-format'
 import type { MenuItemSpec } from '../types'
 
 type Props = {
@@ -25,6 +26,8 @@ type Props = {
   onTurnSummary?: (summary: TurnSummary) => void
   /** Opens a vault file when a path in terminal output is Cmd/Ctrl+Clicked. */
   onOpenFile?: (absolutePath: string) => void
+  /** Reports the currently focused agent tab (or null when no tabs open). */
+  onFocusChange?: (focused: { ptyId: string; agentKind: AgentKind } | null) => void
 }
 
 type AgentTab = {
@@ -65,6 +68,7 @@ export function AgentsPane({
   onRewind,
   onTurnSummary,
   onOpenFile,
+  onFocusChange,
 }: Props) {
   const installed = useMemo(
     () => agents.filter((a) => a.binaryPath != null),
@@ -84,6 +88,17 @@ export function AgentsPane({
   useEffect(() => {
     tabsRef.current = tabs
   }, [tabs])
+
+  useEffect(() => {
+    if (!onFocusChange) return
+    const active = tabs.find((t) => t.id === activeId)
+    if (!active) {
+      onFocusChange(null)
+      return
+    }
+    const agentKind: AgentKind = active.agentId === 'codex' ? 'codex' : 'claude-code'
+    onFocusChange({ ptyId: active.id, agentKind })
+  }, [activeId, tabs, onFocusChange])
 
   // Hydrate displayLabel from localStorage on mount and GC orphan entries.
   useEffect(() => {
@@ -108,7 +123,6 @@ export function AgentsPane({
       })
       return changed ? next : prev
     })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // Persist default agent.

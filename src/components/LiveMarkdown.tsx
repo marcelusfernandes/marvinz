@@ -82,6 +82,22 @@ type Props = {
 
 type ParserCtxGetter = { get: (key: typeof parserCtx) => (text: string) => PMNode | null }
 
+// Locates the line range of a rendered selection inside the markdown source.
+// Returns "N" or "N-M" if an unambiguous match exists; null otherwise (caller
+// falls back to no range). Best-effort: rendered text equals source for plain
+// paragraphs, but markdown decorations (bold, headings, emphasis) strip on
+// render — those selections fail to match and gracefully degrade.
+export function findSelectionLineRange(selectedText: string, source: string): string | null {
+  const trimmed = selectedText.replace(/\s+$/, '')
+  if (!trimmed || !source) return null
+  const idx = source.indexOf(trimmed)
+  if (idx === -1) return null
+  if (source.indexOf(trimmed, idx + 1) !== -1) return null
+  const startLine = source.slice(0, idx).split('\n').length
+  const endLine = source.slice(0, idx + trimmed.length).split('\n').length
+  return startLine === endLine ? `${startLine}` : `${startLine}-${endLine}`
+}
+
 // Backspace command: when the cursor is immediately after an atom inline
 // node (image), delete it in a single keystroke instead of the default
 // two-press select-then-delete. Link/text deletion intentionally falls
@@ -675,7 +691,20 @@ function LiveMarkdownInner({
         setSelectionRect(null)
         return
       }
-      const rect = sel.getRangeAt(0).getBoundingClientRect()
+      const range = sel.getRangeAt(0)
+      // Pick the last non-empty client rect (trailing edge of selection on its final line).
+      // Skips zero-width caret rects ProseMirror emits at paragraph boundaries — those
+      // collapse to the right edge of the formatting context, pulling the chip far off.
+      // Bounding rect would be the union of all lines, placing the chip past the longest line.
+      const rects = range.getClientRects()
+      let rect: DOMRect | null = null
+      for (let i = rects.length - 1; i >= 0; i--) {
+        if (rects[i].width > 0 && rects[i].height > 0) {
+          rect = rects[i]
+          break
+        }
+      }
+      if (!rect) rect = range.getBoundingClientRect()
       setSelectionRect({
         left: rect.left,
         right: rect.right,
@@ -701,8 +730,14 @@ function LiveMarkdownInner({
     if (!text) return
     const formatted = formatSelectionForAgent(text, agentKind)
     if (formatted === '') return
-    onSendSelection(formatted)
-  }, [onSendSelection, agentKind])
+    // Best-effort: locate the rendered selection in the markdown source by substring
+    // match. Works for plain text; fails (gracefully → no range) for selections that
+    // include markdown decorations stripped during render (bold, headings, etc.).
+    const range = findSelectionLineRange(text, body)
+    const pathRef = range ? `${filePath}:${range}` : filePath
+    const prefix = agentKind === 'codex' ? `@${pathRef}` : pathRef
+    onSendSelection(`${prefix}\n\n${formatted}`)
+  }, [onSendSelection, agentKind, filePath, body])
 
   return (
     <div ref={containerRef} className="live-md" onContextMenu={handleContextMenu}>

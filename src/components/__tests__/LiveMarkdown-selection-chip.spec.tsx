@@ -205,6 +205,12 @@ function setupMarvinMock() {
       ...realWindow,
       addEventListener: realWindow.addEventListener?.bind(realWindow) ?? vi.fn(),
       removeEventListener: realWindow.removeEventListener?.bind(realWindow) ?? vi.fn(),
+      // Bind setTimeout/clearTimeout at setup time so the impl's
+      // `window.setTimeout` calls land on whatever timer implementation is
+      // active (fake or real). Without explicit bindings the spread captures
+      // the pre-fake-timers function and `vi.advanceTimersByTime` won't fire it.
+      setTimeout: (...args: Parameters<typeof setTimeout>) => setTimeout(...args),
+      clearTimeout: (...args: Parameters<typeof clearTimeout>) => clearTimeout(...args),
       // Expose getSelection as a configurable, writable function so vi.spyOn
       // can replace it per-test (spread loses the property otherwise).
       getSelection: getSelectionMock,
@@ -228,17 +234,35 @@ function setupMarvinMock() {
  * Build a minimal Selection object whose anchorNode is `node` (or null).
  * `toString()` returns `text`.
  */
-function makeSelection(text: string, anchorNode: Node | null) {
+type FakeRect = { top: number; bottom: number; left: number; right: number }
+
+const DEFAULT_FAKE_RECT: FakeRect = { top: 100, bottom: 116, left: 200, right: 360 }
+
+function asDOMRect(r: FakeRect) {
+  return {
+    ...r,
+    width: r.right - r.left,
+    height: r.bottom - r.top,
+    x: r.left,
+    y: r.top,
+    toJSON: () => ({}),
+  }
+}
+
+function makeSelection(text: string, anchorNode: Node | null, rects: FakeRect[] = [DEFAULT_FAKE_RECT]) {
   const range = document.createRange()
   if (anchorNode) range.selectNodeContents(anchorNode)
 
-  // Override getBoundingClientRect so the chip has a position to render at.
-  range.getBoundingClientRect = vi.fn(() => ({
-    top: 100, bottom: 116, left: 200, right: 360,
-    width: 160, height: 16,
-    x: 200, y: 100,
-    toJSON: () => ({}),
-  }))
+  const domRects = rects.map(asDOMRect)
+  // Bounding rect = union (broader than any single line).
+  const bounding = asDOMRect({
+    top: Math.min(...rects.map((r) => r.top)),
+    bottom: Math.max(...rects.map((r) => r.bottom)),
+    left: Math.min(...rects.map((r) => r.left)),
+    right: Math.max(...rects.map((r) => r.right)),
+  })
+  range.getBoundingClientRect = vi.fn(() => bounding)
+  range.getClientRects = vi.fn(() => domRects as unknown as DOMRectList)
 
   return {
     anchorNode,
@@ -260,7 +284,7 @@ function makeSelection(text: string, anchorNode: Node | null) {
  * Pass any other `Node` directly to simulate a selection whose anchor is
  * that specific node (e.g. a detached element for outside-container tests).
  */
-function simulateSelection(text: string, anchor: HTMLElement | Node | null) {
+function simulateSelection(text: string, anchor: HTMLElement | Node | null, rects?: FakeRect[]) {
   let anchorNode: Node | null
   if (anchor instanceof HTMLElement && anchor.querySelector('.live-md')) {
     // Testing Library wrapper — resolve the actual LiveMarkdown root element.
@@ -268,7 +292,7 @@ function simulateSelection(text: string, anchor: HTMLElement | Node | null) {
   } else {
     anchorNode = anchor
   }
-  getSelectionMock.mockReturnValue(makeSelection(text, anchorNode) as unknown as Selection)
+  getSelectionMock.mockReturnValue(makeSelection(text, anchorNode, rects) as unknown as Selection)
   act(() => {
     document.dispatchEvent(new Event('selectionchange'))
     vi.advanceTimersByTime(60)
@@ -434,7 +458,8 @@ describe('LiveMarkdown selection chip — click calls onSendSelection', () => {
       fireEvent.click(screen.getByTestId('editor-selection-chip'))
     })
 
-    const expectedText = formatSelectionForAgent(selectedText, 'codex')
+    const formatted = formatSelectionForAgent(selectedText, 'codex')
+    const expectedText = `@/vault/note.md:1\n\n${formatted}`
     expect(onSendSelection).toHaveBeenCalledTimes(1)
     expect(onSendSelection).toHaveBeenCalledWith(expectedText)
   })
@@ -460,8 +485,9 @@ describe('LiveMarkdown selection chip — multi-line selection is fenced', () =>
       fireEvent.click(screen.getByTestId('editor-selection-chip'))
     })
 
-    const expectedText = formatSelectionForAgent(selectedText, 'codex')
-    expect(expectedText).toMatch(/^```\n/)
+    const formatted = formatSelectionForAgent(selectedText, 'codex')
+    const expectedText = `@/vault/note.md:1-2\n\n${formatted}`
+    expect(formatted).toMatch(/^```\n/)
     expect(onSendSelection).toHaveBeenCalledWith(expectedText)
   })
 })
@@ -486,9 +512,10 @@ describe('LiveMarkdown selection chip — single-line selection is bare text', (
       fireEvent.click(screen.getByTestId('editor-selection-chip'))
     })
 
-    const expectedText = formatSelectionForAgent(selectedText, 'codex')
-    expect(expectedText).toBe('hello world')
-    expect(expectedText).not.toMatch(/^```/)
+    const formatted = formatSelectionForAgent(selectedText, 'codex')
+    const expectedText = `@/vault/note.md:1\n\n${formatted}`
+    expect(formatted).toBe('hello world')
+    expect(formatted).not.toMatch(/^```/)
     expect(onSendSelection).toHaveBeenCalledWith(expectedText)
   })
 })
@@ -526,5 +553,59 @@ describe('LiveMarkdown selection chip — activates in edit and preview mode', (
     })
     await simulateSelection('some text', container)
     expect(screen.getByTestId('editor-selection-chip')).toBeDefined()
+  })
+})
+
+// ===========================================================================
+// Contract 9: chip lands at the trailing edge of the last line
+// (regression — multi-line bounding rect placed chip past the longest line)
+// ===========================================================================
+
+describe('LiveMarkdown selection chip — multi-line position uses trailing rect', () => {
+  it('positions the chip at the last client rect, not the bounding union', async () => {
+    const onSendSelection = vi.fn<(text: string) => void>()
+    let container!: HTMLElement
+    await act(async () => {
+      const result = render(<LiveMarkdown {...defaultProps({ onSendSelection })} />)
+      container = result.container
+    })
+    // Line 1 extends far right; line 2 ends much earlier. Bounding union would
+    // put the chip past line 1's right edge — wrong. Last-rect picks line 2's end.
+    const rects: FakeRect[] = [
+      { top: 100, bottom: 116, left: 200, right: 900 },
+      { top: 120, bottom: 136, left: 200, right: 350 },
+    ]
+    await simulateSelection('multi\nline', container, rects)
+    const chip = screen.getByTestId('editor-selection-chip') as HTMLElement
+    expect(chip.style.left).toBe('350px')
+    expect(chip.style.top).toBe('136px')
+  })
+})
+
+// ===========================================================================
+// Contract 10: zero-width trailing rect is skipped
+// (ProseMirror emits caret rects at paragraph boundaries that collapse to the
+// right edge of the formatting context — would pull the chip far off)
+// ===========================================================================
+
+describe('LiveMarkdown selection chip — skips zero-width trailing rect', () => {
+  it('uses the last non-empty rect when a zero-width caret rect trails it', async () => {
+    const onSendSelection = vi.fn<(text: string) => void>()
+    let container!: HTMLElement
+    await act(async () => {
+      const result = render(<LiveMarkdown {...defaultProps({ onSendSelection })} />)
+      container = result.container
+    })
+    // Real text rect on line 2 ends at right=350. Trailing zero-width rect at
+    // right=1200 simulates the caret rect at the end of a paragraph block.
+    const rects: FakeRect[] = [
+      { top: 100, bottom: 116, left: 200, right: 900 },
+      { top: 120, bottom: 136, left: 200, right: 350 },
+      { top: 120, bottom: 136, left: 1200, right: 1200 },
+    ]
+    await simulateSelection('multi\nline', container, rects)
+    const chip = screen.getByTestId('editor-selection-chip') as HTMLElement
+    expect(chip.style.left).toBe('350px')
+    expect(chip.style.top).toBe('136px')
   })
 })

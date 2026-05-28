@@ -22,7 +22,7 @@ export function EditorSelectionChip({ coords, onClick }: Props) {
       aria-label="Send selection to agent"
       data-testid="editor-selection-chip"
     >
-      <Icon name="send" size={14} />
+      <Icon name="send" size={12} />
       <span className="selection-chip__label" aria-hidden="true">
         Send to agent
       </span>

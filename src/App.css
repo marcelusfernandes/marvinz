@@ -1114,7 +1114,7 @@ button {
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
-  padding: var(--space-1) var(--space-2);
+  padding: var(--space-1);
   margin-top: var(--space-1);
   background: var(--accent);
   color: var(--on-accent);
@@ -1125,7 +1125,7 @@ button {
   z-index: var(--z-popover);
   cursor: pointer;
   overflow: hidden;
-  max-width: 24px;
+  max-width: 20px;
   white-space: nowrap;
   transition:
     max-width var(--duration-fast) var(--ease-out),
@@ -1135,7 +1135,8 @@ button {
 
 .selection-chip:hover,
 .selection-chip:focus-visible {
-  max-width: 120px;
+  max-width: 110px;
+  padding: var(--space-1) var(--space-2);
   opacity: 1;
 }
 
