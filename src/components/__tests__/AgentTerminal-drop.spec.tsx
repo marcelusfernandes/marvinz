@@ -22,6 +22,7 @@ vi.mock('@xterm/xterm', () => ({
     open = vi.fn()
     dispose = vi.fn()
     writeln = vi.fn()
+    focus = vi.fn()
     onData = vi.fn(() => ({ dispose: vi.fn() }))
     onResize = vi.fn(() => ({ dispose: vi.fn() }))
     registerLinkProvider = vi.fn(() => ({ dispose: vi.fn() }))

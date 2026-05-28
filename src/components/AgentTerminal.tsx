@@ -265,6 +265,9 @@ export function AgentTerminal({
       // to actually find the file.
       const text = formatPathsForAgent(paths, agentKind, '') + ' '
       void window.marvin.pty.write(ptyId, text)
+      // Focus xterm so the user can keep typing immediately after the drop
+      // without an extra click.
+      termRef.current?.focus()
     },
     [agentKind, ptyId, vaultPath],
   )
