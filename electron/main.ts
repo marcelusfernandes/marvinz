@@ -31,6 +31,8 @@ import type { AgentRequest, AgentEvent } from './agent/protocol.js'
 import { importExternal } from './fs-import-external.js'
 import { searchContent } from './search-content.js'
 import { killProcessTree } from './proc-group.js'
+import { resolveConflict } from './conflictResolver.js'
+import type { MoveResult } from '../src/types.js'
 
 process.env.APP_ROOT = path.join(__dirname, '..')
 
@@ -774,35 +776,6 @@ ipcMain.handle('folder:create', async (_e, parentDir: string, name: string) => {
   return safe
 })
 
-type MoveResult = { src: string; dest: string; ok: boolean; error?: string }
-
-// copy: always prefixes "Copy of " (signals it is a duplicate).
-// move: preserves basename when no conflict; suffixes numerically on collision (a.md → a 2.md).
-// Throws MARVIN_COPY_CONFLICT_LIMIT after 100 attempts (single op = single outcome);
-// callers doing batch ops should catch per-item instead of letting the throw escape.
-async function resolveConflict(
-  destDir: string,
-  baseName: string,
-  mode: 'copy' | 'move',
-): Promise<string> {
-  const ext = path.extname(baseName)
-  const stem = ext ? baseName.slice(0, -ext.length) : baseName
-  if (mode === 'move') {
-    const direct = path.join(destDir, baseName)
-    if (!existsSync(direct)) return direct
-    for (let n = 2; n <= 100; n++) {
-      const c = path.join(destDir, `${stem} ${n}${ext}`)
-      if (!existsSync(c)) return c
-    }
-  } else {
-    for (let n = 1; n <= 100; n++) {
-      const c = path.join(destDir, n === 1 ? `Copy of ${stem}${ext}` : `Copy of ${stem} ${n}${ext}`)
-      if (!existsSync(c)) return c
-    }
-  }
-  throw new Error('MARVIN_COPY_CONFLICT_LIMIT')
-}
-
 ipcMain.handle('file:copy', async (_e, srcPath: string, destDir: string): Promise<string> => {
   const safeSrc = await assertInVault(srcPath)
   const safeDir = await assertInVault(destDir)
@@ -821,7 +794,14 @@ ipcMain.handle('file:move-batch', async (_e, srcs: string[], destDir: string): P
       const safeSrc = await assertInVault(src)
       const destPath = await resolveConflict(safeDir, path.basename(safeSrc), 'move')
       await fs.mkdir(path.dirname(destPath), { recursive: true })
-      await fs.rename(safeSrc, destPath)
+      try {
+        await fs.rename(safeSrc, destPath)
+      } catch (err) {
+        // EXDEV: src and dest on different filesystems (e.g., USB vault → internal disk).
+        if ((err as NodeJS.ErrnoException).code !== 'EXDEV') throw err
+        await fs.cp(safeSrc, destPath, { recursive: true })
+        await fs.rm(safeSrc, { recursive: true, force: true })
+      }
       moved.push({ src: safeSrc, dest: destPath })
       results.push({ src, dest: destPath, ok: true })
     } catch (err) {
@@ -860,8 +840,11 @@ async function rewriteLinksAfterMoveBatch(
           await writeSnapshot(vaultRoot, cascadeTurnId, relPath, original, 'cascade')
           await fs.writeFile(file, content, 'utf8')
         }
-      } catch {
-        // best-effort; skip files that vanished mid-walk
+      } catch (err) {
+        // Tolerate files that vanished mid-walk; surface anything else.
+        if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+          console.error('[rewriteLinksAfterMoveBatch] skipping file', file, err)
+        }
       }
     }),
   )

@@ -4,8 +4,8 @@ import type {
   ApprovalDecision,
   AgentRequest,
   AgentEvent,
-  MoveResult,
-} from '../src/types.js'
+} from '../src/shared/agent-protocol.js'
+import type { MoveResult } from '../src/types.js'
 
 type FileNode = {
   name: string

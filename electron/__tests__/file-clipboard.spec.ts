@@ -4,35 +4,10 @@ import { existsSync } from 'node:fs'
 import path from 'node:path'
 import os from 'node:os'
 import { assertInsideVaultAsync } from '../vault-boundary.js'
+import { resolveConflict } from '../conflictResolver.js'
+import type { MoveResult } from '../../src/types.js'
 
-// ---------------------------------------------------------------------------
-// Mirrors of handler logic — same pattern as file-write-binary.spec.ts
-// ---------------------------------------------------------------------------
-
-type MoveResult = { src: string; dest: string; ok: boolean; error?: string }
-
-async function resolveConflict(
-  destDir: string,
-  baseName: string,
-  mode: 'copy' | 'move',
-): Promise<string> {
-  const ext = path.extname(baseName)
-  const stem = ext ? baseName.slice(0, -ext.length) : baseName
-  if (mode === 'move') {
-    const direct = path.join(destDir, baseName)
-    if (!existsSync(direct)) return direct
-    for (let n = 2; n <= 100; n++) {
-      const c = path.join(destDir, `${stem} ${n}${ext}`)
-      if (!existsSync(c)) return c
-    }
-  } else {
-    for (let n = 1; n <= 100; n++) {
-      const c = path.join(destDir, n === 1 ? `Copy of ${stem}${ext}` : `Copy of ${stem} ${n}${ext}`)
-      if (!existsSync(c)) return c
-    }
-  }
-  throw new Error('MARVIN_COPY_CONFLICT_LIMIT')
-}
+// Mirrors handler wiring around the shared resolveConflict (real impl).
 
 async function fileCopy(vault: string, srcPath: string, destDir: string): Promise<string> {
   const safeSrc = await assertInsideVaultAsync(vault, srcPath)
