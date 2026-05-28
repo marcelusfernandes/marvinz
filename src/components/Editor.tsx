@@ -879,7 +879,7 @@ export function Editor({
               : `${replaceToast.count} replacements made`}
           </div>
         )}
-        {selectionChip && effectiveMode === 'edit' && (
+        {selectionChip && effectiveMode === 'edit' && onSendSelection && (
           <EditorSelectionChip
             coords={selectionChip.coords}
             onClick={handleChipClick}
