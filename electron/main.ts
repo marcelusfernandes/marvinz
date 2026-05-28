@@ -454,13 +454,18 @@ ipcMain.handle('file:pick', async () => {
   })
   if (result.canceled || result.filePaths.length === 0) return null
   const chosen = result.filePaths[0]
+  // Compare realpath-to-realpath so macOS symlink prefixes (e.g. /tmp →
+  // /private/tmp) on either side don't reject otherwise-valid files inside
+  // the vault.
   let resolvedChosen: string
+  let resolvedVault: string
   try {
     resolvedChosen = await fs.realpath(path.resolve(chosen))
+    resolvedVault = await fs.realpath(activeVaultPath)
   } catch {
     return null
   }
-  if (!resolvedChosen.startsWith(activeVaultPath + path.sep) && resolvedChosen !== activeVaultPath) {
+  if (!resolvedChosen.startsWith(resolvedVault + path.sep) && resolvedChosen !== resolvedVault) {
     console.warn('[file:pick] path outside vault allowlist, rejecting:', resolvedChosen)
     return null
   }

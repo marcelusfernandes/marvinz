@@ -15,7 +15,6 @@ function renderEmptyTab(overrides: Partial<Parameters<typeof EmptyTab>[0]> = {})
     onOpenBrowser: vi.fn(),
     onCreateNote: vi.fn(),
     onChooseFile: vi.fn(),
-    onChooseReview: vi.fn(),
     isVaultOpen: true,
     ...overrides,
   }
@@ -117,19 +116,13 @@ describe('EmptyTab — keyboard accessibility', () => {
 })
 
 // ---------------------------------------------------------------------------
-// Disabled cards — Arquivos and Revisão are not interactive
+// Disabled cards — vault-gated entry points
 // ---------------------------------------------------------------------------
 
 describe('EmptyTab — disabled cards (vault closed)', () => {
   it('Arquivos card is disabled when isVaultOpen is false', () => {
     renderEmptyTab({ isVaultOpen: false })
     const card = screen.getByText('Arquivos').closest('button') as HTMLButtonElement
-    expect(card.disabled).toBe(true)
-  })
-
-  it('Revisão card is disabled when isVaultOpen is false', () => {
-    renderEmptyTab({ isVaultOpen: false })
-    const card = screen.getByText('Revisão').closest('button') as HTMLButtonElement
     expect(card.disabled).toBe(true)
   })
 
@@ -169,11 +162,10 @@ describe('EmptyTab — Arquivos card', () => {
   })
 
   it('does not call other handlers when Arquivos is clicked', () => {
-    const { onOpenBrowser, onCreateNote, onChooseReview } = renderEmptyTab()
+    const { onOpenBrowser, onCreateNote } = renderEmptyTab()
     fireEvent.click(screen.getByText('Arquivos'))
     expect(onOpenBrowser).not.toHaveBeenCalled()
     expect(onCreateNote).not.toHaveBeenCalled()
-    expect(onChooseReview).not.toHaveBeenCalled()
   })
 
   it('does not call onChooseFile when disabled (vault closed)', () => {
@@ -187,36 +179,15 @@ describe('EmptyTab — Arquivos card', () => {
 // Revisão card — enabled when vault open, calls onChooseReview on click
 // ---------------------------------------------------------------------------
 
-describe('EmptyTab — Revisão card', () => {
-  it('renders Revisão card title', () => {
+describe('EmptyTab — Revisão card (removed until #361)', () => {
+  // The Revisão card is gated out of the UI until #361 wires the git diff
+  // source (vault:gitStatus + vault:gitDiff IPCs). When that lands, restore
+  // the entry point + a real test suite here.
+  it.todo('Revisão card is rendered once #361 wires the git diff source')
+
+  it('Revisão card is not present in the landing today', () => {
     renderEmptyTab()
-    expect(screen.getByText('Revisão')).toBeInTheDocument()
-  })
-
-  it('is enabled when isVaultOpen is true', () => {
-    renderEmptyTab({ isVaultOpen: true })
-    const card = screen.getByText('Revisão').closest('button') as HTMLButtonElement
-    expect(card.disabled).toBe(false)
-  })
-
-  it('calls onChooseReview once when clicked', () => {
-    const { onChooseReview } = renderEmptyTab()
-    fireEvent.click(screen.getByText('Revisão'))
-    expect(onChooseReview).toHaveBeenCalledTimes(1)
-  })
-
-  it('does not call other handlers when Revisão is clicked', () => {
-    const { onOpenBrowser, onCreateNote, onChooseFile } = renderEmptyTab()
-    fireEvent.click(screen.getByText('Revisão'))
-    expect(onOpenBrowser).not.toHaveBeenCalled()
-    expect(onCreateNote).not.toHaveBeenCalled()
-    expect(onChooseFile).not.toHaveBeenCalled()
-  })
-
-  it('does not call onChooseReview when disabled (vault closed)', () => {
-    const { onChooseReview } = renderEmptyTab({ isVaultOpen: false })
-    fireEvent.click(screen.getByText('Revisão'))
-    expect(onChooseReview).not.toHaveBeenCalled()
+    expect(screen.queryByText('Revisão')).toBeNull()
   })
 })
 

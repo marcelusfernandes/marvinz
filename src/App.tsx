@@ -21,7 +21,6 @@ import { resolveAppFindShortcut } from './lib/appFindShortcut'
 import { useColorTheme } from './lib/colorTheme'
 import { useVisualStyle } from './lib/visualStyle'
 import { TopBar } from './components/TopBar'
-import { DiffViewer } from './components/DiffViewer'
 import { SnapshotPanel } from './components/SnapshotPanel'
 import { SnapshotToast } from './components/SnapshotToast'
 import { ImportToast, type ImportToastState } from './components/ImportToast'
@@ -128,13 +127,7 @@ export type EmptyTab = {
   title: string
 }
 
-export type DiffTab = {
-  type: 'diff'
-  id: string
-  title: string
-}
-
-type Tab = NoteTab | BrowserTabState | ImageTab | PdfTab | DocxTab | EmptyTab | DiffTab
+type Tab = NoteTab | BrowserTabState | ImageTab | PdfTab | DocxTab | EmptyTab
 
 const DEFAULT_BROWSER_URL = 'https://www.google.com'
 
@@ -144,7 +137,6 @@ const isImageTab = (t: Tab): t is ImageTab => t.type === 'image'
 const isPdfTab = (t: Tab): t is PdfTab => t.type === 'pdf'
 const isDocxTab = (t: Tab): t is DocxTab => t.type === 'docx'
 const isEmptyTab = (t: Tab): t is EmptyTab => t.type === 'empty'
-const isDiffTab = (t: Tab): t is DiffTab => t.type === 'diff'
 
 type Dialog =
   | { kind: 'rename'; target: string; isDir: boolean }
@@ -1023,17 +1015,9 @@ export default function App() {
     if (!picked) return
     setTabs((prev) => prev.filter((t) => t.id !== emptyTabId))
     setActiveTabId((id) => (id === emptyTabId ? null : id))
-    void openInTabRef.current(picked)
-  }, [])
-
-  const convertEmptyToDiff = useCallback((emptyTabId: string) => {
-    setTabs((prev) =>
-      prev.map((t) =>
-        isEmptyTab(t) && t.id === emptyTabId
-          ? { type: 'diff', id: t.id, title: 'Review' }
-          : t,
-      ),
-    )
+    // If openInTab rejects, the empty tab is already gone; surface the
+    // error so the user isn't left staring at a blank pane silently.
+    void openInTabRef.current(picked).catch(console.error)
   }, [])
 
   const handleBrowserDraftChange = useCallback((id: string, value: string) => {
@@ -1843,13 +1827,8 @@ export default function App() {
               onOpenBrowser={() => convertEmptyToBrowser(activeTab.id)}
               onCreateNote={() => startNoteFromEmpty(activeTab.id)}
               onChooseFile={() => void chooseFileFromEmpty(activeTab.id)}
-              onChooseReview={() => convertEmptyToDiff(activeTab.id)}
               isVaultOpen={!!vaultPath}
             />
-          )}
-          {activeTab && isDiffTab(activeTab) && (
-            // TODO(#361): wire real git diff source (vault:gitStatus + vault:gitDiff IPCs)
-            <DiffViewer key={activeTab.id} before="" after="" />
           )}
           {!activeTab && (
             <div className="empty-editor">Select a note or create a new one.</div>

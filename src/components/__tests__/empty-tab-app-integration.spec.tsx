@@ -1,10 +1,9 @@
 // @vitest-environment jsdom
 //
-// Integration tests for the Arquivos + Revisão flows wired in App.tsx (issue #307).
-// Covers:
-//   1. chooseFileFromEmpty — cancel (null pick) keeps empty tab; valid path removes empty tab.
-//   2. convertEmptyToDiff  — empty tab mutates to diff tab in-place (same id).
-//   3. DiffTab in TabBar   — label uses tab.title, icon is git-compare.
+// Integration tests for the Arquivos flow wired in App.tsx (issue #307).
+// Covers chooseFileFromEmpty — cancel (null pick) keeps empty tab; valid
+// path removes empty tab.
+// (Revisão / DiffTab flow ships in follow-up #361 along with its own tests.)
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, act, fireEvent } from '@testing-library/react'
@@ -31,9 +30,6 @@ vi.mock('../BrowserPane', () => ({ BrowserPane: () => null }))
 vi.mock('../ImageViewer', () => ({ ImageViewer: () => null }))
 vi.mock('../PdfViewer', () => ({ PdfViewer: () => null }))
 vi.mock('../DocxViewer', () => ({ DocxViewer: () => null }))
-vi.mock('../DiffViewer', () => ({
-  DiffViewer: () => <div data-testid="diff-viewer" />,
-}))
 vi.mock('../Icon', () => ({
   Icon: ({ name }: { name: string }) => <span data-testid={`icon-${name}`} />,
 }))
@@ -169,7 +165,6 @@ describe('chooseFileFromEmpty — cancel (null) keeps empty tab', () => {
     await act(async () => { fireEvent.click(arquivosBtn) })
 
     expect(screen.getByText('Arquivos')).toBeInTheDocument()
-    expect(screen.queryByTestId('diff-viewer')).toBeNull()
   })
 
   it('file.pick is called once when Arquivos is clicked', async () => {
@@ -208,91 +203,5 @@ describe('chooseFileFromEmpty — valid path opens file', () => {
   })
 })
 
-// ---------------------------------------------------------------------------
-// convertEmptyToDiff — in-place tab swap
-// ---------------------------------------------------------------------------
-
-describe('convertEmptyToDiff — empty tab becomes diff tab', () => {
-  beforeEach(() => setupMarvinMock())
-  afterEach(() => vi.restoreAllMocks())
-
-  it('DiffViewer is rendered after clicking Revisão', async () => {
-    await renderAppWithEmptyTab()
-
-    await act(async () => {
-      fireEvent.click(screen.getByText('Revisão').closest('button') as HTMLButtonElement)
-    })
-
-    expect(screen.getByTestId('diff-viewer')).toBeInTheDocument()
-  })
-
-  it('empty tab landing is gone after clicking Revisão', async () => {
-    await renderAppWithEmptyTab()
-
-    await act(async () => {
-      fireEvent.click(screen.getByText('Revisão').closest('button') as HTMLButtonElement)
-    })
-
-    expect(screen.queryByText('Navegador')).toBeNull()
-  })
-
-  it('tab strip shows "Review" label after the swap', async () => {
-    await renderAppWithEmptyTab()
-
-    await act(async () => {
-      fireEvent.click(screen.getByText('Revisão').closest('button') as HTMLButtonElement)
-    })
-
-    expect(screen.getByText('Review')).toBeInTheDocument()
-  })
-
-  it('tab id is preserved (same tab slot, not a new tab)', async () => {
-    await renderAppWithEmptyTab()
-
-    // Capture the tab element before the swap
-    const tabsBefore = document.querySelectorAll('.tab')
-    const countBefore = tabsBefore.length
-
-    await act(async () => {
-      fireEvent.click(screen.getByText('Revisão').closest('button') as HTMLButtonElement)
-    })
-
-    const tabsAfter = document.querySelectorAll('.tab')
-    expect(tabsAfter.length).toBe(countBefore)
-  })
-})
-
-// ---------------------------------------------------------------------------
-// DiffTab in TabBar — cosmetics
-// ---------------------------------------------------------------------------
-
-describe('TabBar — diff tab cosmetics', () => {
-  beforeEach(() => setupMarvinMock())
-  afterEach(() => vi.restoreAllMocks())
-
-  it('diff tab shows git-compare icon', async () => {
-    await renderAppWithEmptyTab()
-
-    await act(async () => {
-      fireEvent.click(screen.getByText('Revisão').closest('button') as HTMLButtonElement)
-    })
-
-    const tabEl = document.querySelector('.tab-diff')
-    expect(tabEl).not.toBeNull()
-    expect(tabEl?.querySelector('[data-testid="icon-git-compare"]')).not.toBeNull()
-  })
-
-  it('diff tab has no context-menu reveal (no path to reveal)', async () => {
-    await renderAppWithEmptyTab()
-
-    await act(async () => {
-      fireEvent.click(screen.getByText('Revisão').closest('button') as HTMLButtonElement)
-    })
-
-    const tabEl = document.querySelector('.tab-diff') as HTMLElement
-    // Right-clicking the tab should not invoke shell.reveal
-    fireEvent.contextMenu(tabEl)
-    await act(async () => {})
-    expect(window.marvin.shell.reveal).not.toHaveBeenCalled()
-  })
-})
+// Revisão (DiffTab) flow tests removed alongside the UI entry point —
+// follow-up #361 will reintroduce them once the git diff source is wired.
