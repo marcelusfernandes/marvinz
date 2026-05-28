@@ -1,21 +1,9 @@
 import { createPortal } from 'react-dom'
 import { Icon } from './Icon'
 
-/*
- * EditorSelectionChip — floating "Send to agent" affordance pinned to the
- * caret-end of a CodeMirror selection. See lipe-ui's visual spec on
- * `.selection-chip` rules in App.css. Click → host's `onSendSelection`.
- *
- * Uses `position: fixed` (vs the spec's `absolute`) because the chip is
- * portalled to `document.body` and the coords from `view.coordsAtPos` are
- * already viewport-relative — `fixed` lets it follow scroll without a
- * positioning ancestor. Hover/focus expands the icon-only pill to reveal
- * the label.
- */
+// position: fixed (not absolute) because coords from coordsAtPos are already viewport-relative.
 
 type Props = {
-  /** Viewport coords of the selection's caret end. Chip pins below
-   * `bottom` and at `right`; CSS handles the small visual offset. */
   coords: { left: number; right: number; top: number; bottom: number }
   onClick: () => void
 }

@@ -125,11 +125,7 @@ type Props = {
   saveMode?: 'auto' | 'manual'
   onDirtyChange?: (dirty: boolean) => void
   onFlushSave?: (flush: () => Promise<void>) => void
-  /** Called when the user clicks the selection chip; receives the
-   * pre-formatted snippet ready for pty.write. */
   onSendSelection?: (formatted: string) => void
-  /** Which agent the selection chip should format for. Defaults to
-   * 'codex'; sub-4 will plumb the focused agent's kind. */
   agentKind?: AgentKind
 }
 
@@ -587,13 +583,7 @@ export function Editor({
   )
   const handleMentionDismiss = useCallback(() => setMention(null), [])
 
-  // Drives the selection chip from CodeMirror's `onUpdate`. `selectionSet`
-  // gates the read so we don't re-measure every doc keystroke. When the
-  // selection range goes empty (or coordsAtPos returns null because the
-  // caret is off-screen), tear the chip down. Also mirrors the live `view`
-  // into `viewRef` — `onCreateEditor` is the canonical source, but tests
-  // mock @uiw/react-codemirror in a way that can leave the ref unset when
-  // the chip's click runs, so we top it up from each update.
+  // mirrors view into viewRef each update so test mocks that skip onCreateEditor still see it
   const handleCmUpdate = useCallback(
     (update: {
       selectionSet?: boolean
@@ -666,12 +656,12 @@ export function Editor({
       })
     }
     const scrollEl = view.scrollDOM
-    scrollEl?.addEventListener('scroll', reposition, { passive: true })
-    window.addEventListener?.('resize', reposition)
+    scrollEl.addEventListener('scroll', reposition, { passive: true })
+    window.addEventListener('resize', reposition)
     return () => {
-      if (frame) window.cancelAnimationFrame?.(frame)
-      scrollEl?.removeEventListener('scroll', reposition)
-      window.removeEventListener?.('resize', reposition)
+      if (frame) window.cancelAnimationFrame(frame)
+      scrollEl.removeEventListener('scroll', reposition)
+      window.removeEventListener('resize', reposition)
     }
   }, [chipActiveTo])
 

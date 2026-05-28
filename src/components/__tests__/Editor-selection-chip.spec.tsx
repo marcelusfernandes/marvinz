@@ -50,6 +50,10 @@ function makeFakeView(docText = 'hello world\nfoo bar') {
     coordsAtPos: vi.fn((_pos: number) => ({ top: 50, bottom: 66, left: 120, right: 160 })),
     focus: vi.fn(),
     dispatch: vi.fn(),
+    // Reposition useEffect attaches scroll listener on view.scrollDOM; provide
+    // a minimal element so the production-side plain-call addEventListener
+    // (no optional chaining) doesn't blow up.
+    scrollDOM: document.createElement('div'),
   }
 }
 
@@ -170,9 +174,20 @@ import { Editor } from '../Editor'
 // ---------------------------------------------------------------------------
 
 function setupMarvinMock() {
+  // The spread loses prototype methods (addEventListener etc.); bind the ones
+  // the reposition useEffect needs onto the replacement object explicitly.
+  const realWindow = typeof window !== 'undefined' ? window : ({} as Window)
   Object.defineProperty(globalThis, 'window', {
     value: {
-      ...(typeof window !== 'undefined' ? window : {}),
+      ...realWindow,
+      addEventListener: realWindow.addEventListener?.bind(realWindow) ?? vi.fn(),
+      removeEventListener: realWindow.removeEventListener?.bind(realWindow) ?? vi.fn(),
+      requestAnimationFrame:
+        realWindow.requestAnimationFrame?.bind(realWindow) ??
+        ((cb: FrameRequestCallback) => setTimeout(() => cb(0), 0) as unknown as number),
+      cancelAnimationFrame:
+        realWindow.cancelAnimationFrame?.bind(realWindow) ??
+        ((id: number) => clearTimeout(id as unknown as ReturnType<typeof setTimeout>)),
       marvin: {
         app: {
           showContextMenu: vi.fn().mockResolvedValue(null),
