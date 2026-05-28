@@ -194,7 +194,7 @@ describe('Composer — drop target (issue #366)', () => {
     expect(
       (event as DragEvent & { preventDefault: ReturnType<typeof vi.fn> }).preventDefault,
     ).toHaveBeenCalled()
-    expect(screen.getByLabelText('Drop to insert path')).toBeInTheDocument()
+    expect(screen.getByTestId('chat-composer-drop-overlay')).toBeInTheDocument()
   })
 
   it('dragover without marvin MIME: no preventDefault, no overlay', async () => {
@@ -209,7 +209,7 @@ describe('Composer — drop target (issue #366)', () => {
     expect(
       (event as DragEvent & { preventDefault: ReturnType<typeof vi.fn> }).preventDefault,
     ).not.toHaveBeenCalled()
-    expect(screen.queryByLabelText('Drop to insert path')).toBeNull()
+    expect(screen.queryByTestId('chat-composer-drop-overlay')).toBeNull()
   })
 
   it('dragleave: overlay hides after dragover', async () => {
@@ -219,12 +219,34 @@ describe('Composer — drop target (issue #366)', () => {
     await act(async () => {
       getComposer().dispatchEvent(makeDragEvent('dragover', '/vault/foo.md'))
     })
-    expect(screen.getByLabelText('Drop to insert path')).toBeInTheDocument()
+    expect(screen.getByTestId('chat-composer-drop-overlay')).toBeInTheDocument()
 
     await act(async () => {
       getComposer().dispatchEvent(makeDragEvent('dragleave'))
     })
-    expect(screen.queryByLabelText('Drop to insert path')).toBeNull()
+    expect(screen.queryByTestId('chat-composer-drop-overlay')).toBeNull()
+  })
+
+  it('dragleave into a child element: overlay stays visible', async () => {
+    render(<Composer {...defaultProps()} />)
+    await act(async () => {})
+
+    await act(async () => {
+      getComposer().dispatchEvent(makeDragEvent('dragover', '/vault/foo.md'))
+    })
+    expect(screen.getByTestId('chat-composer-drop-overlay')).toBeInTheDocument()
+
+    // Simulate the pointer transitioning from .chat-composer into the
+    // textarea child. The browser fires dragleave on the parent with
+    // relatedTarget set to the child — the handler must NOT clear the
+    // overlay in that case (otherwise it flickers on every child crossing).
+    const leaveToChild = new Event('dragleave', { bubbles: true, cancelable: true })
+    Object.defineProperty(leaveToChild, 'relatedTarget', { value: getTextarea() })
+    await act(async () => {
+      getComposer().dispatchEvent(leaveToChild)
+    })
+
+    expect(screen.getByTestId('chat-composer-drop-overlay')).toBeInTheDocument()
   })
 
   it('drop with no vault (vaultPath empty): no setComposerDraft call', async () => {
@@ -245,7 +267,7 @@ describe('Composer — drop target (issue #366)', () => {
     await act(async () => {
       getComposer().dispatchEvent(makeDragEvent('dragover', '/vault/foo.md'))
     })
-    expect(screen.getByLabelText('Drop to insert path')).toBeInTheDocument()
+    expect(screen.getByTestId('chat-composer-drop-overlay')).toBeInTheDocument()
 
     // Plural MIME present in types but payload is '[]' → readDraggedPaths returns []
     const malformedDrop = new Event('drop', { bubbles: true, cancelable: true }) as DragEvent
@@ -265,7 +287,7 @@ describe('Composer — drop target (issue #366)', () => {
     })
 
     expect(setDraftMock).not.toHaveBeenCalled()
-    expect(screen.queryByLabelText('Drop to insert path')).toBeNull()
+    expect(screen.queryByTestId('chat-composer-drop-overlay')).toBeNull()
   })
 
   it('caret advances after insert: setSelectionRange called with end of inserted text', async () => {

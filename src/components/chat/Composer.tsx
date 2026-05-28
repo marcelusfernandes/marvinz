@@ -107,7 +107,10 @@ export function Composer({
     setDragOver(true)
   }, [])
 
-  const handleDragLeave = useCallback(() => {
+  const handleDragLeave = useCallback((e: DragEvent<HTMLDivElement>) => {
+    // dragleave fires on every child-element transition (textarea, mode pill).
+    // Only clear when the pointer actually leaves the composer.
+    if (e.currentTarget.contains(e.relatedTarget as Node)) return
     setDragOver(false)
   }, [])
 
@@ -134,11 +137,7 @@ export function Composer({
         const el = textareaRef.current
         if (!el) return
         el.focus()
-        try {
-          el.setSelectionRange(caret, caret)
-        } catch {
-          // ignore — setSelectionRange can throw if input type doesn't support it
-        }
+        el.setSelectionRange(caret, caret)
       })
     },
     [draft, sessionId, setDraft, vaultPath],
@@ -157,8 +156,8 @@ export function Composer({
       {dragOver && (
         <div
           className="chat-composer-drop-overlay"
-          aria-label="Drop to insert path"
-          role="presentation"
+          aria-hidden="true"
+          data-testid="chat-composer-drop-overlay"
         />
       )}
       <div className="chat-composer-input-row">

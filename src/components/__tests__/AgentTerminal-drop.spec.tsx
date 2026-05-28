@@ -193,7 +193,7 @@ describe('AgentTerminal — drop target (issue #365)', () => {
     })
 
     expect((event as DragEvent & { preventDefault: ReturnType<typeof vi.fn> }).preventDefault).toHaveBeenCalled()
-    expect(screen.getByLabelText('Drop to insert path')).toBeInTheDocument()
+    expect(screen.getByTestId('agent-terminal-drop-overlay')).toBeInTheDocument()
   })
 
   it('dragover without marvin MIME: preventDefault not called, overlay absent', async () => {
@@ -208,7 +208,7 @@ describe('AgentTerminal — drop target (issue #365)', () => {
     })
 
     expect((event as DragEvent & { preventDefault: ReturnType<typeof vi.fn> }).preventDefault).not.toHaveBeenCalled()
-    expect(screen.queryByLabelText('Drop to insert path')).toBeNull()
+    expect(screen.queryByTestId('agent-terminal-drop-overlay')).toBeNull()
   })
 
   it('dragleave: overlay hides after dragover', async () => {
@@ -220,12 +220,35 @@ describe('AgentTerminal — drop target (issue #365)', () => {
     await act(async () => {
       container.dispatchEvent(makeDragEvent('dragover', '/vault/foo.md'))
     })
-    expect(screen.getByLabelText('Drop to insert path')).toBeInTheDocument()
+    expect(screen.getByTestId('agent-terminal-drop-overlay')).toBeInTheDocument()
 
     await act(async () => {
       container.dispatchEvent(makeDragEvent('dragleave'))
     })
-    expect(screen.queryByLabelText('Drop to insert path')).toBeNull()
+    expect(screen.queryByTestId('agent-terminal-drop-overlay')).toBeNull()
+  })
+
+  it('dragleave into a child element: overlay stays visible', async () => {
+    render(<AgentTerminal {...defaultProps()} />)
+    await act(async () => {})
+
+    const container = getTerminalContainer()
+    await act(async () => {
+      container.dispatchEvent(makeDragEvent('dragover', '/vault/foo.md'))
+    })
+    expect(screen.getByTestId('agent-terminal-drop-overlay')).toBeInTheDocument()
+
+    // Simulate the pointer entering a child element of .agent-terminal.
+    // The browser fires dragleave on the parent with relatedTarget set to
+    // the child — the handler must NOT clear the overlay in that case.
+    const childHost = container.querySelector('.claude-host') as HTMLElement
+    const leaveToChild = new Event('dragleave', { bubbles: true, cancelable: true })
+    Object.defineProperty(leaveToChild, 'relatedTarget', { value: childHost })
+    await act(async () => {
+      container.dispatchEvent(leaveToChild)
+    })
+
+    expect(screen.getByTestId('agent-terminal-drop-overlay')).toBeInTheDocument()
   })
 
   it('drop with no vault (vaultPath empty): no PTY write', async () => {
@@ -260,7 +283,7 @@ describe('AgentTerminal — drop target (issue #365)', () => {
     await act(async () => {
       container.dispatchEvent(makeDragEvent('dragover', '/vault/foo.md'))
     })
-    expect(screen.getByLabelText('Drop to insert path')).toBeInTheDocument()
+    expect(screen.getByTestId('agent-terminal-drop-overlay')).toBeInTheDocument()
 
     // Plural MIME present in types, but payload is '[]' → readDraggedPaths returns []
     const malformedDrop = new Event('drop', { bubbles: true, cancelable: true }) as DragEvent
@@ -280,7 +303,7 @@ describe('AgentTerminal — drop target (issue #365)', () => {
     })
 
     expect(ptyWriteMock).not.toHaveBeenCalled()
-    expect(screen.queryByLabelText('Drop to insert path')).toBeNull()
+    expect(screen.queryByTestId('agent-terminal-drop-overlay')).toBeNull()
   })
 
   it('claude-code agent: writes bare absolute path (no @ prefix)', async () => {

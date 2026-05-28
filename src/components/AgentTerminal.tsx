@@ -248,7 +248,10 @@ export function AgentTerminal({
     setDragOver(true)
   }, [])
 
-  const handleDragLeave = useCallback(() => {
+  const handleDragLeave = useCallback((e: DragEvent<HTMLDivElement>) => {
+    // dragleave fires on child-element transitions (xterm rows, restart bar).
+    // Only clear when the pointer actually leaves the terminal.
+    if (e.currentTarget.contains(e.relatedTarget as Node)) return
     setDragOver(false)
   }, [])
 
@@ -291,8 +294,8 @@ export function AgentTerminal({
       {dragOver && (
         <div
           className="agent-terminal-drop-overlay"
-          aria-label="Drop to insert path"
-          role="presentation"
+          aria-hidden="true"
+          data-testid="agent-terminal-drop-overlay"
         />
       )}
     </div>
