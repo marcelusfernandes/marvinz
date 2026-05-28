@@ -255,10 +255,10 @@ export function AgentTerminal({
   const handleDrop = useCallback(
     (e: DragEvent<HTMLDivElement>) => {
       const paths = readDraggedPaths(e.dataTransfer)
+      setDragOver(false)
       if (paths.length === 0) return
       e.preventDefault()
       e.stopPropagation()
-      setDragOver(false)
       if (!vaultPath) return
       // Pass '' so the helper keeps paths absolute — the PTY may have a
       // different cwd than the vault root, so the agent needs the full path

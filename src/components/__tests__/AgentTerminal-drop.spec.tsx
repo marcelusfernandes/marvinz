@@ -249,4 +249,36 @@ describe('AgentTerminal — drop target (issue #365)', () => {
 
     expect(ptyWriteMock).toHaveBeenCalledWith(PTY_ID, '@/vault/foo.md ')
   })
+
+  it('drop with malformed plural MIME (empty JSON array): overlay clears, no PTY write', async () => {
+    render(<AgentTerminal {...defaultProps()} />)
+    await act(async () => {})
+
+    const container = getTerminalContainer()
+
+    await act(async () => {
+      container.dispatchEvent(makeDragEvent('dragover', '/vault/foo.md'))
+    })
+    expect(screen.getByText('Drop to insert path')).toBeInTheDocument()
+
+    // Plural MIME present in types, but payload is '[]' → readDraggedPaths returns []
+    const malformedDrop = new Event('drop', { bubbles: true, cancelable: true }) as DragEvent
+    Object.defineProperty(malformedDrop, 'dataTransfer', {
+      value: {
+        types: ['application/x-marvin-paths'],
+        dropEffect: 'none',
+        getData: (k: string) => (k === 'application/x-marvin-paths' ? '[]' : ''),
+      },
+      writable: false,
+    })
+    Object.defineProperty(malformedDrop, 'preventDefault', { value: vi.fn(), writable: false })
+    Object.defineProperty(malformedDrop, 'stopPropagation', { value: vi.fn(), writable: false })
+
+    await act(async () => {
+      container.dispatchEvent(malformedDrop)
+    })
+
+    expect(ptyWriteMock).not.toHaveBeenCalled()
+    expect(screen.queryByText('Drop to insert path')).toBeNull()
+  })
 })
