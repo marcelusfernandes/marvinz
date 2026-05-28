@@ -205,6 +205,8 @@ function setupMarvinMock() {
       ...realWindow,
       addEventListener: realWindow.addEventListener?.bind(realWindow) ?? vi.fn(),
       removeEventListener: realWindow.removeEventListener?.bind(realWindow) ?? vi.fn(),
+      innerWidth: 1024,
+      innerHeight: 768,
       // Bind setTimeout/clearTimeout at setup time so the impl's
       // `window.setTimeout` calls land on whatever timer implementation is
       // active (fake or real). Without explicit bindings the spread captures

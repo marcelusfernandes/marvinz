@@ -40,6 +40,7 @@ import {
 import type { ImportToastState } from './ImportToast'
 import type { AgentKind } from '../lib/agent-drop-format'
 import { formatSelectionForAgent } from '../lib/agent-selection-format'
+import { clampToViewport } from '../lib/chipViewportClamp'
 import { EditorSelectionChip } from './EditorSelectionChip'
 
 type Props = {
@@ -705,12 +706,14 @@ function LiveMarkdownInner({
         }
       }
       if (!rect) rect = range.getBoundingClientRect()
-      setSelectionRect({
-        left: rect.left,
-        right: rect.right,
-        top: rect.top,
-        bottom: rect.bottom,
-      })
+      setSelectionRect(
+        clampToViewport({
+          left: rect.left,
+          right: rect.right,
+          top: rect.top,
+          bottom: rect.bottom,
+        }),
+      )
     }
     const onSelectionChange = () => {
       if (debounceId !== null) window.clearTimeout(debounceId)
