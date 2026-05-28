@@ -248,7 +248,10 @@ export function AgentTerminal({
     setDragOver(true)
   }, [])
 
-  const handleDragLeave = useCallback(() => {
+  const handleDragLeave = useCallback((e: DragEvent<HTMLDivElement>) => {
+    // dragleave fires on child-element transitions (xterm rows, restart bar).
+    // Only clear when the pointer actually leaves the terminal.
+    if (e.currentTarget.contains(e.relatedTarget as Node)) return
     setDragOver(false)
   }, [])
 
@@ -265,6 +268,9 @@ export function AgentTerminal({
       // to actually find the file.
       const text = formatPathsForAgent(paths, agentKind, '') + ' '
       void window.marvin.pty.write(ptyId, text)
+      // Focus xterm so the user can keep typing immediately after the drop
+      // without an extra click.
+      termRef.current?.focus()
     },
     [agentKind, ptyId, vaultPath],
   )
@@ -286,9 +292,11 @@ export function AgentTerminal({
       )}
       <div ref={hostRef} className="claude-host" />
       {dragOver && (
-        <div className="agent-terminal-drop-overlay" aria-hidden="true">
-          <span className="agent-terminal-drop-overlay-label">Drop to insert path</span>
-        </div>
+        <div
+          className="agent-terminal-drop-overlay"
+          aria-hidden="true"
+          data-testid="agent-terminal-drop-overlay"
+        />
       )}
     </div>
   )

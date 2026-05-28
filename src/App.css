@@ -2748,24 +2748,11 @@ button {
 .agent-terminal-drop-overlay {
   position: absolute;
   inset: var(--space-2);
-  display: flex;
-  align-items: center;
-  justify-content: center;
   border: 2px solid var(--accent);
   border-radius: var(--radius-lg);
   background: var(--accent-bg);
   pointer-events: none;
   z-index: 1;
-}
-
-.agent-terminal-drop-overlay-label {
-  font-size: var(--font-size-md);
-  font-weight: var(--font-weight-semibold);
-  color: var(--text-primary);
-  padding: var(--space-2) var(--space-4);
-  border-radius: var(--radius-md);
-  background: var(--surface-2);
-  box-shadow: var(--shadow-sm);
 }
 
 .agent-restart-bar {
@@ -5647,6 +5634,7 @@ button.prop-bool {
 /* Composer -------------------------------------------------------- */
 
 .chat-composer {
+  position: relative;
   background: var(--surface-3);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
@@ -5659,6 +5647,16 @@ button.prop-bool {
 .chat-composer.disabled {
   opacity: 0.5;
   pointer-events: none;
+}
+
+.chat-composer-drop-overlay {
+  position: absolute;
+  inset: var(--space-2);
+  border: 2px solid var(--accent);
+  border-radius: var(--radius-lg);
+  background: var(--accent-bg);
+  pointer-events: none;
+  z-index: 1;
 }
 
 .chat-composer-input-row {

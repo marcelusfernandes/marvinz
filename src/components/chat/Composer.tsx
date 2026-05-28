@@ -1,14 +1,29 @@
-import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type DragEvent,
+  type KeyboardEvent,
+} from 'react'
 import { Icon } from '../Icon'
 import { useChatStore } from '../../lib/chat/store'
 import type { PermissionMode, SessionId } from '../../lib/chat/types'
 import { ModePill, MODE_OPTIONS } from './ModePill'
 import { ModesPicker } from './ModesPicker'
+import {
+  MARVIN_PATH_MIME,
+  MARVIN_PATHS_MIME,
+  readDraggedPaths,
+} from '../../lib/dropAttachments'
+import { formatPathsForAgent } from '../../lib/agent-drop-format'
 
 type Props = {
   sessionId: SessionId
   onSend: (text: string) => void | Promise<void>
   onCancel?: () => void | Promise<void>
+  /** Vault root, used to short-circuit drops when no vault is open. */
+  vaultPath: string
   /** When true, switch the send button into stop (e.g., during a stream). */
   isStreaming?: boolean
   disabled?: boolean
@@ -24,6 +39,7 @@ export function Composer({
   sessionId,
   onSend,
   onCancel,
+  vaultPath,
   isStreaming = false,
   disabled = false,
 }: Props) {
@@ -37,6 +53,7 @@ export function Composer({
   const modePillRef = useRef<HTMLButtonElement>(null)
   const [composing, setComposing] = useState(false)
   const [modesOpen, setModesOpen] = useState(false)
+  const [dragOver, setDragOver] = useState(false)
 
   // Auto-grow textarea: clamp to a max of ~200px (design spec).
   useEffect(() => {
@@ -82,11 +99,67 @@ export function Composer({
     [sessionId, setPermissionMode],
   )
 
+  const handleDragOver = useCallback((e: DragEvent<HTMLDivElement>) => {
+    const types = e.dataTransfer.types
+    if (!types.includes(MARVIN_PATH_MIME) && !types.includes(MARVIN_PATHS_MIME)) return
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'copy'
+    setDragOver(true)
+  }, [])
+
+  const handleDragLeave = useCallback((e: DragEvent<HTMLDivElement>) => {
+    // dragleave fires on every child-element transition (textarea, mode pill).
+    // Only clear when the pointer actually leaves the composer.
+    if (e.currentTarget.contains(e.relatedTarget as Node)) return
+    setDragOver(false)
+  }, [])
+
+  const handleDrop = useCallback(
+    (e: DragEvent<HTMLDivElement>) => {
+      const paths = readDraggedPaths(e.dataTransfer)
+      setDragOver(false)
+      if (paths.length === 0) return
+      e.preventDefault()
+      e.stopPropagation()
+      if (!vaultPath) return
+      // Pass '' so the helper keeps paths absolute — Claude Code's cwd may
+      // differ from the vault root, so a relative path could miss the file.
+      const text = formatPathsForAgent(paths, 'claude-code', '') + ' '
+      const textarea = textareaRef.current
+      const start = textarea?.selectionStart ?? draft.length
+      const end = textarea?.selectionEnd ?? draft.length
+      const next = draft.slice(0, start) + text + draft.slice(end)
+      setDraft(sessionId, next)
+      // Restore focus and advance the caret after React commits the
+      // controlled re-render — defer via rAF so the DOM reflects the new value.
+      const caret = start + text.length
+      requestAnimationFrame(() => {
+        const el = textareaRef.current
+        if (!el) return
+        el.focus()
+        el.setSelectionRange(caret, caret)
+      })
+    },
+    [draft, sessionId, setDraft, vaultPath],
+  )
+
   const empty = draft.trim().length === 0
   const sendDisabled = disabled || (empty && !isStreaming)
 
   return (
-    <div className={`chat-composer${disabled ? ' disabled' : ''}`}>
+    <div
+      className={`chat-composer${disabled ? ' disabled' : ''}`}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
+      {dragOver && (
+        <div
+          className="chat-composer-drop-overlay"
+          aria-hidden="true"
+          data-testid="chat-composer-drop-overlay"
+        />
+      )}
       <div className="chat-composer-input-row">
         <textarea
           ref={textareaRef}
