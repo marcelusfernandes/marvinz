@@ -4,12 +4,13 @@ import type { IconName } from './Icon'
 type Props = {
   onOpenBrowser: () => void
   onCreateNote: () => void
-  /** Disables the "Nova nota" card when there is no vault open. */
+  onChooseFile: () => void
+  /** Disables vault-scoped cards when there is no vault open. */
   isVaultOpen?: boolean
 }
 
 type Card = {
-  id: 'browser' | 'note'
+  id: 'browser' | 'note' | 'file'
   icon: IconName
   title: string
   description: string
@@ -17,7 +18,12 @@ type Card = {
   disabled?: boolean
 }
 
-export function EmptyTab({ onOpenBrowser, onCreateNote, isVaultOpen = true }: Props) {
+export function EmptyTab({
+  onOpenBrowser,
+  onCreateNote,
+  onChooseFile,
+  isVaultOpen = true,
+}: Props) {
   const cards: Card[] = [
     {
       id: 'browser',
@@ -34,6 +40,16 @@ export function EmptyTab({ onOpenBrowser, onCreateNote, isVaultOpen = true }: Pr
       onClick: onCreateNote,
       disabled: !isVaultOpen,
     },
+    {
+      id: 'file',
+      icon: 'folder-opened',
+      title: 'Arquivos',
+      description: isVaultOpen ? 'Abrir um arquivo do vault' : 'Abra um vault primeiro',
+      onClick: onChooseFile,
+      disabled: !isVaultOpen,
+    },
+    // 'review' card lands with #361, alongside the git diff source
+    // (vault:gitStatus + vault:gitDiff IPCs) that will populate it.
   ]
 
   return (

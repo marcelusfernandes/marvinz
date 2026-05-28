@@ -142,7 +142,11 @@ export function TabBar({
                 ? t.title
                 : basename(t.path)
         const tooltip =
-          t.type === 'browser' ? t.url : t.type === 'empty' ? undefined : t.path
+          t.type === 'browser'
+            ? t.url
+            : t.type === 'empty'
+              ? undefined
+              : t.path
         return (
           <div
             key={t.id}

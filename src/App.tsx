@@ -1029,6 +1029,16 @@ export default function App() {
     [vaultPath],
   )
 
+  const chooseFileFromEmpty = useCallback(async (emptyTabId: string) => {
+    const picked = await window.marvin.file.pick()
+    if (!picked) return
+    setTabs((prev) => prev.filter((t) => t.id !== emptyTabId))
+    setActiveTabId((id) => (id === emptyTabId ? null : id))
+    // If openInTab rejects, the empty tab is already gone; surface the
+    // error so the user isn't left staring at a blank pane silently.
+    void openInTabRef.current(picked).catch(console.error)
+  }, [])
+
   const handleBrowserDraftChange = useCallback((id: string, value: string) => {
     setTabs((prev) =>
       prev.map((t) => (isBrowserTab(t) && t.id === id ? { ...t, draftUrl: value } : t)),
@@ -1838,6 +1848,7 @@ export default function App() {
               key={activeTab.id}
               onOpenBrowser={() => convertEmptyToBrowser(activeTab.id)}
               onCreateNote={() => startNoteFromEmpty(activeTab.id)}
+              onChooseFile={() => void chooseFileFromEmpty(activeTab.id)}
               isVaultOpen={!!vaultPath}
             />
           )}

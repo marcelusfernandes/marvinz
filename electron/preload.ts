@@ -53,6 +53,7 @@ const api = {
     },
   },
   file: {
+    pick: () => ipcRenderer.invoke('file:pick') as Promise<string | null>,
     read: (filePath: string) => ipcRenderer.invoke('file:read', filePath) as Promise<string>,
     write: (filePath: string, content: string) =>
       ipcRenderer.invoke('file:write', filePath, content) as Promise<void>,
