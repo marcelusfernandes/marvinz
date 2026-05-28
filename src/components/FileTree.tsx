@@ -9,6 +9,7 @@ import { fileIconFor } from '../lib/fileIcons'
 import { useSetting } from '../lib/settingsStore'
 import { toMarvinUrl } from '../lib/marvinUrl'
 import { MARVIN_PATHS_MIME } from '../lib/dropAttachments'
+import { useClipboardStore } from '../lib/clipboardStore'
 
 const IMAGE_EXT_RE = /\.(png|jpe?g|gif|svg|webp|avif|bmp|ico|heic|heif)$/i
 
@@ -435,6 +436,9 @@ function FileTreeNodeImpl({
   const hovered = hoveredPath === node.path
   const isSelected = selectedPaths.has(node.path)
   const isActiveFile = activeFilePath === node.path
+  const isCut = useClipboardStore((s) =>
+    s.mode === 'cut' && s.paths.includes(node.path),
+  )
   const padding = 8 + depth * 14
 
   const handleDragStart = (e: React.DragEvent) => {
@@ -521,7 +525,7 @@ function FileTreeNodeImpl({
       >
         <button
           type="button"
-          className={`file-tree-row dir${hovered ? ' drop-target' : ''}${isSelected ? ' selected' : ''}`}
+          className={`file-tree-row dir${hovered ? ' drop-target' : ''}${isSelected ? ' selected' : ''}${isCut ? ' cut' : ''}`}
           style={{ paddingLeft: padding }}
           draggable
           onDragStart={handleDragStart}
@@ -571,7 +575,7 @@ function FileTreeNodeImpl({
     >
       <button
         type="button"
-        className={`file-tree-row file${isSelected ? ' selected' : ''}${isActiveFile ? ' active-file' : ''}${md ? '' : ' non-md'}`}
+        className={`file-tree-row file${isSelected ? ' selected' : ''}${isActiveFile ? ' active-file' : ''}${md ? '' : ' non-md'}${isCut ? ' cut' : ''}`}
         style={{ paddingLeft: padding + 20 }}
         draggable
         onDragStart={handleDragStart}

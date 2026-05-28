@@ -707,6 +707,10 @@ button {
   color: var(--text-primary);
 }
 
+.file-tree-row.cut {
+  opacity: 0.5;
+}
+
 .file-tree-row.active-file.file .name,
 .file-tree-row.active-file.file.non-md .name {
   color: var(--accent);
