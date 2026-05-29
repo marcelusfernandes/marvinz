@@ -180,7 +180,7 @@ const api = {
     importExternal: (sources: string[], destDir: string) =>
       ipcRenderer.invoke('fs:importExternal', sources, destDir) as Promise<{
         imported: string[]
-        skipped: { source: string; reason: 'not-found' | 'denied' | 'fs-error' }[]
+        skipped: { source: string; reason: 'not-found' | 'denied' | 'broken-symlink' | 'fs-error' }[]
       }>,
     getPathForFile: (file: File) => webUtils.getPathForFile(file),
   },
