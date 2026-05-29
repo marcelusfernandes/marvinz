@@ -898,14 +898,19 @@ ipcMain.handle('office:writeXlsx', async (_e, filePath: string, rows: unknown, s
 })
 
 ipcMain.handle('file:create', async (_e, parentDir: string, name: string) => {
-  const safeName = name.endsWith('.md') ? name : `${name}.md`
-  const full = path.join(parentDir, safeName)
-  const safe = await assertInVault(full)
-  if (existsSync(safe)) throw new Error('File already exists')
-  await fs.mkdir(path.dirname(safe), { recursive: true })
-  await fs.writeFile(safe, '', 'utf8')
-  notifyTree()
-  return safe
+  try {
+    const safeName = name.endsWith('.md') ? name : `${name}.md`
+    const full = path.join(parentDir, safeName)
+    const safe = await assertInVault(full)
+    // Pre-check stays: fs.writeFile would silently overwrite an existing file.
+    if (existsSync(safe)) throw new Error('MARVIN_FS_EEXIST')
+    await fs.mkdir(path.dirname(safe), { recursive: true })
+    await fs.writeFile(safe, '', 'utf8')
+    notifyTree()
+    return safe
+  } catch (e) {
+    wrapFsError(e)
+  }
 })
 
 ipcMain.handle('file:writeBinary', async (_e, payload: { vaultPath: string; relPath: string; base64Bytes: string; maxBytes?: number }) => {
@@ -932,12 +937,16 @@ ipcMain.handle('file:writeBinary', async (_e, payload: { vaultPath: string; relP
 })
 
 ipcMain.handle('folder:create', async (_e, parentDir: string, name: string) => {
-  const full = path.join(parentDir, name)
-  const safe = await assertInVault(full)
-  if (existsSync(safe)) throw new Error('Folder already exists')
-  await fs.mkdir(safe, { recursive: false })
-  notifyTree()
-  return safe
+  try {
+    const full = path.join(parentDir, name)
+    const safe = await assertInVault(full)
+    if (existsSync(safe)) throw new Error('MARVIN_FS_EEXIST')
+    await fs.mkdir(safe, { recursive: false })
+    notifyTree()
+    return safe
+  } catch (e) {
+    wrapFsError(e)
+  }
 })
 
 ipcMain.handle('file:copy', async (_e, srcPath: string, destDir: string): Promise<string> => {
@@ -1227,13 +1236,14 @@ ipcMain.handle('path:trash', async (_e, target: string) => {
 })
 
 ipcMain.handle('file:exportPdf', async (_e, filePath: string) => {
-  const content = await fs.readFile(filePath, 'utf-8')
-  const dir = path.dirname(filePath)
+  try {
+    const content = await fs.readFile(filePath, 'utf-8')
+    const dir = path.dirname(filePath)
 
-  const { marked } = await import('marked')
-  const bodyHtml = await marked(content)
+    const { marked } = await import('marked')
+    const bodyHtml = await marked(content)
 
-  const html = `<!DOCTYPE html>
+    const html = `<!DOCTYPE html>
 <html><head>
 <meta charset="utf-8">
 <style>
@@ -1248,29 +1258,32 @@ ipcMain.handle('file:exportPdf', async (_e, filePath: string) => {
 </style>
 </head><body>${bodyHtml}</body></html>`
 
-  const tmpPath = path.join(dir, `._marvinz_export_${Date.now()}.html`)
-  await fs.writeFile(tmpPath, html, 'utf-8')
+    const tmpPath = path.join(dir, `._marvinz_export_${Date.now()}.html`)
+    await fs.writeFile(tmpPath, html, 'utf-8')
 
-  const exportWin = new BrowserWindow({
-    show: false,
-    webPreferences: { nodeIntegration: false, contextIsolation: true },
-  })
-
-  try {
-    await exportWin.loadFile(tmpPath)
-
-    const { canceled, filePath: savePath } = await dialog.showSaveDialog({
-      defaultPath: filePath.replace(/\.md$/, '.pdf'),
-      filters: [{ name: 'PDF', extensions: ['pdf'] }],
+    const exportWin = new BrowserWindow({
+      show: false,
+      webPreferences: { nodeIntegration: false, contextIsolation: true },
     })
 
-    if (!canceled && savePath) {
-      const pdfBuffer = await exportWin.webContents.printToPDF({ printBackground: true })
-      await fs.writeFile(savePath, Buffer.from(pdfBuffer))
+    try {
+      await exportWin.loadFile(tmpPath)
+
+      const { canceled, filePath: savePath } = await dialog.showSaveDialog({
+        defaultPath: filePath.replace(/\.md$/, '.pdf'),
+        filters: [{ name: 'PDF', extensions: ['pdf'] }],
+      })
+
+      if (!canceled && savePath) {
+        const pdfBuffer = await exportWin.webContents.printToPDF({ printBackground: true })
+        await fs.writeFile(savePath, Buffer.from(pdfBuffer))
+      }
+    } finally {
+      exportWin.destroy()
+      await fs.unlink(tmpPath).catch(() => {})
     }
-  } finally {
-    exportWin.destroy()
-    await fs.unlink(tmpPath).catch(() => {})
+  } catch (e) {
+    wrapFsError(e)
   }
 })
 
