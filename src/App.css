@@ -3469,8 +3469,7 @@ button {
 .md-preview-inner hr {
   border: none;
   border-top: 1px solid var(--border);
-  /* Tighter than the old 2em: with the previous block's 1em margin-bottom the
-     effective gap was ~3em, too wide for a 1px line. */
+  /* Effective gap was ~3em (margin + prev block's 1em rhythm); tightened to 1.5em. */
   margin: 1.5em 0;
 }
 
@@ -3493,10 +3492,7 @@ button {
   font-weight: 600;
 }
 
-/* Block-spacing overrides — strip the bottom-rhythm margin where it leaks a
-   ghost gap: inside table cells, the last block of a blockquote, nested lists,
-   and the last block of the document. Generic :last-child covers p/pre/ul/ol/
-   table/blockquote, not just <p>. */
+/* Strip ghost bottom-rhythm margin: cell/blockquote/doc last block, and every nested list. */
 .md-preview-inner :is(td, th) > :last-child,
 .md-preview-inner blockquote > :last-child,
 .md-preview-inner li > :is(ul, ol),
@@ -3504,10 +3500,7 @@ button {
   margin-bottom: 0;
 }
 
-/* A bold-only paragraph immediately before a list reads as that list's section
-   label (the `**Label:**` + list authoring pattern). Bind it to the list below
-   with a tight bottom margin while keeping the breathing room above — so the
-   hierarchy is clear instead of the label floating equidistant between blocks. */
+/* Bold-only paragraph before a list = its section label (`**Label:**` pattern); bind it below. */
 .md-preview-inner p:has(> strong:only-child):has(+ :is(ul, ol)) {
   margin-bottom: 0.3em;
 }
@@ -3974,9 +3967,7 @@ button.prop-bool {
 .live-md h5,
 .live-md h6 {
   font-weight: var(--font-weight-semibold);
-  /* Top margin matches the preview (2em) so sections breathe consistently.
-     Trade-off: a line transforming into a heading mid-typing shifts down by
-     this margin — accepted for visual parity with the rendered preview. */
+  /* 2em top matches preview parity; trade-off: a line becoming a heading mid-typing shifts down. */
   margin: 2em 0 0.6em;
   line-height: var(--line-height-tight);
   color: var(--text-primary);
@@ -4078,17 +4069,14 @@ button.prop-bool {
   font-weight: 600;
 }
 
-/* Same ghost-gap overrides as the preview — but NOT `> :last-child` on the
-   root: the live editor intentionally keeps trailing room after the last
-   paragraph (see `.live-md p` above) so the cursor has space mid-typing. */
+/* Same as preview, minus the root `> :last-child` — live editor keeps cursor room after the last block. */
 .live-md :is(td, th) > :last-child,
 .live-md blockquote > :last-child,
 .live-md li > :is(ul, ol) {
   margin-bottom: 0;
 }
 
-/* Same label-binding heuristic as the preview: a bold-only paragraph before a
-   list hugs the list it introduces. */
+/* Same label-binding heuristic as the preview. */
 .live-md p:has(> strong:only-child):has(+ :is(ul, ol)) {
   margin-bottom: 0.3em;
 }
