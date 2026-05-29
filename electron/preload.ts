@@ -173,6 +173,8 @@ const api = {
       ipcRenderer.on('menu:action', h)
       return () => ipcRenderer.removeListener('menu:action', h)
     },
+    setMenuNoteContext: (hasNoteTab: boolean) =>
+      ipcRenderer.send('app:menu-note-context', hasNoteTab),
   },
   fs: {
     importExternal: (sources: string[], destDir: string) =>

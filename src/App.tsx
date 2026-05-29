@@ -1487,6 +1487,12 @@ export default function App() {
     })
   }, [])
 
+  // Report whether a note tab is active so the menu can disable the
+  // note-only items (Export PDF, Reveal in Finder).
+  useEffect(() => {
+    window.marvin.app.setMenuNoteContext(!!activeTab && isNoteTab(activeTab))
+  }, [activeTab])
+
   // Drag-and-drop: move src into destDir via rename.
   const handleDropMove = useCallback(
     async (srcPath: string, destDir: string) => {

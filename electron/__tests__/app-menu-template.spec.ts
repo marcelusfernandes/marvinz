@@ -148,6 +148,24 @@ describe('buildMenuTemplate — File menu actions', () => {
     item?.click?.({} as Electron.MenuItem, {} as Electron.BrowserWindow, {} as Electron.KeyboardEvent)
     expect(fired).toContain('command-palette')
   })
+
+  it('enables Export PDF and Reveal in Finder only when a note tab is active', () => {
+    const withNote = submenu(buildMenuTemplate(() => {}, true), 'File')
+    const noNote = submenu(buildMenuTemplate(() => {}, false), 'File')
+    const find = (items: Electron.MenuItemConstructorOptions[], label: string) =>
+      items.find((i) => i.label === label)
+    expect(find(withNote, 'Export PDF')?.enabled).toBe(true)
+    expect(find(withNote, 'Reveal in Finder')?.enabled).toBe(true)
+    expect(find(noNote, 'Export PDF')?.enabled).toBe(false)
+    expect(find(noNote, 'Reveal in Finder')?.enabled).toBe(false)
+  })
+
+  it('keeps note-independent items enabled regardless of note context', () => {
+    const noNote = submenu(buildMenuTemplate(() => {}, false), 'File')
+    const newNote = noNote.find((i) => i.label === 'New Note')
+    // New Note / Open Vault don't depend on an active note — must stay enabled.
+    expect(newNote?.enabled).not.toBe(false)
+  })
 })
 
 // ---------------------------------------------------------------------------

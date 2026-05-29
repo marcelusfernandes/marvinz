@@ -63,6 +63,7 @@ function setupMarvinMock(vaultPath = '/vault') {
         showContextMenu: vi.fn().mockResolvedValue(null),
         canPaste: vi.fn().mockResolvedValue(false),
         onMenuAction: vi.fn(() => () => {}),
+        setMenuNoteContext: vi.fn(),
       },
       shell: { reveal: vi.fn(), openExternal: vi.fn() },
       vault: {

@@ -201,6 +201,7 @@ export type MarvinAPI = {
     showContextMenu: (items: MenuItemSpec[]) => Promise<string | null>
     canPaste: () => Promise<boolean>
     onMenuAction: (cb: (action: string) => void) => () => void
+    setMenuNoteContext: (hasNoteTab: boolean) => void
   }
   fs: {
     importExternal: (sources: string[], destDir: string) => Promise<ImportExternalResult>

@@ -130,6 +130,7 @@ function setupMarvinMock() {
             menuActionCb.fire = null
           }
         }),
+        setMenuNoteContext: vi.fn(),
       },
       shell: { reveal: vi.fn(), openExternal: vi.fn() },
       vault: {
@@ -254,6 +255,16 @@ describe('App menu-action wire — subscription', () => {
     expect(typeof menuActionCb.fire).toBe('function')
     act(() => unmount())
     expect(menuActionCb.fire).toBeNull()
+  })
+
+  it('reports no note context on mount (no tab open)', async () => {
+    await renderBootstrapped()
+    expect(window.marvin.app.setMenuNoteContext).toHaveBeenCalledWith(false)
+  })
+
+  it('reports note context true once a note tab is active', async () => {
+    await renderWithNoteTab()
+    expect(window.marvin.app.setMenuNoteContext).toHaveBeenLastCalledWith(true)
   })
 })
 

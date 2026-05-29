@@ -320,6 +320,7 @@ function mimeFor(filePath: string): string {
 
 export function buildMenuTemplate(
   send: (action: string) => void,
+  hasNoteTab = true,
 ): Electron.MenuItemConstructorOptions[] {
   return [
     {
@@ -353,10 +354,12 @@ export function buildMenuTemplate(
         },
         {
           label: 'Export PDF',
+          enabled: hasNoteTab,
           click: () => send('export-pdf'),
         },
         {
           label: 'Reveal in Finder',
+          enabled: hasNoteTab,
           click: () => send('reveal'),
         },
         { type: 'separator' },
@@ -415,10 +418,14 @@ export function buildMenuTemplate(
   ]
 }
 
+// Tracks whether a note tab is active in the renderer so File → Export PDF /
+// Reveal in Finder can be disabled when they'd be no-ops. Updated via IPC.
+const menuHasNoteTab = false
+
 function buildAppMenu() {
   if (process.platform !== 'darwin') return
   const send = (action: string) => win?.webContents.send('menu:action', action)
-  Menu.setApplicationMenu(Menu.buildFromTemplate(buildMenuTemplate(send)))
+  Menu.setApplicationMenu(Menu.buildFromTemplate(buildMenuTemplate(send, menuHasNoteTab)))
 }
 
 app.whenReady().then(() => {
@@ -1277,6 +1284,13 @@ ipcMain.handle('app:show-context-menu', (e, items: MenuItemSpec[]): Promise<stri
 ipcMain.handle('app:can-paste', (): boolean =>
   clipboard.availableFormats().some(f => f.startsWith('text/') || f === 'text')
 )
+
+// Renderer reports whether a note tab is active so the app menu can disable
+// the note-only items (Export PDF, Reveal in Finder). Rebuilds the menu.
+ipcMain.on('app:menu-note-context', (_e, hasNoteTab: boolean) => {
+  menuHasNoteTab = hasNoteTab
+  buildAppMenu()
+})
 
 ipcMain.handle('editor:clipboard-read', (): string => {
   return clipboard.readText()
