@@ -23,6 +23,10 @@ function readFromLocalStorage(): Settings {
     if (visualStyle === 'modern' || visualStyle === 'legacy') {
       out.visualStyle = visualStyle
     }
+    const themeFlavor = window.localStorage.getItem(`${LS_PREFIX}themeFlavor`)
+    if (themeFlavor === 'default' || themeFlavor === 'pastel') {
+      out.themeFlavor = themeFlavor
+    }
     const terminalModeEnabled = window.localStorage.getItem(
       `${LS_PREFIX}terminalModeEnabled`,
     )

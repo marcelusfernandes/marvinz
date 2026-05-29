@@ -24,6 +24,7 @@ import { useClipboardStore, clipPasteLabel } from './lib/clipboardStore'
 import { useFileClipboardShortcuts } from './lib/useFileClipboardShortcuts'
 import { useColorTheme, useAgentsPaneTransparent } from './lib/colorTheme'
 import { useVisualStyle } from './lib/visualStyle'
+import { useThemeFlavor } from './lib/themeFlavor'
 import { TopBar } from './components/TopBar'
 import { SnapshotPanel } from './components/SnapshotPanel'
 import { SnapshotToast } from './components/SnapshotToast'
@@ -280,6 +281,7 @@ export default function App() {
   useColorTheme()
   useAgentsPaneTransparent()
   const visualStyle = useVisualStyle()
+  useThemeFlavor()
   const saveMode = useSetting('saveMode') ?? 'auto'
   const [vaultPath, setVaultPath] = useState<string | null>(null)
   const [tree, setTree] = useState<FileNode[]>([])
