@@ -3504,6 +3504,14 @@ button {
   margin-bottom: 0;
 }
 
+/* A bold-only paragraph immediately before a list reads as that list's section
+   label (the `**Label:**` + list authoring pattern). Bind it to the list below
+   with a tight bottom margin while keeping the breathing room above — so the
+   hierarchy is clear instead of the label floating equidistant between blocks. */
+.md-preview-inner p:has(> strong:only-child):has(+ :is(ul, ol)) {
+  margin-bottom: 0.3em;
+}
+
 .md-preview-inner img {
   max-width: 100%;
   border-radius: var(--radius-md);
@@ -4077,6 +4085,12 @@ button.prop-bool {
 .live-md blockquote > :last-child,
 .live-md li > :is(ul, ol) {
   margin-bottom: 0;
+}
+
+/* Same label-binding heuristic as the preview: a bold-only paragraph before a
+   list hugs the list it introduces. */
+.live-md p:has(> strong:only-child):has(+ :is(ul, ol)) {
+  margin-bottom: 0.3em;
 }
 
 .live-md img {
