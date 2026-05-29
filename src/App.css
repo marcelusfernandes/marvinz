@@ -3381,7 +3381,7 @@ button {
 .md-preview-inner h5,
 .md-preview-inner h6 {
   font-weight: var(--font-weight-semibold);
-  margin: 1.6em 0 0.6em;
+  margin: 2em 0 0.6em;
   line-height: var(--line-height-tight);
   color: var(--text-primary);
 }
@@ -3469,7 +3469,8 @@ button {
 .md-preview-inner hr {
   border: none;
   border-top: 1px solid var(--border);
-  margin: 2em 0;
+  /* Effective gap was ~3em (margin + prev block's 1em rhythm); tightened to 1.5em. */
+  margin: 1.5em 0;
 }
 
 .md-preview-inner table {
@@ -3489,6 +3490,19 @@ button {
 .md-preview-inner th {
   background: var(--surface-2);
   font-weight: 600;
+}
+
+/* Strip ghost bottom-rhythm margin: cell/blockquote/doc last block, and every nested list. */
+.md-preview-inner :is(td, th) > :last-child,
+.md-preview-inner blockquote > :last-child,
+.md-preview-inner li > :is(ul, ol),
+.md-preview-inner > :last-child {
+  margin-bottom: 0;
+}
+
+/* Bold-only paragraph before a list = its section label (`**Label:**` pattern); bind it below. */
+.md-preview-inner p:has(> strong:only-child):has(+ :is(ul, ol)) {
+  margin-bottom: 0.3em;
 }
 
 .md-preview-inner img {
@@ -3953,9 +3967,8 @@ button.prop-bool {
 .live-md h5,
 .live-md h6 {
   font-weight: var(--font-weight-semibold);
-  /* Zero top margin: rely on the previous element's bottom margin for
-     separation. This keeps WYSIWYG transforms from "jumping" the line. */
-  margin: 0.4em 0 0.6em;
+  /* 2em top matches preview parity; trade-off: a line becoming a heading mid-typing shifts down. */
+  margin: 2em 0 0.6em;
   line-height: var(--line-height-tight);
   color: var(--text-primary);
 }
@@ -4034,7 +4047,7 @@ button.prop-bool {
 .live-md hr {
   border: none;
   border-top: 1px solid var(--border);
-  margin: 2em 0;
+  margin: 1.5em 0;
 }
 
 .live-md table {
@@ -4054,6 +4067,18 @@ button.prop-bool {
 .live-md th {
   background: var(--surface-2);
   font-weight: 600;
+}
+
+/* Same as preview, minus the root `> :last-child` — live editor keeps cursor room after the last block. */
+.live-md :is(td, th) > :last-child,
+.live-md blockquote > :last-child,
+.live-md li > :is(ul, ol) {
+  margin-bottom: 0;
+}
+
+/* Same label-binding heuristic as the preview. */
+.live-md p:has(> strong:only-child):has(+ :is(ul, ol)) {
+  margin-bottom: 0.3em;
 }
 
 .live-md img {
