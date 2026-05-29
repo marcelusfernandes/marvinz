@@ -26,13 +26,14 @@ function errno(code: string, message: string): NodeJS.ErrnoException {
 describe('wrapFsError', () => {
   it('maps an fs ErrnoException to MARVIN_FS_<CODE> and drops the host path', () => {
     const raw = errno('EACCES', "EACCES: permission denied, open '/Users/lipe/vault/foo.md'")
-    expect(() => wrapFsError(raw)).toThrow('MARVIN_FS_EACCES')
-    try {
-      wrapFsError(raw)
-    } catch (e) {
-      expect((e as Error).message).toBe('MARVIN_FS_EACCES')
-      expect((e as Error).message).not.toContain('/Users/lipe')
-    }
+    // Capture the thrown error directly — assertions outside any catch so they
+    // never get silently skipped if the throw regresses.
+    const thrown = (() => {
+      try { wrapFsError(raw); return null } catch (e) { return e as Error }
+    })()
+    expect(thrown).toBeInstanceOf(Error)
+    expect(thrown?.message).toBe('MARVIN_FS_EACCES')
+    expect(thrown?.message).not.toContain('/Users/lipe')
   })
 
   it('maps other fs codes (ENOSPC, EISDIR, EEXIST)', () => {

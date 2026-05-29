@@ -768,7 +768,7 @@ const BINARY_PROBE_BYTES = 8192 // any null byte in the first 8 KB → treat as 
 export function wrapFsError(e: unknown): never {
   const msg = e instanceof Error ? e.message : ''
   if (/^(MARVIN|SNAPSHOT)_[A-Z_]+/.test(msg)) throw e
-  const code = (e as NodeJS.ErrnoException)?.code
+  const code = (e as { code?: string } | null | undefined)?.code
   throw new Error(code ? `MARVIN_FS_${code}` : 'MARVIN_FS_UNKNOWN')
 }
 
