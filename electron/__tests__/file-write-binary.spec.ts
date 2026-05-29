@@ -73,6 +73,40 @@ describe('file:writeBinary — out-of-vault traversal', () => {
 })
 
 // ---------------------------------------------------------------------------
+// 1b. Symlink escape — a symlinked dir pointing outside the vault is rejected.
+// Direct coverage on the handler spec (transitively covered by boundary.spec,
+// but this guards against the handler ever inlining/swapping the boundary check).
+// ---------------------------------------------------------------------------
+
+describe('file:writeBinary — symlink escape', () => {
+  let outsideDir: string
+
+  beforeEach(async () => {
+    await setup()
+    const raw = await fs.mkdtemp(path.join(os.tmpdir(), 'marvin-writebinary-outside-'))
+    outsideDir = await fs.realpath(raw)
+    // <vault>/escape → symlink to a directory outside the vault
+    await fs.symlink(outsideDir, path.join(vault, 'escape'))
+  })
+
+  afterEach(async () => {
+    await teardown()
+    await fs.rm(outsideDir, { recursive: true, force: true })
+  })
+
+  it('rejects a write through a symlink that points outside the vault', async () => {
+    await expect(
+      writeBinary(vault, {
+        relPath: 'escape/secret.bin',
+        base64Bytes: Buffer.from('x').toString('base64'),
+      }),
+    ).rejects.toThrow('MARVIN_OUTSIDE_VAULT')
+    // Nothing written into the symlink target.
+    await expect(fs.access(path.join(outsideDir, 'secret.bin'))).rejects.toThrow()
+  })
+})
+
+// ---------------------------------------------------------------------------
 // 2. Oversized payload — error thrown before file lands on disk
 // ---------------------------------------------------------------------------
 
