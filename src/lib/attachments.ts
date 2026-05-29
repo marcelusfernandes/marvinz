@@ -16,7 +16,9 @@ export function buildAttachmentRelPath(filename: string): string {
   const rawBase = hasExt ? filename.slice(0, lastDot) : filename
   const rawExt = hasExt ? filename.slice(lastDot + 1) : ''
 
-  const sanitize = (s: string) => s.toLowerCase().replace(/[^a-z0-9._-]/g, '-')
+  // NFKC first so NFC/NFD forms of the same name (e.g. macOS HFS+ uses NFD)
+  // collapse to one canonical slug — reproducible across platforms.
+  const sanitize = (s: string) => s.normalize('NFKC').toLowerCase().replace(/[^a-z0-9._-]/g, '-')
   const base = sanitize(rawBase)
   const ext = sanitize(rawExt)
 
