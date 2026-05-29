@@ -32,7 +32,7 @@ async function writeBinary(
   const safe = await assertInsideVaultAsync(vaultPath, absolute)
   const limit = maxBytes ?? 25 * 1024 * 1024
   // Raw-length gate before decode (mirrors main.ts file:writeBinary).
-  if (base64Bytes.length > (limit * 4) / 3 + 4) {
+  if (base64Bytes.length > Math.floor((limit * 4) / 3) + 4) {
     throw new Error('MARVIN_TOO_LARGE: payload')
   }
   const decoded = Buffer.from(base64Bytes, 'base64')
@@ -102,6 +102,19 @@ describe('file:writeBinary — oversized payload', () => {
     await expect(
       writeBinary(vault, { relPath, base64Bytes: b64, maxBytes: 10 }),
     ).rejects.toThrow(/MARVIN_TOO_LARGE: payload$/)
+
+    await expect(fs.access(path.join(vault, relPath))).rejects.toThrow()
+  })
+
+  it('catches a string that slips under the raw gate but decodes over the limit', async () => {
+    // limit=10 → raw gate ≈ 17 chars. 16 chars is under it, but decodes to 12
+    // bytes (> 10), so the exact decoded check fires — proves the two-gate design.
+    const b64 = 'A'.repeat(16)
+    const relPath = 'attachments/adversarial.bin'
+
+    await expect(
+      writeBinary(vault, { relPath, base64Bytes: b64, maxBytes: 10 }),
+    ).rejects.toThrow(/MARVIN_TOO_LARGE: 12$/)
 
     await expect(fs.access(path.join(vault, relPath))).rejects.toThrow()
   })

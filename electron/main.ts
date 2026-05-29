@@ -898,7 +898,7 @@ ipcMain.handle('file:writeBinary', async (_e, payload: { vaultPath: string; relP
   // Cheap raw-length gate BEFORE decoding: base64 packs 3 bytes per 4 chars, so a
   // string longer than (limit * 4 / 3) + 4 always decodes past the cap. Rejecting
   // here avoids allocating a huge Buffer in main-process RAM for a hostile renderer.
-  if (base64Bytes.length > (limit * 4) / 3 + 4) {
+  if (base64Bytes.length > Math.floor((limit * 4) / 3) + 4) {
     throw new Error('MARVIN_TOO_LARGE: payload')
   }
   // Exact check on decoded length catches adversarial padding under the raw gate.
