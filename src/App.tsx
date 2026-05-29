@@ -1209,6 +1209,53 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey)
   }, [vaultPath, openNewBrowserTab, modalOpen, activeTab])
 
+  // Native app menu → renderer. Each menu item emits an action string the
+  // main process forwards over `menu:action`; we map it to the same handler
+  // the keyboard shortcut uses (no duplicated logic). The active note governs
+  // export/reveal, and the same `!vaultPath` early-return the keydown applies
+  // is mirrored here since the menu template doesn't gate items on vault state.
+  const handleMenuAction = (action: string) => {
+    switch (action) {
+      case 'settings':
+        setSettingsOpen(true)
+        break
+      case 'command-palette':
+        if (!vaultPath) return
+        setPaletteOpen(true)
+        break
+      case 'find':
+        // Mirror the keydown guards (resolveAppFindShortcut): no find while a
+        // modal owns focus, and only on a markdown note (not PDF/image/browser).
+        if (modalOpen) return
+        if (!activeTab || !isNoteTab(activeTab) || !isMarkdownPath(activeTab.path)) return
+        setOpenFindTick((t) => t + 1)
+        break
+      case 'new-note':
+        if (!vaultPath) return
+        setCreatingIn({ parentDir: vaultPath, kind: 'file' })
+        break
+      case 'open-vault':
+        void handlePickVault()
+        break
+      case 'export-pdf':
+        if (!activeTab || !isNoteTab(activeTab)) return
+        void window.marvin.file.exportPdf(activeTab.path)
+        break
+      case 'reveal':
+        if (!activeTab || !isNoteTab(activeTab)) return
+        void window.marvin.shell.reveal(activeTab.path)
+        break
+      case 'save':
+        if (!activeTab || !isNoteTab(activeTab)) return
+        void flushSaveRef.current?.()
+        break
+      case 'new-agent-terminal':
+        if (!vaultPath) return
+        setNewAgentTabTick((t) => t + 1)
+        break
+    }
+  }
+
   const handlePalettePick = useCallback(
     async (item: PaletteItem, replaceCurrent: boolean) => {
       setPaletteOpen(false)
@@ -1424,6 +1471,7 @@ export default function App() {
   const handleTrashRef = useRef(handleTrash)
   const vaultPathRef = useRef(vaultPath)
   const selectedPathsRef = useRef(selectedPaths)
+  const handleMenuActionRef = useRef(handleMenuAction)
   useEffect(() => {
     renameInTabsRef.current = renameInTabs
     reportErrorRef.current = reportError
@@ -1431,7 +1479,25 @@ export default function App() {
     handleTrashRef.current = handleTrash
     vaultPathRef.current = vaultPath
     selectedPathsRef.current = selectedPaths
+    handleMenuActionRef.current = handleMenuAction
   })
+
+  // Subscribe once to native menu actions; the ref keeps the handler current
+  // without tearing down the IPC listener on every vault/tab change.
+  useEffect(() => {
+    return window.marvin.app.onMenuAction((action) => {
+      handleMenuActionRef.current(action)
+    })
+  }, [])
+
+  // Report whether a note tab is active so the menu can disable the
+  // note-only items (Export PDF, Reveal in Finder). Depend on the derived
+  // boolean, not the activeTab object — avoids rebuilding the native menu on
+  // every unrelated tab-object change (version bump, external-change flag, …).
+  const hasNoteTabActive = !!activeTab && isNoteTab(activeTab)
+  useEffect(() => {
+    window.marvin.app.setMenuNoteContext(hasNoteTabActive)
+  }, [hasNoteTabActive])
 
   // Drag-and-drop: move src into destDir via rename.
   const handleDropMove = useCallback(

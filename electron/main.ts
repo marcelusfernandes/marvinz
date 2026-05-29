@@ -318,6 +318,127 @@ function mimeFor(filePath: string): string {
   return MIME_BY_EXT[ext] ?? 'application/octet-stream'
 }
 
+export function buildMenuTemplate(
+  send: (action: string) => void,
+  hasNoteTab = false,
+): Electron.MenuItemConstructorOptions[] {
+  return [
+    {
+      label: 'Marvinz',
+      submenu: [
+        { role: 'about' },
+        {
+          label: 'Settings…',
+          accelerator: 'Cmd+,',
+          click: () => send('settings'),
+        },
+        { type: 'separator' },
+        { role: 'services' },
+        { type: 'separator' },
+        { role: 'hide' },
+        { role: 'hideOthers' },
+        { role: 'unhide' },
+        { type: 'separator' },
+        { role: 'quit' },
+      ],
+    },
+    {
+      label: 'File',
+      submenu: [
+        {
+          label: 'New Note',
+          accelerator: 'Cmd+N',
+          click: () => send('new-note'),
+        },
+        {
+          label: 'Open Folder…',
+          click: () => send('open-vault'),
+        },
+        {
+          label: 'Export PDF',
+          enabled: hasNoteTab,
+          click: () => send('export-pdf'),
+        },
+        {
+          label: 'Reveal in Finder',
+          enabled: hasNoteTab,
+          click: () => send('reveal'),
+        },
+        { type: 'separator' },
+        {
+          label: 'Save',
+          accelerator: 'Cmd+S',
+          click: () => send('save'),
+        },
+        { type: 'separator' },
+        {
+          label: 'New Agent Terminal',
+          accelerator: 'Cmd+Shift+T',
+          click: () => send('new-agent-terminal'),
+        },
+        { type: 'separator' },
+        {
+          label: 'Command Palette',
+          accelerator: 'Cmd+P',
+          click: () => send('command-palette'),
+        },
+      ],
+    },
+    {
+      label: 'Edit',
+      submenu: [
+        { role: 'undo' },
+        { role: 'redo' },
+        { type: 'separator' },
+        { role: 'cut' },
+        { role: 'copy' },
+        { role: 'paste' },
+        { role: 'selectAll' },
+      ],
+    },
+    {
+      label: 'View',
+      submenu: [
+        {
+          label: 'Find',
+          accelerator: 'Cmd+F',
+          click: () => send('find'),
+        },
+        // Reload + DevTools are dev-only — hidden in packaged builds so end
+        // users don't see them in the View menu.
+        { role: 'reload', visible: !app.isPackaged },
+        { role: 'toggleDevTools', visible: !app.isPackaged },
+      ],
+    },
+    {
+      label: 'Window',
+      submenu: [
+        { role: 'minimize' },
+        { role: 'zoom' },
+        { role: 'togglefullscreen' },
+        { type: 'separator' },
+        { role: 'front' },
+        { type: 'separator' },
+        { role: 'close' },
+      ],
+    },
+  ]
+}
+
+// Tracks whether a note tab is active in the renderer so File → Export PDF /
+// Reveal in Finder can be disabled when they'd be no-ops. Updated via IPC.
+let menuHasNoteTab = false
+
+function buildAppMenu() {
+  if (process.platform !== 'darwin') return
+  // `?.` only guards null; a closed-but-non-null window throws "Object has been
+  // destroyed" on send — mirror the safeSend/safeBrowserSend idiom.
+  const send = (action: string) => {
+    if (win && !win.isDestroyed()) win.webContents.send('menu:action', action)
+  }
+  Menu.setApplicationMenu(Menu.buildFromTemplate(buildMenuTemplate(send, menuHasNoteTab)))
+}
+
 app.whenReady().then(() => {
   protocol.handle('marvin', async (request) => {
     try {
@@ -388,6 +509,7 @@ app.whenReady().then(() => {
   }).catch(() => {})
 
   createWindow()
+  buildAppMenu()
 })
 
 // Kill every long-lived child (pty shells + their trees, agent CLIs + their
@@ -1173,6 +1295,14 @@ ipcMain.handle('app:show-context-menu', (e, items: MenuItemSpec[]): Promise<stri
 ipcMain.handle('app:can-paste', (): boolean =>
   clipboard.availableFormats().some(f => f.startsWith('text/') || f === 'text')
 )
+
+// Renderer reports whether a note tab is active so the app menu can disable
+// the note-only items (Export PDF, Reveal in Finder). Rebuilds the menu.
+ipcMain.on('app:menu-note-context', (_e, hasNoteTab: boolean) => {
+  if (typeof hasNoteTab !== 'boolean' || hasNoteTab === menuHasNoteTab) return
+  menuHasNoteTab = hasNoteTab
+  buildAppMenu()
+})
 
 ipcMain.handle('editor:clipboard-read', (): string => {
   return clipboard.readText()
