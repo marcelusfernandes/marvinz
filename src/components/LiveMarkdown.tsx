@@ -555,22 +555,43 @@ function LiveMarkdownInner({
           break
         case 'copy':
         case 'cut': {
-          // Synthetic ClipboardEvent has isTrusted=false and Chromium blocks
-          // access to the system clipboard for such events. Use the Electron
-          // clipboard module via IPC instead. Trim leading/trailing newlines so
-          // a single-paragraph copy never carries a trailing block separator
-          // that would force a paragraph split on paste.
+          // Serialize the selected slice through Milkdown's clipboardSerializer
+          // so formatting (bold, links, lists) survives cross-app paste via the
+          // HTML clipboard channel. Text fallback is preserved for non-rich
+          // targets and trims block separators so a single-paragraph copy
+          // never forces a paragraph split on paste.
           const selection = view.state.selection
           if (selection.empty) break
+          const slice = view.state.doc.slice(selection.from, selection.to)
+          const serializer = view.someProp('clipboardSerializer')
+          let html = ''
+          if (serializer) {
+            const dom = serializer.serializeFragment(slice.content)
+            const wrapper = document.createElement('div')
+            wrapper.appendChild(dom)
+            html = wrapper.innerHTML
+          }
           const text = view.state.doc
             .textBetween(selection.from, selection.to, '\n', '\n')
             .replace(/^\n+|\n+$/g, '')
-          await window.marvin.editor.writeClipboard(text)
+          await window.marvin.editor.writeClipboardRich({ html, text })
           if (action === 'cut') view.dispatch(view.state.tr.deleteSelection())
           break
         }
         case 'paste': {
-          const text = await window.marvin.editor.readClipboard()
+          // Prefer HTML so formatting survives — clipboardParser sanitizes by
+          // dropping marks/nodes unsupported by the schema. Fall back to plain
+          // text when no HTML payload is present (cross-app text-only sources).
+          const { html, text } = await window.marvin.editor.readClipboardRich()
+          if (html) {
+            const dom = new DOMParser().parseFromString(html, 'text/html').body
+            const parser = view.someProp('clipboardParser')
+            if (parser) {
+              const slice = parser.parseSlice(dom, { preserveWhitespace: 'full' })
+              view.dispatch(view.state.tr.replaceSelection(slice))
+              break
+            }
+          }
           if (text) view.dispatch(view.state.tr.insertText(text))
           break
         }
