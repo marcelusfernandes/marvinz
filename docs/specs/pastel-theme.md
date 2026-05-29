@@ -132,7 +132,7 @@ All ratios via WCAG 2.1 relative luminance. Text: ≥ 4.5:1. UI components/borde
   /* === Borders — warm dark === */
   --border-subtle: rgba(255, 200, 150, 0.07);  /* warm white hairline */
   --border:        #3d2b1e;                     /* warm decorative divider */
-  --border-strong: #9a7460;                     /* 3.57:1 on surface-3 (AA UI component) */
+  --border-strong: #9a7460;                     /* 3.56:1 on surface-3 (AA UI component) */
 
   /* === Text — warm cream scale === */
   --text-primary:   #f5ede4;  /* warm cream; 15.48:1 on bg-app */
@@ -175,6 +175,6 @@ All ratios via WCAG 2.1 relative luminance. Text: ≥ 4.5:1. UI components/borde
 
 4. **Chat panel tokens** (`--chat-bubble-*`, `--thinking-*`, `--provider-*`) are `var()`-based and resolve automatically.
 
-5. **`--on-accent` differs between variants.** Light: `#ffffff` (white on dark clay). Dark: `#1e1510` (dark text on lighter clay). Verify button components use `var(--on-accent)`, not hardcoded `color: white`.
+5. **`--on-accent` differs between variants.** Light: `#ffffff` (white on dark clay). Dark: `#1a1614` (dark text on lighter clay). Verify button components use `var(--on-accent)`, not hardcoded `color: white`.
 
 6. **Semantic status tokens are untouched** (`--text-error`, `--border-error`, `--bg-error-*`, etc.).
