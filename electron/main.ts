@@ -762,48 +762,66 @@ ipcMain.handle('vault:watch', async (_e, vaultPath: string) => {
 const FILE_SIZE_LIMIT = 5 * 1024 * 1024 // 5 MB — guard against pathologically large files
 const BINARY_PROBE_BYTES = 8192 // any null byte in the first 8 KB → treat as binary
 
+// Re-throw fs errors as MARVIN_FS_<CODE> so raw host paths never reach the
+// renderer (e.g. "EACCES: ... '/Users/lipe/vault/foo.md'"). Our own MARVIN_*/
+// SNAPSHOT_* codes pass through untouched. Mirrors the snapshot err() envelope.
+export function wrapFsError(e: unknown): never {
+  const msg = e instanceof Error ? e.message : ''
+  if (/^(MARVIN|SNAPSHOT)_[A-Z_]+/.test(msg)) throw e
+  const code = (e as NodeJS.ErrnoException)?.code
+  throw new Error(code ? `MARVIN_FS_${code}` : 'MARVIN_FS_UNKNOWN')
+}
+
 ipcMain.handle('file:read', async (_e, filePath: string) => {
-  const safe = await assertInVault(filePath)
-  const stats = await fs.stat(safe)
-  if (stats.isDirectory()) throw new Error('MARVIN_IS_DIRECTORY')
-  if (stats.size > FILE_SIZE_LIMIT) {
-    throw new Error(`MARVIN_TOO_LARGE: ${stats.size}`)
-  }
-  // Sniff the head for null bytes — the standard binary heuristic. Most
-  // text formats (utf-8) don't contain literal NUL; most binary files do.
-  if (stats.size > 0) {
-    const fd = await fs.open(safe, 'r')
-    try {
-      const probeLen = Math.min(BINARY_PROBE_BYTES, stats.size)
-      const probe = Buffer.alloc(probeLen)
-      await fd.read(probe, 0, probeLen, 0)
-      if (probe.includes(0)) {
-        throw new Error('MARVIN_BINARY')
-      }
-    } finally {
-      await fd.close()
+  try {
+    const safe = await assertInVault(filePath)
+    const stats = await fs.stat(safe)
+    if (stats.isDirectory()) throw new Error('MARVIN_IS_DIRECTORY')
+    if (stats.size > FILE_SIZE_LIMIT) {
+      throw new Error(`MARVIN_TOO_LARGE: ${stats.size}`)
     }
+    // Sniff the head for null bytes — the standard binary heuristic. Most
+    // text formats (utf-8) don't contain literal NUL; most binary files do.
+    if (stats.size > 0) {
+      const fd = await fs.open(safe, 'r')
+      try {
+        const probeLen = Math.min(BINARY_PROBE_BYTES, stats.size)
+        const probe = Buffer.alloc(probeLen)
+        await fd.read(probe, 0, probeLen, 0)
+        if (probe.includes(0)) {
+          throw new Error('MARVIN_BINARY')
+        }
+      } finally {
+        await fd.close()
+      }
+    }
+    const content = await fs.readFile(safe, 'utf8')
+    fileContentCache.set(safe, content)
+    return content
+  } catch (e) {
+    wrapFsError(e)
   }
-  const content = await fs.readFile(safe, 'utf8')
-  fileContentCache.set(safe, content)
-  return content
 })
 
 ipcMain.handle('file:write', async (_e, filePath: string, content: string) => {
-  const safe = await assertInVault(filePath)
-  const aiActive = Date.now() - lastPtyWriteAt < AI_TURN_WINDOW_MS
-  if (aiActive && activeVaultPath && existsSync(safe)) {
-    const turnId = activeTurnId ?? newTurnId()
-    if (!activeTurnId) activeTurnId = turnId
-    const relPath = path.relative(activeVaultPath, safe)
-    try {
-      const before = await fs.readFile(safe, 'utf8')
-      await writeSnapshot(activeVaultPath, turnId, relPath, before, 'file:write')
-    } catch (err) {
-      console.error('[snapshot] file:write pre-snapshot failed', { relPath, turnId, err })
+  try {
+    const safe = await assertInVault(filePath)
+    const aiActive = Date.now() - lastPtyWriteAt < AI_TURN_WINDOW_MS
+    if (aiActive && activeVaultPath && existsSync(safe)) {
+      const turnId = activeTurnId ?? newTurnId()
+      if (!activeTurnId) activeTurnId = turnId
+      const relPath = path.relative(activeVaultPath, safe)
+      try {
+        const before = await fs.readFile(safe, 'utf8')
+        await writeSnapshot(activeVaultPath, turnId, relPath, before, 'file:write')
+      } catch (err) {
+        console.error('[snapshot] file:write pre-snapshot failed', { relPath, turnId, err })
+      }
     }
+    await fs.writeFile(safe, content, 'utf8')
+  } catch (e) {
+    wrapFsError(e)
   }
-  await fs.writeFile(safe, content, 'utf8')
 })
 
 ipcMain.handle('office:readDocx', async (_e, filePath: string) => {
@@ -891,22 +909,26 @@ ipcMain.handle('file:create', async (_e, parentDir: string, name: string) => {
 })
 
 ipcMain.handle('file:writeBinary', async (_e, payload: { vaultPath: string; relPath: string; base64Bytes: string; maxBytes?: number }) => {
-  const { vaultPath, relPath, base64Bytes, maxBytes } = payload
-  const absolute = path.join(vaultPath, relPath)
-  const safe = await assertInVault(absolute)
-  const limit = maxBytes ?? 25 * 1024 * 1024
-  // Cheap raw-length gate BEFORE decoding: base64 packs 3 bytes per 4 chars, so a
-  // string longer than (limit * 4 / 3) + 4 always decodes past the cap. Rejecting
-  // here avoids allocating a huge Buffer in main-process RAM for a hostile renderer.
-  if (base64Bytes.length > Math.floor((limit * 4) / 3) + 4) {
-    throw new Error('MARVIN_TOO_LARGE: payload')
+  try {
+    const { vaultPath, relPath, base64Bytes, maxBytes } = payload
+    const absolute = path.join(vaultPath, relPath)
+    const safe = await assertInVault(absolute)
+    const limit = maxBytes ?? 25 * 1024 * 1024
+    // Cheap raw-length gate BEFORE decoding: base64 packs 3 bytes per 4 chars, so a
+    // string longer than (limit * 4 / 3) + 4 always decodes past the cap. Rejecting
+    // here avoids allocating a huge Buffer in main-process RAM for a hostile renderer.
+    if (base64Bytes.length > Math.floor((limit * 4) / 3) + 4) {
+      throw new Error('MARVIN_TOO_LARGE: payload')
+    }
+    // Exact check on decoded length catches adversarial padding under the raw gate.
+    const decoded = Buffer.from(base64Bytes, 'base64')
+    if (decoded.length > limit) throw new Error(`MARVIN_TOO_LARGE: ${decoded.length}`)
+    await fs.mkdir(path.dirname(safe), { recursive: true })
+    await fs.writeFile(safe, decoded)
+    return path.relative(vaultPath, safe)
+  } catch (e) {
+    wrapFsError(e)
   }
-  // Exact check on decoded length catches adversarial padding under the raw gate.
-  const decoded = Buffer.from(base64Bytes, 'base64')
-  if (decoded.length > limit) throw new Error(`MARVIN_TOO_LARGE: ${decoded.length}`)
-  await fs.mkdir(path.dirname(safe), { recursive: true })
-  await fs.writeFile(safe, decoded)
-  return path.relative(vaultPath, safe)
 })
 
 ipcMain.handle('folder:create', async (_e, parentDir: string, name: string) => {
