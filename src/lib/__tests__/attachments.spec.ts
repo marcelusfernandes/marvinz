@@ -26,6 +26,17 @@ describe('buildAttachmentRelPath — slug generation', () => {
     const slug = result.replace(/^attachments\/\d{4}-\d{2}-\d{2}-\d{6}-/, '')
     expect(slug).not.toMatch(/[ /]/)
   })
+
+  it('NFC and NFD forms of the same name produce an identical slug', () => {
+    // Build both forms from one source so the test never depends on how the
+    // editor saved a literal: NFD = e + U+0301, NFC = precomposed.
+    const nfd = 'cafe\u0301.png'.normalize('NFD')
+    const nfc = 'cafe\u0301.png'.normalize('NFC')
+    expect(nfc).not.toBe(nfd) // distinct byte sequences...
+    const stripTs = (s: string) => s.replace(/^attachments\/\d{4}-\d{2}-\d{2}-\d{6}-/, '')
+    // ...but NFKC normalization collapses them to the same canonical slug.
+    expect(stripTs(buildAttachmentRelPath(nfc))).toBe(stripTs(buildAttachmentRelPath(nfd)))
+  })
 })
 
 // ---------------------------------------------------------------------------
