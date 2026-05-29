@@ -909,11 +909,17 @@ export default function App() {
       // Manual mode: native confirm sheet decides the outcome.
       const path = tab.path
       void (async () => {
-        const choice = await window.marvin.app.confirmUnsavedChanges(basenameOf(path))
-        if (choice === 'cancel') return
-        // Save aborts the close if the write fails so the buffer isn't lost.
-        if (choice === 'save' && !(await saveBuffer(path))) return
-        performCloseTab(id)
+        try {
+          const choice = await window.marvin.app.confirmUnsavedChanges(basenameOf(path))
+          if (choice === 'cancel') return
+          // Save aborts the close if the write fails so the buffer isn't lost.
+          if (choice === 'save' && !(await saveBuffer(path))) return
+          performCloseTab(id)
+        } catch (err) {
+          // Surface an IPC failure instead of dropping it; the tab stays open.
+          const detail = err instanceof Error ? err.message : String(err)
+          setError(`Couldn't close ${basenameOf(path)}: ${detail}`)
+        }
       })()
     },
     [saveMode, performCloseTab, saveBuffer],

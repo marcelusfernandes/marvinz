@@ -1359,6 +1359,8 @@ ipcMain.handle(
       defaultId: 0,
       cancelId: 2,
     }
+    // w is null only when the sender has no host window (effectively never
+    // from the renderer); the modeless fallback is intentional, not a bug.
     const { response } = w
       ? await dialog.showMessageBox(w, opts)
       : await dialog.showMessageBox(opts)
