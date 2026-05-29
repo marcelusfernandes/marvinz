@@ -264,6 +264,14 @@ describe('misspelledWordRange', () => {
     state.selection.$from.parent.isTextblock = false
     expect(misspelledWordRange(state as never, 'teh')).toBeNull()
   })
+
+  it('returns null when the caret sits in the gap right after the word', () => {
+    // 'teh' at offset 0..3; caret at offset 3 is on the following space, not in the word.
+    const blockText = 'teh world'
+    const blockStart = 1
+    const state = makePMState({ blockText, blockStart, caret: blockStart + 3 })
+    expect(misspelledWordRange(state as never, 'teh')).toBeNull()
+  })
 })
 
 // ---------------------------------------------------------------------------

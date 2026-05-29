@@ -268,6 +268,11 @@ function createWindow() {
   win.webContents.on('context-menu', (_e, params) => {
     lastSpellcheck = { misspelledWord: params.misspelledWord, suggestions: params.dictionarySuggestions }
   })
+  // Drop stale context once the window loses focus so a later right-click never
+  // reads suggestions captured for a different word/session.
+  win.on('blur', () => {
+    lastSpellcheck = { misspelledWord: '', suggestions: [] }
+  })
 
   win.on('resize', () => reapplyAllWithGeometry())
   win.on('maximize', () => reapplyAllWithGeometry())

@@ -120,7 +120,9 @@ export function misspelledWordRange(
   const caret = $from.pos - blockStart
   let idx = text.indexOf(word)
   while (idx !== -1) {
-    if (caret >= idx && caret <= idx + word.length) {
+    // Strict upper bound: caret at idx + word.length sits in the gap after the
+    // word (e.g. on the following space), which is not inside the word.
+    if (caret >= idx && caret < idx + word.length) {
       return { from: blockStart + idx, to: blockStart + idx + word.length }
     }
     idx = text.indexOf(word, idx + 1)
@@ -564,9 +566,12 @@ function LiveMarkdownInner({
       // (misspelled word + dictionary suggestions). No range comes back, so we
       // resolve the word boundary around the caret below before replacing.
       // Both IPCs run in parallel to keep the menu round-trip snappy.
+      // A rejected spellcheck IPC must not abort the whole menu — fall back to empty.
       const [canPaste, spell] = await Promise.all([
         window.marvin.app.canPaste(),
-        window.marvin.editor.getSpellcheckContext(),
+        window.marvin.editor
+          .getSpellcheckContext()
+          .catch(() => ({ misspelledWord: '', suggestions: [] as string[] })),
       ])
       const items: MenuItemSpec[] = []
       if (spell.misspelledWord && spell.suggestions.length > 0) {
@@ -590,10 +595,13 @@ function LiveMarkdownInner({
       if (action.startsWith('spell:')) {
         const replacement = spell.suggestions[Number(action.slice(6))]
         if (replacement) {
-          const range = misspelledWordRange(view.state, spell.misspelledWord)
+          // Snapshot state once: range offsets and the transaction must share
+          // the same document, or a dispatch between the two reads shifts them.
+          const currentState = view.state
+          const range = misspelledWordRange(currentState, spell.misspelledWord)
           // insertText replaces the range and inherits its marks, so adjacent
           // bold/link formatting on the word survives the correction.
-          if (range) view.dispatch(view.state.tr.insertText(replacement, range.from, range.to))
+          if (range) view.dispatch(currentState.tr.insertText(replacement, range.from, range.to))
         }
         view.focus()
         return
