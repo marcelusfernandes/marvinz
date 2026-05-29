@@ -420,7 +420,7 @@ export function buildMenuTemplate(
 
 // Tracks whether a note tab is active in the renderer so File → Export PDF /
 // Reveal in Finder can be disabled when they'd be no-ops. Updated via IPC.
-const menuHasNoteTab = false
+let menuHasNoteTab = false
 
 function buildAppMenu() {
   if (process.platform !== 'darwin') return
