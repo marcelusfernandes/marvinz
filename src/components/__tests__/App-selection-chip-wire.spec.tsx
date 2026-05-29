@@ -94,7 +94,7 @@ vi.mock('../../lib/settingsStore', () => ({
     return undefined
   },
 }))
-vi.mock('../../lib/colorTheme', () => ({ useColorTheme: vi.fn() }))
+vi.mock('../../lib/colorTheme', () => ({ useColorTheme: vi.fn(), useAgentsPaneTransparent: vi.fn() }))
 vi.mock('../../lib/visualStyle', () => ({ useVisualStyle: () => 'modern' }))
 vi.mock('../../lib/paletteRanker', () => ({}))
 

@@ -9,7 +9,7 @@ import { AgentTerminal } from '../AgentTerminal'
 // ---------------------------------------------------------------------------
 
 vi.mock('../Icon', () => ({ Icon: () => null }))
-vi.mock('../../lib/colorTheme', () => ({ useColorTheme: () => 'light' }))
+vi.mock('../../lib/colorTheme', () => ({ useColorTheme: () => 'light', useAgentsPaneTransparent: () => false }))
 vi.mock('../../lib/terminalLinkProvider', () => ({
   createTerminalLinkProvider: () => ({ dispose: vi.fn() }),
   createOsc8LinkHandler: () => ({}),

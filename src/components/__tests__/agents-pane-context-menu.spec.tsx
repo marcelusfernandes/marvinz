@@ -73,6 +73,7 @@ vi.mock('../../lib/settingsStore', () => ({
 
 vi.mock('../../lib/colorTheme', () => ({
   useColorTheme: () => 'light',
+  useAgentsPaneTransparent: () => false,
 }))
 
 // ---------------------------------------------------------------------------

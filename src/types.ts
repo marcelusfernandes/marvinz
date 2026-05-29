@@ -80,6 +80,11 @@ export type Settings = {
    * the native chat panel. Per-tab type is preserved across the toggle.
    */
   terminalModeEnabled?: boolean
+  /**
+   * When true, the right-side agents pane renders transparently so the macOS
+   * window vibrancy shows through. Defaults to opaque.
+   */
+  agentsPaneTransparent?: boolean
   saveMode?: 'auto' | 'manual'
 }
 

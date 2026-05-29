@@ -22,7 +22,7 @@ import { seedFromMain, useSetting } from './lib/settingsStore'
 import { resolveAppFindShortcut } from './lib/appFindShortcut'
 import { useClipboardStore, clipPasteLabel } from './lib/clipboardStore'
 import { useFileClipboardShortcuts } from './lib/useFileClipboardShortcuts'
-import { useColorTheme } from './lib/colorTheme'
+import { useColorTheme, useAgentsPaneTransparent } from './lib/colorTheme'
 import { useVisualStyle } from './lib/visualStyle'
 import { TopBar } from './components/TopBar'
 import { SnapshotPanel } from './components/SnapshotPanel'
@@ -278,6 +278,7 @@ function humanizeError(err: unknown): string {
 
 export default function App() {
   useColorTheme()
+  useAgentsPaneTransparent()
   const visualStyle = useVisualStyle()
   const saveMode = useSetting('saveMode') ?? 'auto'
   const [vaultPath, setVaultPath] = useState<string | null>(null)

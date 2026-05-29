@@ -2455,6 +2455,10 @@ button {
   overflow: hidden;
 }
 
+[data-agents-pane-transparent='true'] .claude-pane {
+  background: transparent;
+}
+
 .claude-terminal {
   display: flex;
   flex-direction: column;
