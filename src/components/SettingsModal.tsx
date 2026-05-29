@@ -24,6 +24,8 @@ export function SettingsModal({ onClose, layoutMode, onLayoutChange }: Props) {
   const visualStyle = useSetting('visualStyle') ?? 'modern'
   const terminalModeEnabled = useSetting('terminalModeEnabled') ?? false
   const agentsPaneTransparent = useSetting('agentsPaneTransparent') ?? false
+  const editorEffectsMaster = useSetting('editorEffectsMaster') ?? true
+  const editorEffectCaretSlide = useSetting('editorEffectCaretSlide') ?? true
   const saveMode = useSetting('saveMode') ?? 'auto'
 
   return (
@@ -245,6 +247,49 @@ export function SettingsModal({ onClose, layoutMode, onLayoutChange }: Props) {
                 Manual
               </button>
             </div>
+          </div>
+        </section>
+
+        <section className="modal-section">
+          <div className="modal-section-header">Editor effects</div>
+          <div className="modal-section-row">
+            <div>
+              <div className="modal-section-label">Smooth editor</div>
+              <div className="modal-section-hint">
+                Master switch for editor micro-animations.
+              </div>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={editorEffectsMaster}
+              className={`segmented-btn${editorEffectsMaster ? ' active' : ''}`}
+              onClick={() =>
+                void setSetting('editorEffectsMaster', !editorEffectsMaster)
+              }
+            >
+              {editorEffectsMaster ? 'On' : 'Off'}
+            </button>
+          </div>
+          <div className={`modal-section-row${editorEffectsMaster ? '' : ' is-disabled'}`}>
+            <div>
+              <div className="modal-section-label">Caret slide</div>
+              <div className="modal-section-hint">
+                The text cursor glides to its new position instead of jumping.
+              </div>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={editorEffectCaretSlide}
+              disabled={!editorEffectsMaster}
+              className={`segmented-btn${editorEffectCaretSlide ? ' active' : ''}`}
+              onClick={() =>
+                void setSetting('editorEffectCaretSlide', !editorEffectCaretSlide)
+              }
+            >
+              {editorEffectCaretSlide ? 'On' : 'Off'}
+            </button>
           </div>
         </section>
 

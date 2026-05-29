@@ -22,7 +22,7 @@ import { seedFromMain, useSetting } from './lib/settingsStore'
 import { resolveAppFindShortcut } from './lib/appFindShortcut'
 import { useClipboardStore, clipPasteLabel } from './lib/clipboardStore'
 import { useFileClipboardShortcuts } from './lib/useFileClipboardShortcuts'
-import { useColorTheme, useAgentsPaneTransparent } from './lib/colorTheme'
+import { useColorTheme, useAgentsPaneTransparent, useEditorEffects } from './lib/colorTheme'
 import { useVisualStyle } from './lib/visualStyle'
 import { useThemeFlavor } from './lib/themeFlavor'
 import { TopBar } from './components/TopBar'
@@ -280,6 +280,7 @@ function humanizeError(err: unknown): string {
 export default function App() {
   useColorTheme()
   useAgentsPaneTransparent()
+  useEditorEffects()
   const visualStyle = useVisualStyle()
   useThemeFlavor()
   const saveMode = useSetting('saveMode') ?? 'auto'
