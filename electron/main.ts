@@ -333,6 +333,8 @@ export function buildMenuTemplate(
           click: () => send('settings'),
         },
         { type: 'separator' },
+        { role: 'services' },
+        { type: 'separator' },
         { role: 'hide' },
         { role: 'hideOthers' },
         { role: 'unhide' },
@@ -349,7 +351,7 @@ export function buildMenuTemplate(
           click: () => send('new-note'),
         },
         {
-          label: 'Open Vault…',
+          label: 'Open Folder…',
           click: () => send('open-vault'),
         },
         {
@@ -412,6 +414,10 @@ export function buildMenuTemplate(
       submenu: [
         { role: 'minimize' },
         { role: 'zoom' },
+        { role: 'togglefullscreen' },
+        { type: 'separator' },
+        { role: 'front' },
+        { type: 'separator' },
         { role: 'close' },
       ],
     },
@@ -424,7 +430,11 @@ let menuHasNoteTab = false
 
 function buildAppMenu() {
   if (process.platform !== 'darwin') return
-  const send = (action: string) => win?.webContents.send('menu:action', action)
+  // `?.` only guards null; a closed-but-non-null window throws "Object has been
+  // destroyed" on send — mirror the safeSend/safeBrowserSend idiom.
+  const send = (action: string) => {
+    if (win && !win.isDestroyed()) win.webContents.send('menu:action', action)
+  }
   Menu.setApplicationMenu(Menu.buildFromTemplate(buildMenuTemplate(send, menuHasNoteTab)))
 }
 

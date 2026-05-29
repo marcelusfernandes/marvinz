@@ -1224,7 +1224,10 @@ export default function App() {
         setPaletteOpen(true)
         break
       case 'find':
-        if (!vaultPath) return
+        // Mirror the keydown guards (resolveAppFindShortcut): no find while a
+        // modal owns focus, and only on a markdown note (not PDF/image/browser).
+        if (modalOpen) return
+        if (!activeTab || !isNoteTab(activeTab) || !isMarkdownPath(activeTab.path)) return
         setOpenFindTick((t) => t + 1)
         break
       case 'new-note':

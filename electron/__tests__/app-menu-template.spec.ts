@@ -98,7 +98,7 @@ describe('buildMenuTemplate — Edit roles', () => {
 })
 
 // ---------------------------------------------------------------------------
-// 3. File menu — emits exactly the 8 expected actions
+// 3. File menu — emits exactly the 7 expected actions
 // ---------------------------------------------------------------------------
 
 describe('buildMenuTemplate — File menu actions', () => {
@@ -163,7 +163,7 @@ describe('buildMenuTemplate — File menu actions', () => {
   it('keeps note-independent items enabled regardless of note context', () => {
     const noNote = submenu(buildMenuTemplate(() => {}, false), 'File')
     const newNote = noNote.find((i) => i.label === 'New Note')
-    // New Note / Open Vault don't depend on an active note — must stay enabled.
+    // New Note / Open Folder don't depend on an active note — must stay enabled.
     expect(newNote?.enabled).not.toBe(false)
   })
 })
