@@ -266,6 +266,34 @@ describe('importExternal — blocklist denial', () => {
     expect(result.imported).toHaveLength(1)
     expect(result.skipped).toHaveLength(0)
   })
+
+  it('skips a dangling symlink with reason broken-symlink (not denied) (#204)', async () => {
+    const symlink = path.join(outside, 'dangling-link')
+    try {
+      await fs.symlink(path.join(outside, 'does-not-exist'), symlink)
+    } catch {
+      return // can't create symlink in this environment
+    }
+
+    const result = await importExternal(vault, [symlink], destDir)
+    expect(result.imported).toHaveLength(0)
+    expect(result.skipped).toHaveLength(1)
+    // The discriminator: a broken link is a user-fixable error, NOT a policy block.
+    expect(result.skipped[0]).toMatchObject({ source: symlink, reason: 'broken-symlink' })
+  })
+
+  it('keeps a blocklisted target as denied, not broken-symlink (#204)', async () => {
+    // /etc/hosts exists → realpath succeeds → isDenied blocks it → 'denied',
+    // confirming the broken-symlink branch only catches realpath failures.
+    const symlink = path.join(outside, 'policy-link')
+    try {
+      await fs.symlink('/etc/hosts', symlink)
+    } catch {
+      return
+    }
+    const result = await importExternal(vault, [symlink], destDir)
+    expect(result.skipped[0]).toMatchObject({ source: symlink, reason: 'denied' })
+  })
 })
 
 // ---------------------------------------------------------------------------

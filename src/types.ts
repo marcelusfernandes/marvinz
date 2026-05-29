@@ -214,7 +214,7 @@ export type MarvinAPI = {
 
 export type ImportExternalResult = {
   imported: string[]
-  skipped: { source: string; reason: 'not-found' | 'denied' | 'fs-error' }[]
+  skipped: { source: string; reason: 'not-found' | 'denied' | 'broken-symlink' | 'fs-error' }[]
 }
 
 export type ContentHit = {

@@ -6,7 +6,7 @@ import { resolveImportName } from './fs-import-names.js'
 
 type ImportResult = {
   imported: string[]
-  skipped: { source: string; reason: 'not-found' | 'denied' | 'fs-error' }[]
+  skipped: { source: string; reason: 'not-found' | 'denied' | 'broken-symlink' | 'fs-error' }[]
 }
 
 // Best-effort defense in depth against trivial exfiltration of well-known
@@ -115,8 +115,12 @@ export async function importExternal(
     let real: string
     try {
       real = await realpath(source)
-    } catch {
-      skipped.push({ source, reason: 'denied' })
+    } catch (e) {
+      // ENOENT here means a dangling symlink (target gone) — a user error they
+      // can fix, distinct from a security-policy block. Other codes (EACCES,
+      // ELOOP) stay 'denied' for defense.
+      const reason = (e as NodeJS.ErrnoException).code === 'ENOENT' ? 'broken-symlink' : 'denied'
+      skipped.push({ source, reason })
       continue
     }
 
