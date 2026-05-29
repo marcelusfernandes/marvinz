@@ -52,6 +52,10 @@ const pickerCallbacks: {
   onDismiss?: () => void
 } = {}
 
+// Captures the items prop the Editor passes to MentionPicker, so a test can
+// assert the picker now receives the unfiltered palette (non-md included).
+const pickerItems: { value: PaletteItem[] } = { value: [] }
+
 vi.mock('../MentionPicker', () => ({
   MentionPicker: (props: {
     query: string
@@ -64,6 +68,7 @@ vi.mock('../MentionPicker', () => ({
     // "setState during render" React warning that fires when a parent's
     // setState is triggered while a child renders. Using a timeout(0) ensures
     // the assignment runs after the render phase.
+    pickerItems.value = props.items
     setTimeout(() => {
       pickerCallbacks.onSelect = props.onSelect
       pickerCallbacks.onDismiss = props.onDismiss
@@ -260,6 +265,7 @@ beforeEach(() => {
   fakeView.state.selection.main.head = 7
   delete pickerCallbacks.onSelect
   delete pickerCallbacks.onDismiss
+  pickerItems.value = []
 })
 
 afterEach(() => {
@@ -333,6 +339,85 @@ describe('Editor mention trigger — MentionPicker lifecycle', () => {
 
     // Picker should be gone
     expect(screen.queryByTestId('mention-picker')).toBeNull()
+  })
+
+  it('inserts an image embed when a non-markdown image is selected', async () => {
+    await act(async () => {
+      render(<Editor {...defaultProps()} />)
+    })
+
+    await act(async () => {
+      capturedMentionCallbacks.value!.onOpen(6, { x: 10, y: 20 })
+      capturedMentionCallbacks.value!.onUpdate('dia', { x: 15, y: 20 })
+    })
+    await act(async () => { await new Promise((r) => setTimeout(r, 0)) })
+
+    const item = {
+      name: 'diagram.png',
+      path: '/vault/img/diagram.png',
+      rel: 'img/diagram.png',
+      isMarkdown: false,
+    } as unknown as PaletteItem
+    await act(async () => {
+      pickerCallbacks.onSelect!(item)
+    })
+
+    expect(dispatchSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        changes: expect.objectContaining({ from: 6, insert: '![[diagram.png]]' }),
+      }),
+    )
+  })
+
+  it('inserts a markdown link when a non-markdown, non-image file is selected', async () => {
+    await act(async () => {
+      render(<Editor {...defaultProps()} />)
+    })
+
+    await act(async () => {
+      capturedMentionCallbacks.value!.onOpen(6, { x: 10, y: 20 })
+      capturedMentionCallbacks.value!.onUpdate('rep', { x: 15, y: 20 })
+    })
+    await act(async () => { await new Promise((r) => setTimeout(r, 0)) })
+
+    const item = {
+      name: 'report.pdf',
+      path: '/vault/docs/report.pdf',
+      rel: 'docs/report.pdf',
+      isMarkdown: false,
+    } as unknown as PaletteItem
+    await act(async () => {
+      pickerCallbacks.onSelect!(item)
+    })
+
+    expect(dispatchSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        changes: expect.objectContaining({
+          from: 6,
+          insert: '[report.pdf](docs/report.pdf)',
+        }),
+      }),
+    )
+  })
+
+  it('passes the unfiltered palette (incl. non-md items) to MentionPicker', async () => {
+    const props = defaultProps()
+    props.paletteItems = [
+      { name: 'My Note.md', path: '/vault/My Note.md', rel: 'My Note.md', isMarkdown: true },
+      { name: 'diagram.png', path: '/vault/diagram.png', rel: 'diagram.png', isMarkdown: false },
+    ] as unknown as PaletteItem[]
+
+    await act(async () => {
+      render(<Editor {...props} />)
+    })
+    await act(async () => {
+      capturedMentionCallbacks.value!.onOpen(6, { x: 10, y: 20 })
+    })
+
+    expect(pickerItems.value.map((it) => it.name)).toEqual([
+      'My Note.md',
+      'diagram.png',
+    ])
   })
 
   it('unmounts picker without modifying document when dismissed', async () => {

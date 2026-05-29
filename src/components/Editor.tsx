@@ -38,7 +38,8 @@ import {
   persistDroppedFiles,
   readDraggedPaths,
 } from '../lib/dropAttachments'
-import { isWikilinkHref, resolveWikilink, stripMdExt } from '../lib/wikilinks'
+import { isWikilinkHref, resolveWikilink } from '../lib/wikilinks'
+import { mentionInsertText } from '../lib/mentionInsert'
 import { Icon } from './Icon'
 import { useVisualStyle } from '../lib/visualStyle'
 import { mentionTrigger } from '../lib/cmMentionTrigger'
@@ -555,11 +556,12 @@ export function Editor({
     [filePath, vaultPath, paletteItems, onNavigate],
   )
 
-  // Mention selection: replace the `@`+query span with `[[name]]`. We use
-  // the current selection head as the upper bound because the user may
-  // have typed beyond what onUpdate last reported (CodeMirror state lags
-  // React state by one render tick). Clearing `mention` tears the picker
-  // down; the inserted wikilink lives on as plain text in the document.
+  // Mention selection: replace the `@`+query span with the type-specific
+  // insert text (wikilink, image embed, or markdown link). We use the
+  // current selection head as the upper bound because the user may have
+  // typed beyond what onUpdate last reported (CodeMirror state lags React
+  // state by one render tick). Clearing `mention` tears the picker down;
+  // the inserted text lives on as plain text in the document.
   const handleMentionSelect = useCallback(
     (item: PaletteItem) => {
       const view = viewRef.current
@@ -568,11 +570,7 @@ export function Editor({
         return
       }
       const to = view.state.selection.main.head
-      // Obsidian-style wikilinks omit the `.md` extension: `[[My Note]]`,
-      // not `[[My Note.md]]`. The resolver in `wikilinks.ts` also matches
-      // by stripped basename, so keeping the extension would only break
-      // round-tripping for `.markdown` files.
-      const insert = `[[${stripMdExt(item.name)}]]`
+      const insert = mentionInsertText(item, filePath)
       view.dispatch({
         changes: { from: mention.from, to, insert },
         selection: EditorSelection.cursor(mention.from + insert.length),
@@ -580,7 +578,7 @@ export function Editor({
       setMention(null)
       view.focus()
     },
-    [mention],
+    [mention, filePath],
   )
   const handleMentionDismiss = useCallback(() => setMention(null), [])
 
@@ -744,15 +742,6 @@ export function Editor({
   // state without forcing a re-init of the editor.
   const liveKey = filePath
 
-  // The `@`-mention picker only supports markdown wikilinks (`[[Name]]`).
-  // Non-markdown items (images, attachments) would need the embed form
-  // `![[file.png]]` — that is a follow-up. Filter here so the picker's
-  // ranker never surfaces a row that cannot be inserted as a wikilink.
-  const mentionItems = useMemo(
-    () => paletteItems.filter((it) => it.isMarkdown),
-    [paletteItems],
-  )
-
   return (
     <div className="editor">
       <div className="editor-header">
@@ -852,7 +841,7 @@ export function Editor({
         {mention && effectiveMode === 'edit' && (
           <MentionPicker
             query={mention.query}
-            items={mentionItems}
+            items={paletteItems}
             anchor={mention.anchor}
             onSelect={handleMentionSelect}
             onDismiss={handleMentionDismiss}

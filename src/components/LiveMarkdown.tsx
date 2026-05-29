@@ -25,7 +25,8 @@ import { mermaidNodeView } from '../lib/mermaidNodeView'
 import { justInsertedPlugin, justInsertedPluginKey } from '../lib/pmJustInsertedHighlight'
 import { justReplacedPlugin } from '../lib/pmJustReplacedHighlight'
 import type { PaletteItem } from '../lib/paletteRanker'
-import { parseWikilinks, stripMdExt, unparseWikilinks } from '../lib/wikilinks'
+import { parseWikilinks, unparseWikilinks } from '../lib/wikilinks'
+import { mentionInsertText } from '../lib/mentionInsert'
 import { mentionTrigger } from '../lib/pmMentionTrigger'
 import { MentionPicker } from './MentionPicker'
 import {
@@ -664,16 +665,6 @@ function LiveMarkdownInner({
     [editorInfo],
   )
 
-  // The `@`-mention picker only supports markdown wikilinks (`[[Name]]`).
-  // Non-markdown items (images, attachments) would need the embed form
-  // `![[file.png]]` — that is a follow-up. Filter here so the picker's
-  // ranker never surfaces a row that cannot be inserted as a wikilink.
-  // Mirrors the same decision in Editor.tsx (CodeMirror surface).
-  const mentionItems = useMemo(
-    () => paletteItems.filter((it) => it.isMarkdown),
-    [paletteItems],
-  )
-
   // Uses the live selection head as the upper bound because PM state lags
   // React state by one render tick — `mention.query` may be one keystroke
   // behind by the time the user clicks.
@@ -692,7 +683,7 @@ function LiveMarkdownInner({
         return
       }
       const to = view.state.selection.from
-      const insertText = `[[${stripMdExt(item.name)}]]`
+      const insertText = mentionInsertText(item, filePathRef.current)
       const wikiMarkdown = parseWikilinks(insertText)
       let parsed: PMNode | null
       try {
@@ -700,10 +691,10 @@ function LiveMarkdownInner({
       } catch {
         parsed = null
       }
-      // Expected shape: paragraph > text(linked). Anything else means the
-      // parser couldn't produce a link node — fall back to a literal-text
-      // insert so the user at least sees a visible `[[Name]]` chip and can
-      // recover via mode-switch round-trip.
+      // Expected shape: paragraph > inline node (link, image, or text).
+      // Anything else means the parser couldn't produce that node — fall
+      // back to a literal-text insert so the user at least sees the raw
+      // markdown and can recover via mode-switch round-trip.
       const inlineNode = parsed?.firstChild?.firstChild
       let tr = view.state.tr
       let cursorAdvance: number
@@ -832,7 +823,7 @@ function LiveMarkdownInner({
       {mention && (
         <MentionPicker
           query={mention.query}
-          items={mentionItems}
+          items={paletteItems}
           anchor={mention.anchor}
           onSelect={handleMentionSelect}
           onDismiss={handleMentionDismiss}
