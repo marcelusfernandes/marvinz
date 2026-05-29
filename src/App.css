@@ -156,6 +156,46 @@
   --timeline-connector: var(--border-subtle);
 }
 
+[data-flavor='pastel'] {
+  /* === Surfaces — warm cream canvas (ramp lowered for reading comfort) === */
+  --bg-app:    #f7f2eb;  /* warm cream canvas */
+  --surface-1: #f2ebe0;  /* cream; cards, sidebars */
+  --surface-2: #ebe0d2;  /* warm beige; recessed inputs, search */
+  --surface-3: #e3d5c4;  /* tan; hover fills, inactive tabs */
+
+  /* === Borders — warm, muted === */
+  --border-subtle: rgba(92, 60, 30, 0.06);  /* warm tint replaces cool black/5% */
+  --border:        #e0d0be;                  /* warm divider; replaces #e8e8ea */
+  --border-strong: #8f6e5c;                  /* warm emphasis; ≥3:1 on revised surfaces (AA UI component) */
+
+  /* === Text — warm-brown scale === */
+  --text-primary:   #2b1f14;  /* dark espresso; 14.78:1 on bg-app */
+  --text-secondary: #6b5344;  /* medium warm brown; 6.57:1 on bg-app */
+  --text-tertiary:  #766050;  /* muted warm brown; 4.5:1 on surface-2 (AA) */
+
+  /* === Accent — clay/coral (Claude brand family) === */
+  --accent:       #a84f2b;                   /* clay; replaces raspberry #c95d7f */
+  --accent-bg:    rgba(168, 79, 43, 0.12);   /* warm tint wash */
+  --accent-text:  #a84f2b;                   /* same clay; 5.07:1 on bg-app (AA) */
+  --on-accent:    #ffffff;                   /* white on clay; 5.50:1 (AA) */
+
+  /* === Hover washes — warm tint === */
+  --bg-hover:        rgba(92, 60, 30, 0.07);   /* warm hover; replaces cool black/6% */
+  --bg-hover-strong: rgba(92, 60, 30, 0.12);   /* warm strong hover */
+
+  /* === Shell wash — deeper than panels so surface-1 reads as elevated === */
+  --shell-wash: rgba(235, 224, 210, 0.85);  /* surface-2 base, 0.85 opacity resists vibrancy lightening */
+
+  /* === Shadows — warmer tint for clay surfaces === */
+  --shadow-sm: 0 1px 2px rgba(60, 35, 10, 0.06);
+  --shadow-md: 0 4px 12px rgba(60, 35, 10, 0.10);
+  --shadow-lg: 0 12px 30px rgba(60, 35, 10, 0.18);
+
+  /* === Focus ring — warm tint === */
+  --focus-ring:       0 0 0 3px rgba(92, 60, 30, 0.35);
+  --focus-ring-inset: inset 0 0 0 2px rgba(92, 60, 30, 0.50);
+}
+
 [data-theme='dark'] {
   /* Surface scale inverted from light: in dark, "elevated" surfaces are
      LIGHTER (more luminance). surface-2 = recessed inputs/search,
@@ -232,6 +272,46 @@
   /* Chat panel — provider labels (dark) */
   --provider-claude-fg: #e6a06b;
   --provider-codex-fg: #e6a06b;
+}
+
+[data-flavor='pastel'][data-theme='dark'] {
+  /* === Surfaces — warm-neutral charcoal; R-B +6/+8 (subtle warmth, not espresso) === */
+  --bg-app:    #1a1614;  /* warm charcoal canvas */
+  --surface-1: #1f1b19;  /* warm charcoal; cards */
+  --surface-2: #24211e;  /* warm dark; inputs */
+  --surface-3: #2b2723;  /* raised; hover tabs */
+
+  /* === Borders — warm dark === */
+  --border-subtle: rgba(255, 200, 150, 0.07);  /* warm white tint */
+  --border:        #3d2b1e;                     /* warm dark divider */
+  --border-strong: #9a7460;                     /* warm dark emphasis; 3.42:1 on surface-3 (AA UI component) */
+
+  /* === Text — warm cream scale === */
+  --text-primary:   #f5ede4;  /* warm cream; 15.48:1 on bg-app */
+  --text-secondary: #c9a98f;  /* warm tan; 8.17:1 on bg-app */
+  --text-tertiary:  #b09070;  /* muted warm; 6.04:1 on bg-app */
+
+  /* === Accent — lighter clay for dark surfaces === */
+  --accent:       #d97a45;                   /* lighter clay; bright enough on dark */
+  --accent-bg:    rgba(217, 122, 69, 0.18);  /* warm tint wash */
+  --accent-text:  #d97a45;                   /* 5.83:1 on bg-app (AA) */
+  --on-accent:    #1a1614;                   /* dark text on light clay; 5.84:1 (AA) */
+
+  /* === Hover washes — warm light tint === */
+  --bg-hover:        rgba(255, 200, 150, 0.08);
+  --bg-hover-strong: rgba(255, 200, 150, 0.13);
+
+  /* === Shell wash — dark espresso vibrancy tint === */
+  --shell-wash: rgba(18, 12, 8, 0.78);
+
+  /* === Shadows — heavier for dark as per token rules === */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.20);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.35);
+  --shadow-lg: 0 12px 30px rgba(0, 0, 0, 0.55);
+
+  /* === Focus ring — warm tint on dark === */
+  --focus-ring:       0 0 0 3px rgba(255, 200, 150, 0.35);
+  --focus-ring-inset: inset 0 0 0 2px rgba(255, 200, 150, 0.50);
 }
 
 * {
