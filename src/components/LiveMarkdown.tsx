@@ -39,6 +39,7 @@ import {
 } from '../lib/dropAttachments'
 import type { ImportToastState } from './ImportToast'
 import type { AgentKind } from '../lib/agent-drop-format'
+import type { MenuItemSpec } from '../types'
 import { formatSelectionForAgent } from '../lib/agent-selection-format'
 import { clampToViewport } from '../lib/chipViewportClamp'
 import { EditorSelectionChip } from './EditorSelectionChip'
@@ -97,6 +98,34 @@ export function findSelectionLineRange(selectedText: string, source: string): st
   const startLine = source.slice(0, idx).split('\n').length
   const endLine = source.slice(0, idx + trimmed.length).split('\n').length
   return startLine === endLine ? `${startLine}` : `${startLine}-${endLine}`
+}
+
+// Resolve the document range of a misspelled word so a suggestion can replace
+// it. The native context-menu event positions the caret inside the clicked
+// word but the IPC returns no range, so we scan the caret's textblock for the
+// occurrence of `word` that contains the cursor offset. Picking the occurrence
+// under the caret (rather than the first match) keeps the right word when it
+// repeats in the block. Returns null when the caret isn't inside a textblock
+// or the word can't be located there.
+export function misspelledWordRange(
+  state: import('prosemirror-state').EditorState,
+  word: string,
+): { from: number; to: number } | null {
+  if (!word) return null
+  const $from = state.selection.$from
+  const parent = $from.parent
+  if (!parent.isTextblock) return null
+  const blockStart = $from.start()
+  const text = parent.textContent
+  const caret = $from.pos - blockStart
+  let idx = text.indexOf(word)
+  while (idx !== -1) {
+    if (caret >= idx && caret <= idx + word.length) {
+      return { from: blockStart + idx, to: blockStart + idx + word.length }
+    }
+    idx = text.indexOf(word, idx + 1)
+  }
+  return null
 }
 
 // Backspace command: when the cursor is immediately after an atom inline
@@ -532,7 +561,18 @@ function LiveMarkdownInner({
       const state = view.state
       const hasSelection = !state.selection.empty
       const canPaste = await window.marvin.app.canPaste()
-      const action = await window.marvin.app.showContextMenu([
+      // Native spellcheck context — main caches the last context-menu params
+      // (misspelled word + dictionary suggestions). No range comes back, so we
+      // resolve the word boundary around the caret below before replacing.
+      const spell = await window.marvin.editor.getSpellcheckContext()
+      const items: MenuItemSpec[] = []
+      if (spell.misspelledWord && spell.suggestions.length > 0) {
+        spell.suggestions.slice(0, 5).forEach((s, i) => {
+          items.push({ kind: 'item', id: `spell:${i}`, label: s })
+        })
+        items.push({ kind: 'separator' })
+      }
+      items.push(
         { kind: 'item', id: 'cut', label: 'Cut', accelerator: 'CmdOrCtrl+X', enabled: hasSelection },
         { kind: 'item', id: 'copy', label: 'Copy', accelerator: 'CmdOrCtrl+C', enabled: hasSelection },
         { kind: 'item', id: 'paste', label: 'Paste', accelerator: 'CmdOrCtrl+V', enabled: canPaste },
@@ -541,8 +581,20 @@ function LiveMarkdownInner({
         { kind: 'separator' },
         { kind: 'item', id: 'undo', label: 'Undo', accelerator: 'CmdOrCtrl+Z', enabled: undoDepth(state) > 0 },
         { kind: 'item', id: 'redo', label: 'Redo', accelerator: 'CmdOrCtrl+Shift+Z', enabled: redoDepth(state) > 0 },
-      ])
+      )
+      const action = await window.marvin.app.showContextMenu(items)
       if (!action) return
+      if (action.startsWith('spell:')) {
+        const replacement = spell.suggestions[Number(action.slice(6))]
+        if (replacement) {
+          const range = misspelledWordRange(view.state, spell.misspelledWord)
+          // insertText replaces the range and inherits its marks, so adjacent
+          // bold/link formatting on the word survives the correction.
+          if (range) view.dispatch(view.state.tr.insertText(replacement, range.from, range.to))
+        }
+        view.focus()
+        return
+      }
       switch (action) {
         case 'selectAll':
           selectAll(view.state, view.dispatch, view)

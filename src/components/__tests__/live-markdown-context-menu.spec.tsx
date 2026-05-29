@@ -204,12 +204,14 @@ let showContextMenuMock: ReturnType<typeof vi.fn>
 let canPasteMock: ReturnType<typeof vi.fn>
 let writeClipboardRichMock: ReturnType<typeof vi.fn>
 let readClipboardRichMock: ReturnType<typeof vi.fn>
+let getSpellcheckContextMock: ReturnType<typeof vi.fn>
 
 function setupMarvinMock() {
   showContextMenuMock = vi.fn()
   canPasteMock = vi.fn().mockResolvedValue(false)
   writeClipboardRichMock = vi.fn().mockResolvedValue(undefined)
   readClipboardRichMock = vi.fn().mockResolvedValue({ html: '', text: '' })
+  getSpellcheckContextMock = vi.fn().mockResolvedValue({ misspelledWord: '', suggestions: [] })
   Object.defineProperty(globalThis, 'window', {
     value: {
       ...(typeof window !== 'undefined' ? window : {}),
@@ -223,6 +225,7 @@ function setupMarvinMock() {
           readClipboard: vi.fn(),
           writeClipboardRich: writeClipboardRichMock,
           readClipboardRich: readClipboardRichMock,
+          getSpellcheckContext: getSpellcheckContextMock,
         },
         shell: { openExternal: vi.fn() },
       },

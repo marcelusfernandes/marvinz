@@ -79,6 +79,7 @@ const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL']
 const RENDERER_DIST = path.join(process.env.APP_ROOT, 'dist')
 
 let win: BrowserWindow | null = null
+let lastSpellcheck: { misspelledWord: string; suggestions: string[] } = { misspelledWord: '', suggestions: [] }
 let vaultWatcher: FSWatcher | null = null
 let activeVaultPath: string | null = null
 
@@ -258,6 +259,14 @@ function createWindow() {
   win.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url)
     return { action: 'deny' }
+  })
+
+  win.webContents.session.setSpellCheckerEnabled(true)
+  // macOS uses the OS dictionary and may ignore this; that's expected behaviour.
+  win.webContents.session.setSpellCheckerLanguages(['en-US', 'pt-BR'])
+
+  win.webContents.on('context-menu', (_e, params) => {
+    lastSpellcheck = { misspelledWord: params.misspelledWord, suggestions: params.dictionarySuggestions }
   })
 
   win.on('resize', () => reapplyAllWithGeometry())
@@ -1175,6 +1184,8 @@ ipcMain.handle('editor:clipboard-write-rich', (_e, payload: { html: string; text
 ipcMain.handle('editor:clipboard-read-rich', (): { html: string; text: string } => {
   return { html: clipboard.readHTML(), text: clipboard.readText() }
 })
+
+ipcMain.handle('editor:spellcheck-context', () => lastSpellcheck)
 
 function detectBinary(name: string): string | null {
   // Defensive: only allow simple binary names — no path traversal or shell.

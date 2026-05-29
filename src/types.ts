@@ -179,6 +179,7 @@ export type MarvinAPI = {
     writeClipboard: (text: string) => Promise<void>
     writeClipboardRich: (payload: { html: string; text: string }) => Promise<void>
     readClipboardRich: () => Promise<{ html: string; text: string }>
+    getSpellcheckContext: () => Promise<{ misspelledWord: string; suggestions: string[] }>
   }
   app: {
     showContextMenu: (items: MenuItemSpec[]) => Promise<string | null>
