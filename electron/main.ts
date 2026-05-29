@@ -894,9 +894,15 @@ ipcMain.handle('file:writeBinary', async (_e, payload: { vaultPath: string; relP
   const { vaultPath, relPath, base64Bytes, maxBytes } = payload
   const absolute = path.join(vaultPath, relPath)
   const safe = await assertInVault(absolute)
-  // Size check on decoded length — base64 inflates by ~33%, so we must check after decoding.
-  const decoded = Buffer.from(base64Bytes, 'base64')
   const limit = maxBytes ?? 25 * 1024 * 1024
+  // Cheap raw-length gate BEFORE decoding: base64 packs 3 bytes per 4 chars, so a
+  // string longer than (limit * 4 / 3) + 4 always decodes past the cap. Rejecting
+  // here avoids allocating a huge Buffer in main-process RAM for a hostile renderer.
+  if (base64Bytes.length > (limit * 4) / 3 + 4) {
+    throw new Error('MARVIN_TOO_LARGE: payload')
+  }
+  // Exact check on decoded length catches adversarial padding under the raw gate.
+  const decoded = Buffer.from(base64Bytes, 'base64')
   if (decoded.length > limit) throw new Error(`MARVIN_TOO_LARGE: ${decoded.length}`)
   await fs.mkdir(path.dirname(safe), { recursive: true })
   await fs.writeFile(safe, decoded)
