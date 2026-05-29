@@ -20,6 +20,7 @@ export function SettingsModal({ onClose, layoutMode, onLayoutChange }: Props) {
 
   const iconTheme = useSetting('iconTheme') ?? 'codicon'
   const colorTheme = useSetting('colorTheme') ?? 'system'
+  const themeFlavor = useSetting('themeFlavor') ?? 'default'
   const visualStyle = useSetting('visualStyle') ?? 'modern'
   const terminalModeEnabled = useSetting('terminalModeEnabled') ?? false
   const saveMode = useSetting('saveMode') ?? 'auto'
@@ -70,6 +71,34 @@ export function SettingsModal({ onClose, layoutMode, onLayoutChange }: Props) {
                 onClick={() => void setSetting('colorTheme', 'system')}
               >
                 System
+              </button>
+            </div>
+          </div>
+          <div className="modal-section-row">
+            <div>
+              <div className="modal-section-label">Color flavor</div>
+              <div className="modal-section-hint">
+                Use the default palette or a softer pastel tint.
+              </div>
+            </div>
+            <div className="segmented" role="radiogroup" aria-label="Color flavor">
+              <button
+                type="button"
+                role="radio"
+                aria-checked={themeFlavor === 'default'}
+                className={`segmented-btn${themeFlavor === 'default' ? ' active' : ''}`}
+                onClick={() => void setSetting('themeFlavor', 'default')}
+              >
+                Default
+              </button>
+              <button
+                type="button"
+                role="radio"
+                aria-checked={themeFlavor === 'pastel'}
+                className={`segmented-btn${themeFlavor === 'pastel' ? ' active' : ''}`}
+                onClick={() => void setSetting('themeFlavor', 'pastel')}
+              >
+                Pastel
               </button>
             </div>
           </div>
