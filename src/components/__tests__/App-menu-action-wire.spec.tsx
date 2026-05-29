@@ -306,6 +306,14 @@ describe('App menu-action wire — modals and state', () => {
     fireMenu('find')
     expect(lastEditorProps.current?.openFindTick).toBe(before + 1)
   })
+
+  it("'find' is a no-op while a modal is open", async () => {
+    await renderWithNoteTab()
+    fireMenu('settings') // opens the settings modal → modalOpen true
+    const before = lastEditorProps.current?.openFindTick as number
+    fireMenu('find')
+    expect(lastEditorProps.current?.openFindTick).toBe(before)
+  })
 })
 
 // ===========================================================================

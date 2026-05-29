@@ -24,12 +24,14 @@ function submenu(
   return (entry?.submenu as Electron.MenuItemConstructorOptions[]) ?? []
 }
 
-// Invoke every click in a freshly-built submenu
-function collectActions(menuLabel: string): string[] {
+// Invoke every ENABLED click in a freshly-built submenu — mirrors Electron,
+// which never fires click handlers for disabled items.
+function collectActions(menuLabel: string, hasNoteTab = true): string[] {
   const fired: string[] = []
-  const t = buildMenuTemplate((a) => fired.push(a))
+  const t = buildMenuTemplate((a) => fired.push(a), hasNoteTab)
   const sub = submenu(t, menuLabel)
   for (const item of sub) {
+    if (item.enabled === false) continue
     item.click?.(
       {} as Electron.MenuItem,
       {} as Electron.BrowserWindow,
@@ -112,9 +114,18 @@ describe('buildMenuTemplate — File menu actions', () => {
     'command-palette',
   ]
 
-  it('emits all 7 File actions when every item is clicked', () => {
-    const fired = collectActions('File')
+  it('emits all 7 File actions when a note tab is active (all enabled)', () => {
+    const fired = collectActions('File', true)
     expect(fired.sort()).toEqual(EXPECTED_FILE_ACTIONS.sort())
+  })
+
+  it('does not fire Export PDF / Reveal in Finder when no note tab is active', () => {
+    const fired = collectActions('File', false)
+    expect(fired).not.toContain('export-pdf')
+    expect(fired).not.toContain('reveal')
+    // The note-independent actions still fire.
+    expect(fired).toContain('new-note')
+    expect(fired).toContain('open-vault')
   })
 
   it('emits new-note on New Note click', () => {

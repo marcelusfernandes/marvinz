@@ -320,7 +320,7 @@ function mimeFor(filePath: string): string {
 
 export function buildMenuTemplate(
   send: (action: string) => void,
-  hasNoteTab = true,
+  hasNoteTab = false,
 ): Electron.MenuItemConstructorOptions[] {
   return [
     {
@@ -404,9 +404,10 @@ export function buildMenuTemplate(
           accelerator: 'Cmd+F',
           click: () => send('find'),
         },
-        { type: 'separator' },
-        { role: 'reload' },
-        { role: 'toggleDevTools' },
+        // Reload + DevTools are dev-only — hidden in packaged builds so end
+        // users don't see them in the View menu.
+        { role: 'reload', visible: !app.isPackaged },
+        { role: 'toggleDevTools', visible: !app.isPackaged },
       ],
     },
     {
@@ -1298,6 +1299,7 @@ ipcMain.handle('app:can-paste', (): boolean =>
 // Renderer reports whether a note tab is active so the app menu can disable
 // the note-only items (Export PDF, Reveal in Finder). Rebuilds the menu.
 ipcMain.on('app:menu-note-context', (_e, hasNoteTab: boolean) => {
+  if (typeof hasNoteTab !== 'boolean' || hasNoteTab === menuHasNoteTab) return
   menuHasNoteTab = hasNoteTab
   buildAppMenu()
 })
