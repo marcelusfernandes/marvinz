@@ -560,11 +560,14 @@ function LiveMarkdownInner({
       e.preventDefault()
       const state = view.state
       const hasSelection = !state.selection.empty
-      const canPaste = await window.marvin.app.canPaste()
       // Native spellcheck context — main caches the last context-menu params
       // (misspelled word + dictionary suggestions). No range comes back, so we
       // resolve the word boundary around the caret below before replacing.
-      const spell = await window.marvin.editor.getSpellcheckContext()
+      // Both IPCs run in parallel to keep the menu round-trip snappy.
+      const [canPaste, spell] = await Promise.all([
+        window.marvin.app.canPaste(),
+        window.marvin.editor.getSpellcheckContext(),
+      ])
       const items: MenuItemSpec[] = []
       if (spell.misspelledWord && spell.suggestions.length > 0) {
         spell.suggestions.slice(0, 5).forEach((s, i) => {
