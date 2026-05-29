@@ -33,6 +33,12 @@ function readFromLocalStorage(): Settings {
     if (terminalModeEnabled === 'true' || terminalModeEnabled === 'false') {
       out.terminalModeEnabled = terminalModeEnabled === 'true'
     }
+    const agentsPaneTransparent = window.localStorage.getItem(
+      `${LS_PREFIX}agentsPaneTransparent`,
+    )
+    if (agentsPaneTransparent === 'true' || agentsPaneTransparent === 'false') {
+      out.agentsPaneTransparent = agentsPaneTransparent === 'true'
+    }
     const saveMode = window.localStorage.getItem(`${LS_PREFIX}saveMode`)
     if (saveMode === 'auto' || saveMode === 'manual') {
       out.saveMode = saveMode

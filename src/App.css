@@ -2535,6 +2535,15 @@ button {
   overflow: hidden;
 }
 
+[data-agents-pane-transparent='true'] .claude-pane {
+  background: transparent;
+  border-radius: 0;
+}
+
+[data-agents-pane-transparent='true'] .agent-tabs {
+  padding: 0;
+}
+
 .claude-terminal {
   display: flex;
   flex-direction: column;

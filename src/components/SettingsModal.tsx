@@ -23,6 +23,7 @@ export function SettingsModal({ onClose, layoutMode, onLayoutChange }: Props) {
   const themeFlavor = useSetting('themeFlavor') ?? 'default'
   const visualStyle = useSetting('visualStyle') ?? 'modern'
   const terminalModeEnabled = useSetting('terminalModeEnabled') ?? false
+  const agentsPaneTransparent = useSetting('agentsPaneTransparent') ?? false
   const saveMode = useSetting('saveMode') ?? 'auto'
 
   return (
@@ -129,6 +130,25 @@ export function SettingsModal({ onClose, layoutMode, onLayoutChange }: Props) {
                 Material
               </button>
             </div>
+          </div>
+          <div className="modal-section-row">
+            <div>
+              <div className="modal-section-label">Transparent agents pane</div>
+              <div className="modal-section-hint">
+                Let the macOS window vibrancy show through the right-side agents panel.
+              </div>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={agentsPaneTransparent}
+              className={`segmented-btn${agentsPaneTransparent ? ' active' : ''}`}
+              onClick={() =>
+                void setSetting('agentsPaneTransparent', !agentsPaneTransparent)
+              }
+            >
+              {agentsPaneTransparent ? 'On' : 'Off'}
+            </button>
           </div>
         </section>
 

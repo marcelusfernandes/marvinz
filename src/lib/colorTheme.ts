@@ -33,3 +33,22 @@ export function useColorTheme(): ResolvedTheme {
 
   return resolved
 }
+
+/**
+ * Applies `data-agents-pane-transparent` on <html> based on the user's
+ * `agentsPaneTransparent` setting. Removes the attribute when off so the pane
+ * stays opaque.
+ */
+export function useAgentsPaneTransparent(): boolean {
+  const setting = useSetting('agentsPaneTransparent') ?? false
+
+  useEffect(() => {
+    if (setting) {
+      document.documentElement.dataset.agentsPaneTransparent = 'true'
+    } else {
+      delete document.documentElement.dataset.agentsPaneTransparent
+    }
+  }, [setting])
+
+  return setting
+}
