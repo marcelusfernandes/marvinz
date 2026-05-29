@@ -80,6 +80,7 @@ function setupMarvinMock() {
       app: {
         showContextMenu: showContextMenuMock,
         canPaste: vi.fn().mockResolvedValue(false),
+        onMenuAction: vi.fn(() => () => {}),
       },
       shell: {
         reveal: vi.fn().mockResolvedValue(undefined),

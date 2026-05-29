@@ -168,6 +168,11 @@ const api = {
     showContextMenu: (items: MenuItemSpec[]) =>
       ipcRenderer.invoke('app:show-context-menu', items) as Promise<string | null>,
     canPaste: () => ipcRenderer.invoke('app:can-paste') as Promise<boolean>,
+    onMenuAction: (cb: (action: string) => void) => {
+      const h = (_e: unknown, a: string) => cb(a)
+      ipcRenderer.on('menu:action', h)
+      return () => ipcRenderer.removeListener('menu:action', h)
+    },
   },
   fs: {
     importExternal: (sources: string[], destDir: string) =>

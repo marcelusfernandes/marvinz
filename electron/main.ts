@@ -318,6 +318,109 @@ function mimeFor(filePath: string): string {
   return MIME_BY_EXT[ext] ?? 'application/octet-stream'
 }
 
+export function buildMenuTemplate(
+  send: (action: string) => void,
+): Electron.MenuItemConstructorOptions[] {
+  return [
+    {
+      label: 'Marvinz',
+      submenu: [
+        { role: 'about' },
+        {
+          label: 'Settings…',
+          accelerator: 'Cmd+,',
+          click: () => send('settings'),
+        },
+        { type: 'separator' },
+        { role: 'hide' },
+        { role: 'hideOthers' },
+        { role: 'unhide' },
+        { type: 'separator' },
+        { role: 'quit' },
+      ],
+    },
+    {
+      label: 'File',
+      submenu: [
+        {
+          label: 'New Note',
+          accelerator: 'Cmd+N',
+          click: () => send('new-note'),
+        },
+        {
+          label: 'Open Vault…',
+          click: () => send('open-vault'),
+        },
+        {
+          label: 'Export PDF',
+          click: () => send('export-pdf'),
+        },
+        {
+          label: 'Reveal in Finder',
+          click: () => send('reveal'),
+        },
+        { type: 'separator' },
+        {
+          label: 'Save',
+          accelerator: 'Cmd+S',
+          click: () => send('save'),
+        },
+        { type: 'separator' },
+        {
+          label: 'New Agent Terminal',
+          accelerator: 'Cmd+Shift+T',
+          click: () => send('new-agent-terminal'),
+        },
+        { type: 'separator' },
+        {
+          label: 'Command Palette',
+          accelerator: 'Cmd+P',
+          click: () => send('command-palette'),
+        },
+      ],
+    },
+    {
+      label: 'Edit',
+      submenu: [
+        { role: 'undo' },
+        { role: 'redo' },
+        { type: 'separator' },
+        { role: 'cut' },
+        { role: 'copy' },
+        { role: 'paste' },
+        { role: 'selectAll' },
+      ],
+    },
+    {
+      label: 'View',
+      submenu: [
+        {
+          label: 'Find',
+          accelerator: 'Cmd+F',
+          click: () => send('find'),
+        },
+        { type: 'separator' },
+        { role: 'reload' },
+        { role: 'toggleDevTools' },
+      ],
+    },
+    {
+      label: 'Window',
+      submenu: [
+        { role: 'minimize' },
+        { role: 'zoom' },
+        { role: 'close' },
+      ],
+    },
+  ]
+}
+
+function buildAppMenu() {
+  if (process.platform !== 'darwin') return
+  const send = (action: string) => win?.webContents.send('menu:action', action)
+  Menu.setApplicationMenu(Menu.buildFromTemplate(buildMenuTemplate(send)))
+}
+
 app.whenReady().then(() => {
   protocol.handle('marvin', async (request) => {
     try {
@@ -388,6 +491,7 @@ app.whenReady().then(() => {
   }).catch(() => {})
 
   createWindow()
+  buildAppMenu()
 })
 
 // Kill every long-lived child (pty shells + their trees, agent CLIs + their
