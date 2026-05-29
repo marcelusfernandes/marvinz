@@ -58,11 +58,10 @@ export function useAgentsPaneTransparent(): boolean {
  * (master) and `data-editor-effect-caret-slide`. CSS targets the combination,
  * so absent attributes disable the effect. Both default on.
  *
- * Also mirrors `prefers-reduced-motion: reduce` into a central `data-reduced-motion`
- * signal on <html>. CSS effects opt out via the `@media (prefers-reduced-motion:
- * no-preference)` guard; the attribute is for the JS-driven effects landing in
- * later milestone #20 subs (char entrance, parallax) — a media query can't gate a
- * JS decoration or scroll listener, so those read this attribute instead.
+ * Also sets a central reduced-motion signal on <html> via `data-reduced-motion`.
+ * CSS effects opt out via the `@media (prefers-reduced-motion: no-preference)`
+ * guard; JS-driven effects (char entrance, parallax — subs of #20) read this
+ * attribute since a media query can't gate a JS decoration or scroll listener.
  */
 export function useEditorEffects(): void {
   const master = useSetting('editorEffectsMaster') ?? true
