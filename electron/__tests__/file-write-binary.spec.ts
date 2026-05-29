@@ -30,8 +30,12 @@ async function writeBinary(
   const { relPath, base64Bytes, maxBytes } = payload
   const absolute = path.join(vaultPath, relPath)
   const safe = await assertInsideVaultAsync(vaultPath, absolute)
-  const decoded = Buffer.from(base64Bytes, 'base64')
   const limit = maxBytes ?? 25 * 1024 * 1024
+  // Raw-length gate before decode (mirrors main.ts file:writeBinary).
+  if (base64Bytes.length > Math.floor((limit * 4) / 3) + 4) {
+    throw new Error('MARVIN_TOO_LARGE: payload')
+  }
+  const decoded = Buffer.from(base64Bytes, 'base64')
   if (decoded.length > limit) throw new Error(`MARVIN_TOO_LARGE: ${decoded.length}`)
   await fs.mkdir(path.dirname(safe), { recursive: true })
   await fs.writeFile(safe, decoded)
@@ -86,6 +90,32 @@ describe('file:writeBinary — oversized payload', () => {
     ).rejects.toThrow('MARVIN_TOO_LARGE: 11')
 
     // File must not exist after the throw
+    await expect(fs.access(path.join(vault, relPath))).rejects.toThrow()
+  })
+
+  it('fires the raw-length pre-check (": payload") before decoding an oversized string', async () => {
+    // 100-char base64 with maxBytes:10 trips the raw gate (limit*4/3+4 ≈ 17),
+    // so it rejects before Buffer.from ever allocates.
+    const b64 = 'A'.repeat(100)
+    const relPath = 'attachments/huge.bin'
+
+    await expect(
+      writeBinary(vault, { relPath, base64Bytes: b64, maxBytes: 10 }),
+    ).rejects.toThrow(/MARVIN_TOO_LARGE: payload$/)
+
+    await expect(fs.access(path.join(vault, relPath))).rejects.toThrow()
+  })
+
+  it('catches a string that slips under the raw gate but decodes over the limit', async () => {
+    // limit=10 → raw gate ≈ 17 chars. 16 chars is under it, but decodes to 12
+    // bytes (> 10), so the exact decoded check fires — proves the two-gate design.
+    const b64 = 'A'.repeat(16)
+    const relPath = 'attachments/adversarial.bin'
+
+    await expect(
+      writeBinary(vault, { relPath, base64Bytes: b64, maxBytes: 10 }),
+    ).rejects.toThrow(/MARVIN_TOO_LARGE: 12$/)
+
     await expect(fs.access(path.join(vault, relPath))).rejects.toThrow()
   })
 })
