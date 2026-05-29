@@ -180,6 +180,10 @@ export function Editor({
   const [langExt, setLangExt] = useState<Extension | null>(null)
   const timer = useRef<number | null>(null)
   const latestValue = useRef(initialContent)
+  // Last content known to be on disk for this buffer. Seeded from
+  // initialContent and advanced after each successful save so dirty can be
+  // derived by comparison (undo back to this value clears dirty).
+  const savedContentRef = useRef(initialContent)
   const viewRef = useRef<EditorView | null>(null)
   const isDirtyRef = useRef(false)
   const saveModeRef = useRef(saveMode)
@@ -449,6 +453,7 @@ export function Editor({
   useEffect(() => {
     setValue(initialContent)
     latestValue.current = initialContent
+    savedContentRef.current = initialContent
     setSavedAt(null)
     setDirty(false)
   }, [filePath, initialContent, setDirty])
@@ -465,10 +470,14 @@ export function Editor({
       timer.current = null
     }
     setSaving(true)
+    // Snapshot the content being written so a keystroke racing the await
+    // doesn't make us record a stale saved value or wrongly clear dirty.
+    const saved = latestValue.current
     try {
-      await onSaveRef.current(latestValue.current)
+      await onSaveRef.current(saved)
+      savedContentRef.current = saved
       setSavedAt(Date.now())
-      setDirty(false)
+      setDirty(latestValue.current !== saved)
     } finally {
       setSaving(false)
     }
@@ -488,7 +497,7 @@ export function Editor({
       setValue(next)
       latestValue.current = next
       onBufferChange?.(next)
-      setDirty(true)
+      setDirty(next !== savedContentRef.current)
       if (saveModeRef.current === 'manual') {
         if (timer.current) {
           window.clearTimeout(timer.current)

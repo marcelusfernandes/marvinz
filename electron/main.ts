@@ -1345,6 +1345,27 @@ ipcMain.handle('app:can-paste', (): boolean =>
   clipboard.availableFormats().some(f => f.startsWith('text/') || f === 'text')
 )
 
+// Native "unsaved changes" confirmation. Window-modal sheet on macOS so it
+// reads as a system prompt rather than an in-app modal.
+ipcMain.handle(
+  'app:confirm-unsaved',
+  async (e, fileName: string): Promise<'save' | 'discard' | 'cancel'> => {
+    const w = BrowserWindow.fromWebContents(e.sender)
+    const opts: Electron.MessageBoxOptions = {
+      type: 'warning',
+      message: `Do you want to save the changes you made to “${fileName}”?`,
+      detail: "Your changes will be lost if you don't save them.",
+      buttons: ['Save', "Don't Save", 'Cancel'],
+      defaultId: 0,
+      cancelId: 2,
+    }
+    const { response } = w
+      ? await dialog.showMessageBox(w, opts)
+      : await dialog.showMessageBox(opts)
+    return response === 0 ? 'save' : response === 1 ? 'discard' : 'cancel'
+  },
+)
+
 // Renderer reports whether a note tab is active so the app menu can disable
 // the note-only items (Export PDF, Reveal in Finder). Rebuilds the menu.
 ipcMain.on('app:menu-note-context', (_e, hasNoteTab: boolean) => {
