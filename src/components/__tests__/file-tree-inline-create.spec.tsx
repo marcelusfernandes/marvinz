@@ -256,7 +256,7 @@ describe('FileTree — inline create Enter key (issue #254)', () => {
 
 describe('FileTree — inline create duplicate name error (issue #254)', () => {
   it('shows error class on input and does NOT call onCreatingInChange when IPC rejects with EEXIST', async () => {
-    fileCreateMock.mockRejectedValueOnce(new Error('File already exists'))
+    fileCreateMock.mockRejectedValueOnce(new Error('MARVIN_FS_EEXIST'))
     const onCreatingInChange = vi.fn()
     render(
       <FileTree
