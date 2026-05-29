@@ -39,6 +39,18 @@ function readFromLocalStorage(): Settings {
     if (agentsPaneTransparent === 'true' || agentsPaneTransparent === 'false') {
       out.agentsPaneTransparent = agentsPaneTransparent === 'true'
     }
+    const editorEffectsMaster = window.localStorage.getItem(
+      `${LS_PREFIX}editorEffectsMaster`,
+    )
+    if (editorEffectsMaster === 'true' || editorEffectsMaster === 'false') {
+      out.editorEffectsMaster = editorEffectsMaster === 'true'
+    }
+    const editorEffectCaretSlide = window.localStorage.getItem(
+      `${LS_PREFIX}editorEffectCaretSlide`,
+    )
+    if (editorEffectCaretSlide === 'true' || editorEffectCaretSlide === 'false') {
+      out.editorEffectCaretSlide = editorEffectCaretSlide === 'true'
+    }
     const saveMode = window.localStorage.getItem(`${LS_PREFIX}saveMode`)
     if (saveMode === 'auto' || saveMode === 'manual') {
       out.saveMode = saveMode

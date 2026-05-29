@@ -52,3 +52,48 @@ export function useAgentsPaneTransparent(): boolean {
 
   return setting
 }
+
+/**
+ * Applies editor micro-animation data-attributes on <html>: `data-editor-effects`
+ * (master) and `data-editor-effect-caret-slide`. CSS targets the combination,
+ * so absent attributes disable the effect. Both default on.
+ *
+ * Also sets a central reduced-motion signal on <html> via `data-reduced-motion`.
+ * CSS effects opt out via the `@media (prefers-reduced-motion: no-preference)`
+ * guard; JS-driven effects (char entrance, parallax — subs of #20) read this
+ * attribute since a media query can't gate a JS decoration or scroll listener.
+ */
+export function useEditorEffects(): void {
+  const master = useSetting('editorEffectsMaster') ?? true
+  const caretSlide = useSetting('editorEffectCaretSlide') ?? true
+
+  useEffect(() => {
+    if (master) {
+      document.documentElement.dataset.editorEffects = 'on'
+    } else {
+      delete document.documentElement.dataset.editorEffects
+    }
+  }, [master])
+
+  useEffect(() => {
+    if (caretSlide) {
+      document.documentElement.dataset.editorEffectCaretSlide = 'on'
+    } else {
+      delete document.documentElement.dataset.editorEffectCaretSlide
+    }
+  }, [caretSlide])
+
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)')
+    const apply = () => {
+      if (mq.matches) {
+        document.documentElement.dataset.reducedMotion = 'true'
+      } else {
+        delete document.documentElement.dataset.reducedMotion
+      }
+    }
+    apply()
+    mq.addEventListener('change', apply)
+    return () => mq.removeEventListener('change', apply)
+  }, [])
+}

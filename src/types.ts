@@ -86,6 +86,16 @@ export type Settings = {
    * window vibrancy shows through. Defaults to opaque.
    */
   agentsPaneTransparent?: boolean
+  /**
+   * Master switch for editor micro-animations. When false, every editor effect
+   * is suppressed regardless of the per-effect toggles. Defaults to on.
+   */
+  editorEffectsMaster?: boolean
+  /**
+   * When true, the editor caret glides to its new position instead of jumping.
+   * Gated behind editorEffectsMaster. Defaults to on.
+   */
+  editorEffectCaretSlide?: boolean
   saveMode?: 'auto' | 'manual'
 }
 

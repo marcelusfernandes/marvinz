@@ -2410,6 +2410,19 @@ button {
   border-left: 2px solid var(--accent) !important;
 }
 
+/* Caret slide — the cursor glides to its new position via a transition on the
+   left/transform CodeMirror sets per measure. Gated on both data-attrs and on
+   the reduced-motion media query (the robust opt-out). A large paragraph jump
+   still glides on `left`; if that reads poorly, a JS distance cap is a follow-up
+   for a later sub-issue (out of scope here). */
+@media (prefers-reduced-motion: no-preference) {
+  [data-editor-effects='on'][data-editor-effect-caret-slide='on'] .cm-host .cm-cursor {
+    transition:
+      left var(--duration-fast) var(--ease-out),
+      transform var(--duration-fast) var(--ease-out);
+  }
+}
+
 .cm-host .cm-gutters {
   background: var(--surface-1);
   border-right: 1px solid var(--border);
@@ -3027,6 +3040,11 @@ button {
   font-size: var(--font-size-sm);
   color: var(--text-tertiary);
   margin-top: 2px;
+}
+
+/* A sub-toggle whose parent master switch is off: dimmed but value preserved. */
+.modal-section-row.is-disabled {
+  opacity: 0.5;
 }
 
 /* Segmented control — visual language matches LayoutToggle */
