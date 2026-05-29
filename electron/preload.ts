@@ -161,6 +161,8 @@ const api = {
       ipcRenderer.invoke('editor:clipboard-write-rich', payload) as Promise<void>,
     readClipboardRich: () =>
       ipcRenderer.invoke('editor:clipboard-read-rich') as Promise<{ html: string; text: string }>,
+    getSpellcheckContext: () =>
+      ipcRenderer.invoke('editor:spellcheck-context') as Promise<{ misspelledWord: string; suggestions: string[] }>,
   },
   app: {
     showContextMenu: (items: MenuItemSpec[]) =>
