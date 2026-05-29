@@ -3469,7 +3469,9 @@ button {
 .md-preview-inner hr {
   border: none;
   border-top: 1px solid var(--border);
-  margin: 2em 0;
+  /* Tighter than the old 2em: with the previous block's 1em margin-bottom the
+     effective gap was ~3em, too wide for a 1px line. */
+  margin: 1.5em 0;
 }
 
 .md-preview-inner table {
@@ -3489,6 +3491,17 @@ button {
 .md-preview-inner th {
   background: var(--surface-2);
   font-weight: 600;
+}
+
+/* Block-spacing overrides — strip the bottom-rhythm margin where it leaks a
+   ghost gap: inside table cells, the last block of a blockquote, nested lists,
+   and the last block of the document. Generic :last-child covers p/pre/ul/ol/
+   table/blockquote, not just <p>. */
+.md-preview-inner :is(td, th) > :last-child,
+.md-preview-inner blockquote > :last-child,
+.md-preview-inner li > :is(ul, ol),
+.md-preview-inner > :last-child {
+  margin-bottom: 0;
 }
 
 .md-preview-inner img {
@@ -4034,7 +4047,7 @@ button.prop-bool {
 .live-md hr {
   border: none;
   border-top: 1px solid var(--border);
-  margin: 2em 0;
+  margin: 1.5em 0;
 }
 
 .live-md table {
@@ -4054,6 +4067,15 @@ button.prop-bool {
 .live-md th {
   background: var(--surface-2);
   font-weight: 600;
+}
+
+/* Same ghost-gap overrides as the preview — but NOT `> :last-child` on the
+   root: the live editor intentionally keeps trailing room after the last
+   paragraph (see `.live-md p` above) so the cursor has space mid-typing. */
+.live-md :is(td, th) > :last-child,
+.live-md blockquote > :last-child,
+.live-md li > :is(ul, ol) {
+  margin-bottom: 0;
 }
 
 .live-md img {
