@@ -3381,7 +3381,7 @@ button {
 .md-preview-inner h5,
 .md-preview-inner h6 {
   font-weight: var(--font-weight-semibold);
-  margin: 1.6em 0 0.6em;
+  margin: 2em 0 0.6em;
   line-height: var(--line-height-tight);
   color: var(--text-primary);
 }
@@ -3966,9 +3966,10 @@ button.prop-bool {
 .live-md h5,
 .live-md h6 {
   font-weight: var(--font-weight-semibold);
-  /* Zero top margin: rely on the previous element's bottom margin for
-     separation. This keeps WYSIWYG transforms from "jumping" the line. */
-  margin: 0.4em 0 0.6em;
+  /* Top margin matches the preview (2em) so sections breathe consistently.
+     Trade-off: a line transforming into a heading mid-typing shifts down by
+     this margin — accepted for visual parity with the rendered preview. */
+  margin: 2em 0 0.6em;
   line-height: var(--line-height-tight);
   color: var(--text-primary);
 }
