@@ -1198,41 +1198,49 @@ async function rewriteLinksAfterMove(
 }
 
 ipcMain.handle('path:rename', async (_e, oldPath: string, newPath: string) => {
-  const safeOld = await assertInVault(oldPath)
-  const safeNew = await assertInVault(newPath)
-  if (existsSync(safeNew)) throw new Error('Target path already exists')
+  try {
+    const safeOld = await assertInVault(oldPath)
+    const safeNew = await assertInVault(newPath)
+    if (existsSync(safeNew)) throw new Error('MARVIN_FS_EEXIST')
 
-  // Snapshot the source file before moving if AI turn is active
-  const aiActive = Date.now() - lastPtyWriteAt < AI_TURN_WINDOW_MS
-  if (aiActive && activeVaultPath && existsSync(safeOld)) {
-    const turnId = activeTurnId ?? newTurnId()
-    if (!activeTurnId) activeTurnId = turnId
-    const relPath = path.relative(activeVaultPath, safeOld)
-    try {
-      const content = await fs.readFile(safeOld, 'utf8')
-      await writeSnapshot(activeVaultPath, turnId, relPath, content, 'file:write')
-    } catch (err) {
-      console.error('[snapshot] path:rename pre-snapshot failed', { relPath, turnId, err })
+    // Snapshot the source file before moving if AI turn is active
+    const aiActive = Date.now() - lastPtyWriteAt < AI_TURN_WINDOW_MS
+    if (aiActive && activeVaultPath && existsSync(safeOld)) {
+      const turnId = activeTurnId ?? newTurnId()
+      if (!activeTurnId) activeTurnId = turnId
+      const relPath = path.relative(activeVaultPath, safeOld)
+      try {
+        const content = await fs.readFile(safeOld, 'utf8')
+        await writeSnapshot(activeVaultPath, turnId, relPath, content, 'file:write')
+      } catch (err) {
+        console.error('[snapshot] path:rename pre-snapshot failed', { relPath, turnId, err })
+      }
     }
-  }
 
-  await fs.mkdir(path.dirname(safeNew), { recursive: true })
-  await fs.rename(safeOld, safeNew)
-  if (activeVaultPath) {
-    try {
-      await rewriteLinksAfterMove(activeVaultPath, safeOld, safeNew)
-    } catch (err) {
-      console.error('[rewriteLinksAfterMove] failed', err)
+    await fs.mkdir(path.dirname(safeNew), { recursive: true })
+    await fs.rename(safeOld, safeNew)
+    if (activeVaultPath) {
+      try {
+        await rewriteLinksAfterMove(activeVaultPath, safeOld, safeNew)
+      } catch (err) {
+        console.error('[rewriteLinksAfterMove] failed', err)
+      }
     }
+    notifyTree()
+    return safeNew
+  } catch (e) {
+    wrapFsError(e)
   }
-  notifyTree()
-  return safeNew
 })
 
 ipcMain.handle('path:trash', async (_e, target: string) => {
-  const safe = await assertInVault(target)
-  await shell.trashItem(safe)
-  notifyTree()
+  try {
+    const safe = await assertInVault(target)
+    await shell.trashItem(safe)
+    notifyTree()
+  } catch (e) {
+    wrapFsError(e)
+  }
 })
 
 ipcMain.handle('file:exportPdf', async (_e, filePath: string) => {
