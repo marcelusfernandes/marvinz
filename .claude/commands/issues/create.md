@@ -124,6 +124,10 @@ EOF
 - Retorne a URL da issue.
 - Resuma em 3-5 bullets: título, labels, seções incluídas, qualquer ajuste de auth que tenha sido necessário.
 
+### 7. Harness — predição da Fase 1 (não-fatal, opcional)
+
+Esta skill cria **somente a issue** — não emite a predição aqui (não há branch para commitar o ledger). Mas para que a issue entre no complexity harness mesmo fora do `/squad`, **avise no relatório**: quando o trabalho começar (após `gh issue develop`), rodar `/harness:predict <n>` na feature branch emite o `PredictionVector` a priori. Ver `.claude/commands/harness/predict.md`. Pular isto nunca afeta a criação da issue (§1.9).
+
 ---
 
 ## Regras de qualidade
