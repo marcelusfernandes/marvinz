@@ -413,6 +413,10 @@ export default function App() {
   // used to detect "dirty" state when an external write lands.
   const bufferContentRef = useRef<Map<string, string>>(new Map())
 
+  // Tab ids with an in-flight close (awaiting flush or the confirm sheet) so a
+  // rapid double-click can't spawn two close flows / stacked dialogs for one tab.
+  const pendingCloseIds = useRef<Set<string>>(new Set())
+
   const activeTab = tabs.find((t) => t.id === activeTabId) ?? null
 
   // Latest tabs snapshot for handlers (closeTab) that must read current tab
@@ -898,16 +902,32 @@ export default function App() {
         performCloseTab(id)
         return
       }
+      // Dedupe concurrent closes of the same tab (double-click) so we never
+      // stack two confirm sheets or fire two writes for one tab.
+      if (pendingCloseIds.current.has(id)) return
+      pendingCloseIds.current.add(id)
+      const path = tab.path
       if (saveMode === 'auto') {
-        // Auto mode never prompts: write the buffer, then close.
+        // Auto mode never prompts: write the buffer, then close. If a keystroke
+        // raced the write, flush the newer buffer once more before closing so
+        // trailing input isn't dropped on close.
         void (async () => {
-          await saveBuffer(tab.path)
-          performCloseTab(id)
+          try {
+            if (!(await saveBuffer(path))) return
+            if (
+              bufferContentRef.current.get(path) !==
+              lastDiskContentRef.current.get(path)
+            ) {
+              if (!(await saveBuffer(path))) return
+            }
+            performCloseTab(id)
+          } finally {
+            pendingCloseIds.current.delete(id)
+          }
         })()
         return
       }
       // Manual mode: native confirm sheet decides the outcome.
-      const path = tab.path
       void (async () => {
         try {
           const choice = await window.marvin.app.confirmUnsavedChanges(basenameOf(path))
@@ -919,6 +939,8 @@ export default function App() {
           // Surface an IPC failure instead of dropping it; the tab stays open.
           const detail = err instanceof Error ? err.message : String(err)
           setError(`Couldn't close ${basenameOf(path)}: ${detail}`)
+        } finally {
+          pendingCloseIds.current.delete(id)
         }
       })()
     },

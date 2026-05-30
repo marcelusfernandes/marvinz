@@ -170,7 +170,7 @@ test.describe('dirty-state close prompt — manual save mode', () => {
       await page.locator('.tab.active .tab-close').click()
 
       // Tab must stay (cancel is a no-op)
-      await expect(page.locator('.tab.active')).toBeVisible()
+      await expect(page.locator('.tab.active')).toBeVisible({ timeout: 5_000 })
 
       const onDisk = await fs.readFile(notePath, 'utf8')
       expect(onDisk).toBe(originalContent)

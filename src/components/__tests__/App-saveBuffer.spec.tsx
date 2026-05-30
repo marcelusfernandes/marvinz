@@ -452,3 +452,34 @@ describe('App close-guard — manual mode, Discard and Cancel', () => {
     expect(tabPaths()).toContain('/vault/note-a.md')
   })
 })
+
+// ---------------------------------------------------------------------------
+// 7. Double-click dedupe — one close flow per tab
+// ---------------------------------------------------------------------------
+
+describe('App close-guard — concurrent close dedupe', () => {
+  beforeEach(() => {
+    saveModeOverride.value = 'manual'
+    setupMarvin()
+  })
+  afterEach(() => vi.restoreAllMocks())
+
+  it('a rapid double-click on a dirty tab prompts only once', async () => {
+    confirmUnsavedMock.mockResolvedValue('save')
+    await renderBootstrapped()
+    await openNote('open-note-a')
+    typeInEditor('edited content')
+
+    // Two synchronous clicks before the first confirm resolves.
+    const tabAId = findTabId('note-a')
+    await act(async () => {
+      fireEvent.click(screen.getByTestId(`close-tab-${tabAId}`))
+      fireEvent.click(screen.getByTestId(`close-tab-${tabAId}`))
+    })
+    await act(async () => {})
+
+    expect(confirmUnsavedMock).toHaveBeenCalledTimes(1)
+    expect(fileWriteMock).toHaveBeenCalledTimes(1)
+    expect(tabPaths()).not.toContain('/vault/note-a.md')
+  })
+})
