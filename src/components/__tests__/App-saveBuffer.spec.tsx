@@ -269,6 +269,12 @@ function tabPaths(): (string | undefined)[] {
   return tabBarProps.tabs.map((t) => (t as { path?: string }).path)
 }
 
+// Reset the shared save-mode override after every test so a future block can't
+// inherit a previous one's value if it forgets to set it in beforeEach.
+afterEach(() => {
+  saveModeOverride.value = 'manual'
+})
+
 // ---------------------------------------------------------------------------
 // 1. Manual mode — active dirty tab — Save
 // ---------------------------------------------------------------------------
@@ -368,6 +374,22 @@ describe('App close-guard — auto mode', () => {
 
     // Tab removed
     expect(tabPaths()).not.toContain('/vault/note-a.md')
+  })
+
+  it('aborts the close when file.write fails — no silent data loss', async () => {
+    fileWriteMock.mockRejectedValue(new Error('disk full'))
+    await renderBootstrapped()
+    await openNote('open-note-a')
+    typeInEditor('edited content')
+
+    const tabAId = findTabId('note-a')
+    await act(async () => {
+      fireEvent.click(screen.getByTestId(`close-tab-${tabAId}`))
+    })
+    await act(async () => {})
+
+    // Write failed → tab must stay open, buffer not dropped
+    expect(tabPaths()).toContain('/vault/note-a.md')
   })
 })
 

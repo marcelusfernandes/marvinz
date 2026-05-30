@@ -79,7 +79,10 @@ async function openNoteAndType(
   // .md files open in preview (LiveMarkdown). Switch to Source mode so
   // keyboard input reaches the CodeMirror surface.
   const sourceBtn = page.locator('button.mode-btn', { hasText: /source/i })
-  if (await sourceBtn.isVisible({ timeout: 3_000 }).catch(() => false)) {
+  // isVisible() is a snapshot (no implicit wait), so wait explicitly first —
+  // otherwise a not-yet-rendered toggle is skipped and typing lands in preview.
+  await sourceBtn.waitFor({ state: 'visible', timeout: 3_000 }).catch(() => {})
+  if (await sourceBtn.isVisible()) {
     await sourceBtn.click()
   }
 
