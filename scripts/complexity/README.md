@@ -65,7 +65,7 @@ reads the factual fields from git/gh; only the last is a judgement.
 | Field | Provenance | Definition (the exact thing measured) |
 |---|---|---|
 | `actual_files_touched` | `measured` | `git diff --name-only <base>...<merge> \| wc -l` |
-| `actual_iterations` | `measured` | review cycles + correction commits **after the 1st review** (`gh pr view --json reviews,commits`) |
+| `actual_iterations` | `measured` | commit count on the PR — the operative proxy for correction rounds, as collected by the merge automation (`gh pr view --json commits`). `pr_review_cycles` tracks review submissions separately. |
 | `actual_downstream_fanout` | `measured` | importers of the touched files, recomputed post-merge (`grep -rl`) |
 | `pr_review_cycles` | `measured` | distinct review submissions on the PR |
 | `time_to_merge_hours` | `measured` | PR `createdAt` → `mergedAt` |

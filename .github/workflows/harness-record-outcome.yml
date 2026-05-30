@@ -1,0 +1,84 @@
+name: Harness — record outcome
+
+# On merge into develop, measure the OutcomeRecord from git/gh and append it to
+# the complexity ledger (Phase 2). develop is unprotected, so the bot commits
+# the ledger row directly — this is automation, the §1.6 separate measurement
+# step. Non-fatal in spirit: if there's no linked issue, it no-ops.
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [develop]
+
+jobs:
+  outcome:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: develop
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - run: npm ci
+
+      - name: Measure outcome and append to ledger
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+        run: |
+          set -euo pipefail
+
+          # Resolve the linked issue from the PR body (Closes/Fixes/Resolves #N).
+          # PRs into develop don't populate closingIssuesReferences natively.
+          BODY=$(gh pr view "$PR" --json body --jq '.body')
+          ISSUE=$(printf '%s' "$BODY" | grep -oiE '(close[sd]?|fix(e[sd])?|resolve[sd]?) +#[0-9]+' | grep -oE '[0-9]+' | head -1 || true)
+          if [ -z "${ISSUE:-}" ]; then
+            echo "No linked issue in PR body — nothing to measure."
+            exit 0
+          fi
+          echo "Measuring outcome for issue #$ISSUE"
+
+          export HARNESS_ISSUE="$ISSUE"
+          export HARNESS_VERSION=$(npx tsx scripts/complexity/harness-version.ts claude-opus-4-8)
+          export HARNESS_FILES=$(gh pr view "$PR" --json files --jq '.files | length')
+          export HARNESS_ITERATIONS=$(gh pr view "$PR" --json commits --jq '.commits | length')
+          export HARNESS_REVIEW_CYCLES=$(gh pr view "$PR" --json reviews --jq '[.reviews[] | select(.state=="APPROVED" or .state=="CHANGES_REQUESTED" or .state=="COMMENTED")] | length')
+          export HARNESS_CHANGES_REQUESTED=$(gh pr view "$PR" --json reviews --jq '[.reviews[] | select(.state=="CHANGES_REQUESTED")] | length')
+          export HARNESS_CREATED_AT=$(gh pr view "$PR" --json createdAt --jq '.createdAt')
+          export HARNESS_MERGED_AT=$(gh pr view "$PR" --json mergedAt --jq '.mergedAt')
+
+          # Recompute downstream fanout of the changed src/electron files (best-effort grep).
+          CHANGED=$(gh pr view "$PR" --json files --jq '.files[].path' | grep -E '^(src|electron)/.*\.(ts|tsx)$' | grep -v __tests__ || true)
+          FANOUT=0
+          if [ -n "$CHANGED" ]; then
+            BASES=$(printf '%s\n' "$CHANGED" | xargs -n1 basename | sed -E 's/\.(ts|tsx)$//' | sort -u)
+            FANOUT=$(for b in $BASES; do grep -rl "from '.*${b}'" src electron 2>/dev/null || true; done | grep -v __tests__ | sort -u | wc -l | tr -d ' ')
+          fi
+          export HARNESS_FANOUT="$FANOUT"
+
+          # Build the OutcomeRecord and append it (both CLIs validate; never throw).
+          npx tsx scripts/complexity/measure-outcome.ts | npx tsx scripts/complexity/record-outcome.ts
+
+      - name: Commit the ledger row
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- _complexity-ledger/outcomes.jsonl; then
+            echo "No ledger change to commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add _complexity-ledger/outcomes.jsonl
+          git commit -m "chore: record outcome via harness automation [skip ci]"
+          git pull --rebase origin develop
+          git push origin HEAD:develop
