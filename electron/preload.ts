@@ -168,6 +168,8 @@ const api = {
     showContextMenu: (items: MenuItemSpec[]) =>
       ipcRenderer.invoke('app:show-context-menu', items) as Promise<string | null>,
     canPaste: () => ipcRenderer.invoke('app:can-paste') as Promise<boolean>,
+    confirmUnsavedChanges: (fileName: string) =>
+      ipcRenderer.invoke('app:confirm-unsaved', fileName) as Promise<'save' | 'discard' | 'cancel'>,
     onMenuAction: (cb: (action: string) => void) => {
       const h = (_e: unknown, a: string) => cb(a)
       ipcRenderer.on('menu:action', h)

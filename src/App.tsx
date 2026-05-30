@@ -332,6 +332,7 @@ export default function App() {
   const [openFindTick, setOpenFindTick] = useState(0)
   const [openReplaceTick, setOpenReplaceTick] = useState(0)
   const [isDirty, setIsDirty] = useState(false)
+  // Manual-mode close awaiting a Save/Discard/Cancel choice.
   const flushSaveRef = useRef<(() => Promise<void>) | null>(null)
   const [sidebarHidden, setSidebarHidden] = useState(() => {
     try {
@@ -412,7 +413,16 @@ export default function App() {
   // used to detect "dirty" state when an external write lands.
   const bufferContentRef = useRef<Map<string, string>>(new Map())
 
+  // Tab ids with an in-flight close (awaiting flush or the confirm sheet) so a
+  // rapid double-click can't spawn two close flows / stacked dialogs for one tab.
+  const pendingCloseIds = useRef<Set<string>>(new Set())
+
   const activeTab = tabs.find((t) => t.id === activeTabId) ?? null
+
+  // Latest tabs snapshot for handlers (closeTab) that must read current tab
+  // state without taking `tabs` as a dependency. Reassigned in the ref-hub
+  // effect below (matching the project's latest-ref pattern).
+  const tabsRef = useRef(tabs)
 
   // Monotonic counter that invalidates in-flight tree responses when a newer
   // load is started (e.g. rapid vault switching). Without this, a slow
@@ -827,7 +837,27 @@ export default function App() {
     }
   }, [activeTab, readFreshContent])
 
-  const closeTab = useCallback(
+  // Writes the live buffer for a path straight to disk, path-keyed so it works
+  // for any note tab (active or not — both refs are keyed by path, no mounted
+  // editor required). Keeps lastDiskContentRef in sync so the path reads clean
+  // afterwards. Returns false on write failure so callers can abort a close.
+  const saveBuffer = useCallback(async (path: string): Promise<boolean> => {
+    const buffer = bufferContentRef.current.get(path)
+    if (buffer == null) return true
+    try {
+      await window.marvin.file.write(path, buffer)
+      lastDiskContentRef.current.set(path, buffer)
+      return true
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : String(err)
+      setError(`Failed to save ${basenameOf(path)}: ${detail}`)
+      return false
+    }
+  }, [])
+
+  // Removes the tab and its tracked buffer; no dirty checks. Callers gate the
+  // entry (see closeTab) so this stays a pure removal step.
+  const performCloseTab = useCallback(
     (id: string) => {
       setTabs((prev) => {
         const idx = prev.findIndex((t) => t.id === id)
@@ -857,6 +887,66 @@ export default function App() {
     [activeTabId],
   )
 
+  const closeTab = useCallback(
+    (id: string) => {
+      const tab = tabsRef.current.find((t) => t.id === id)
+      // Dirty = the path's live buffer diverges from last-known disk content.
+      // Both refs are path-keyed, so this is honest whether or not the tab is
+      // the active one (a background tab can stay dirty in manual mode).
+      const isDirtyNote =
+        tab != null &&
+        isNoteTab(tab) &&
+        bufferContentRef.current.get(tab.path) !==
+          lastDiskContentRef.current.get(tab.path)
+      if (!isDirtyNote) {
+        performCloseTab(id)
+        return
+      }
+      // Dedupe concurrent closes of the same tab (double-click) so we never
+      // stack two confirm sheets or fire two writes for one tab.
+      if (pendingCloseIds.current.has(id)) return
+      pendingCloseIds.current.add(id)
+      const path = tab.path
+      if (saveMode === 'auto') {
+        // Auto mode never prompts: write the buffer, then close. If a keystroke
+        // raced the write, flush the newer buffer once more before closing so
+        // trailing input isn't dropped on close.
+        void (async () => {
+          try {
+            if (!(await saveBuffer(path))) return
+            if (
+              bufferContentRef.current.get(path) !==
+              lastDiskContentRef.current.get(path)
+            ) {
+              if (!(await saveBuffer(path))) return
+            }
+            performCloseTab(id)
+          } finally {
+            pendingCloseIds.current.delete(id)
+          }
+        })()
+        return
+      }
+      // Manual mode: native confirm sheet decides the outcome.
+      void (async () => {
+        try {
+          const choice = await window.marvin.app.confirmUnsavedChanges(basenameOf(path))
+          if (choice === 'cancel') return
+          // Save aborts the close if the write fails so the buffer isn't lost.
+          if (choice === 'save' && !(await saveBuffer(path))) return
+          performCloseTab(id)
+        } catch (err) {
+          // Surface an IPC failure instead of dropping it; the tab stays open.
+          const detail = err instanceof Error ? err.message : String(err)
+          setError(`Couldn't close ${basenameOf(path)}: ${detail}`)
+        } finally {
+          pendingCloseIds.current.delete(id)
+        }
+      })()
+    },
+    [saveMode, performCloseTab, saveBuffer],
+  )
+
   // Latest-ref hub for handlers passed to FileTree. We capture volatile
   // dependencies via refs so the handler identities can stay stable, which is
   // what React.memo on FileTree relies on to skip re-renders.
@@ -869,6 +959,7 @@ export default function App() {
     treeRef.current = tree
     openPathsRef.current = openPaths
     anchorPathRef.current = anchorPath
+    tabsRef.current = tabs
   })
 
   const handleTreeSelect = useCallback(

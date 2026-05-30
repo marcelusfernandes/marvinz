@@ -202,6 +202,7 @@ export type MarvinAPI = {
     canPaste: () => Promise<boolean>
     onMenuAction: (cb: (action: string) => void) => () => void
     setMenuNoteContext: (hasNoteTab: boolean) => void
+    confirmUnsavedChanges: (fileName: string) => Promise<'save' | 'discard' | 'cancel'>
   }
   fs: {
     importExternal: (sources: string[], destDir: string) => Promise<ImportExternalResult>
