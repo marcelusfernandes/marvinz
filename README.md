@@ -40,7 +40,25 @@ The dev script launches Vite, then the vite-plugin-electron plugin spawns Electr
 npm run build
 ```
 
-Outputs the renderer to `dist/` and the bundled main/preload to `dist-electron/`. Packaging via `electron-builder` is configured but not yet wired into a script.
+Outputs the renderer to `dist/` and the bundled main/preload to `dist-electron/`.
+
+## Packaging
+
+Generate a distributable installer with `electron-builder`. Output lands in `release/` (gitignored).
+
+```bash
+npm run pack         # unpacked .app in release/mac-arm64/ (smoke test, no installer)
+npm run dist:mac     # .dmg in release/
+npm run dist:win     # .exe (nsis + portable) — Windows host or CI
+npm run dist:linux   # .AppImage — Linux host or CI
+npm run dist         # whatever the current host can produce
+```
+
+Notes:
+
+- `node-pty` is a native module — it's unpacked from `app.asar` (see `build.asarUnpack` in `package.json`) so the `.node` binary and `spawn-helper` are reachable at runtime.
+- App icons live in `build/icon.icns` (macOS) and `build/icon.png` (Windows/Linux source — `electron-builder` auto-converts to `.ico` and resized PNGs).
+- Code signing and notarization are **not** configured yet. The macOS build picks up a local Apple Development cert from your keychain if present; the resulting `.dmg` will warn Gatekeeper on other Macs until a Developer ID cert + notarization are wired in.
 
 ## Project layout
 
@@ -93,5 +111,7 @@ See [`.claude/rules/git-workflow.md`](.claude/rules/git-workflow.md) for the bra
 - Full-text search
 - Backlinks panel / graph view
 - Plugin system
-- Mobile / Linux / Windows packaging
+- Code-signed / notarized macOS builds (DMG generates, but Gatekeeper warns on other Macs)
+- Linux / Windows packaging validated on host (config wired, untested)
+- Auto-updater
 - Sync (use `git`, iCloud, Syncthing, etc. on the vault folder)
