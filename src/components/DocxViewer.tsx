@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import DOMPurify from 'dompurify'
+import { OFFICE_EDIT_ENABLED } from '../lib/featureFlags'
 import { Icon } from './Icon'
 
 type Props = {
@@ -65,7 +66,7 @@ export function DocxViewer({ path, onRevealInFinder }: Props) {
   const [html, setHtml] = useState<string | null>(null)
   const [originalText, setOriginalText] = useState<string>('')
   const [editedText, setEditedText] = useState<string>('')
-  const [editing, setEditing] = useState(false)
+  const [editingRequested, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -98,6 +99,10 @@ export function DocxViewer({ path, onRevealInFinder }: Props) {
     }
   }, [path])
 
+  // Editing is gated behind a build flag (#429). When off, the viewer is
+  // read-only: the mammoth HTML preview renders, but edit/save are hidden.
+  const editing = OFFICE_EDIT_ENABLED && editingRequested
+
   const dirty = editing && editedText !== originalText
 
   const handleSave = useCallback(async () => {
@@ -127,7 +132,7 @@ export function DocxViewer({ path, onRevealInFinder }: Props) {
           {dirty && <span className="docx-viewer-dirty" aria-label="Unsaved changes"> *</span>}
         </span>
         <div className="docx-viewer-actions">
-          {!editing && !loading && !loadError && (
+          {OFFICE_EDIT_ENABLED && !editing && !loading && !loadError && (
             <button
               type="button"
               className="docx-viewer-action docx-viewer-edit"

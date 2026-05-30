@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { OFFICE_EDIT_ENABLED } from '../lib/featureFlags'
 import { Icon } from './Icon'
 
 type Props = {
@@ -37,7 +38,7 @@ export function XlsxViewer({ path, onRevealInFinder }: Props) {
   const [readError, setReadError] = useState<string | null>(null)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
-  const [editMode, setEditMode] = useState(false)
+  const [editModeRequested, setEditMode] = useState(false)
   const loadTokenRef = useRef(0)
 
   const loadSheet = useCallback(
@@ -72,6 +73,10 @@ export function XlsxViewer({ path, onRevealInFinder }: Props) {
     loadSheet()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [path])
+
+  // Editing is gated behind a build flag (#429). When off, the viewer is
+  // read-only: the grid + sheet navigation render, but edit/save are hidden.
+  const editMode = OFFICE_EDIT_ENABLED && editModeRequested
 
   const dirty = useMemo(
     () => JSON.stringify(rows) !== JSON.stringify(originalRows),
@@ -186,15 +191,17 @@ export function XlsxViewer({ path, onRevealInFinder }: Props) {
             </>
           ) : (
             <>
-              <button
-                type="button"
-                title="Edit spreadsheet"
-                className="xlsx-viewer-action"
-                onClick={enterEditMode}
-              >
-                <Icon name="edit" size={14} />
-                Edit
-              </button>
+              {OFFICE_EDIT_ENABLED && (
+                <button
+                  type="button"
+                  title="Edit spreadsheet"
+                  className="xlsx-viewer-action"
+                  onClick={enterEditMode}
+                >
+                  <Icon name="edit" size={14} />
+                  Edit
+                </button>
+              )}
               {onRevealInFinder && (
                 <button
                   type="button"
@@ -235,10 +242,12 @@ export function XlsxViewer({ path, onRevealInFinder }: Props) {
         </div>
       )}
 
-      <div className="xlsx-viewer-banner" role="note">
-        <Icon name="warning" size={14} />
-        <span>Saving will flatten to plain values — formulas and formatting will be lost</span>
-      </div>
+      {OFFICE_EDIT_ENABLED && (
+        <div className="xlsx-viewer-banner" role="note">
+          <Icon name="warning" size={14} />
+          <span>Saving will flatten to plain values — formulas and formatting will be lost</span>
+        </div>
+      )}
 
       {saveError && (
         <div className="xlsx-viewer-error" role="alert">
