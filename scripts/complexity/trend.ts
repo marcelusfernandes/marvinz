@@ -28,6 +28,23 @@ export function confidenceFor(n: number): Band {
   return 'high'
 }
 
+/** Monta um SignalTrend — `direction` é o único campo que varia entre os sinais. */
+function signalTrend(
+  name: string,
+  direction: string,
+  pairs: CalibrationPair[],
+  measuredOnly: boolean,
+): SignalTrend {
+  return {
+    signal_name: name,
+    direction,
+    supporting_examples: pairs.length,
+    confidence: confidenceFor(pairs.length),
+    based_on_measured_only: measuredOnly,
+    note: null,
+  }
+}
+
 /** Sinal binário: compara a mediana de iterações entre os grupos true/false. */
 export function binaryTrend(
   name: string,
@@ -44,14 +61,7 @@ export function binaryTrend(
     my === mn
       ? `${name}: sem diferença de iterações (mediana ${my} em ambos os grupos)`
       : `${name}=true → ${my > mn ? 'mais' : 'menos'} iterações (mediana ${my} vs ${mn})`
-  return {
-    signal_name: name,
-    direction,
-    supporting_examples: pairs.length,
-    confidence: confidenceFor(pairs.length),
-    based_on_measured_only: measuredOnly,
-    note: null,
-  }
+  return signalTrend(name, direction, pairs, measuredOnly)
 }
 
 /** Sinal ordinal: sinal do co-movimento (Kendall) entre o sinal e as iterações. */
@@ -78,14 +88,7 @@ export function ordinalTrend(
     sign === 0
       ? `${name}: co-movimento ambíguo com iterações ${tail}`
       : `${name} maior → ${sign > 0 ? 'mais' : 'menos'} iterações ${tail}`
-  return {
-    signal_name: name,
-    direction,
-    supporting_examples: pairs.length,
-    confidence: confidenceFor(pairs.length),
-    based_on_measured_only: measuredOnly,
-    note: null,
-  }
+  return signalTrend(name, direction, pairs, measuredOnly)
 }
 
 /**
