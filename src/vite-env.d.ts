@@ -2,6 +2,7 @@
 
 interface ImportMetaEnv {
   readonly VITE_CHAT_UI_ENABLED?: string
+  readonly VITE_OFFICE_EDIT_ENABLED?: string
 }
 
 interface ImportMeta {

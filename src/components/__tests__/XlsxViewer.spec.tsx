@@ -3,6 +3,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, fireEvent, act, waitFor } from '@testing-library/react'
 
+// Editing tests require the flag enabled (tests predate gating; flag is off by
+// default in test env because import.meta.env is not set).
+vi.mock('../../lib/featureFlags', () => ({
+  OFFICE_EDIT_ENABLED: true,
+  CHAT_UI_ENABLED: false,
+}))
+
 vi.mock('../Icon', () => ({
   Icon: ({ name }: { name: string }) => <span data-icon={name} />,
 }))
