@@ -60,6 +60,13 @@ export default defineConfig({
           },
         },
       },
+      {
+        test: {
+          name: 'complexity',
+          environment: 'node',
+          include: ['scripts/complexity/__tests__/**/*.spec.ts'],
+        },
+      },
     ],
   },
 })

@@ -97,6 +97,48 @@ gh project item-edit --id <item-id> --field-id <status-field-id> --project-id <p
 
 **Se `gh` retornar erro `missing required scopes [read:project]`**: pause e peça ao usuário rodar `gh auth refresh -s read:project,project`. Não tente contornar. Documente no relatório final que o status fica desatualizado até a refresh.
 
+## Passo 1.6 — Emitir PredictionVector (complexity harness, NÃO-FATAL)
+
+Já triou o perfil e (se há issue) vinculou a branch. **Antes de spawnar os teammates**,
+emita um `PredictionVector` capturando a deliberação de triage — quem prediz é o lead
+*agora*, antes da implementação (independência §1.6; a medição pós-merge é separada, Phase 2).
+
+**Toda esta seção é não-fatal.** Se qualquer passo falhar (CLI erra, sinal faltando, sem
+issue rastreável), registre o que conseguiu ou pule e siga para o Passo 2. **Emitir JAMAIS
+trava a missão de discovery.** Pule por completo em trabalho exploratório sem `issue_id`.
+
+1. **Versão do harness:**
+   ```bash
+   npx tsx scripts/complexity/harness-version.ts claude-opus-4-8
+   ```
+
+2. **StructuralSignals — `measured`, rodando tools de verdade** (registre o comando exato em `evidence`):
+   - `downstream_fanout`: nº de arquivos que importam o(s) arquivo(s) que a solução tocaria — `grep -rl "from '.*<módulo>'" src electron`.
+   - `upstream_fanout`: nº de imports nesses arquivos — `grep -c "^import" <arquivo>`.
+   - `domains_touched`: pelos paths, dentre `chat · editor · file-tree · viewers · terminal · state-ui`.
+   - `touches_shared_contract`: toca `electron/preload.ts`, `src/types.ts` ou IPC consumido por outros? (bool por path)
+   - `touches_nondeterministic`: toca prompt/IA em produção (`electron/agent/**`, chat)? (bool por path)
+   - `max_node_centrality`: **`null`** — não estimar (§1.3).
+
+3. **AgentSignals — da própria deliberação de triage:**
+   - `rounds_to_convergence`: rodadas até você fechar o perfil.
+   - `risks_raised`: riscos com `severity` (`low`/`medium`/`high`/`critical`).
+   - `uncovered_angles_count`, `spec_branch_count` (cenários da AC da issue).
+
+4. **Alvos + roteamento:**
+   - `predicted_size` / `predicted_iterations` / `predicted_decision_density` (`low`/`medium`/`high`).
+   - `prediction_confidence`.
+   - `assigned_oversight`: `deep_review` (Perfil A com security review denso), `light_review` (Perfis B/C/D), `autonomous` (mudança trivial). Decidido A PARTIR da predição.
+   - `assigned_to`: `null` (NUNCA p/ ranquear pessoas).
+
+5. **Emitir** (monte o JSON e mande pelo stdin):
+   ```bash
+   echo '<PredictionVector JSON>' | npx tsx scripts/complexity/record-prediction.ts
+   # exit 0 = registrado · 1 = inválido · 2 = vazio. Qualquer exit != 0 → logue e siga.
+   ```
+
+Contrato completo + exemplo: `scripts/complexity/README.md` e `scripts/complexity/schema.ts`.
+
 ## Passo 2 — Spawn programático
 
 Execute nesta ordem:

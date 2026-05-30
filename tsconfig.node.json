@@ -20,5 +20,10 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["vite.config.ts", "electron/**/*.ts", "src/shared/**/*.ts"]
+  "include": [
+    "vite.config.ts",
+    "electron/**/*.ts",
+    "src/shared/**/*.ts",
+    "scripts/complexity/**/*.ts"
+  ]
 }
