@@ -113,7 +113,7 @@ trava a missão de discovery.** Pule por completo em trabalho exploratório sem 
    ```
 
 2. **StructuralSignals — `measured`, rodando tools de verdade** (registre o comando exato em `evidence`):
-   - `downstream_fanout`: nº de arquivos que importam o(s) arquivo(s) que a solução tocaria — `grep -rl "from '.*<módulo>'" src electron`.
+   - `downstream_fanout`: importadores ATUAIS do(s) arquivo(s) tocados (`grep -rl "from '.*<módulo>'" src electron`) **+ as arestas que a mudança INTRODUZ** (se a solução faz N arquivos passarem a importar um módulo, some essas N). Medir só o grafo atual subestima o blast radius — #429 previu 3, real 5 (+2 imports adicionados pela própria mudança).
    - `upstream_fanout`: nº de imports nesses arquivos — `grep -c "^import" <arquivo>`.
    - `domains_touched`: pelos paths, dentre `chat · editor · file-tree · viewers · terminal · state-ui`.
    - `touches_shared_contract`: toca `electron/preload.ts`, `src/types.ts` ou IPC consumido por outros? (bool por path)
