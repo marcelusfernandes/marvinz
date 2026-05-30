@@ -131,6 +131,32 @@ export const CalibrationPair = z.object({
 })
 export type CalibrationPair = z.infer<typeof CalibrationPair>
 
+/**
+ * CAMADA 3 — leitura direcional de UM sinal. NÃO é um peso de regressão (§1.8):
+ * com N pequeno, ajustar pesos é overfit. Emite direção + nº de exemplos +
+ * confiança honesta, pra cruzar com o instinto humano.
+ */
+export const SignalTrend = z.object({
+  signal_name: z.string(),
+  direction: z.string(), // ex.: "touches_nondeterministic=true -> +iterações (mediana 4 vs 2)"
+  supporting_examples: z.number().int(),
+  // Banda como confiança: low=fraco (<~8 ex.) | medium=sugestivo | high=consistente.
+  confidence: Band,
+  based_on_measured_only: z.boolean().default(true), // inclui sinal estimated? -> mais frágil
+  note: z.string().nullable().default(null),
+})
+export type SignalTrend = z.infer<typeof SignalTrend>
+
+export const TrendReport = z.object({
+  generated_at: z.string(),
+  harness_version: z.string(), // tendência só vale dentro de uma versão (§1.5)
+  pairs_analyzed: z.number().int(),
+  trends: z.array(SignalTrend).default([]),
+  routing_audit: z.string().nullable().default(null), // o assigned_oversight acertou?
+  score_source: ScoreSource.default('heuristic'), // segue heuristic de propósito (§1.8)
+})
+export type TrendReport = z.infer<typeof TrendReport>
+
 // ── Derivados (funções puras; equivalem aos @property do schema pydantic) ──
 
 export function domainBoundariesCrossed(s: StructuralSignals): number {
