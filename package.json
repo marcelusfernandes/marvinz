@@ -17,6 +17,8 @@
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
     "complexity:predict": "tsx scripts/complexity/record-prediction.ts",
+    "complexity:outcome": "tsx scripts/complexity/record-outcome.ts",
+    "complexity:trend": "tsx scripts/complexity/trend-report.ts",
     "complexity:version": "tsx scripts/complexity/harness-version.ts",
     "pack": "npm run build && electron-builder --dir",
     "dist": "npm run build && electron-builder",
