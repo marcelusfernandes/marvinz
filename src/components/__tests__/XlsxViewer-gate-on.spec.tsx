@@ -6,7 +6,8 @@
 // results regardless of async scheduling between describe blocks.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, cleanup, waitFor } from '@testing-library/react'
+import { cleanup } from '@testing-library/react'
+import { btn, renderViewerLoaded, setupXlsxMock } from './office-viewer-test-helpers'
 
 vi.mock('../../lib/featureFlags', () => ({
   OFFICE_EDIT_ENABLED: true,
@@ -17,52 +18,13 @@ vi.mock('../Icon', () => ({
   Icon: ({ name }: { name: string }) => <span data-icon={name} />,
 }))
 
-// ---------------------------------------------------------------------------
-// window.marvin stub
-// ---------------------------------------------------------------------------
-
-function setupMarvinMock() {
-  Object.assign(window, {
-    marvin: {
-      office: {
-        readXlsx: vi.fn().mockResolvedValue({
-          rows: [
-            ['Name', 'Score'],
-            ['Alice', '95'],
-          ],
-          sheetNames: ['Sheet1', 'Summary'],
-        }),
-        writeXlsx: vi.fn().mockResolvedValue(undefined),
-      },
-    },
-  })
-}
-
 import { XlsxViewer } from '../XlsxViewer'
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function btn(container: HTMLElement, title: string) {
-  return container.querySelector<HTMLButtonElement>(`button[title="${title}"]`)
-}
-
-async function renderLoaded(path = '/vault/data.xlsx') {
-  const result = render(<XlsxViewer path={path} />)
-  await waitFor(() =>
-    expect(result.container.querySelector('.xlsx-viewer-content')).not.toBeNull(),
-  )
-  return result
-}
-
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
+const renderLoaded = () => renderViewerLoaded(XlsxViewer, '.xlsx-viewer-content', '/vault/data.xlsx')
 
 describe('XlsxViewer — OFFICE_EDIT_ENABLED=true (edit available)', () => {
   beforeEach(() => {
-    setupMarvinMock()
+    setupXlsxMock()
   })
 
   afterEach(() => {

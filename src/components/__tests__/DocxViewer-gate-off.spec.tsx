@@ -6,7 +6,8 @@
 // results regardless of async scheduling between describe blocks.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, cleanup, waitFor } from '@testing-library/react'
+import { cleanup } from '@testing-library/react'
+import { btn, renderViewerLoaded, setupDocxMock } from './office-viewer-test-helpers'
 
 vi.mock('../../lib/featureFlags', () => ({
   OFFICE_EDIT_ENABLED: false,
@@ -17,49 +18,13 @@ vi.mock('../Icon', () => ({
   Icon: ({ name }: { name: string }) => <span data-icon={name} />,
 }))
 
-// ---------------------------------------------------------------------------
-// window.marvin stub
-// ---------------------------------------------------------------------------
-
-function setupMarvinMock() {
-  Object.assign(window, {
-    marvin: {
-      office: {
-        readDocx: vi.fn().mockResolvedValue({
-          html: '<p>Hello World</p>',
-          messages: [],
-        }),
-        writeDocx: vi.fn().mockResolvedValue(undefined),
-      },
-    },
-  })
-}
-
 import { DocxViewer } from '../DocxViewer'
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function btn(container: HTMLElement, title: string) {
-  return container.querySelector<HTMLButtonElement>(`button[title="${title}"]`)
-}
-
-async function renderLoaded(path = '/vault/doc.docx') {
-  const result = render(<DocxViewer path={path} />)
-  await waitFor(() =>
-    expect(result.container.querySelector('.docx-viewer-content')).not.toBeNull(),
-  )
-  return result
-}
-
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
+const renderLoaded = () => renderViewerLoaded(DocxViewer, '.docx-viewer-content', '/vault/doc.docx')
 
 describe('DocxViewer — OFFICE_EDIT_ENABLED=false (read-only)', () => {
   beforeEach(() => {
-    setupMarvinMock()
+    setupDocxMock()
   })
 
   afterEach(() => {
