@@ -22,6 +22,7 @@ import { dropCursor } from 'prosemirror-dropcursor'
 import type { EditorView } from 'prosemirror-view'
 import { imageNodeView } from '../lib/imageNodeView'
 import { mermaidNodeView } from '../lib/mermaidNodeView'
+import { taskListNodeView } from '../lib/taskListNodeView'
 import { justInsertedPlugin, justInsertedPluginKey } from '../lib/pmJustInsertedHighlight'
 import { justReplacedPlugin } from '../lib/pmJustReplacedHighlight'
 import type { PaletteItem } from '../lib/paletteRanker'
@@ -407,6 +408,12 @@ function LiveMarkdownInner({
   // round-trips losslessly.
   const mermaidView = useMemo(() => mermaidNodeView(), [])
 
+  // Render-only checkbox for GFM task-list items in Page mode. A `$view` over
+  // the `list_item` node — renders a real `<input type="checkbox">` when the
+  // item carries a `checked` attr, falls through to a plain `<li>` otherwise.
+  // No schema change, so `- [ ]` / `- [x]` round-trips losslessly.
+  const taskListView = useMemo(() => taskListNodeView(), [])
+
   const editorInfo = useEditor((root) => {
     return MilkdownEditor.make()
       .config((ctx) => {
@@ -524,6 +531,7 @@ function LiveMarkdownInner({
       .use(listener)
       .use(imageView)
       .use(mermaidView)
+      .use(taskListView)
   }, [])
 
   // Single delegated click handler for the editor surface — intercepts

@@ -175,7 +175,7 @@ vi.mock('@milkdown/preset-commonmark', () => ({
   imageSchema: { node: {} },
   codeBlockSchema: { node: {} },
 }))
-vi.mock('@milkdown/preset-gfm', () => ({ gfm: {} }))
+vi.mock('@milkdown/preset-gfm', () => ({ gfm: {}, extendListItemSchemaForTask: { node: {} } }))
 vi.mock('@milkdown/plugin-listener', () => ({
   listener: {},
   listenerCtx: LISTENER_CTX,

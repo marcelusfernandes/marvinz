@@ -144,7 +144,7 @@ vi.mock('@milkdown/react', () => ({
 }))
 
 vi.mock('@milkdown/preset-commonmark', () => ({ commonmark: { _kind: 'commonmark' } }))
-vi.mock('@milkdown/preset-gfm', () => ({ gfm: { _kind: 'gfm' } }))
+vi.mock('@milkdown/preset-gfm', () => ({ gfm: { _kind: 'gfm' }, extendListItemSchemaForTask: { node: {} } }))
 vi.mock('@milkdown/plugin-listener', () => ({
   listener: { _kind: 'listener' },
   listenerCtx: LISTENER_CTX,
