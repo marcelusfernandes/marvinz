@@ -466,4 +466,45 @@ test.describe('task-list Page mode — typing / input rule (B)', () => {
       await app.close()
     }
   })
+
+  test('(B3) typing `[x] ` inside an existing task item (after Enter) sets it checked, not literal (#439)', async () => {
+    const app = await electron.launch({
+      args: ['.', `--user-data-dir=${userDataDir}`],
+      env: { ...process.env, NODE_ENV: 'test' },
+    })
+    const page = await app.firstWindow()
+    await page.waitForLoadState('domcontentloaded')
+
+    try {
+      await openFile(page, /^typing$/)
+      await switchToPage(page)
+
+      const editor = page.locator('.milkdown-host')
+      await editor.click()
+
+      // First task, then Enter creates a fresh task item that already carries
+      // checked!=null; typing `[x] ` there must set checked, not stay literal.
+      await page.keyboard.type('[ ] first', { delay: 40 })
+      await page.waitForTimeout(300)
+      await page.keyboard.press('Enter')
+      await page.waitForTimeout(200)
+      await page.keyboard.type('[x] second', { delay: 40 })
+      await page.waitForTimeout(600)
+
+      const items = page.locator('.milkdown-host li[data-item-type="task"]')
+      await expect(items).toHaveCount(2, { timeout: 3_000 })
+      // Second item is checked and its text is "second" (no literal brackets).
+      const second = items.nth(1)
+      await expect(second.locator('input[type="checkbox"]')).toBeChecked()
+      await expect(second.locator('.task-list-item__content')).not.toContainText('[x]')
+
+      await page.waitForTimeout(1_200)
+      const saved = await fs.readFile(notePath, 'utf8')
+      expect(saved).toMatch(/^[-*] \[x\] second/m)
+      // No escaped/literal bracket leaked into the serialized item.
+      expect(saved).not.toMatch(/\\\[x\]/)
+    } finally {
+      await app.close()
+    }
+  })
 })

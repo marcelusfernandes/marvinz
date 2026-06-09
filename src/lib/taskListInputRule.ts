@@ -4,20 +4,23 @@ import { findWrapping } from '@milkdown/prose/transform'
 import { $inputRule } from '@milkdown/utils'
 
 /**
- * Auto-convert a bare `[ ] ` / `[x] ` typed at the START of a plain paragraph
- * into a GFM task list item (issue #437, AC-B).
+ * Auto-convert a bare `[ ] ` / `[x] ` typed at the START of a line into a GFM
+ * task list item (issue #437, AC-B), covering the cases gfm's own rule misses.
  *
- * The gfm `wrapInTaskListInputRule` only fires when the cursor is ALREADY
- * inside a `list_item` (it walks up the tree and bails if there is none), so
- * typing the brackets on an empty line never converts. This rule covers that
- * gap: it wraps the paragraph in `bullet_list > list_item` with the `checked`
- * attr set (false for a space, true for `x`), so it serializes to the standard
- * `- [ ]` / `- [x]` markdown — never literal brackets.
+ * The gfm `wrapInTaskListInputRule` only fires inside a `list_item` whose
+ * `checked` attr is still null (a plain bullet); it bails on a bare paragraph
+ * and on an item that is ALREADY a task. This rule fills both gaps:
  *
- * Guards: do nothing if the cursor is already inside a `list_item` (gfm owns
- * that case) or if there is text before the brackets — `^` anchors the match
- * to the textblock start, and we additionally require the paragraph to be the
- * wrappable block.
+ *  - Plain paragraph → wrap in `bullet_list > list_item` with `checked` set, so
+ *    it serializes to standard `- [ ]` / `- [x]` markdown (never literal
+ *    brackets).
+ *  - Already inside a task item (`checked != null`, e.g. a fresh item created
+ *    by pressing Enter from another task) → consume the brackets and set the
+ *    item's `checked` instead of leaving literal `[x] ` text (issue #439).
+ *  - Plain (non-task) list item (`checked == null`) → defer to gfm's rule.
+ *
+ * `^` anchors the match to the textblock start, so text before the brackets
+ * never triggers a conversion.
  */
 export const taskListBracketInputRule = $inputRule((ctx) => {
   const bulletList = bulletListSchema.type(ctx)
@@ -25,17 +28,27 @@ export const taskListBracketInputRule = $inputRule((ctx) => {
 
   return new InputRule(/^\[(?<checked>\s|x)\]\s$/, (state, match, start, end) => {
     const $start = state.doc.resolve(start)
+    const checked = match.groups?.checked === 'x'
 
-    // Already inside a list item → let gfm's wrapInTaskListInputRule handle it.
+    // Inside a list item: a non-task item is gfm's to convert; a task item
+    // would otherwise leave the brackets literal, so set its checked here.
     for (let depth = $start.depth; depth > 0; depth--) {
-      if ($start.node(depth).type === listItem) return null
+      const node = $start.node(depth)
+      if (node.type === listItem) {
+        if (node.attrs.checked == null) return null
+        return state.tr
+          .deleteRange(start, end)
+          .setNodeMarkup($start.before(depth), undefined, {
+            ...node.attrs,
+            checked,
+          })
+      }
     }
 
-    // Only convert a plain paragraph whose text starts with the brackets.
+    // Plain paragraph: wrap into a bullet_list > list_item task.
     const range = $start.blockRange()
     if (!range) return null
 
-    const checked = match.groups?.checked === 'x'
     const wrappers = [
       { type: bulletList },
       { type: listItem, attrs: { checked } },
