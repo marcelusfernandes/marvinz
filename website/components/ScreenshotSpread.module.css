@@ -1,0 +1,43 @@
+.figure {
+  margin: var(--space-7) 0 0;
+}
+
+.frame {
+  aspect-ratio: 16 / 10;
+  width: 100%;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-7);
+}
+
+.placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  text-align: center;
+}
+
+.wordmark {
+  font-family: var(--font-head);
+  font-weight: 600;
+  font-size: clamp(28px, 5vw, 48px);
+  letter-spacing: var(--track-head);
+  color: var(--text-secondary);
+}
+
+.dot {
+  color: var(--accent);
+}
+
+.caption {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}

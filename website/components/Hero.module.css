@@ -1,0 +1,143 @@
+.hero {
+  position: relative;
+  overflow: hidden;
+  border-bottom: 1px solid var(--border);
+}
+
+.inner {
+  position: relative;
+  z-index: 1;
+  max-width: var(--maxw);
+  margin: 0 auto;
+  padding: clamp(72px, 12vw, 148px) var(--gutter) clamp(64px, 9vw, 120px);
+}
+
+/* Raspberry radial glow — single warm accent decoration, stronger in dark */
+.glow {
+  position: absolute;
+  top: -20%;
+  left: 50%;
+  width: min(900px, 120vw);
+  height: min(900px, 120vw);
+  transform: translateX(-50%);
+  background: radial-gradient(circle, var(--glow) 0%, transparent 62%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.meta {
+  list-style: none;
+  margin: 0 0 var(--space-7);
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-5);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.metaKey {
+  color: var(--accent-text);
+  font-weight: 500;
+}
+
+.wordmark {
+  margin: 0;
+  font-family: var(--font-head);
+  font-weight: 600;
+  font-size: clamp(72px, 18vw, 220px);
+  letter-spacing: -0.04em;
+  line-height: 0.9;
+  color: var(--text-primary);
+}
+
+.dot {
+  color: var(--accent);
+}
+
+.tagline {
+  margin: var(--space-5) 0 0;
+  max-width: 18ch;
+  font-family: var(--font-head);
+  font-weight: 500;
+  font-size: clamp(24px, 4.4vw, 46px);
+  letter-spacing: var(--track-head);
+  line-height: 1.1;
+  color: var(--text-primary);
+}
+
+.subdesc {
+  margin: var(--space-4) 0 0;
+  font-family: var(--font-mono);
+  font-size: clamp(13px, 1.4vw, 16px);
+  letter-spacing: 0.02em;
+  color: var(--text-secondary);
+}
+
+.subdesc b {
+  color: var(--accent-text);
+  font-weight: 500;
+}
+
+.actions {
+  margin-top: var(--space-7);
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-4) var(--space-5);
+}
+
+.cta {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--font-head);
+  font-weight: 600;
+  font-size: 16px;
+  letter-spacing: -0.01em;
+  color: var(--on-accent);
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-6);
+  text-decoration: none;
+  transition: background var(--duration-normal) ease, transform var(--duration-fast) ease;
+}
+
+.cta:hover {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+
+.cta:active {
+  transform: translateY(1px);
+}
+
+.osLinks {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.osLinks a {
+  color: var(--text-secondary);
+  text-decoration: none;
+  transition: color var(--duration-normal) ease;
+}
+
+.osLinks a:hover {
+  color: var(--accent-text);
+}
+
+.sep {
+  margin-left: var(--space-3);
+  color: var(--border-strong);
+}

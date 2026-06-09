@@ -1,0 +1,56 @@
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: color-mix(in srgb, var(--bg-app) 82%, transparent);
+  backdrop-filter: saturate(140%) blur(12px);
+  border-bottom: 1px solid var(--border);
+}
+
+.inner {
+  max-width: var(--maxw);
+  margin: 0 auto;
+  padding: var(--space-4) var(--gutter);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-5);
+}
+
+.brand {
+  font-family: var(--font-head);
+  font-weight: 600;
+  font-size: 18px;
+  letter-spacing: var(--track-head);
+  color: var(--text-primary);
+  text-decoration: none;
+}
+
+.dot {
+  color: var(--accent);
+}
+
+.nav {
+  display: flex;
+  gap: var(--space-6);
+}
+
+.nav a {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  text-decoration: none;
+  transition: color var(--duration-normal) ease;
+}
+
+.nav a:hover {
+  color: var(--accent-text);
+}
+
+@media (max-width: 760px) {
+  .nav {
+    display: none;
+  }
+}

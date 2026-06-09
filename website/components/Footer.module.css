@@ -1,0 +1,70 @@
+.footer {
+  background: var(--surface-2);
+  border-top: 1px solid var(--border);
+}
+
+.inner {
+  max-width: var(--maxw);
+  margin: 0 auto;
+  padding: clamp(48px, 7vw, 80px) var(--gutter) var(--space-7);
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-6);
+}
+
+.wordmark {
+  margin: 0;
+  font-family: var(--font-head);
+  font-weight: 600;
+  font-size: 22px;
+  letter-spacing: var(--track-head);
+  color: var(--text-primary);
+}
+
+.dot {
+  color: var(--accent);
+}
+
+.tagline {
+  margin: var(--space-2) 0 0;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.03em;
+  color: var(--text-secondary);
+}
+
+.links {
+  display: flex;
+  gap: var(--space-6);
+}
+
+.links a {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  text-decoration: none;
+  transition: color var(--duration-normal) ease;
+}
+
+.links a:hover {
+  color: var(--accent-text);
+}
+
+.creditsRow {
+  max-width: var(--maxw);
+  margin: 0 auto;
+  padding: var(--space-5) var(--gutter) clamp(40px, 6vw, 64px);
+  border-top: 1px solid var(--border);
+}
+
+.credits {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.03em;
+  line-height: 1.7;
+  color: var(--text-secondary);
+}

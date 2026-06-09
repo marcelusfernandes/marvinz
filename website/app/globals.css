@@ -1,0 +1,147 @@
+/* ============================================================
+   Marvinz landing — design tokens (brandbook v1)
+   Token names follow docs/specs/website-landing.md §1.6, which
+   mirrors .claude/rules/design-tokens.md conventions.
+   Light theme in :root, dark overrides in [data-theme='dark'].
+   prefers-color-scheme is resolved pre-hydration in layout.tsx.
+   ============================================================ */
+
+:root {
+  /* Brand raws — reference only, do not apply to text */
+  --raspberry: #bc4670;
+  --raspberry-dark: #d06185;
+  --raspberry-hover: #e07b9a; /* lifted raspberry — hover fill on dark canvas */
+  --mulberry: #a23a5b;
+  --gold: #c08a2d;
+
+  /* Semantic accent */
+  --accent: var(--raspberry);
+  --accent-hover: var(--mulberry); /* pressed/hover fill — darker than accent on light */
+  --accent-text: var(--mulberry);
+  --accent-bg: rgba(188, 70, 112, 0.08);
+  --glow: rgba(188, 70, 112, 0.16);
+
+  /* On-accent foreground — text/icons on a Raspberry fill */
+  --on-accent: white;
+
+  /* Surfaces */
+  --bg-app: #fafafa;
+  --surface-1: #ffffff;
+  --surface-2: #f4f4f5;
+
+  /* Text */
+  --text-primary: #1c1c1e;
+  --text-secondary: #6b6b70;
+
+  /* Borders */
+  --border: #e8e8ea;
+  --border-strong: #d8d8dc;
+  --border-focus: var(--accent);
+
+  /* Typography stacks — families provided by next/font as CSS variables */
+  --font-head: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-body: var(--font-inter), -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, "SF Mono", Menlo, monospace;
+
+  /* Layout */
+  --maxw: 1080px;
+  --gutter: clamp(20px, 5vw, 80px);
+  --track-head: -0.025em;
+
+  /* Spacing — 4px base */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+
+  /* Radius */
+  --radius-md: 6px;
+  --radius-lg: 12px;
+
+  /* Shadow — card hover lift (brandbook §6.4) */
+  --shadow-card: 0 12px 36px rgba(0, 0, 0, 0.06);
+
+  /* Motion */
+  --duration-fast: 120ms;
+  --duration-normal: 200ms;
+  --ease-out: cubic-bezier(0, 0, 0.2, 1);
+
+  /* Focus ring — keyboard only, applied via box-shadow */
+  --focus-ring: 0 0 0 2px var(--bg-app), 0 0 0 4px var(--border-focus);
+}
+
+[data-theme="dark"] {
+  --accent: var(--raspberry-dark);
+  --accent-hover: var(--raspberry-hover); /* lifted raspberry for hover on near-black */
+  --accent-text: var(--raspberry-dark);
+  --accent-bg: rgba(208, 97, 133, 0.12);
+  --glow: rgba(208, 97, 133, 0.22);
+
+  --bg-app: #161618;
+  --surface-1: #1e1e21;
+  --surface-2: #232327;
+
+  --text-primary: #ececee;
+  --text-secondary: #9a9aa2;
+
+  --border: #2c2c31;
+  --border-strong: #3a3a41;
+
+  /* Heavier shadow for visibility on near-black */
+  --shadow-card: 0 12px 36px rgba(0, 0, 0, 0.4);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg-app);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  transition: background 0.4s ease, color 0.4s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+  /* Theme background transition may remain but reduced (spec §7).
+     !important needed to win over the universal reduced-motion rule above. */
+  body {
+    transition: background 200ms ease, color 200ms ease !important;
+  }
+}
+
+::selection {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+a {
+  color: var(--accent-text);
+}
+
+:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: 4px;
+}
