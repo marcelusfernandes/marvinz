@@ -9,13 +9,12 @@
  * it raw markdown. It exercises the full production render path:
  *   remark parse → gfm task-list schema (checked attr) → nodeViews map → DOM.
  *
- * Two describe blocks:
+ * Three describe blocks:
  *   1. WITHOUT taskListNodeView — reproduces the bug: no <input> rendered.
  *   2. WITH taskListNodeView — proves the fix: <input type="checkbox"> present.
- *
- * The diagnostic test in block 1 always passes and logs the exact HTML the
- * real gfm toDOM path emits without the node view, so the team can see
- * precisely what the broken state looks like.
+ *   3. DOM shape — regression coverage for layout (checkbox first child, content
+ *      sibling); real-browser geometry and input-rule paths are in
+ *      e2e/task-list-page-mode.spec.ts.
  */
 
  
@@ -91,21 +90,6 @@ async function mountEditor(
 // ---------------------------------------------------------------------------
 
 describe('task-list integration — WITHOUT taskListNodeView (bug reproduction)', () => {
-  it('diagnostic — log exact HTML gfm toDOM produces for `- [ ] task`', async () => {
-    const root = await mountEditor('- [ ] task', { withNodeView: false })
-
-    const listItems = root.querySelectorAll('li')
-    console.log('[bug-repro] rendered HTML:\n', root.innerHTML)
-    for (const li of listItems) {
-      console.log('[bug-repro] li.outerHTML:', li.outerHTML)
-      console.log('[bug-repro]   data-item-type:', li.getAttribute('data-item-type'))
-      console.log('[bug-repro]   data-checked:', li.getAttribute('data-checked'))
-      console.log('[bug-repro]   has checkbox child:', li.querySelector('input[type="checkbox"]') !== null)
-    }
-    // Always passes — diagnostic only.
-    expect(root.innerHTML).toBeDefined()
-  })
-
   it('WITHOUT node view: no <input type="checkbox"> for `- [ ] task`', async () => {
     const root = await mountEditor('- [ ] task', { withNodeView: false })
 
@@ -165,5 +149,56 @@ describe('task-list integration — WITH taskListNodeView (fix verification)', (
     const [unchecked, checked] = checkboxes as unknown as [HTMLInputElement, HTMLInputElement]
     expect(unchecked.checked).toBe(false)
     expect(checked.checked).toBe(true)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Block 3: DOM shape — regression coverage for layout assertions
+//
+// jsdom cannot verify computed bounding boxes or CSS list-style-type reliably,
+// but it CAN assert the structural shape the taskListNodeView builds. These
+// tests guard that the checkbox is the first child of <li> and the content div
+// is its immediate sibling, which is what the Chromium layout (A) tests depend on.
+//
+// Input-rule / contentEditable paths are NOT covered here — those require real
+// Chromium. See e2e/task-list-page-mode.spec.ts for suite B verification.
+// ---------------------------------------------------------------------------
+
+describe('task-list integration — DOM shape / layout regression', () => {
+  it('checkbox is the first child of <li data-item-type="task">', async () => {
+    const root = await mountEditor('- [ ] item', { withNodeView: true })
+
+    const li = root.querySelector('li[data-item-type="task"]')
+    expect(li).not.toBeNull()
+
+    const firstChild = li!.children[0] as HTMLElement | undefined
+    expect(firstChild?.tagName).toBe('INPUT')
+    expect(firstChild?.getAttribute('type')).toBe('checkbox')
+  })
+
+  it('.task-list-item__content is the sibling immediately after the checkbox', async () => {
+    const root = await mountEditor('- [ ] item', { withNodeView: true })
+
+    const li = root.querySelector('li[data-item-type="task"]')
+    expect(li).not.toBeNull()
+
+    const secondChild = li!.children[1] as HTMLElement | undefined
+    expect(secondChild?.classList.contains('task-list-item__content')).toBe(true)
+  })
+
+  it('<li> has exactly two children: checkbox + content div', async () => {
+    const root = await mountEditor('- [ ] item', { withNodeView: true })
+
+    const li = root.querySelector('li[data-item-type="task"]')
+    expect(li).not.toBeNull()
+    expect(li!.children).toHaveLength(2)
+  })
+
+  it('checkbox has contentEditable="false" to prevent PM from managing it', async () => {
+    const root = await mountEditor('- [ ] item', { withNodeView: true })
+
+    const checkbox = root.querySelector('input[type="checkbox"]') as HTMLInputElement | null
+    expect(checkbox).not.toBeNull()
+    expect(checkbox!.contentEditable).toBe('false')
   })
 })

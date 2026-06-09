@@ -4091,6 +4091,37 @@ button.prop-bool {
   vertical-align: middle;
 }
 
+/* GFM task items (issue #437): the node view renders
+   `<li data-item-type="task"><input type="checkbox"><div class="task-list-item__content">…`.
+   Lay the checkbox and its content on one line and hide the list bullet for
+   task items only — regular bullet/ordered items keep their marker. */
+.live-md li[data-item-type='task'],
+.md-preview-inner li[data-item-type='task'] {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  list-style: none;
+}
+
+/* The checkbox spacing comes from the flex `gap`; drop the generic
+   `margin-right` so task items don't get a double gap. */
+.live-md li[data-item-type='task'] > input[type='checkbox'],
+.md-preview-inner li[data-item-type='task'] > input[type='checkbox'] {
+  margin-right: 0;
+  flex: none;
+}
+
+.live-md .task-list-item__content,
+.md-preview-inner .task-list-item__content {
+  flex: 1;
+  min-width: 0;
+}
+
+.live-md .task-list-item__content > p,
+.md-preview-inner .task-list-item__content > p {
+  margin: 0;
+}
+
 .live-md del {
   color: var(--text-tertiary);
 }

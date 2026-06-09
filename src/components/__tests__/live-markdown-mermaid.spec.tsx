@@ -143,13 +143,13 @@ vi.mock('@milkdown/react', () => ({
   },
 }))
 
-vi.mock('@milkdown/preset-commonmark', () => ({ commonmark: { _kind: 'commonmark' } }))
+vi.mock('@milkdown/preset-commonmark', () => ({ commonmark: { _kind: 'commonmark' }, bulletListSchema: { type: () => ({}) }, listItemSchema: { type: () => ({}) } }))
 vi.mock('@milkdown/preset-gfm', () => ({ gfm: { _kind: 'gfm' }, extendListItemSchemaForTask: { node: {} } }))
 vi.mock('@milkdown/plugin-listener', () => ({
   listener: { _kind: 'listener' },
   listenerCtx: LISTENER_CTX,
 }))
-vi.mock('@milkdown/utils', () => ({ $view: (_schema: unknown, _factory: unknown) => ({ _kind: '$view' }) }))
+vi.mock('@milkdown/utils', () => ({ $view: (_schema: unknown, _factory: unknown) => ({ _kind: '$view' }), $inputRule: (_factory: unknown) => ({ _kind: '$inputRule' }) }))
 
 vi.mock('prosemirror-history', () => ({
   history: () => ({}),

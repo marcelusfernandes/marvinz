@@ -23,6 +23,7 @@ import type { EditorView } from 'prosemirror-view'
 import { imageNodeView } from '../lib/imageNodeView'
 import { mermaidNodeView } from '../lib/mermaidNodeView'
 import { taskListNodeView } from '../lib/taskListNodeView'
+import { taskListBracketInputRule } from '../lib/taskListInputRule'
 import { justInsertedPlugin, justInsertedPluginKey } from '../lib/pmJustInsertedHighlight'
 import { justReplacedPlugin } from '../lib/pmJustReplacedHighlight'
 import type { PaletteItem } from '../lib/paletteRanker'
@@ -532,6 +533,7 @@ function LiveMarkdownInner({
       .use(imageView)
       .use(mermaidView)
       .use(taskListView)
+      .use(taskListBracketInputRule)
   }, [])
 
   // Single delegated click handler for the editor surface — intercepts
