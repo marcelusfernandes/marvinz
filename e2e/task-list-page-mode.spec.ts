@@ -86,11 +86,12 @@ test.describe('task-list Page mode — layout (A)', () => {
   test.beforeEach(async () => {
     const rawVault = await fs.mkdtemp(path.join(os.tmpdir(), 'marvin-e2e-tasklist-vault-'))
     vaultRoot = await fs.realpath(rawVault)
-    // Two task items + one regular bullet to verify CSS isolation.
+    // Two task items, one nested task, one regular bullet, and a heading so
+    // we can compare horizontal alignment (A5 indent check).
     await seedVault(
       vaultRoot,
       'tasks.md',
-      '- [ ] unchecked item\n- [x] checked item\n- regular bullet\n',
+      '# Heading\n\n- [ ] unchecked item\n- [x] checked item\n  - [ ] nested task\n- regular bullet\n',
     )
     userDataDir = await createUserDataDir(vaultRoot)
   })
@@ -179,11 +180,15 @@ test.describe('task-list Page mode — layout (A)', () => {
       await openFile(page, /^tasks$/)
       await switchToPage(page)
 
+      // 2 top-level + 1 nested = 3 task items in the seeded doc.
       const items = page.locator('.milkdown-host li[data-item-type="task"]')
-      await expect(items).toHaveCount(2, { timeout: 5_000 })
+      await expect(items).toHaveCount(3, { timeout: 5_000 })
 
-      await expect(items.nth(0).locator('input[type="checkbox"]')).not.toBeChecked()
-      await expect(items.nth(1).locator('input[type="checkbox"]')).toBeChecked()
+      // First two are the top-level `- [ ]` and `- [x]` items.
+      // Use .first() because the `- [x]` li also contains a nested task li,
+      // so its checkbox locator would otherwise resolve to 2 elements.
+      await expect(items.nth(0).locator('input[type="checkbox"]').first()).not.toBeChecked()
+      await expect(items.nth(1).locator('input[type="checkbox"]').first()).toBeChecked()
     } finally {
       await app.close()
     }
@@ -202,7 +207,8 @@ test.describe('task-list Page mode — layout (A)', () => {
       await switchToPage(page)
 
       // Wait for the task items to confirm the editor parsed the whole doc.
-      await expect(page.locator('.milkdown-host li[data-item-type="task"]')).toHaveCount(2, { timeout: 5_000 })
+      // 2 top-level + 1 nested = 3.
+      await expect(page.locator('.milkdown-host li[data-item-type="task"]')).toHaveCount(3, { timeout: 5_000 })
 
       // The regular bullet is a <li> WITHOUT data-item-type="task".
       const regularLi = page.locator(
@@ -219,6 +225,130 @@ test.describe('task-list Page mode — layout (A)', () => {
       // Regular items must NOT have a checkbox injected by the node view.
       const checkbox = regularLi.locator('input[type="checkbox"]')
       await expect(checkbox).toHaveCount(0)
+    } finally {
+      await app.close()
+    }
+  })
+
+  test('(A5) top-level task checkbox left-edge aligns with heading text (orphan-indent fix)', async () => {
+    const app = await electron.launch({
+      args: ['.', `--user-data-dir=${userDataDir}`],
+      env: { ...process.env, NODE_ENV: 'test' },
+    })
+    const page = await app.firstWindow()
+    await page.waitForLoadState('domcontentloaded')
+
+    try {
+      await openFile(page, /^tasks$/)
+      await switchToPage(page)
+
+      // 2 top-level + 1 nested = 3.
+      await expect(page.locator('.milkdown-host li[data-item-type="task"]')).toHaveCount(3, { timeout: 5_000 })
+
+      // The heading establishes the content margin. The task checkbox should
+      // be within 10 px of it horizontally — not indented an extra ~22 px into
+      // the bullet-reserved gap.
+      const heading = page.locator('.milkdown-host h1').first()
+      const taskCheckbox = page.locator('.milkdown-host li[data-item-type="task"]').first()
+        .locator('input[type="checkbox"]')
+
+      await expect(heading).toBeVisible()
+      await expect(taskCheckbox).toBeVisible()
+
+      const headingBox = await heading.boundingBox()
+      const checkboxBox = await taskCheckbox.boundingBox()
+      expect(headingBox).not.toBeNull()
+      expect(checkboxBox).not.toBeNull()
+
+      // Checkbox left must be within 10 px of heading left — margin-aligned,
+      // not pushed right by the empty bullet column.
+      const leftDiff = Math.abs(checkboxBox!.x - headingBox!.x)
+      expect(leftDiff).toBeLessThanOrEqual(10)
+    } finally {
+      await app.close()
+    }
+  })
+
+  test('(A6) nested task item indents deeper than the top-level task', async () => {
+    const app = await electron.launch({
+      args: ['.', `--user-data-dir=${userDataDir}`],
+      env: { ...process.env, NODE_ENV: 'test' },
+    })
+    const page = await app.firstWindow()
+    await page.waitForLoadState('domcontentloaded')
+
+    try {
+      await openFile(page, /^tasks$/)
+      await switchToPage(page)
+
+      // Top-level tasks are the first two li[data-item-type=task].
+      // The nested task is inside a child <ul> so it appears after.
+      const allTaskItems = page.locator('.milkdown-host li[data-item-type="task"]')
+      await expect(allTaskItems).toHaveCount(3, { timeout: 5_000 })
+
+      const topCheckbox = allTaskItems.nth(0).locator('input[type="checkbox"]')
+      const nestedCheckbox = allTaskItems.nth(2).locator('input[type="checkbox"]')
+
+      await expect(topCheckbox).toBeVisible()
+      await expect(nestedCheckbox).toBeVisible()
+
+      const topBox = await topCheckbox.boundingBox()
+      const nestedBox = await nestedCheckbox.boundingBox()
+      expect(topBox).not.toBeNull()
+      expect(nestedBox).not.toBeNull()
+
+      // Nested checkbox must be to the right of the top-level one.
+      expect(nestedBox!.x).toBeGreaterThan(topBox!.x)
+    } finally {
+      await app.close()
+    }
+  })
+
+  test('(A7) mixed list: regular bullet sibling of a task item keeps its disc and indent', async () => {
+    const app = await electron.launch({
+      args: ['.', `--user-data-dir=${userDataDir}`],
+      env: { ...process.env, NODE_ENV: 'test' },
+    })
+    const page = await app.firstWindow()
+    await page.waitForLoadState('domcontentloaded')
+
+    try {
+      await openFile(page, /^tasks$/)
+      await switchToPage(page)
+
+      // 2 top-level + 1 nested = 3.
+      await expect(page.locator('.milkdown-host li[data-item-type="task"]')).toHaveCount(3, { timeout: 5_000 })
+
+      // The plain `- regular bullet` is a sibling <li> in the same <ul> as
+      // the task items. Applying padding-left:0 to the parent <ul> (an earlier
+      // approach to the orphan-indent) would strip this item's marker/indent.
+      const regularLi = page.locator('.milkdown-host li:not([data-item-type="task"])').first()
+      await expect(regularLi).toBeVisible()
+
+      // Must keep its disc marker.
+      const listStyle = await regularLi.evaluate(
+        (el) => window.getComputedStyle(el).listStyleType,
+      )
+      expect(listStyle).not.toBe('none')
+
+      // Must have no checkbox.
+      await expect(regularLi.locator('input[type="checkbox"]')).toHaveCount(0)
+
+      // Must be indented (left position) at least as far as its list padding —
+      // not collapsed to 0 by a ul-level CSS rule. Compare against a task
+      // checkbox in the same list: they share the same <ul> so the regular
+      // bullet left must be close to the task content left (within 10 px).
+      const taskContent = page.locator('.milkdown-host li[data-item-type="task"]').first()
+        .locator('.task-list-item__content')
+      const regularBox = await regularLi.boundingBox()
+      const contentBox = await taskContent.boundingBox()
+      expect(regularBox).not.toBeNull()
+      expect(contentBox).not.toBeNull()
+
+      // The regular bullet text left should be close to the task content left
+      // (both are sibling list items at the same nesting level).
+      const leftDiff = Math.abs(regularBox!.x - contentBox!.x)
+      expect(leftDiff).toBeLessThanOrEqual(30)
     } finally {
       await app.close()
     }

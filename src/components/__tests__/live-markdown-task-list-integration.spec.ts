@@ -202,3 +202,51 @@ describe('task-list integration — DOM shape / layout regression', () => {
     expect(checkbox!.contentEditable).toBe('false')
   })
 })
+
+// ---------------------------------------------------------------------------
+// Block 4: Mixed-list DOM shape — task item + plain bullet in the same <ul>
+//
+// The editor merges a task item and a following plain `- bullet` into ONE <ul>
+// (sibling <li>s). An earlier attempt to fix orphan-indent via
+// `ul:has(> li[data-item-type=task]) { padding-left: 0 }` broke the plain
+// sibling's indent/bullet. This block guards the structure:
+//   - task <li> has data-item-type="task" + checkbox
+//   - plain sibling <li> has NO data-item-type="task" and NO checkbox
+//   - both live inside the SAME <ul>
+//
+// Pixel-level indent assertions (task checkbox left ≈ heading left; nested task
+// deeper; regular sibling keeps disc) require real Chromium —
+// see e2e/task-list-page-mode.spec.ts suite A5–A7.
+// ---------------------------------------------------------------------------
+
+describe('task-list integration — mixed-list DOM shape (issue #13 regression)', () => {
+  it('task item and plain bullet share the same <ul>', async () => {
+    const root = await mountEditor('- [ ] task\n- plain', { withNodeView: true })
+
+    const taskLi = root.querySelector('li[data-item-type="task"]')
+    expect(taskLi).not.toBeNull()
+
+    const plainLi = root.querySelector('li:not([data-item-type="task"])')
+    expect(plainLi).not.toBeNull()
+
+    // Both must be children of the same parent <ul>.
+    expect(taskLi!.parentElement).toBe(plainLi!.parentElement)
+    expect(taskLi!.parentElement?.tagName).toBe('UL')
+  })
+
+  it('plain sibling in a mixed list has no checkbox', async () => {
+    const root = await mountEditor('- [ ] task\n- plain', { withNodeView: true })
+
+    const plainLi = root.querySelector('li:not([data-item-type="task"])')
+    expect(plainLi).not.toBeNull()
+    expect(plainLi!.querySelector('input[type="checkbox"]')).toBeNull()
+  })
+
+  it('plain sibling in a mixed list has no data-item-type attribute', async () => {
+    const root = await mountEditor('- [ ] task\n- plain', { withNodeView: true })
+
+    const plainLi = root.querySelector('li:not([data-item-type="task"])')
+    expect(plainLi).not.toBeNull()
+    expect(plainLi!.hasAttribute('data-item-type')).toBe(false)
+  })
+})
