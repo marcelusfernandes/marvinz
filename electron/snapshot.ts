@@ -3,12 +3,15 @@ import { existsSync } from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
 import { shell } from 'electron'
+import { assertInsideVaultAsync } from './vault-boundary.js'
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
 export type SnapshotTrigger = 'file:write' | 'watcher' | 'restore' | 'cascade' | 'buffer-save' | 'external-rejected'
+
+export type UserSnapshotTrigger = 'user-trash' | 'user-rename' | 'user-move' | 'user-overwrite'
 
 export type ManifestEntry = {
   relPath: string
@@ -28,6 +31,18 @@ export type SnapshotManifest = {
   agentId?: string
 }
 
+export type UserManifestEntry = {
+  snapshotId: string
+  paths: string[]
+  trigger: UserSnapshotTrigger
+  createdAt: string
+  timestamp: number
+}
+
+export type UserManifest = {
+  entries: UserManifestEntry[]
+}
+
 export type GCPolicy = {
   maxTurns: number
   maxAgeDays: number
@@ -41,6 +56,10 @@ export type GCPolicy = {
 const MARVIN_DIR = '.marvin'
 const SNAPSHOTS_DIR = 'snapshots'
 const MANIFEST_NAME = '_manifest.json'
+
+// Reserved bucket id for user-driven snapshots (no AI turn required)
+const USER_BUCKET_ID = '_user'
+const USER_FIFO_CAP = 50
 
 const DEFAULT_GC_POLICY: GCPolicy = {
   maxTurns: 50,
@@ -65,6 +84,15 @@ function assertRelPath(relPath: string): void {
   if (normalized.startsWith('..') || path.isAbsolute(normalized)) {
     throw new Error('MARVIN_INVALID_PATH')
   }
+}
+
+const USER_TRIGGERS = new Set<UserSnapshotTrigger>(['user-trash', 'user-rename', 'user-move', 'user-overwrite'])
+
+function assertUserTrigger(trigger: unknown): UserSnapshotTrigger {
+  if (typeof trigger !== 'string' || !USER_TRIGGERS.has(trigger as UserSnapshotTrigger)) {
+    throw new Error('MARVIN_INVALID_TRIGGER')
+  }
+  return trigger as UserSnapshotTrigger
 }
 
 // ---------------------------------------------------------------------------
@@ -166,6 +194,67 @@ function isBinaryContent(content: string): boolean {
 }
 
 // ---------------------------------------------------------------------------
+// User-bucket internal helpers (_user, no turnId required)
+// ---------------------------------------------------------------------------
+
+function userBucketDir(vaultRoot: string): string {
+  return path.join(snapshotsRoot(vaultRoot), USER_BUCKET_ID)
+}
+
+function userManifestPath(vaultRoot: string): string {
+  return path.join(userBucketDir(vaultRoot), MANIFEST_NAME)
+}
+
+// C1: same boundary check as snapshotFilePath, scoped to the user bucket
+function userSnapshotFilePath(vaultRoot: string, snapshotId: string, relPath: string): string {
+  const root = path.resolve(userBucketDir(vaultRoot), snapshotId)
+  const abs = path.resolve(root, relPath)
+  if (abs !== root && !abs.startsWith(root + path.sep)) {
+    throw new Error('MARVIN_INVALID_PATH')
+  }
+  return abs
+}
+
+async function readUserManifest(vaultRoot: string): Promise<UserManifest> {
+  try {
+    const raw = await fs.readFile(userManifestPath(vaultRoot), 'utf8')
+    const parsed = JSON.parse(raw) as unknown
+    if (parsed && typeof parsed === 'object' && Array.isArray((parsed as UserManifest).entries)) {
+      return parsed as UserManifest
+    }
+  } catch {
+    // file missing or corrupt — return empty manifest
+  }
+  return { entries: [] }
+}
+
+async function writeUserManifest(vaultRoot: string, manifest: UserManifest): Promise<void> {
+  const p = userManifestPath(vaultRoot)
+  await fs.mkdir(path.dirname(p), { recursive: true })
+  await fs.writeFile(p, JSON.stringify(manifest, null, 2), 'utf8')
+}
+
+// Prune _user bucket to at most USER_FIFO_CAP entries (oldest first).
+// Also removes orphaned snapshot directories for pruned entries.
+async function pruneUserBucket(vaultRoot: string, manifest: UserManifest): Promise<UserManifest> {
+  if (manifest.entries.length <= USER_FIFO_CAP) return manifest
+  const toRemove = manifest.entries.slice(0, manifest.entries.length - USER_FIFO_CAP)
+  const kept = manifest.entries.slice(manifest.entries.length - USER_FIFO_CAP)
+  // Best-effort cleanup of pruned snapshot directories
+  await Promise.all(
+    toRemove.map(async (entry) => {
+      const dir = path.join(userBucketDir(vaultRoot), entry.snapshotId)
+      try {
+        await fs.rm(dir, { recursive: true, force: true })
+      } catch {
+        // ignore — not critical if cleanup fails
+      }
+    }),
+  )
+  return { entries: kept }
+}
+
+// ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 
@@ -244,6 +333,7 @@ export async function completeTurn(vaultRoot: string, turnId: string): Promise<v
 
 /**
  * List all turn manifests, sorted newest-first.
+ * The _user bucket directory is excluded — it is not a turn.
  */
 export async function listTurns(vaultRoot: string): Promise<SnapshotManifest[]> {
   const root = snapshotsRoot(vaultRoot)
@@ -256,7 +346,7 @@ export async function listTurns(vaultRoot: string): Promise<SnapshotManifest[]> 
 
   const manifests = await Promise.all(
     entries
-      .filter((e) => e.isDirectory() && e.name !== MANIFEST_NAME)
+      .filter((e) => e.isDirectory() && e.name !== MANIFEST_NAME && e.name !== USER_BUCKET_ID)
       .map((e) => readManifest(vaultRoot, e.name)),
   )
 
@@ -446,4 +536,139 @@ export async function ensureVaultGitignore(vaultRoot: string): Promise<void> {
     : `${existing}\n${GITIGNORE_ENTRY}\n`
 
   await fs.writeFile(gitignorePath, updated, 'utf8')
+}
+
+// ---------------------------------------------------------------------------
+// User-bucket public API (U2: capture without AI turn)
+// ---------------------------------------------------------------------------
+
+/**
+ * Capture the current on-disk content of each path into the `_user` snapshot
+ * bucket, independent of any AI turn. All paths are grouped under one snapshotId.
+ *
+ * Security: each source path is validated with assertInsideVaultAsync (lstat-first
+ * symlink check + realpath boundary — C3/H2). The returned safeAbs is used for
+ * fs.readFile so there is no TOCTOU window between check and read.
+ *
+ * Unlike writeSnapshot this is NOT best-effort: it throws on any failure so
+ * callers (e.g. U3 trash handler) know whether a recoverable copy exists before
+ * proceeding with a destructive operation.
+ *
+ * @returns snapshotId (uuid v4) identifying this capture bundle.
+ */
+export async function captureUserSnapshot(
+  vaultRoot: string,
+  paths: string[],
+  trigger: UserSnapshotTrigger,
+): Promise<string> {
+  if (!Array.isArray(paths) || paths.length === 0) throw new Error('MARVIN_INVALID_PATH')
+  assertUserTrigger(trigger)
+
+  // H4: string-level validation before any async I/O
+  paths.forEach(assertRelPath)
+
+  const vaultResolved = path.resolve(vaultRoot)
+  const snapshotId = crypto.randomUUID()
+
+  // Per-path: assertInsideVaultAsync (lstat + realpath) eliminates TOCTOU and
+  // symlink-escape on the SOURCE. safeAbs is the canonical path fed to fs.readFile.
+  const validatedPaths: string[] = []
+  await Promise.all(
+    paths.map(async (p) => {
+      const absCandidate = path.resolve(vaultResolved, p)
+      const safeAbs = await assertInsideVaultAsync(vaultRoot, absCandidate)
+      const relPath = path.relative(vaultResolved, safeAbs)
+      validatedPaths.push(relPath)
+
+      const content = await fs.readFile(safeAbs, 'utf8')
+
+      const byteSize = Buffer.byteLength(content, 'utf8')
+      if (byteSize > TEXT_SIZE_WARN_BYTES) {
+        console.warn('[snapshot] captureUserSnapshot: large text file captured', { relPath, byteSize })
+      }
+
+      const destPath = userSnapshotFilePath(vaultRoot, snapshotId, relPath) // C1
+      await fs.mkdir(path.dirname(destPath), { recursive: true })
+      await fs.writeFile(destPath, content, 'utf8')
+    }),
+  )
+
+  const now = Date.now()
+  const newEntry: UserManifestEntry = {
+    snapshotId,
+    paths: validatedPaths,
+    trigger,
+    createdAt: new Date(now).toISOString(),
+    timestamp: now,
+  }
+
+  const existing = await readUserManifest(vaultRoot)
+  const updated = await pruneUserBucket(vaultRoot, {
+    entries: [...existing.entries, newEntry],
+  })
+  await writeUserManifest(vaultRoot, updated)
+
+  return snapshotId
+}
+
+/**
+ * Restore a single snapshot bundle captured by `captureUserSnapshot`.
+ * Looks up the entry by `snapshotId` in the `_user` manifest, then writes each
+ * snapshotted file back to its original path inside the vault.
+ *
+ * Applies the same H2 symlink-escape checks as `restoreSnapshot` to every
+ * destination path. Throws on: unknown snapshotId, path validation failures,
+ * or any fs error.
+ *
+ * Returns the vault-relative paths that were restored so callers can invalidate
+ * their file-content caches.
+ */
+export async function restoreUserSnapshot(vaultRoot: string, snapshotId: string): Promise<string[]> {
+  const manifest = await readUserManifest(vaultRoot)
+  const entry = manifest.entries.find((e) => e.snapshotId === snapshotId)
+  if (!entry) throw new Error('MARVIN_UNKNOWN_SNAPSHOT')
+
+  const vaultResolved = path.resolve(vaultRoot)
+
+  // Restore each path in the bundle, applying H2/C1 checks to every destination
+  await Promise.all(
+    entry.paths.map(async (relPath) => {
+      assertRelPath(relPath) // H4: re-validate paths stored in manifest
+
+      // C1 + H2: resolve destination and verify it stays inside the vault
+      const destPath = path.resolve(vaultResolved, relPath)
+      if (!destPath.startsWith(vaultResolved + path.sep) && destPath !== vaultResolved) {
+        throw new Error('MARVIN_INVALID_PATH')
+      }
+
+      const parentDir = path.dirname(destPath)
+
+      // H2: realpath on parent dir to catch symlinked directories
+      try {
+        const realParent = await fs.realpath(parentDir)
+        if (!realParent.startsWith(vaultResolved + path.sep) && realParent !== vaultResolved) {
+          throw new Error('MARVIN_INVALID_PATH')
+        }
+      } catch (err) {
+        if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err
+      }
+
+      // H2: realpath on the destination file itself if it exists — catches file-level symlinks
+      try {
+        const realDest = await fs.realpath(destPath)
+        if (!realDest.startsWith(vaultResolved + path.sep) && realDest !== vaultResolved) {
+          throw new Error('MARVIN_INVALID_PATH')
+        }
+      } catch (err) {
+        if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err
+      }
+
+      const srcPath = userSnapshotFilePath(vaultRoot, snapshotId, relPath) // C1
+      const content = await fs.readFile(srcPath, 'utf8')
+      await fs.mkdir(parentDir, { recursive: true })
+      await fs.writeFile(destPath, content, 'utf8')
+    }),
+  )
+
+  return entry.paths
 }

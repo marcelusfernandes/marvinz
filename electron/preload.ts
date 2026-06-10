@@ -197,6 +197,10 @@ const api = {
       ipcRenderer.invoke('snapshot:saveBuffer', relPath, content),
     saveExternalChange: (relPath: string, content: string) =>
       ipcRenderer.invoke('snapshot:saveExternalChange', relPath, content),
+    capture: (paths: string[], trigger: string) =>
+      ipcRenderer.invoke('snapshot:capture', { paths, trigger }),
+    restoreOne: (snapshotId: string) =>
+      ipcRenderer.invoke('snapshot:restoreOne', { snapshotId }),
     onTurnCompleted: (cb: (event: { turnId: string; timestamp: number; files: string[] }) => void) => {
       const listener = (_: unknown, event: { turnId: string; timestamp: number; files: string[] }) => cb(event)
       ipcRenderer.on('snapshot:turn-completed', listener)
