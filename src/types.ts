@@ -189,6 +189,15 @@ export type MarvinAPI = {
     saveBuffer: (relPath: string, content: string) => Promise<SnapshotEnvelope<{ turnId: string; saved: boolean }>>
     saveExternalChange: (relPath: string, content: string) => Promise<SnapshotEnvelope<{ turnId: string; saved: boolean }>>
     onTurnCompleted: (cb: (event: SnapshotTurnCompletedEvent) => void) => () => void
+    // User-driven snapshot bucket (U2 / #148) — exposed by preload but the
+    // types were omitted in that PR; added here for U3 (#149) consumers.
+    capture: (
+      paths: string[],
+      trigger: string,
+    ) => Promise<SnapshotEnvelope<{ snapshotId: string }>>
+    restoreOne: (
+      snapshotId: string,
+    ) => Promise<SnapshotEnvelope<Record<string, never>>>
   }
   editor: {
     readClipboard: () => Promise<string>

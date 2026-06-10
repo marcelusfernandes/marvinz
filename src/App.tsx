@@ -23,6 +23,7 @@ import { resolveAppFindShortcut } from './lib/appFindShortcut'
 import { useClipboardStore, clipPasteLabel } from './lib/clipboardStore'
 import { useFileClipboardShortcuts } from './lib/useFileClipboardShortcuts'
 import { useColorTheme, useAgentsPaneTransparent, useEditorEffects } from './lib/colorTheme'
+import { useFileOpsHistory } from './lib/fileOpsHistory'
 import { useVisualStyle } from './lib/visualStyle'
 import { useThemeFlavor } from './lib/themeFlavor'
 import { TopBar } from './components/TopBar'
@@ -1580,6 +1581,7 @@ export default function App() {
         await window.marvin.path.rename(d.target, newPath)
         renameInTabs(d.target, newPath)
         await loadTree(vaultPath)
+        useFileOpsHistory.getState().push({ kind: 'rename', from: d.target, to: newPath })
       }
     } catch (err) {
       reportError(err)
@@ -1589,9 +1591,27 @@ export default function App() {
   const handleTrash = async (target: string) => {
     if (!vaultPath) return
     try {
+      // Capture a recoverable copy BEFORE the destructive trash so file-panel
+      // undo (#149) can restore the content. A capture failure must not block
+      // the user's delete — warn them, and don't record a recovery-promising
+      // entry the undo could not honour.
+      let snapshotId: string | null = null
+      try {
+        const res = await window.marvin.snapshot.capture([target], 'user-trash')
+        if (res.ok) snapshotId = res.data.snapshotId
+        else throw new Error(res.error)
+      } catch {
+        setImportToast({
+          state: 'error',
+          message: 'Could not prepare safety copy — undo will not recover content',
+        })
+      }
       await window.marvin.path.trash(target)
       closeTabsUnder(target)
       await loadTree(vaultPath)
+      if (snapshotId) {
+        useFileOpsHistory.getState().push({ kind: 'trash', path: target, snapshotId })
+      }
     } catch (err) {
       reportError(err)
     }
@@ -1648,6 +1668,7 @@ export default function App() {
         await window.marvin.path.rename(srcPath, newPath)
         renameInTabsRef.current(srcPath, newPath)
         await loadTree(vp)
+        useFileOpsHistory.getState().push({ kind: 'move', from: srcPath, to: newPath })
       } catch (err) {
         reportErrorRef.current(err)
       }
