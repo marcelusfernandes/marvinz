@@ -134,14 +134,16 @@ vi.mock('@milkdown/preset-commonmark', () => ({
   commonmark: {},
   imageSchema: { node: {} },
   codeBlockSchema: { node: {} },
+  bulletListSchema: { type: () => ({}) },
+  listItemSchema: { type: () => ({}) },
 }))
-vi.mock('@milkdown/preset-gfm', () => ({ gfm: {} }))
+vi.mock('@milkdown/preset-gfm', () => ({ gfm: {}, extendListItemSchemaForTask: { node: {} } }))
 vi.mock('@milkdown/plugin-listener', () => ({
   listener: {},
   listenerCtx: Symbol('listenerCtx'),
 }))
 vi.mock('@milkdown/plugin-history', () => ({ history: [] }))
-vi.mock('@milkdown/utils', () => ({ $view: () => ({}) }))
+vi.mock('@milkdown/utils', () => ({ $view: () => ({}), $inputRule: () => ({}) }))
 vi.mock('@milkdown/prose/view', () => ({}))
 
 vi.mock('../lib/imageNodeView', () => ({ imageNodeView: () => ({}) }))

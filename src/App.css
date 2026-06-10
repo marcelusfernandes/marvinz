@@ -4091,6 +4091,47 @@ button.prop-bool {
   vertical-align: middle;
 }
 
+/* GFM task items (issue #437): the node view renders
+   `<li data-item-type="task"><input type="checkbox"><div class="task-list-item__content">…`.
+   Lay the checkbox and its content on one line and hide the list bullet for
+   task items only — regular bullet/ordered items keep their marker.
+
+   With the bullet hidden, the list's bullet-reserved `padding-left` (1.6em on
+   `ul`/`ol`) leaves an orphan gap before the checkbox. The negative
+   `margin-left` (matching that reserved indent) pulls the task item left so the
+   checkbox aligns to the content margin. Scoped to the task `<li>` itself (not
+   the `<ul>`) so a regular sibling in a mixed list keeps its marker and indent;
+   nesting is preserved because a nested task list still sits inside its parent
+   item's flex content and keeps its own `<ul>` padding — the negative margin
+   only cancels the one bullet-reserved level. */
+.live-md li[data-item-type='task'],
+.md-preview-inner li[data-item-type='task'] {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  list-style: none;
+  margin-left: -1.6em;
+}
+
+/* The checkbox spacing comes from the flex `gap`; drop the generic
+   `margin-right` so task items don't get a double gap. */
+.live-md li[data-item-type='task'] > input[type='checkbox'],
+.md-preview-inner li[data-item-type='task'] > input[type='checkbox'] {
+  margin-right: 0;
+  flex: none;
+}
+
+.live-md .task-list-item__content,
+.md-preview-inner .task-list-item__content {
+  flex: 1;
+  min-width: 0;
+}
+
+.live-md .task-list-item__content > p,
+.md-preview-inner .task-list-item__content > p {
+  margin: 0;
+}
+
 .live-md del {
   color: var(--text-tertiary);
 }
