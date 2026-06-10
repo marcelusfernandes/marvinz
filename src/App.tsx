@@ -142,6 +142,13 @@ type Tab = NoteTab | BrowserTabState | ImageTab | PdfTab | DocxTab | XlsxTab | E
 
 const DEFAULT_BROWSER_URL = 'https://www.google.com'
 
+// Cap on simultaneously-mounted note editors (#440). The hidden-stack keeps an
+// editor mounted per open note tab to preserve undo/cursor/scroll across
+// switches; this bounds the memory cost to the K most-recently-active tabs.
+// Six comfortably covers normal multi-file editing; older tabs unmount and
+// rebuild on activate (history resets at that edge).
+const MAX_MOUNTED_EDITORS = 6
+
 const isNoteTab = (t: Tab): t is NoteTab => t.type === 'note'
 const isBrowserTab = (t: Tab): t is BrowserTabState => t.type === 'browser'
 const isImageTab = (t: Tab): t is ImageTab => t.type === 'image'
@@ -418,6 +425,42 @@ export default function App() {
   const pendingCloseIds = useRef<Set<string>>(new Set())
 
   const activeTab = tabs.find((t) => t.id === activeTabId) ?? null
+
+  // Bounded mounted-editor window (#440). Each open note tab keeps its own live
+  // CodeMirror instance so undo history / cursor / scroll survive tab switches,
+  // but every mounted editor costs DOM + EditorState — so only the
+  // MAX_MOUNTED_EDITORS most-recently-active note tabs stay mounted. Note tabs
+  // beyond that fall back to today's behavior (unmounted, rebuilt on activate
+  // with a fresh history). `editorMru` holds note-tab ids most-recent-first.
+  const [editorMru, setEditorMru] = useState<string[]>([])
+  useEffect(() => {
+    if (!activeTabId) return
+    setEditorMru((prev) =>
+      prev[0] === activeTabId
+        ? prev
+        : [activeTabId, ...prev.filter((id) => id !== activeTabId)],
+    )
+  }, [activeTabId])
+
+  const mountedNoteTabs = useMemo(() => {
+    const noteTabs = tabs.filter(isNoteTab)
+    const rank = new Map(editorMru.map((id, i) => [id, i] as const))
+    const ordered = [...noteTabs].sort(
+      (a, b) => (rank.get(a.id) ?? Infinity) - (rank.get(b.id) ?? Infinity),
+    )
+    const keep = new Set(ordered.slice(0, MAX_MOUNTED_EDITORS).map((t) => t.id))
+    // Always keep the active tab mounted even if the MRU effect hasn't run yet
+    // (a freshly opened tab renders before its effect updates `editorMru`).
+    if (activeTabId) keep.add(activeTabId)
+    const evicted = noteTabs.filter((t) => !keep.has(t.id))
+    if (evicted.length > 0) {
+      console.debug(
+        `[App] unmounting ${evicted.length} editor(s) beyond MAX_MOUNTED_EDITORS=${MAX_MOUNTED_EDITORS} (rebuild-on-activate):`,
+        evicted.map((t) => t.path),
+      )
+    }
+    return noteTabs.filter((t) => keep.has(t.id))
+  }, [tabs, editorMru, activeTabId])
 
   // Latest tabs snapshot for handlers (closeTab) that must read current tab
   // state without taking `tabs` as a dependency. Reassigned in the ref-hub
@@ -1363,21 +1406,22 @@ export default function App() {
     [activeTab, navigateInActiveTab, openInTab],
   )
 
+  // Path-explicit so a hidden editor's debounced save writes to ITS OWN file,
+  // not whatever tab is active (#440 — multiple editors are mounted at once).
   const handleSave = useCallback(
-    async (content: string) => {
-      if (!activeTab || !isNoteTab(activeTab)) return
+    async (path: string, content: string) => {
       try {
-        await window.marvin.file.write(activeTab.path, content)
-        lastDiskContentRef.current.set(activeTab.path, content)
-        bufferContentRef.current.set(activeTab.path, content)
+        await window.marvin.file.write(path, content)
+        lastDiskContentRef.current.set(path, content)
+        bufferContentRef.current.set(path, content)
       } catch (err) {
-        const name = basenameOf(activeTab.path)
+        const name = basenameOf(path)
         const detail = err instanceof Error ? err.message : String(err)
         setError(`Failed to save ${name}: ${detail}`)
         throw err
       }
     },
-    [activeTab],
+    [],
   )
 
   const handleBufferChange = useCallback((path: string, content: string) => {
@@ -2032,64 +2076,89 @@ export default function App() {
           onNewTab={openEmptyTab}
         />
         <div className="editor-stack">
-          {activeTab && isNoteTab(activeTab) && (
-            <div className="note-tab-container">
-              {activeTab.pendingExternalChange && (
-                <ExternalChangeBanner
-                  filePath={activeTab.path}
-                  getCurrentBuffer={() =>
-                    bufferContentRef.current.get(activeTab.path) ?? activeTab.content
+          {/* Note/markdown editor tabs are rendered as a stack (all mounted,
+              inactive ones hidden) keyed by stable tab.id so switching tabs
+              does NOT unmount the CodeMirror instance — undo history, cursor,
+              and scroll survive the switch (#440). Mirrors the browser-tab
+              precedent below. The set of mounted tabs is bounded by an MRU
+              cap (see mountedNoteTabs). */}
+          {mountedNoteTabs.map((noteTab) => {
+            const isActive = noteTab.id === activeTabId
+            return (
+              <div
+                key={noteTab.id}
+                className="note-tab-container"
+                hidden={!isActive}
+                data-tab-id={noteTab.id}
+              >
+                {isActive && noteTab.pendingExternalChange && (
+                  <ExternalChangeBanner
+                    filePath={noteTab.path}
+                    getCurrentBuffer={() =>
+                      bufferContentRef.current.get(noteTab.path) ?? noteTab.content
+                    }
+                    diskContent={noteTab.pendingExternalChange.diskContent}
+                    diskChangedAt={noteTab.pendingExternalChange.diskChangedAt}
+                    source={noteTab.pendingExternalChange.source}
+                    onAcceptDisk={() =>
+                      handleAcceptDisk(
+                        noteTab.path,
+                        noteTab.pendingExternalChange!.diskContent,
+                        bufferContentRef.current.get(noteTab.path) ?? noteTab.content,
+                      )
+                    }
+                    onKeepMine={() =>
+                      handleKeepMine(
+                        noteTab.path,
+                        noteTab.pendingExternalChange!.source,
+                        noteTab.pendingExternalChange!.diskContent,
+                      )
+                    }
+                    onDismiss={() => clearPendingExternalChange(noteTab.path)}
+                  />
+                )}
+                <Editor
+                  key={noteTab.id}
+                  isActive={isActive}
+                  filePath={noteTab.path}
+                  vaultPath={vaultPath}
+                  initialContent={noteTab.content}
+                  version={noteTab.version}
+                  geometryKey={`${layoutMode}#${sidebarWidth}#${agentsWidth}`}
+                  paletteItems={paletteItemsWithMeta}
+                  onSave={(content) => handleSave(noteTab.path, content)}
+                  onBufferChange={(content) => handleBufferChange(noteTab.path, content)}
+                  onNavigate={navigateOrOpen}
+                  canBack={noteTab.back.length > 0}
+                  canForward={noteTab.forward.length > 0}
+                  onBack={goBack}
+                  onForward={goForward}
+                  openFindTick={openFindTick}
+                  openReplaceTick={openReplaceTick}
+                  onImportToast={setImportToast}
+                  saveMode={saveMode}
+                  // Only the active editor drives the global dirty indicator and
+                  // owns the single flush ref (Cmd+S / menu save target). Hidden
+                  // editors mustn't overwrite either — the last one to mount
+                  // would otherwise win. Background-tab saving still works: it
+                  // goes through the path-keyed closeTab → saveBuffer, not this
+                  // ref. Editor re-emits its dirty state when it becomes active.
+                  onDirtyChange={isActive ? setIsDirty : undefined}
+                  onFlushSave={
+                    isActive
+                      ? (fn) => {
+                          flushSaveRef.current = fn
+                        }
+                      : undefined
                   }
-                  diskContent={activeTab.pendingExternalChange.diskContent}
-                  diskChangedAt={activeTab.pendingExternalChange.diskChangedAt}
-                  source={activeTab.pendingExternalChange.source}
-                  onAcceptDisk={() =>
-                    handleAcceptDisk(
-                      activeTab.path,
-                      activeTab.pendingExternalChange!.diskContent,
-                      bufferContentRef.current.get(activeTab.path) ?? activeTab.content,
-                    )
+                  onSendSelection={
+                    focusedAgent ? handleSendSelectionToFocusedAgent : undefined
                   }
-                  onKeepMine={() =>
-                    handleKeepMine(
-                      activeTab.path,
-                      activeTab.pendingExternalChange!.source,
-                      activeTab.pendingExternalChange!.diskContent,
-                    )
-                  }
-                  onDismiss={() => clearPendingExternalChange(activeTab.path)}
+                  agentKind={focusedAgent?.agentKind}
                 />
-              )}
-              <Editor
-                key={`${activeTab.id}#${activeTab.path}`}
-                filePath={activeTab.path}
-                vaultPath={vaultPath}
-                initialContent={activeTab.content}
-                version={activeTab.version}
-                geometryKey={`${layoutMode}#${sidebarWidth}#${agentsWidth}`}
-                paletteItems={paletteItemsWithMeta}
-                onSave={handleSave}
-                onBufferChange={(content) => handleBufferChange(activeTab.path, content)}
-                onNavigate={navigateOrOpen}
-                canBack={activeTab.back.length > 0}
-                canForward={activeTab.forward.length > 0}
-                onBack={goBack}
-                onForward={goForward}
-                openFindTick={openFindTick}
-                openReplaceTick={openReplaceTick}
-                onImportToast={setImportToast}
-                saveMode={saveMode}
-                onDirtyChange={setIsDirty}
-                onFlushSave={(fn) => {
-                  flushSaveRef.current = fn
-                }}
-                onSendSelection={
-                  focusedAgent ? handleSendSelectionToFocusedAgent : undefined
-                }
-                agentKind={focusedAgent?.agentKind}
-              />
-            </div>
-          )}
+              </div>
+            )
+          })}
           {activeTab && isImageTab(activeTab) && (
             <ImageViewer
               key={activeTab.id}

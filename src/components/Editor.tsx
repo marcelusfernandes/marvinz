@@ -100,6 +100,15 @@ const legacyCodeHighlightStyle = HighlightStyle.define([
 ])
 
 type Props = {
+  /** False when this editor belongs to a hidden (non-active) tab in the
+   * mounted-but-hidden stack (#440). Active-only behaviors — find/replace open
+   * ticks and the selection-chip viewport (resize) listener — are gated off
+   * when inactive so a hidden editor never pops a find bar or attaches global
+   * listeners in response to ticks meant for the active tab. The CodeMirror
+   * EditorState itself is never rebuilt on this flag, so undo history, cursor,
+   * and scroll survive a switch. Defaults to true so an Editor rendered on its
+   * own (outside the tab stack) behaves as the active/visible one. */
+  isActive?: boolean
   filePath: string
   vaultPath: string
   initialContent: string
@@ -150,6 +159,7 @@ function resolveLink(href: string, currentFile: string, vaultPath: string): stri
 }
 
 export function Editor({
+  isActive = true,
   filePath,
   vaultPath,
   initialContent,
@@ -194,6 +204,13 @@ export function Editor({
   useEffect(() => {
     onDirtyChangeRef.current = onDirtyChange
   }, [onDirtyChange])
+  // In the mounted-but-hidden stack (#440), App only wires onDirtyChange while
+  // this editor is active. `setDirty` only emits on a CHANGE, so on becoming
+  // active we push the current dirty state once — otherwise the global dirty
+  // indicator would lag this tab's true state until the next keystroke.
+  useEffect(() => {
+    if (isActive) onDirtyChangeRef.current?.(isDirtyRef.current)
+  }, [isActive])
   const onSaveRef = useRef(onSave)
   useEffect(() => {
     onSaveRef.current = onSave
@@ -280,18 +297,22 @@ export function Editor({
   // The local CM/PM keymaps still handle in-editor presses; the parent
   // listener defers to them by inspecting the event target. Skip the first
   // render (no tick change) so opening a tab doesn't auto-pop the bar.
+  // Hidden editors in the stack receive the same tick value as the active one,
+  // so gate on isActive: an inactive editor consumes the tick (advances its
+  // ref) without opening its find bar, so re-activating it later doesn't replay
+  // a tick fired while it was hidden.
   const lastFindTickRef = useRef(openFindTick ?? 0)
   useEffect(() => {
     if (openFindTick === undefined || openFindTick === lastFindTickRef.current) return
     lastFindTickRef.current = openFindTick
-    openFind('find')
-  }, [openFindTick, openFind])
+    if (isActive) openFind('find')
+  }, [openFindTick, openFind, isActive])
   const lastReplaceTickRef = useRef(openReplaceTick ?? 0)
   useEffect(() => {
     if (openReplaceTick === undefined || openReplaceTick === lastReplaceTickRef.current) return
     lastReplaceTickRef.current = openReplaceTick
-    openFind('replace')
-  }, [openReplaceTick, openFind])
+    if (isActive) openFind('replace')
+  }, [openReplaceTick, openFind, isActive])
 
   useEffect(() => {
     setLangExt(null)
@@ -641,7 +662,9 @@ export function Editor({
   // detach happens once per distinct selection range.
   const chipActiveTo = selectionChip?.to ?? null
   useEffect(() => {
-    if (chipActiveTo === null) return
+    // Hidden editors don't repaint and must not attach window-level (resize)
+    // listeners; only the active editor tracks its chip against the viewport.
+    if (!isActive || chipActiveTo === null) return
     const view = viewRef.current
     if (!view) return
     let frame = 0
@@ -674,7 +697,7 @@ export function Editor({
       scrollEl.removeEventListener('scroll', reposition)
       window.removeEventListener('resize', reposition)
     }
-  }, [chipActiveTo])
+  }, [chipActiveTo, isActive])
 
   const handleContextMenu = useCallback(async (e: React.MouseEvent<HTMLDivElement>) => {
     const view = viewRef.current
