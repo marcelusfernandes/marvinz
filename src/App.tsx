@@ -24,6 +24,7 @@ import { useClipboardStore, clipPasteLabel } from './lib/clipboardStore'
 import { useFileClipboardShortcuts } from './lib/useFileClipboardShortcuts'
 import { useColorTheme, useAgentsPaneTransparent, useEditorEffects } from './lib/colorTheme'
 import { useFileOpsHistory } from './lib/fileOpsHistory'
+import { getActivePanelContext, resolveUndoTarget } from './lib/panelContext'
 import { useVisualStyle } from './lib/visualStyle'
 import { useThemeFlavor } from './lib/themeFlavor'
 import { TopBar } from './components/TopBar'
@@ -1320,6 +1321,21 @@ export default function App() {
         if (!activeTab || !isNoteTab(activeTab)) return
         e.preventDefault()
         void flushSaveRef.current?.()
+        return
+      }
+      // Cmd+Z / Cmd+Shift+Z → route undo by focused panel (#150). Editor focus
+      // lets CodeMirror handle undo/redo natively (no preventDefault); file-tree
+      // focus undoes the last file-panel op (U3); other panels no-op in V1.
+      if (resolveUndoTarget(e, getActivePanelContext()) === 'file-tree') {
+        e.preventDefault()
+        void useFileOpsHistory
+          .getState()
+          .undoLast((msg) =>
+            setImportToast({
+              state: /cannot undo/i.test(msg) ? 'error' : 'success',
+              message: msg,
+            }),
+          )
         return
       }
       // Cmd+F / Cmd+Alt+F → open the find bar in the active markdown editor

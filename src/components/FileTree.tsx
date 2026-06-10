@@ -280,6 +280,7 @@ export function FileTree({
       className={`file-tree${rootHover ? ' drop-root' : ''}`}
       role="tree"
       aria-label="File tree"
+      data-panel="file-tree"
       onClick={handleEmptyAreaClick}
       onDragOverCapture={handleRootDragOverCapture}
       onDragOver={handleRootDragOver}
