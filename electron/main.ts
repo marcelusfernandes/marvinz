@@ -14,6 +14,8 @@ import {
   listForFile,
   readSnapshot,
   restoreSnapshot,
+  captureUserSnapshot,
+  restoreUserSnapshot,
 } from './snapshot.js'
 import { assertInsideVaultAsync } from './vault-boundary.js'
 import { assertAllowedVault } from './vault-allowlist.js'
@@ -1883,6 +1885,61 @@ ipcMain.handle('snapshot:saveExternalChange', async (_e, relPath: unknown, conte
     const saved = await writeSnapshot(vault, turnId, rel, content, 'external-rejected')
     return ok({ turnId, saved })
   } catch (e) { return err(e) }
+})
+
+// U2: user-driven snapshot capture/restore (no AI turn required)
+// Validate snapshotId is a UUID v4 to prevent path traversal via the id parameter
+const SNAPSHOT_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
+ipcMain.handle('snapshot:capture', async (_e, payload: unknown) => {
+  try {
+    if (!payload || typeof payload !== 'object') throw new Error('SNAPSHOT_INVALID_PAYLOAD')
+    const { paths, trigger } = payload as Record<string, unknown>
+
+    if (!Array.isArray(paths) || paths.length === 0) throw new Error('SNAPSHOT_INVALID_PATHS')
+    if (paths.some((p) => typeof p !== 'string')) throw new Error('SNAPSHOT_INVALID_PATHS')
+
+    if (typeof trigger !== 'string') throw new Error('MARVIN_INVALID_TRIGGER')
+
+    const vault = requireVault()
+
+    // assertInVault: realpath-resolves + TOCTOU-safe boundary check — same as path:trash.
+    // Renderer sends absolute paths; we derive vault-relative paths from the safe result.
+    const relPaths: string[] = await Promise.all(
+      (paths as string[]).map(async (rawPath) => {
+        const safe = await assertInVault(rawPath)
+        return path.relative(vault, safe)
+      }),
+    )
+
+    const snapshotId = await captureUserSnapshot(vault, relPaths, trigger as import('./snapshot.js').UserSnapshotTrigger)
+    return ok({ snapshotId })
+  } catch (e) {
+    return err(e)
+  }
+})
+
+ipcMain.handle('snapshot:restoreOne', async (_e, payload: unknown) => {
+  try {
+    if (!payload || typeof payload !== 'object') throw new Error('SNAPSHOT_INVALID_PAYLOAD')
+    const { snapshotId } = payload as Record<string, unknown>
+
+    if (typeof snapshotId !== 'string' || !SNAPSHOT_ID_RE.test(snapshotId)) {
+      throw new Error('SNAPSHOT_INVALID_ID')
+    }
+
+    const vault = requireVault()
+    const restoredPaths = await restoreUserSnapshot(vault, snapshotId)
+
+    // Invalidate cache for each restored path — mirrors snapshot:restore behaviour
+    for (const relPath of restoredPaths) {
+      fileContentCache.delete(path.join(vault, relPath))
+    }
+    notifyTree()
+    return ok({})
+  } catch (e) {
+    return err(e)
+  }
 })
 
 // --- Agent IPC handlers (agent namespace) ------------------------------------
