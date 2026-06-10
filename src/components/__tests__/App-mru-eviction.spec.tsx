@@ -1,27 +1,26 @@
 // @vitest-environment jsdom
 //
-// Regression tests for issue #440:
-// Editor undo history (and cursor/scroll) is destroyed on tab switch because
-// src/App.tsx:2063 remounts the <Editor> keyed by `${activeTab.id}#${activeTab.path}`.
+// Task #9 — MRU eviction cap (AC#4, issue #440).
 //
-// These tests MUST FAIL against current code and PASS after the fix
-// (hidden-stack render keyed by stable tab.id).
+// App.tsx keeps up to MAX_MOUNTED_EDITORS (6) note-tab Editors mounted at
+// once. When a 7th tab is activated the least-recently-active editor is
+// evicted (unmounted). Re-activating an evicted tab remounts it (rebuild-
+// on-activate fallback — expected; history resets at the LRU boundary).
 //
-// Strategy: track how many times each Editor instance is mounted by recording
-// every render call with its filePath.  A remount is detected via a useEffect
-// cleanup that fires on unmount, after which the next positive render entry for
-// the same filePath is a remount.
+// Strategy: same mount/unmount lifecycle tracking pattern as
+// editor-undo-tab-switch.spec.tsx. FileTree stub exposes 8 buttons so
+// tests can open 7+ tabs without touching the shared 2-button stub in the
+// companion spec.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, act, fireEvent } from '@testing-library/react'
 import React from 'react'
 
 // ---------------------------------------------------------------------------
-// Hoisted capture refs — must be set up before vi.mock calls
+// Hoisted capture refs
 // ---------------------------------------------------------------------------
 
-const { tabBarCapture, editorLifecycle, saveModeRef } = vi.hoisted(() => {
-  // TabBar capture: onActivate lets us switch tabs programmatically
+const { tabBarCapture, editorLifecycle } = vi.hoisted(() => {
   const tabBarCapture: {
     onActivate: ((id: string) => void) | null
     onClose: ((id: string) => void) | null
@@ -29,13 +28,9 @@ const { tabBarCapture, editorLifecycle, saveModeRef } = vi.hoisted(() => {
     activeId: string | null
   } = { onActivate: null, onClose: null, tabs: [], activeId: null }
 
-  // Lifecycle log: each entry is either a mount (+1) or unmount (-1) event
-  // for a given filePath.
   const editorLifecycle: { filePath: string; event: 'mount' | 'unmount' }[] = []
 
-  const saveModeRef: { value: 'auto' | 'manual' } = { value: 'manual' }
-
-  return { tabBarCapture, editorLifecycle, saveModeRef }
+  return { tabBarCapture, editorLifecycle }
 })
 
 // ---------------------------------------------------------------------------
@@ -45,14 +40,14 @@ const { tabBarCapture, editorLifecycle, saveModeRef } = vi.hoisted(() => {
 vi.mock('../TabBar', () => ({
   TabBar: (props: {
     onClose: (id: string) => void
+    onActivate: (id: string) => void
     tabs: { id: string }[]
     activeId: string | null
-    onActivate: (id: string) => void
-    onNewTab: () => void
     dirtyTabId: string | null
+    onNewTab: () => void
   }) => {
-    tabBarCapture.onClose = props.onClose
     tabBarCapture.onActivate = props.onActivate
+    tabBarCapture.onClose = props.onClose
     tabBarCapture.tabs = props.tabs
     tabBarCapture.activeId = props.activeId
     return (
@@ -60,7 +55,7 @@ vi.mock('../TabBar', () => ({
         {props.tabs.map((t) => (
           <button
             key={t.id}
-            data-testid={`tab-${t.id}`}
+            data-testid={`activate-tab-${t.id}`}
             onClick={() => props.onActivate(t.id)}
           >
             activate {t.id}
@@ -71,44 +66,43 @@ vi.mock('../TabBar', () => ({
   },
 }))
 
-// Editor stub: records mount/unmount events so tests can count remounts.
+// Editor stub tracks mount/unmount lifecycle for each filePath.
 vi.mock('../Editor', () => ({
   Editor: (props: Record<string, unknown>) => {
     const filePath = props.filePath as string
-
     React.useEffect(() => {
       editorLifecycle.push({ filePath, event: 'mount' })
       return () => {
         editorLifecycle.push({ filePath, event: 'unmount' })
       }
     }, [filePath])
-
     return (
       <div
-        data-testid={`editor-stub`}
+        data-testid="editor-stub"
         data-filepath={filePath}
+        data-is-active={String(props.isActive)}
       />
     )
   },
 }))
 
+// FileTree with 8 notes so tests can exceed MAX_MOUNTED_EDITORS (6).
 vi.mock('../FileTree', () => ({
   FileTree: (props: {
     onSelect?: (node: { path: string; isDir: boolean }, mods: Record<string, boolean>) => void
   }) => (
     <div>
-      <button
-        data-testid="open-note-a"
-        onClick={() => props.onSelect?.({ path: '/vault/note-a.md', isDir: false }, {})}
-      >
-        open A
-      </button>
-      <button
-        data-testid="open-note-b"
-        onClick={() => props.onSelect?.({ path: '/vault/note-b.md', isDir: false }, {})}
-      >
-        open B
-      </button>
+      {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
+        <button
+          key={n}
+          data-testid={`open-note-${n}`}
+          onClick={() =>
+            props.onSelect?.({ path: `/vault/note-${n}.md`, isDir: false }, {})
+          }
+        >
+          open {n}
+        </button>
+      ))}
     </div>
   ),
 }))
@@ -135,7 +129,7 @@ vi.mock('../MaterialIcon', () => ({ MaterialIcon: () => null }))
 vi.mock('../../lib/fileIcons', () => ({ fileIconFor: () => 'file' }))
 vi.mock('../../lib/settingsStore', () => ({
   seedFromMain: vi.fn(),
-  useSetting: (key: string) => (key === 'saveMode' ? saveModeRef.value : undefined),
+  useSetting: () => undefined,
 }))
 vi.mock('../../lib/colorTheme', () => ({
   useColorTheme: vi.fn(),
@@ -228,7 +222,7 @@ function setupMarvin() {
 }
 
 // ---------------------------------------------------------------------------
-// App import — AFTER all mocks
+// App import (after mocks)
 // ---------------------------------------------------------------------------
 
 import App from '../../App'
@@ -242,42 +236,48 @@ async function renderBootstrapped() {
   await act(async () => {})
 }
 
-async function openNote(testId: string) {
+async function openNote(n: number) {
   await act(async () => {
-    fireEvent.click(screen.getByTestId(testId))
+    fireEvent.click(screen.getByTestId(`open-note-${n}`))
   })
   await act(async () => {})
 }
 
-function findTabId(pathFragment: string): string {
-  const tab = tabBarCapture.tabs.find((t) => t.path?.includes(pathFragment))
-  if (!tab) throw new Error(`No tab found for path fragment: ${pathFragment}`)
+function findTabId(n: number): string {
+  const path = `/vault/note-${n}.md`
+  const tab = tabBarCapture.tabs.find((t) => (t as { path?: string }).path === path)
+  if (!tab) throw new Error(`No tab found for note-${n}`)
   return tab.id
 }
 
-async function switchToTab(tabId: string) {
+async function switchToTab(id: string) {
   await act(async () => {
-    tabBarCapture.onActivate?.(tabId)
+    tabBarCapture.onActivate?.(id)
   })
   await act(async () => {})
 }
 
-/**
- * Count how many times the Editor for filePath was mounted (i.e., how many
- * distinct mount events appear after an unmount, plus the initial mount).
- */
-function mountCountForPath(filePath: string): number {
+/** True if the editor for this path is currently mounted (last event is 'mount'). */
+function isMounted(filePath: string): boolean {
+  for (let i = editorLifecycle.length - 1; i >= 0; i--) {
+    if (editorLifecycle[i].filePath === filePath) {
+      return editorLifecycle[i].event === 'mount'
+    }
+  }
+  return false
+}
+
+/** Count distinct mount cycles for a filePath (each unmount+remount = +1). */
+function mountCount(filePath: string): number {
   let count = 0
-  let isMounted = false
+  let mounted = false
   for (const entry of editorLifecycle) {
     if (entry.filePath !== filePath) continue
-    if (entry.event === 'mount') {
-      if (!isMounted) {
-        count++
-        isMounted = true
-      }
-    } else {
-      isMounted = false
+    if (entry.event === 'mount' && !mounted) {
+      count++
+      mounted = true
+    } else if (entry.event === 'unmount') {
+      mounted = false
     }
   }
   return count
@@ -290,67 +290,126 @@ function mountCountForPath(filePath: string): number {
 beforeEach(() => {
   setupMarvin()
   editorLifecycle.length = 0
-  saveModeRef.value = 'manual'
 })
 
 afterEach(() => {
   vi.restoreAllMocks()
-  saveModeRef.value = 'manual'
 })
 
 // ---------------------------------------------------------------------------
-// Suite: Editor must NOT remount on tab switch (issue #440)
+// MRU eviction tests
 // ---------------------------------------------------------------------------
 
-describe('issue #440 — required fix: Editor must NOT remount on tab switch', () => {
-  it('switching away from A and back must mount the Editor for A exactly once', async () => {
-    // FAILS against current code (mountCount is 2).
-    // Passes after hidden-stack fix (task #2).
+describe('MRU eviction cap — MAX_MOUNTED_EDITORS = 6 (AC#4, issue #440)', () => {
+  it('opening exactly 6 tabs mounts all 6, none evicted', async () => {
     await renderBootstrapped()
-    await openNote('open-note-a')
-    const tabAId = findTabId('note-a')
-    await openNote('open-note-b')
 
-    // Switch back to A
-    await switchToTab(tabAId)
+    // Open notes 1–6 in sequence.
+    for (let n = 1; n <= 6; n++) {
+      await openNote(n)
+    }
 
-    expect(mountCountForPath('/vault/note-a.md')).toBe(1)
+    // All 6 should be mounted — cap not exceeded.
+    for (let n = 1; n <= 6; n++) {
+      expect(isMounted(`/vault/note-${n}.md`)).toBe(true)
+    }
   })
 
-  it('switching A → B → A → B must mount each Editor exactly once', async () => {
-    // FAILS against current code.
+  it('opening a 7th tab evicts the least-recently-active editor (note 1)', async () => {
+    // Activation order: 1, 2, 3, 4, 5, 6, 7.
+    // After opening 7, editorMru = [7, 6, 5, 4, 3, 2, 1].
+    // Top 6 = [7, 6, 5, 4, 3, 2]. Note 1 is evicted.
     await renderBootstrapped()
-    await openNote('open-note-a')
-    const tabAId = findTabId('note-a')
-    await openNote('open-note-b')
-    const tabBId = findTabId('note-b')
 
-    await switchToTab(tabAId)
-    await switchToTab(tabBId)
+    for (let n = 1; n <= 7; n++) {
+      await openNote(n)
+    }
 
-    expect(mountCountForPath('/vault/note-a.md')).toBe(1)
-    expect(mountCountForPath('/vault/note-b.md')).toBe(1)
+    // Notes 2–7 (the 6 most recent) must be mounted.
+    for (let n = 2; n <= 7; n++) {
+      expect(isMounted(`/vault/note-${n}.md`)).toBe(true)
+    }
+
+    // Note 1 (LRU) must have been unmounted.
+    expect(isMounted('/vault/note-1.md')).toBe(false)
   })
 
-  it('Editor DOM node for tab A is still in the document after switching away and back', async () => {
-    // FAILS against current code: the node is removed from DOM when the tab is
-    // deactivated (because the Editor is unmounted).
+  it('opening 8 tabs: notes 3–8 mounted, notes 1 and 2 evicted', async () => {
     await renderBootstrapped()
-    await openNote('open-note-a')
-    const tabAId = findTabId('note-a')
 
-    // Capture the editor DOM node while A is active.
-    const editorNodeBefore = screen.queryByTestId('editor-stub')
-    expect(editorNodeBefore).not.toBeNull()
+    for (let n = 1; n <= 8; n++) {
+      await openNote(n)
+    }
 
-    await openNote('open-note-b')
+    for (let n = 3; n <= 8; n++) {
+      expect(isMounted(`/vault/note-${n}.md`)).toBe(true)
+    }
+    expect(isMounted('/vault/note-1.md')).toBe(false)
+    expect(isMounted('/vault/note-2.md')).toBe(false)
+  })
 
-    // After switching to B, the current code removes the Editor for A from DOM.
-    // The fix keeps it hidden (display:none).
-    await switchToTab(tabAId)
+  it('re-activating an evicted tab remounts it (rebuild-on-activate fallback)', async () => {
+    // Open 7 tabs — note 1 is evicted.
+    await renderBootstrapped()
 
-    // After switching back, the node should be connected to the document.
-    // Fails against current code: editorNodeBefore is detached (was unmounted).
-    expect(document.body.contains(editorNodeBefore)).toBe(true)
+    for (let n = 1; n <= 7; n++) {
+      await openNote(n)
+    }
+
+    expect(isMounted('/vault/note-1.md')).toBe(false)
+
+    // Activate note 1 — it was evicted so it re-enters the MRU and remounts.
+    const tab1Id = findTabId(1)
+    await switchToTab(tab1Id)
+
+    // Note 1 must now be mounted again.
+    expect(isMounted('/vault/note-1.md')).toBe(true)
+    // It was mounted, unmounted, then remounted — so mountCount >= 2.
+    expect(mountCount('/vault/note-1.md')).toBeGreaterThanOrEqual(2)
+  })
+
+  it('re-activating note 1 after eviction causes the new LRU (note 2) to be evicted', async () => {
+    // Open 7: MRU = [7,6,5,4,3,2,1], note 1 evicted.
+    // Switch to 1: MRU = [1,7,6,5,4,3,2], note 2 evicted, note 1 remounted.
+    await renderBootstrapped()
+
+    for (let n = 1; n <= 7; n++) {
+      await openNote(n)
+    }
+
+    const tab1Id = findTabId(1)
+    await switchToTab(tab1Id)
+
+    // Note 1 is back; note 2 must now be the evicted one.
+    expect(isMounted('/vault/note-1.md')).toBe(true)
+    expect(isMounted('/vault/note-2.md')).toBe(false)
+
+    // Notes 3–7 must still be mounted.
+    for (let n = 3; n <= 7; n++) {
+      expect(isMounted(`/vault/note-${n}.md`)).toBe(true)
+    }
+  })
+
+  it('tab count stays at 6 mounted editors after any number of switches', async () => {
+    // Open 7 tabs, then switch between them several times. At every point
+    // at most MAX_MOUNTED_EDITORS (6) editors should be mounted.
+    await renderBootstrapped()
+
+    for (let n = 1; n <= 7; n++) {
+      await openNote(n)
+    }
+
+    // Switch back and forth between various tabs.
+    await switchToTab(findTabId(1))
+    await switchToTab(findTabId(3))
+    await switchToTab(findTabId(5))
+    await switchToTab(findTabId(2))
+
+    // Count currently mounted editors.
+    const mountedCount = [1, 2, 3, 4, 5, 6, 7].filter((n) =>
+      isMounted(`/vault/note-${n}.md`),
+    ).length
+
+    expect(mountedCount).toBeLessThanOrEqual(6)
   })
 })

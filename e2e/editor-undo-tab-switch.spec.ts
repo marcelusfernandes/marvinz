@@ -67,7 +67,9 @@ async function openFileInSidebar(page: Page, namePart: string): Promise<void> {
   })
   await expect(fileRow).toBeVisible({ timeout: 15_000 })
   await fileRow.click()
-  await expect(page.locator('.note-tab-container')).toBeVisible({ timeout: 8_000 })
+  await expect(
+    page.locator('.note-tab-container:not([hidden])'),
+  ).toBeVisible({ timeout: 8_000 })
 }
 
 async function switchToSourceMode(page: Page): Promise<void> {
@@ -76,7 +78,9 @@ async function switchToSourceMode(page: Page): Promise<void> {
   if (await sourceBtn.isVisible()) {
     await sourceBtn.click()
   }
-  await expect(page.locator('.cm-content')).toBeVisible({ timeout: 6_000 })
+  // Scope to the visible container: after the hidden-stack fix more than one
+  // .cm-content may be present in the DOM (hidden editors are kept mounted).
+  await expect(activeEditor(page).locator('.cm-content')).toBeVisible({ timeout: 6_000 })
 }
 
 async function clickTab(page: Page, namePart: string): Promise<void> {
@@ -86,18 +90,36 @@ async function clickTab(page: Page, namePart: string): Promise<void> {
   await page.waitForTimeout(300)
 }
 
+/**
+ * Return a locator scoped to the currently-visible note-tab-container.
+ *
+ * After the hidden-stack fix multiple Editor instances are mounted
+ * simultaneously (inactive ones with the HTML `hidden` attribute). Any
+ * unscoped `.cm-content` / `.cm-scroller` / `.cm-activeLineGutter` query
+ * would match all of them, causing strict-mode violations on `.click()` and
+ * returning the wrong element on `.evaluate()`.
+ *
+ * Scoping to the visible container ensures we always target the active editor.
+ */
+function activeEditor(page: Page) {
+  return page.locator('.note-tab-container:not([hidden])')
+}
+
 /** Ensure we're in Source mode (entering it if not already). */
 async function ensureSourceMode(page: Page): Promise<void> {
   const modeBtn = page.locator('button.mode-btn', { hasText: /source/i })
   if (await modeBtn.isVisible().catch(() => false)) {
     await modeBtn.click()
-    await expect(page.locator('.cm-content')).toBeVisible({ timeout: 6_000 })
+    await expect(activeEditor(page).locator('.cm-content')).toBeVisible({ timeout: 6_000 })
   }
 }
 
 async function getScrollTop(page: Page): Promise<number> {
   return page.evaluate(() => {
-    const scroller = document.querySelector('.cm-scroller') as HTMLElement | null
+    const container = document.querySelector(
+      '.note-tab-container:not([hidden])',
+    ) as HTMLElement | null
+    const scroller = container?.querySelector('.cm-scroller') as HTMLElement | null
     return scroller?.scrollTop ?? 0
   })
 }
@@ -136,10 +158,12 @@ test.describe('editor content + undo — tab round-trip (issue #440)', () => {
     try {
       await openFileInSidebar(page, 'note-a')
       await switchToSourceMode(page)
-      await page.locator('.cm-content').click()
+      // Scope to the active (visible) container — required once the hidden-stack
+      // fix lands and multiple .cm-content elements coexist in the DOM.
+      await activeEditor(page).locator('.cm-content').click()
       await page.keyboard.press('End')
       await page.keyboard.type(' TYPED')
-      await expect(page.locator('.cm-content')).toContainText('TYPED')
+      await expect(activeEditor(page).locator('.cm-content')).toContainText('TYPED')
 
       await openFileInSidebar(page, 'note-b')
       await expect(page.locator('.tab.active', { hasText: /note-b/i })).toBeVisible({
@@ -155,7 +179,9 @@ test.describe('editor content + undo — tab round-trip (issue #440)', () => {
       // FAILS against current code: editor remounted with disk content,
       // "TYPED" is not present. Received: "# Note AOriginal content."
       // PASSES after fix: editor kept alive, "TYPED" still present.
-      await expect(page.locator('.cm-content')).toContainText('TYPED', { timeout: 3_000 })
+      await expect(activeEditor(page).locator('.cm-content')).toContainText('TYPED', {
+        timeout: 3_000,
+      })
     } finally {
       await app.close()
     }
@@ -180,10 +206,10 @@ test.describe('editor content + undo — tab round-trip (issue #440)', () => {
     try {
       await openFileInSidebar(page, 'note-a')
       await switchToSourceMode(page)
-      await page.locator('.cm-content').click()
+      await activeEditor(page).locator('.cm-content').click()
       await page.keyboard.press('End')
       await page.keyboard.type(' TYPED')
-      await expect(page.locator('.cm-content')).toContainText('TYPED')
+      await expect(activeEditor(page).locator('.cm-content')).toContainText('TYPED')
 
       await openFileInSidebar(page, 'note-b')
       await expect(page.locator('.tab.active', { hasText: /note-b/i })).toBeVisible({
@@ -198,15 +224,19 @@ test.describe('editor content + undo — tab round-trip (issue #440)', () => {
 
       // Pre-condition: content must still be present (requires fix A).
       // Fails against current code for the same reason as test A.
-      await expect(page.locator('.cm-content')).toContainText('TYPED', { timeout: 3_000 })
+      await expect(activeEditor(page).locator('.cm-content')).toContainText('TYPED', {
+        timeout: 3_000,
+      })
 
       // Now undo. With fix: Cmd+Z reverts " TYPED" → content reverts to original.
       // Without fix: even if the pre-condition above somehow passed, the fresh
       // EditorState has no history — Cmd+Z is a no-op, "TYPED" remains.
-      await page.locator('.cm-content').click()
+      await activeEditor(page).locator('.cm-content').click()
       await page.keyboard.press(`${cmdKey}+z`)
 
-      await expect(page.locator('.cm-content')).not.toContainText('TYPED', { timeout: 3_000 })
+      await expect(activeEditor(page).locator('.cm-content')).not.toContainText('TYPED', {
+        timeout: 3_000,
+      })
     } finally {
       await app.close()
     }
@@ -238,11 +268,11 @@ test.describe('editor cursor — tab round-trip (issue #440)', () => {
 
   test('(B) cursor line in tab A is preserved after switching to B and back', async () => {
     // RED: remount creates fresh EditorState — cursor resets to line 1.
-    // GREEN: same EditorState — cursor stays on line 20.
+    // GREEN: same EditorState — cursor stays on the last line (line 20).
     //
-    // Strategy: read the cursor line number from the CodeMirror state via
-    // page.evaluate rather than relying on DOM selection APIs. CM6 exposes
-    // lineAt() on its Text object which gives us a reliable line number.
+    // Strategy: CodeMirror renders the active line's gutter number with
+    // class .cm-activeLineGutter. Its text content is the current line
+    // number — a reliable, DOM-visible proxy for cursor position.
     const app = await electron.launch({
       args: ['.', `--user-data-dir=${userDataDir}`],
       env: { ...process.env, NODE_ENV: 'test' },
@@ -253,26 +283,18 @@ test.describe('editor cursor — tab round-trip (issue #440)', () => {
     try {
       await openFileInSidebar(page, 'cursor-a')
       await switchToSourceMode(page)
-      await page.locator('.cm-content').click()
-      // Move to the last line.
+      await activeEditor(page).locator('.cm-content').click()
+      // Move cursor to the last line.
       await page.keyboard.press(`${cmdKey}+End`)
       await page.waitForTimeout(200)
 
-      // Capture cursor line number via the CM6 EditorView on .cm-editor.
-      const lineBefore: number = await page.evaluate(() => {
-        const el = document.querySelector('.cm-editor') as HTMLElement & {
-          __view?: {
-            state: {
-              doc: { lineAt: (pos: number) => { number: number } }
-              selection: { main: { head: number } }
-            }
-          }
-        }
-        if (!el?.__view) return -1
-        const { doc, selection } = el.__view.state
-        return doc.lineAt(selection.main.head).number
-      })
-      // Must be on a non-first line (20-line doc, cursor at end = line 20).
+      // Read the active line number from the gutter label.
+      // Scoped to the active container so it doesn't match a hidden editor's
+      // gutter when the hidden-stack fix puts multiple editors in the DOM.
+      const lineGutterBefore = activeEditor(page).locator('.cm-activeLineGutter')
+      await expect(lineGutterBefore).toBeVisible({ timeout: 3_000 })
+      const lineBefore = parseInt((await lineGutterBefore.textContent()) ?? '0', 10)
+      // 20-line doc; cursor at end = line 20.
       expect(lineBefore).toBeGreaterThan(1)
 
       await openFileInSidebar(page, 'cursor-b')
@@ -284,28 +306,19 @@ test.describe('editor cursor — tab round-trip (issue #440)', () => {
       await expect(page.locator('.tab.active', { hasText: /cursor-a/i })).toBeVisible({
         timeout: 5_000,
       })
-      // After fix: already in Source, EditorState intact.
+      // After fix: already in Source with EditorState intact — no click needed
+      // (clicking .cm-content would move the cursor and invalidate the test).
       // Current code: remounted in preview — switch to Source.
       await ensureSourceMode(page)
       await page.waitForTimeout(200)
 
-      const lineAfter: number = await page.evaluate(() => {
-        const el = document.querySelector('.cm-editor') as HTMLElement & {
-          __view?: {
-            state: {
-              doc: { lineAt: (pos: number) => { number: number } }
-              selection: { main: { head: number } }
-            }
-          }
-        }
-        if (!el?.__view) return -1
-        const { doc, selection } = el.__view.state
-        return doc.lineAt(selection.main.head).number
-      })
+      const lineGutterAfter = activeEditor(page).locator('.cm-activeLineGutter')
+      await expect(lineGutterAfter).toBeVisible({ timeout: 3_000 })
+      const lineAfter = parseInt((await lineGutterAfter.textContent()) ?? '0', 10)
 
-      // FAILS against current code: fresh EditorState → cursor at line 1,
-      // not line 20. lineAfter !== lineBefore.
-      // PASSES after fix: same EditorState → lineAfter === lineBefore.
+      // FAILS against current code: fresh EditorState → active line resets
+      // to 1 (where the cursor lands on a new mount). lineAfter !== lineBefore.
+      // PASSES after fix: same EditorState → lineAfter === lineBefore (= 20).
       expect(lineAfter).toBe(lineBefore)
     } finally {
       await app.close()
@@ -351,10 +364,11 @@ test.describe('editor scroll — tab round-trip (issue #440)', () => {
     try {
       await openFileInSidebar(page, 'scroll-a')
       await switchToSourceMode(page)
-      await page.locator('.cm-content').click()
+      await activeEditor(page).locator('.cm-content').click()
       await page.keyboard.press(`${cmdKey}+End`)
       await page.waitForTimeout(400)
 
+      // getScrollTop already scopes to the visible container (see helper above).
       const scrollBefore = await getScrollTop(page)
       expect(scrollBefore).toBeGreaterThan(0)
 
