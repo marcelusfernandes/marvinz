@@ -35,6 +35,15 @@ describe('getActivePanelContext', () => {
     expect(getActivePanelContext()).toBe('other')
   })
 
+  it('returns "other" for a focused text input inside the file tree (inline rename)', () => {
+    // The inline rename/create field lives inside [data-panel="file-tree"] but
+    // must keep its own text undo — Cmd+Z there must NOT route to file-ops undo.
+    document.body.innerHTML =
+      '<div data-panel="file-tree"><input class="rename-input" /></div>'
+    ;(document.querySelector('input') as HTMLElement).focus()
+    expect(getActivePanelContext()).toBe('other')
+  })
+
   it('prefers "editor" over "file-tree" when an editor is nested in the tree', () => {
     document.body.innerHTML =
       '<div data-panel="file-tree"><div class="cm-editor"><span tabindex="0">x</span></div></div>'

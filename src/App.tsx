@@ -713,6 +713,9 @@ export default function App() {
     setSelectedPaths(new Set())
     setAnchorPath(null)
     setCreatingIn(null)
+    // Drop the file-ops undo stack: its entries reference the previous vault's
+    // paths/snapshots, so a Cmd+Z after switching must not act on them.
+    useFileOpsHistory.getState().reset()
     lastDiskContentRef.current.clear()
     bufferContentRef.current.clear()
     // The useEffect on `vaultPath` is the single trigger for loadTree —
@@ -1611,16 +1614,23 @@ export default function App() {
       // undo (#149) can restore the content. A capture failure must not block
       // the user's delete — warn them, and don't record a recovery-promising
       // entry the undo could not honour.
+      //
+      // Only markdown notes are captured: the snapshot store reads/writes utf8,
+      // so capturing a directory would EISDIR (a spurious error toast on every
+      // folder delete) and a binary file would be lossily decoded and corrupted
+      // on restore. Non-markdown targets trash directly with no undo entry.
       let snapshotId: string | null = null
-      try {
-        const res = await window.marvin.snapshot.capture([target], 'user-trash')
-        if (res.ok) snapshotId = res.data.snapshotId
-        else throw new Error(res.error)
-      } catch {
-        setImportToast({
-          state: 'error',
-          message: 'Could not prepare safety copy — undo will not recover content',
-        })
+      if (isMarkdownPath(target)) {
+        try {
+          const res = await window.marvin.snapshot.capture([target], 'user-trash')
+          if (res.ok) snapshotId = res.data.snapshotId
+          else throw new Error(res.error)
+        } catch {
+          setImportToast({
+            state: 'error',
+            message: 'Could not prepare safety copy — undo will not recover content',
+          })
+        }
       }
       await window.marvin.path.trash(target)
       closeTabsUnder(target)

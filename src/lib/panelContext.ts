@@ -16,6 +16,11 @@ export function getActivePanelContext(): PanelContext {
   const el = document.activeElement
   if (!el) return 'other'
   if (el.closest('.cm-editor')) return 'editor'
+  // A focused plain text input/textarea owns its own undo. The inline
+  // rename/create field lives *inside* the file tree, so without this guard
+  // Cmd+Z while typing a filename would route to the file-ops undo stack and
+  // revert an unrelated previous op instead of undoing the typed text.
+  if (el.matches('input, textarea')) return 'other'
   if (el.closest('[data-panel="file-tree"]')) return 'file-tree'
   return 'other'
 }
