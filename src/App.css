@@ -2020,6 +2020,15 @@ button {
   flex-direction: column;
 }
 
+/* Inactive editors are hidden with the HTML `hidden` attribute (mounted-but-
+   hidden stack, #440). The `display: flex` above would otherwise override the
+   UA `[hidden] { display: none }`, leaving every open editor stacked and
+   visible. The class+attribute selector restores display:none so only the
+   active tab renders. */
+.note-tab-container[hidden] {
+  display: none;
+}
+
 .note-tab-container > .editor {
   flex: 1;
   min-height: 0;
