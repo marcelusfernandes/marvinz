@@ -312,6 +312,59 @@ describe('fileOpsHistory — sequential undos', () => {
 })
 
 // ---------------------------------------------------------------------------
+// undoLast() — reveal payload (#456): surfaces the affected path so App can
+// activate the right tab, plus a remap for rename/move so open tabs that still
+// record the post-rename path get pointed back at the restored path.
+// ---------------------------------------------------------------------------
+
+describe('fileOpsHistory — undoLast(): reveal payload', () => {
+  it('returns the restored path + tab remap for a rename undo', async () => {
+    const op: FileOp = { kind: 'rename', from: '/v/original.md', to: '/v/renamed.md' }
+    useFileOpsHistory.getState().push(op)
+    const res = await useFileOpsHistory.getState().undoLast(toastMock)
+    expect(res.ok).toBe(true)
+    expect(res.revealedPath).toBe('/v/original.md')
+    // Open tabs currently record `/v/renamed.md`; remap them back to the origin.
+    expect(res.remap).toEqual({ from: '/v/renamed.md', to: '/v/original.md' })
+  })
+
+  it('returns the restored path + tab remap for a move undo', async () => {
+    const op: FileOp = { kind: 'move', from: '/v/src/doc.md', to: '/v/dest/doc.md' }
+    useFileOpsHistory.getState().push(op)
+    const res = await useFileOpsHistory.getState().undoLast(toastMock)
+    expect(res.ok).toBe(true)
+    expect(res.revealedPath).toBe('/v/src/doc.md')
+    expect(res.remap).toEqual({ from: '/v/dest/doc.md', to: '/v/src/doc.md' })
+  })
+
+  it('returns the restored path with NO remap for a trash undo', async () => {
+    const op: FileOp = { kind: 'trash', path: '/v/note.md', snapshotId: 'snap-xyz' }
+    useFileOpsHistory.getState().push(op)
+    const res = await useFileOpsHistory.getState().undoLast(toastMock)
+    expect(res.ok).toBe(true)
+    expect(res.revealedPath).toBe('/v/note.md')
+    expect(res.remap).toBeUndefined()
+  })
+
+  it('returns ok:false with no reveal data on an empty stack', async () => {
+    const res = await useFileOpsHistory.getState().undoLast(toastMock)
+    expect(res.ok).toBe(false)
+    expect(res.revealedPath).toBeUndefined()
+    expect(res.remap).toBeUndefined()
+  })
+
+  it('returns ok:false with no reveal data when the reverse fails', async () => {
+    renameMock.mockRejectedValue(new Error('ENOENT'))
+    const op: FileOp = { kind: 'rename', from: '/v/original.md', to: '/v/renamed.md' }
+    useFileOpsHistory.getState().push(op)
+    const res = await useFileOpsHistory.getState().undoLast(toastMock)
+    expect(res.ok).toBe(false)
+    expect(res.revealedPath).toBeUndefined()
+    expect(res.remap).toBeUndefined()
+  })
+})
+
+// ---------------------------------------------------------------------------
 // reset()
 // ---------------------------------------------------------------------------
 

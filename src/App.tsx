@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { FileChangeSource, FileNode, MenuItemSpec } from './types'
 import { FileTree } from './components/FileTree'
-import { Editor } from './components/Editor'
+import { Editor, type EditorHandle } from './components/Editor'
 import { AgentsPane } from './components/AgentsPane'
 import type { AgentDef } from './components/AgentTerminal'
 import type { AgentKind } from './lib/agent-drop-format'
@@ -343,6 +343,14 @@ export default function App() {
   const [isDirty, setIsDirty] = useState(false)
   // Manual-mode close awaiting a Save/Discard/Cancel choice.
   const flushSaveRef = useRef<(() => Promise<void>) | null>(null)
+  // Imperative undo/redo handle for the active editor — populated by the active
+  // Editor via onRegisterHandle, used by the global Cmd+Z fallback (#456).
+  const activeEditorRef = useRef<EditorHandle | null>(null)
+  // Stable so the Editor's registration effect doesn't re-run (and briefly
+  // null the handle) on every App render.
+  const registerActiveEditorHandle = useCallback((handle: EditorHandle | null) => {
+    activeEditorRef.current = handle
+  }, [])
   const [sidebarHidden, setSidebarHidden] = useState(() => {
     try {
       return window.localStorage.getItem(SIDEBAR_HIDDEN_KEY) === '1'
@@ -1326,10 +1334,21 @@ export default function App() {
         void flushSaveRef.current?.()
         return
       }
-      // Cmd+Z / Cmd+Shift+Z → route undo by focused panel (#150). Editor focus
-      // lets CodeMirror handle undo/redo natively (no preventDefault); file-tree
-      // focus undoes the last file-panel op (U3); other panels no-op in V1.
-      if (resolveUndoTarget(e, getActivePanelContext()) === 'file-tree') {
+      // Cmd+Z / Cmd+Shift+Z → focus-routed undo/redo chain (#456). A truly
+      // focused editor or editable control keeps its native undo (we return null
+      // and do NOT preventDefault). The file tree undoes the last file op and
+      // reveals the affected file; neutral focus falls back to the active
+      // editor so Cmd+Z is never a dead key while a note is open.
+      // The active editor registers a handle only when its live surface can
+      // undo (CodeMirror in any Source mode, ProseMirror in markdown Page) and
+      // null otherwise — so this reflects the current mode, not just the
+      // extension (a .csv/.html toggled to Source still gets the fallback).
+      const undoRoute = resolveUndoTarget(
+        e,
+        getActivePanelContext(),
+        activeEditorRef.current != null,
+      )
+      if (undoRoute?.target === 'file-tree') {
         e.preventDefault()
         void useFileOpsHistory
           .getState()
@@ -1339,6 +1358,36 @@ export default function App() {
               message: msg,
             }),
           )
+          .then((res) => {
+            if (!res.ok) return
+            // Capture the open tab by its CURRENT path (the post-rename path for
+            // rename/move) BEFORE remapping, then remap tab state and activate
+            // it. Focus stays in the tree, so the next Cmd+Z keeps routing here.
+            const currentPath = res.remap ? res.remap.from : res.revealedPath
+            // Exact match for a file op; for a folder op, any open tab under
+            // the folder is the affected file (mirrors renameInTabs' matching).
+            const open =
+              currentPath != null
+                ? tabsRef.current.find(
+                    (t) =>
+                      isNoteTab(t) &&
+                      (t.path === currentPath ||
+                        t.path.startsWith(`${currentPath}/`)),
+                  )
+                : undefined
+            if (res.remap) renameInTabsRef.current(res.remap.from, res.remap.to)
+            if (open) setActiveTabId(open.id)
+          })
+        return
+      }
+      if (
+        undoRoute?.target === 'fallback-editor' &&
+        !modalOpen &&
+        !e.defaultPrevented
+      ) {
+        e.preventDefault()
+        if (undoRoute.direction === 'redo') activeEditorRef.current?.redo()
+        else activeEditorRef.current?.undo()
         return
       }
       // Cmd+F / Cmd+Alt+F → open the find bar in the active markdown editor
@@ -2198,6 +2247,10 @@ export default function App() {
                         }
                       : undefined
                   }
+                  // Passed to every mounted editor; each self-gates on isActive
+                  // and clears the ref on going inactive/unmount, so the Cmd+Z
+                  // fallback always targets the visible editor (never a hidden one).
+                  onRegisterHandle={registerActiveEditorHandle}
                   onSendSelection={
                     focusedAgent ? handleSendSelectionToFocusedAgent : undefined
                   }
