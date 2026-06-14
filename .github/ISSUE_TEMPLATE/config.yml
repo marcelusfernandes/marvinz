@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Agent-driven issue creation
+    url: https://github.com/marcelusfernandes/marvinz/blob/develop/.claude/commands/issues/create.md
+    about: Working with Claude Code? Use the /issues:create command to draft an issue following the project's section contract.
+  - name: Git & PR workflow
+    url: https://github.com/marcelusfernandes/marvinz/blob/develop/.claude/rules/git-workflow.md
+    about: Branch model, issue-first gate, and PR conventions before you start.
