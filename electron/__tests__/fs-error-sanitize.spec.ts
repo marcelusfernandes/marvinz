@@ -29,7 +29,12 @@ describe('wrapFsError', () => {
     // Capture the thrown error directly — assertions outside any catch so they
     // never get silently skipped if the throw regresses.
     const thrown = (() => {
-      try { wrapFsError(raw); return null } catch (e) { return e as Error }
+      try {
+        wrapFsError(raw)
+        return null
+      } catch (e) {
+        return e as Error
+      }
     })()
     expect(thrown).toBeInstanceOf(Error)
     expect(thrown?.message).toBe('MARVIN_FS_EACCES')
