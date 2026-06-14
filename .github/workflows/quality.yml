@@ -1,0 +1,51 @@
+name: Quality
+
+on:
+  pull_request:
+    branches: [develop, main]
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check formatting on changed files
+        run: |
+          CHANGED=$(git diff --name-only --diff-filter=ACMRTUXB origin/${{ github.base_ref }}...HEAD | grep -E '\.(ts|tsx|js|cjs|json|md|yml|yaml)$' || true)
+          if [ -z "$CHANGED" ]; then
+            echo "No changed files to format-check."
+            exit 0
+          fi
+          echo "Format-checking changed files:"
+          printf '%s\n' $CHANGED
+          npx prettier --check $CHANGED
+
+      - name: Lint changed files
+        run: |
+          CHANGED=$(git diff --name-only --diff-filter=ACMRTUXB origin/${{ github.base_ref }}...HEAD | grep -E '\.(ts|tsx|js|cjs)$' || true)
+          if [ -z "$CHANGED" ]; then
+            echo "No changed source files to lint."
+            exit 0
+          fi
+          echo "Linting changed files:"
+          printf '%s\n' $CHANGED
+          npx eslint $CHANGED
+
+      - name: Typecheck
+        run: npx tsc -b
+
+      - name: Test
+        run: npm test
