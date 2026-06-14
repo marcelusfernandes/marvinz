@@ -13,11 +13,11 @@ Orquestra a promoção de `develop` → `main` como release. Você (assistente) 
 
 ## Regras invioláveis
 
-- **AI nunca mergeia PR.** Pausa e pede o merge na UI do GitHub. (`.claude/rules/git-workflow.md`)
+- **AI nunca mergeia PR** exceto release PRs (bump e promote) **após confirmação mecânica explícita do usuário no chat** — per `.claude/rules/git-workflow.md`.
 - **Nunca force-push** em `main` ou `develop`.
 - **Tudo que vai pro GitHub em inglês** — PR title/body, tag, release notes, comments.
 - **Convenção de release do repo**: tag **leve** `vX.Y.Z` apontando pro tip da `main`. O CI (`release.yml`) cria o **GitHub Release** com build cross-platform e notas auto-geradas — não criar release manualmente.
-- **Merge de `develop`→`main` é SEMPRE "Create a merge commit"** — nunca Squash/Rebase. Squash/Rebase quebram a ancestralidade compartilhada e fazem as próximas promoções re-conflitarem.
+- **Merge de release PRs é SEMPRE `--merge` (merge commit)** — nunca Squash/Rebase. Squash/Rebase quebram a ancestralidade compartilhada e fazem as próximas promoções re-conflitarem.
 
 ## Passo 0 — Detecção de fase (idempotente)
 
@@ -49,7 +49,10 @@ git tag -l "v$VER"
 - Leia a versão do develop (`VER` acima).
 - Se `$ARGUMENTS` traz um `X.Y.Z` e **difere** de `VER`: o bump ainda não foi feito. **Ofereça** bumpar antes de promover:
   - branch a partir de `develop` (`chore/bump-X.Y.Z` ou `release/bump-X.Y.Z`), editar `package.json` (+ `package-lock.json` se aplicável), commit `release: bump to X.Y.Z`, PR pra `develop`.
-  - Isso é um **gate**: pause, peça o merge desse bump-PR na UI, e só então retome `/release` (a versão do develop passa a ser a alvo).
+  - **Gate mecânico**: após abrir a PR, pergunte ao usuário no chat:
+    > "Bump PR #N aberta. Confirma o merge para develop? (sim / não)"
+  - Se confirmado (`sim` / `yes` / `proceed`): espere checks verdes (`gh pr checks <n> --watch`), então `gh pr merge <n> --merge --admin`.
+  - Se recusado: pare e reporte. Retome `/release` depois.
 - Se `develop` já está na versão alvo (ou `$ARGUMENTS` vazio) → use `VER` e siga.
 - Se a tag `vVER` **já existe** → pare e avise (release já selada ou versão não bumpada).
 
@@ -73,17 +76,27 @@ git merge-base --is-ancestor origin/main origin/develop && echo "CLEAN" || echo 
 - Se foi DIVERGED, documente no corpo o lembrete de governança (back-merge / cortar release do develop) pra não repetir.
 - Metadata (per `.claude/rules/git-workflow.md`): `gh pr edit <n> --add-assignee @me --add-project Marvinz`. Confirme `mergeable`.
 
-### A.5 GATE HUMANO — pare aqui
+### A.5 GATE MECÂNICO — confirmação no chat
 
-Diga ao usuário, de forma explícita e clicável:
+Após abrir a promote PR, pergunte ao usuário no chat:
 
-> Abri a PR #N (`develop` → `main`). Revise e clique **"Merge pull request" → "Create a merge commit"** na UI do GitHub (não Squash, não Rebase). Quando mergear, me avise ou rode `/release` de novo que eu sigo pra tag (o CI cuida do build e release).
+> "Promote PR #N (`develop` → `main`) aberta. Resumo dos commits:
+>
+> ```
+> <git log --oneline origin/main..origin/develop | head -10>
+> ```
+>
+> Confirma o merge para main? (sim / não)"
 
-**PARE.** Não prossiga pra Fase B até o merge estar confirmado.
+- **Se confirmado** (`sim` / `yes` / `proceed`):
+  1. Espere checks verdes: `gh pr checks <n> --watch` (timeout 10 min).
+  2. Merge: `gh pr merge <n> --merge --admin` (sempre merge commit, nunca squash/rebase).
+  3. Prossiga direto pra **Fase B** (tag + push).
+- **Se recusado**: pare e reporte. Retome `/release` depois.
 
 ## Fase B — Selar a release (após o merge)
 
-### B.1 Confirmar estado
+### B.1 Confirmar estado + auto-merge pendente
 
 ```bash
 git fetch origin main --tags 2>&1 | tail -2
@@ -92,7 +105,12 @@ git show origin/main:package.json | python3 -c 'import sys,json;print(json.load(
 git log -1 --oneline origin/main
 ```
 
-Se `main` != `develop`, a PR não foi mergeada (ou foi por Squash/Rebase — avise que deveria ser merge commit). Não tagueie até a `main` bater com o `develop`.
+- Se `main` == `develop` → prossiga pra B.2 (tag).
+- Se `main` != `develop`:
+  - Verifique se há PR aberta `develop`→`main`: `gh pr list --base main --head develop --state open --json number`.
+  - **Se há PR aberta** → aplique o **gate mecânico** (A.5): pergunte confirmação no chat, espere checks, `gh pr merge --merge --admin`.
+  - **Se não há PR** → avise que a promote PR sumiu; reabra via A.3-A.4 e aplique o gate.
+  - **Se foi mergeada por Squash/Rebase** → avise que isso quebra ancestralidade; não tagueie. O usuário deve resolver manualmente.
 
 ### B.2 Tag leve (dispara CI)
 
