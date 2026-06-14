@@ -1,6 +1,6 @@
 ---
-description: Promove develop → main como release (PR + tag leve + GitHub Release) com gates humanos para o merge na UI do GitHub
-argument-hint: "[versão X.Y.Z opcional]"
+description: Promove develop → main como release (PR + tag leve). O CI faz build cross-platform e publica o GitHub Release automaticamente.
+argument-hint: '[versão X.Y.Z opcional]'
 ---
 
 # /release — Promote develop to main
@@ -9,12 +9,14 @@ Entrada: $ARGUMENTS
 
 Orquestra a promoção de `develop` → `main` como release. Você (assistente) executa tudo que é **automatizável** e **PAUSA nos gates humanos**, dizendo ao usuário exatamente o que clicar na UI do GitHub. O usuário não precisa lembrar o workflow — o comando guia e retoma sozinho.
 
+> **CI automático:** a partir de `v0.11.0`, o push da tag `v*` dispara `.github/workflows/release.yml`, que faz build cross-platform (Linux AppImage, Windows `.exe`, macOS `.dmg`) e cria o GitHub Release com notas auto-geradas. O `/release` para no **push da tag** — não cria mais release manualmente.
+
 ## Regras invioláveis
 
 - **AI nunca mergeia PR.** Pausa e pede o merge na UI do GitHub. (`.claude/rules/git-workflow.md`)
 - **Nunca force-push** em `main` ou `develop`.
 - **Tudo que vai pro GitHub em inglês** — PR title/body, tag, release notes, comments.
-- **Convenção de release do repo**: tag **leve** `vX.Y.Z` apontando pro tip da `main` + um **GitHub Release** com título `vX.Y.Z` e notas curadas.
+- **Convenção de release do repo**: tag **leve** `vX.Y.Z` apontando pro tip da `main`. O CI (`release.yml`) cria o **GitHub Release** com build cross-platform e notas auto-geradas — não criar release manualmente.
 - **Merge de `develop`→`main` é SEMPRE "Create a merge commit"** — nunca Squash/Rebase. Squash/Rebase quebram a ancestralidade compartilhada e fazem as próximas promoções re-conflitarem.
 
 ## Passo 0 — Detecção de fase (idempotente)
@@ -29,7 +31,7 @@ gh pr list --base main --head develop --state open --json number,title 2>&1
 git tag -l "v$VER"
 ```
 
-- **Tag `v$VER` já existe E release publicado** → nada a fazer. Reporte que a `v$VER` já está lançada.
+- **Tag `v$VER` já existe** → verifique se o workflow CI completou (`gh run list --workflow release --limit 1`) e se o GitHub Release foi publicado. Reporte status.
 - **`main` == `develop` (diff vazio) mas falta a tag `v$VER`** → a PR já foi mergeada. Vá direto pra **Fase B**.
 - **Há PR `develop`→`main` aberta (não mergeada)** → o gate humano já está pendente. Relembre o usuário pra mergear na UI (Create a merge commit) e **pare**.
 - **Senão** (`main` != `develop`, sem PR aberta) → **Fase A**.
@@ -75,7 +77,7 @@ git merge-base --is-ancestor origin/main origin/develop && echo "CLEAN" || echo 
 
 Diga ao usuário, de forma explícita e clicável:
 
-> Abri a PR #N (`develop` → `main`). Revise e clique **"Merge pull request" → "Create a merge commit"** na UI do GitHub (não Squash, não Rebase). Quando mergear, me avise ou rode `/release` de novo que eu sigo pra tag + release.
+> Abri a PR #N (`develop` → `main`). Revise e clique **"Merge pull request" → "Create a merge commit"** na UI do GitHub (não Squash, não Rebase). Quando mergear, me avise ou rode `/release` de novo que eu sigo pra tag (o CI cuida do build e release).
 
 **PARE.** Não prossiga pra Fase B até o merge estar confirmado.
 
@@ -92,28 +94,50 @@ git log -1 --oneline origin/main
 
 Se `main` != `develop`, a PR não foi mergeada (ou foi por Squash/Rebase — avise que deveria ser merge commit). Não tagueie até a `main` bater com o `develop`.
 
-### B.2 Tag leve
+### B.2 Tag leve (dispara CI)
 
 ```bash
 git tag vVER <main-tip-sha> && git push origin vVER
 git cat-file -t vVER   # confirma "commit" (tag leve, igual à convenção)
 ```
 
-### B.3 Notas escopadas desde a última release
+O push da tag dispara `.github/workflows/release.yml`, que faz:
 
-- Descubra a tag anterior (`git tag --sort=-v:refname | head`).
-- **Se a tag anterior é ancestral da `main`** (regime normal): `gh release create vVER --title "vVER" --generate-notes --verify-tag --target main` gera o range correto.
-- **Se NÃO é ancestral** (drift histórico): NÃO use ancestralidade (faz overshoot, lista PRs já lançadas). Escopa por **data** — commits no `develop` desde a data da última release:
-  ```bash
-  git log --pretty="%s" --since="<data-da-última-release>" origin/develop | grep -vE "^Merge "
-  ```
-  Cure em **highlights agrupados** (Features / Fixes / Performance), filtrando ruído (chore/test internos), com link `Full Changelog: .../compare/<prev>...vVER`. Escreva num arquivo e use `gh release create vVER --title "vVER" --notes-file <file> --verify-tag --target main`.
-- **Sempre prefira highlights curados** a um dump cru de todos os commits.
+1. Build cross-platform (ubuntu/Windows/macOS via electron-builder)
+2. Coleta artifacts (`*.AppImage`, `*.exe`, `*.dmg`)
+3. Cria GitHub Release com `--generate-notes` (notas auto-geradas dos PRs mergeados)
 
-### B.4 Confirmar e reportar
+**NÃO crie release manualmente** — o CI é o source of truth.
 
-- `gh release view vVER --json tagName,name,targetCommitish,url` → confirme target `main`, não draft/prerelease (é Latest por ser a maior versão).
-- Reporte ao usuário: versão na main, tag, link do GitHub Release.
+### B.3 Monitorar o CI
+
+Após o push da tag, verifique que o workflow foi enfileirado:
+
+```bash
+gh run list --workflow release --limit 3 --json status,name,url
+```
+
+Reporte ao usuário:
+
+- Tag `vVER` pushed → `main`
+- Workflow CI em andamento: link pra Actions
+- Release será publicado automaticamente quando os 3 builds completarem
+
+Se precisar editar as notas depois (ex: adicionar highlights manuais), use a UI do GitHub após o CI completar — `gh release edit vVER --notes-file ...`.
+
+### B.4 Confirmar e reportar (após CI completar)
+
+```bash
+gh release view vVER --json tagName,name,targetCommitish,url
+```
+
+Confirme:
+
+- Target `main`
+- Artifacts anexados (Linux AppImage, Windows `.exe`, macOS `.dmg`)
+- Notas auto-geradas presentes
+
+Reporte ao usuário: versão na main, tag, link do GitHub Release.
 
 ## Governança (sempre lembrar)
 
