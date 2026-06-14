@@ -1370,25 +1370,12 @@ export default function App() {
           )
           .then((res) => {
             if (!res.ok) return
-            // Capture the open tab by its CURRENT path (the post-rename path for
-            // rename/move) BEFORE remapping, then remap tab state and activate
-            // it. Focus stays in the tree, so the next Cmd+Z keeps routing here.
-            const currentPath = res.remap ? res.remap.from : res.revealedPath
-            // Exact match for a file op; for a folder op, any open tab under
-            // the folder is the affected file (mirrors renameInTabs' matching).
-            const open =
-              currentPath != null
-                ? tabsRef.current.find(
-                    (t) =>
-                      isNoteTab(t) &&
-                      (t.path === currentPath ||
-                        t.path.startsWith(`${currentPath}/`)),
-                  )
-                : undefined
+            // Update the affected file's tab path IN PLACE so its tab name
+            // reflects an undone rename/move (renameInTabs also handles open
+            // tabs under an undone folder op). We deliberately do NOT switch the
+            // active tab — the user stays where they are. Focus stays on the
+            // tree so a follow-up Cmd+Z keeps undoing file ops.
             if (res.remap) renameInTabsRef.current(res.remap.from, res.remap.to)
-            if (open) setActiveTabId(open.id)
-            // Keep focus on the tree so a follow-up Cmd+Z undoes the next file
-            // op (the tab is made visible without stealing keyboard focus).
             focusFileTree()
           })
         return

@@ -171,6 +171,11 @@ test.describe('Cmd+Z graceful fallback + reveal (#456)', () => {
       await blurToNeutral(page)
       await page.keyboard.press(`${cmdKey}+z`)
       await expect(pm).not.toContainText('TYPED-PM')
+
+      // Redo through the same fallback (ProseMirror redo must not regress).
+      await blurToNeutral(page)
+      await page.keyboard.press(`${cmdKey}+Shift+z`)
+      await expect(pm).toContainText('TYPED-PM')
     } finally {
       await closeApp(app)
     }
@@ -211,18 +216,18 @@ test.describe('Cmd+Z graceful fallback + reveal (#456)', () => {
     }
   })
 
-  test('undoing a move reveals the affected file by activating its background tab', async () => {
+  test('undoing a move of a background-tab file does NOT switch the active tab', async () => {
     const { app, page } = await launchApp(userDataDir)
     try {
       // Open doc.md (under folder-a), then open note-b so doc sits in a
-      // background tab.
+      // background tab and note-b is active.
       await expect(dirRow(page, 'folder-a')).toBeVisible({ timeout: 15_000 })
       await dirRow(page, 'folder-a').click()
       await openFile(page, 'doc')
       await openFile(page, 'note-b')
       await expect(activeEditor(page)).toContainText('Note B')
 
-      // Move doc.md from folder-a into folder-b (it's open in a background tab).
+      // Move doc.md (background tab) from folder-a into folder-b, then undo.
       await dirRow(page, 'folder-b').click()
       const docRow = fileRow(page, 'doc')
       await expect(docRow).toBeVisible({ timeout: 8_000 })
@@ -231,17 +236,16 @@ test.describe('Cmd+Z graceful fallback + reveal (#456)', () => {
         .poll(() => exists(path.join(vaultRoot, 'folder-b', 'doc.md')), { timeout: 8_000 })
         .toBe(true)
 
-      // Focus the tree, then Cmd+Z to undo the move. The undo must reveal doc by
-      // switching the active tab to it (away from note-b).
       await dirRow(page, 'folder-b').click()
       await page.keyboard.press(`${cmdKey}+z`)
 
+      // The move is reverted on disk...
       await expect
         .poll(() => exists(path.join(vaultRoot, 'folder-a', 'doc.md')), { timeout: 8_000 })
         .toBe(true)
-      // The active (visible) editor is now doc, not note-b.
-      await expect(activeEditor(page)).toContainText('Doc content', { timeout: 8_000 })
-      await expect(activeEditor(page)).not.toContainText('Other content')
+      // ...but the active tab STAYS note-b — the undo must not jump to doc.
+      await expect(activeEditor(page)).toContainText('Note B')
+      await expect(activeEditor(page)).not.toContainText('Doc content')
     } finally {
       await closeApp(app)
     }
