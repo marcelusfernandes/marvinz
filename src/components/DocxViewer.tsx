@@ -16,7 +16,7 @@ function basename(p: string): string {
 // DOMPurify URI allowlist: http(s), mailto, tel + safe raster data URIs from mammoth.
 // data:image/svg+xml is intentionally excluded — SVG can embed <script> and event handlers.
 const ALLOWED_URI_REGEXP =
-  /^(?:(?:(?:f|ht)tps?|mailto|tel|callto|sms|cid|xmpp):|data:image\/(?:png|jpeg|gif|webp);base64,|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i
+  /^(?:(?:(?:f|ht)tps?|mailto|tel|callto|sms|cid|xmpp):|data:image\/(?:png|jpeg|gif|webp);base64,|[^a-z]|[a-z+.-]+(?:[^a-z+.-:]|$))/i
 
 function sanitizeHtml(html: string): string {
   const clean = DOMPurify.sanitize(html, {
@@ -25,10 +25,7 @@ function sanitizeHtml(html: string): string {
   })
   // DOMPurify may not strip data:image/svg+xml in all DOM environments
   // (notably jsdom). SVG data URIs can embed <script> — strip explicitly.
-  return clean.replace(
-    /(\s(?:src|xlink:href)\s*=\s*['"])\s*data:image\/svg[^'"]*(?=['"])/gi,
-    '$1#',
-  )
+  return clean.replace(/(\s(?:src|xlink:href)\s*=\s*['"])\s*data:image\/svg[^'"]*(?=['"])/gi, '$1#')
 }
 
 /**
@@ -40,10 +37,10 @@ function htmlToPlainText(html: string): string {
   let out = html
   // Replace <img> with a placeholder before stripping tags.
   out = out.replace(/<img\b[^>]*\balt\s*=\s*"([^"]*)"[^>]*\/?>/gi, (_, alt) =>
-    alt.trim() ? `[Image: ${alt.trim()}]` : '[Image]',
+    alt.trim() ? `[Image: ${alt.trim()}]` : '[Image]'
   )
   out = out.replace(/<img\b[^>]*\balt\s*=\s*'([^']*)'[^>]*\/?>/gi, (_, alt) =>
-    alt.trim() ? `[Image: ${alt.trim()}]` : '[Image]',
+    alt.trim() ? `[Image: ${alt.trim()}]` : '[Image]'
   )
   out = out.replace(/<img\b[^>]*\/?>/gi, '[Image]')
   out = out.replace(/<br\s*\/?>/gi, '\n')
@@ -129,7 +126,12 @@ export function DocxViewer({ path, onRevealInFinder }: Props) {
       <div className="docx-viewer-toolbar">
         <span className="docx-viewer-name">
           {basename(path)}
-          {dirty && <span className="docx-viewer-dirty" aria-label="Unsaved changes"> *</span>}
+          {dirty && (
+            <span className="docx-viewer-dirty" aria-label="Unsaved changes">
+              {' '}
+              *
+            </span>
+          )}
         </span>
         <div className="docx-viewer-actions">
           {OFFICE_EDIT_ENABLED && !editing && !loading && !loadError && (
@@ -187,9 +189,7 @@ export function DocxViewer({ path, onRevealInFinder }: Props) {
         )}
         {!loading && !loadError && editing && (
           <>
-            {saveError && (
-              <div className="docx-viewer-error">{saveError}</div>
-            )}
+            {saveError && <div className="docx-viewer-error">{saveError}</div>}
             <textarea
               className="docx-viewer-textarea"
               value={editedText}
@@ -200,10 +200,7 @@ export function DocxViewer({ path, onRevealInFinder }: Props) {
           </>
         )}
         {!loading && !loadError && !editing && html != null && (
-          <div
-            className="docx-viewer-content"
-            dangerouslySetInnerHTML={{ __html: html }}
-          />
+          <div className="docx-viewer-content" dangerouslySetInnerHTML={{ __html: html }} />
         )}
       </div>
     </div>

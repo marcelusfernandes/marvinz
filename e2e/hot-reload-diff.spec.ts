@@ -22,7 +22,6 @@ import { test, expect, _electron as electron } from 'playwright/test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import os from 'node:os'
-import crypto from 'node:crypto'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -31,18 +30,14 @@ import crypto from 'node:crypto'
 async function createUserDataDir(vaultPath: string): Promise<string> {
   const raw = await fs.mkdtemp(path.join(os.tmpdir(), 'marvin-e2e-hotreload-'))
   const userDataDir = await fs.realpath(raw)
-  await fs.writeFile(
-    path.join(userDataDir, 'settings.json'),
-    JSON.stringify({ vaultPath }),
-    'utf8',
-  )
+  await fs.writeFile(path.join(userDataDir, 'settings.json'), JSON.stringify({ vaultPath }), 'utf8')
   return userDataDir
 }
 
 async function seedVaultWithNote(
   vaultRoot: string,
   relPath: string,
-  content: string,
+  content: string
 ): Promise<string> {
   const absPath = path.join(vaultRoot, relPath)
   await fs.mkdir(path.dirname(absPath), { recursive: true })
@@ -70,9 +65,7 @@ async function getMostRecentManifest(vaultRoot: string): Promise<Record<string, 
       .sort()
       .reverse()
     if (dirs.length === 0) return null
-    return JSON.parse(
-      await fs.readFile(path.join(snapshotsDir, dirs[0], '_manifest.json'), 'utf8'),
-    )
+    return JSON.parse(await fs.readFile(path.join(snapshotsDir, dirs[0], '_manifest.json'), 'utf8'))
   } catch {
     return null
   }
@@ -257,9 +250,13 @@ test.describe('G2-3 hot-reload diff — external change scenarios', () => {
       // Stamp lastPtyWriteAt so the next file:changed is source='agent'.
       // pty:write updates lastPtyWriteAt even for a non-existent PTY id.
       await page.evaluate(async () => {
-        await (window as unknown as {
-          marvin: { pty: { write: (id: string, d: string) => Promise<void> } }
-        }).marvin.pty.write('__test_stamp__', '').catch(() => {})
+        await (
+          window as unknown as {
+            marvin: { pty: { write: (id: string, d: string) => Promise<void> } }
+          }
+        ).marvin.pty
+          .write('__test_stamp__', '')
+          .catch(() => {})
       })
 
       await fs.writeFile(absPath, agentContent, 'utf8')
@@ -373,11 +370,13 @@ test.describe('G2-3 hot-reload diff — external change scenarios', () => {
             .map(async (d) => {
               try {
                 const m = JSON.parse(
-                  await fs.readFile(path.join(snapshotsDir, d.name, '_manifest.json'), 'utf8'),
+                  await fs.readFile(path.join(snapshotsDir, d.name, '_manifest.json'), 'utf8')
                 )
                 return m.trigger === 'buffer-save' ? d.name : null
-              } catch { return null }
-            }),
+              } catch {
+                return null
+              }
+            })
         )
       ).find(Boolean)
 
@@ -487,7 +486,10 @@ test.describe('FU-5 (#71) — Reload with binary/null-byte buffer', () => {
         // Wrap saveBuffer to always return saved=false (simulating binary content rejection)
         const wrapped = {
           ...orig.snapshot,
-          saveBuffer: async (_r: string, _c: string) => ({ ok: true, data: { turnId: 'fake', saved: false } }),
+          saveBuffer: async (_r: string, _c: string) => ({
+            ok: true,
+            data: { turnId: 'fake', saved: false },
+          }),
         }
         ;(orig as unknown as Record<string, unknown>).snapshot = wrapped
       })
@@ -506,7 +508,9 @@ test.describe('FU-5 (#71) — Reload with binary/null-byte buffer', () => {
       await expect(banner).toBeVisible()
 
       // An error message must be shown to the user
-      const errorLocator = page.locator('.error-toast, .error-banner, [role="alert"]:not(.external-change-banner), .error-message')
+      const errorLocator = page.locator(
+        '.error-toast, .error-banner, [role="alert"]:not(.external-change-banner), .error-message'
+      )
       await expect(errorLocator).toBeVisible({ timeout: 5_000 })
 
       // Buffer must NOT have been replaced: disk file should still hold externalContent
@@ -597,11 +601,13 @@ test.describe('FU-6 (#72) — Keep Mine snapshots external diskContent', () => {
             .map(async (d) => {
               try {
                 const m = JSON.parse(
-                  await fs.readFile(path.join(snapshotsDir, d.name, '_manifest.json'), 'utf8'),
+                  await fs.readFile(path.join(snapshotsDir, d.name, '_manifest.json'), 'utf8')
                 )
                 return m.trigger === 'external-rejected' ? d.name : null
-              } catch { return null }
-            }),
+              } catch {
+                return null
+              }
+            })
         )
       ).find(Boolean)
 
@@ -643,18 +649,26 @@ test.describe('snapshot:saveBuffer IPC contract', () => {
     })
     const page = await app.firstWindow()
     await page.waitForLoadState('domcontentloaded')
-    await expect(page.locator('.file-tree-row.file', { hasText: /^note$/ })).toBeVisible({ timeout: 15_000 })
+    await expect(page.locator('.file-tree-row.file', { hasText: /^note$/ })).toBeVisible({
+      timeout: 15_000,
+    })
 
     try {
       const turnsBefore = await countSnapshotTurns(vaultRoot)
 
       const result = await page.evaluate(async () => {
-        return await (window as unknown as {
-          marvin: { snapshot: { saveBuffer: (r: string, c: string) => Promise<unknown> } }
-        }).marvin.snapshot.saveBuffer('note.md', '# My unsaved buffer content')
+        return await (
+          window as unknown as {
+            marvin: { snapshot: { saveBuffer: (r: string, c: string) => Promise<unknown> } }
+          }
+        ).marvin.snapshot.saveBuffer('note.md', '# My unsaved buffer content')
       })
 
-      const envelope = result as { ok: boolean; data?: { turnId: string; saved: boolean }; error?: string }
+      const envelope = result as {
+        ok: boolean
+        data?: { turnId: string; saved: boolean }
+        error?: string
+      }
       expect(envelope.ok).toBe(true)
       expect(envelope.data?.turnId).toMatch(/^\d{8}T\d{6}Z-[0-9a-f]+$/i)
       expect(envelope.data?.saved).toBe(true)
@@ -666,7 +680,13 @@ test.describe('snapshot:saveBuffer IPC contract', () => {
       expect(manifest?.trigger).toBe('buffer-save')
       expect((manifest?.files as Array<{ relPath: string }>)?.[0]?.relPath).toBe('note.md')
 
-      const snapPath = path.join(vaultRoot, '.marvin', 'snapshots', envelope.data!.turnId, 'note.md')
+      const snapPath = path.join(
+        vaultRoot,
+        '.marvin',
+        'snapshots',
+        envelope.data!.turnId,
+        'note.md'
+      )
       expect(await fs.readFile(snapPath, 'utf8')).toBe('# My unsaved buffer content')
     } finally {
       await app.close()
@@ -680,7 +700,9 @@ test.describe('snapshot:saveBuffer IPC contract', () => {
     })
     const page = await app.firstWindow()
     await page.waitForLoadState('domcontentloaded')
-    await expect(page.locator('.file-tree-row.file', { hasText: /^note$/ })).toBeVisible({ timeout: 15_000 })
+    await expect(page.locator('.file-tree-row.file', { hasText: /^note$/ })).toBeVisible({
+      timeout: 15_000,
+    })
 
     try {
       const vectors = [
@@ -692,13 +714,17 @@ test.describe('snapshot:saveBuffer IPC contract', () => {
       ]
       for (const relPath of vectors) {
         const result = await page.evaluate(async (rp: string) => {
-          return await (window as unknown as {
-            marvin: { snapshot: { saveBuffer: (r: string, c: string) => Promise<unknown> } }
-          }).marvin.snapshot.saveBuffer(rp, 'bad content')
+          return await (
+            window as unknown as {
+              marvin: { snapshot: { saveBuffer: (r: string, c: string) => Promise<unknown> } }
+            }
+          ).marvin.snapshot.saveBuffer(rp, 'bad content')
         }, relPath)
         const envelope = result as { ok: boolean; error?: string }
         expect(envelope.ok, `Expected rejection for: ${relPath}`).toBe(false)
-        expect(envelope.error, `Expected SNAPSHOT_INVALID_REL_PATH for: ${relPath}`).toBe('SNAPSHOT_INVALID_REL_PATH')
+        expect(envelope.error, `Expected SNAPSHOT_INVALID_REL_PATH for: ${relPath}`).toBe(
+          'SNAPSHOT_INVALID_REL_PATH'
+        )
       }
     } finally {
       await app.close()
@@ -712,13 +738,17 @@ test.describe('snapshot:saveBuffer IPC contract', () => {
     })
     const page = await app.firstWindow()
     await page.waitForLoadState('domcontentloaded')
-    await expect(page.locator('.file-tree-row.file', { hasText: /^note$/ })).toBeVisible({ timeout: 15_000 })
+    await expect(page.locator('.file-tree-row.file', { hasText: /^note$/ })).toBeVisible({
+      timeout: 15_000,
+    })
 
     try {
       const result = await page.evaluate(async () => {
-        return await (window as unknown as {
-          marvin: { snapshot: { saveBuffer: (r: string, c: string) => Promise<unknown> } }
-        }).marvin.snapshot.saveBuffer('foo\0bar.md', 'bad content')
+        return await (
+          window as unknown as {
+            marvin: { snapshot: { saveBuffer: (r: string, c: string) => Promise<unknown> } }
+          }
+        ).marvin.snapshot.saveBuffer('foo\0bar.md', 'bad content')
       })
       const envelope = result as { ok: boolean; error?: string }
       expect(envelope.ok).toBe(false)
@@ -762,18 +792,26 @@ test.describe('snapshot:saveExternalChange IPC contract', () => {
     })
     const page = await app.firstWindow()
     await page.waitForLoadState('domcontentloaded')
-    await expect(page.locator('.file-tree-row.file', { hasText: /^note$/ })).toBeVisible({ timeout: 15_000 })
+    await expect(page.locator('.file-tree-row.file', { hasText: /^note$/ })).toBeVisible({
+      timeout: 15_000,
+    })
 
     try {
       const turnsBefore = await countSnapshotTurns(vaultRoot)
 
       const result = await page.evaluate(async () => {
-        return await (window as unknown as {
-          marvin: { snapshot: { saveExternalChange: (r: string, c: string) => Promise<unknown> } }
-        }).marvin.snapshot.saveExternalChange('note.md', '# External version written by Vim')
+        return await (
+          window as unknown as {
+            marvin: { snapshot: { saveExternalChange: (r: string, c: string) => Promise<unknown> } }
+          }
+        ).marvin.snapshot.saveExternalChange('note.md', '# External version written by Vim')
       })
 
-      const envelope = result as { ok: boolean; data?: { turnId: string; saved: boolean }; error?: string }
+      const envelope = result as {
+        ok: boolean
+        data?: { turnId: string; saved: boolean }
+        error?: string
+      }
       expect(envelope.ok).toBe(true)
       expect(envelope.data?.turnId).toMatch(/^\d{8}T\d{6}Z-[0-9a-f]+$/i)
       expect(envelope.data?.saved).toBe(true)
@@ -785,7 +823,13 @@ test.describe('snapshot:saveExternalChange IPC contract', () => {
       expect(manifest?.trigger).toBe('external-rejected')
       expect((manifest?.files as Array<{ relPath: string }>)?.[0]?.relPath).toBe('note.md')
 
-      const snapPath = path.join(vaultRoot, '.marvin', 'snapshots', envelope.data!.turnId, 'note.md')
+      const snapPath = path.join(
+        vaultRoot,
+        '.marvin',
+        'snapshots',
+        envelope.data!.turnId,
+        'note.md'
+      )
       const snapContent = await fs.readFile(snapPath, 'utf8')
       expect(snapContent).toBe('# External version written by Vim')
     } finally {
@@ -800,24 +844,27 @@ test.describe('snapshot:saveExternalChange IPC contract', () => {
     })
     const page = await app.firstWindow()
     await page.waitForLoadState('domcontentloaded')
-    await expect(page.locator('.file-tree-row.file', { hasText: /^note$/ })).toBeVisible({ timeout: 15_000 })
+    await expect(page.locator('.file-tree-row.file', { hasText: /^note$/ })).toBeVisible({
+      timeout: 15_000,
+    })
 
     try {
-      const vectors = [
-        '../escape.md',
-        '../../etc/passwd',
-        '/etc/passwd',
-        'foo/../../evil.md',
-      ]
+      const vectors = ['../escape.md', '../../etc/passwd', '/etc/passwd', 'foo/../../evil.md']
       for (const relPath of vectors) {
         const result = await page.evaluate(async (rp: string) => {
-          return await (window as unknown as {
-            marvin: { snapshot: { saveExternalChange: (r: string, c: string) => Promise<unknown> } }
-          }).marvin.snapshot.saveExternalChange(rp, 'bad content')
+          return await (
+            window as unknown as {
+              marvin: {
+                snapshot: { saveExternalChange: (r: string, c: string) => Promise<unknown> }
+              }
+            }
+          ).marvin.snapshot.saveExternalChange(rp, 'bad content')
         }, relPath)
         const envelope = result as { ok: boolean; error?: string }
         expect(envelope.ok, `Expected rejection for: ${relPath}`).toBe(false)
-        expect(envelope.error, `Expected SNAPSHOT_INVALID_REL_PATH for: ${relPath}`).toBe('SNAPSHOT_INVALID_REL_PATH')
+        expect(envelope.error, `Expected SNAPSHOT_INVALID_REL_PATH for: ${relPath}`).toBe(
+          'SNAPSHOT_INVALID_REL_PATH'
+        )
       }
     } finally {
       await app.close()
@@ -831,13 +878,17 @@ test.describe('snapshot:saveExternalChange IPC contract', () => {
     })
     const page = await app.firstWindow()
     await page.waitForLoadState('domcontentloaded')
-    await expect(page.locator('.file-tree-row.file', { hasText: /^note$/ })).toBeVisible({ timeout: 15_000 })
+    await expect(page.locator('.file-tree-row.file', { hasText: /^note$/ })).toBeVisible({
+      timeout: 15_000,
+    })
 
     try {
       const result = await page.evaluate(async () => {
-        return await (window as unknown as {
-          marvin: { snapshot: { saveExternalChange: (r: string, c: string) => Promise<unknown> } }
-        }).marvin.snapshot.saveExternalChange('foo\0bar.md', 'bad content')
+        return await (
+          window as unknown as {
+            marvin: { snapshot: { saveExternalChange: (r: string, c: string) => Promise<unknown> } }
+          }
+        ).marvin.snapshot.saveExternalChange('foo\0bar.md', 'bad content')
       })
       const envelope = result as { ok: boolean; error?: string }
       expect(envelope.ok).toBe(false)
@@ -854,13 +905,19 @@ test.describe('snapshot:saveExternalChange IPC contract', () => {
     })
     const page = await app.firstWindow()
     await page.waitForLoadState('domcontentloaded')
-    await expect(page.locator('.file-tree-row.file', { hasText: /^note$/ })).toBeVisible({ timeout: 15_000 })
+    await expect(page.locator('.file-tree-row.file', { hasText: /^note$/ })).toBeVisible({
+      timeout: 15_000,
+    })
 
     try {
       const result = await page.evaluate(async () => {
-        return await (window as unknown as {
-          marvin: { snapshot: { saveExternalChange: (r: string, c: unknown) => Promise<unknown> } }
-        }).marvin.snapshot.saveExternalChange('note.md', 42 as unknown as string)
+        return await (
+          window as unknown as {
+            marvin: {
+              snapshot: { saveExternalChange: (r: string, c: unknown) => Promise<unknown> }
+            }
+          }
+        ).marvin.snapshot.saveExternalChange('note.md', 42 as unknown as string)
       })
       const envelope = result as { ok: boolean; error?: string }
       expect(envelope.ok).toBe(false)
@@ -877,15 +934,19 @@ test.describe('snapshot:saveExternalChange IPC contract', () => {
     })
     const page = await app.firstWindow()
     await page.waitForLoadState('domcontentloaded')
-    await expect(page.locator('.file-tree-row.file', { hasText: /^note$/ })).toBeVisible({ timeout: 15_000 })
+    await expect(page.locator('.file-tree-row.file', { hasText: /^note$/ })).toBeVisible({
+      timeout: 15_000,
+    })
 
     try {
       const result = await page.evaluate(async () => {
         // 50MB + 1 byte — just over the hard cap
         const oversized = 'x'.repeat(50 * 1024 * 1024 + 1)
-        return await (window as unknown as {
-          marvin: { snapshot: { saveExternalChange: (r: string, c: string) => Promise<unknown> } }
-        }).marvin.snapshot.saveExternalChange('note.md', oversized)
+        return await (
+          window as unknown as {
+            marvin: { snapshot: { saveExternalChange: (r: string, c: string) => Promise<unknown> } }
+          }
+        ).marvin.snapshot.saveExternalChange('note.md', oversized)
       })
       const envelope = result as { ok: boolean; error?: string }
       expect(envelope.ok).toBe(false)
@@ -909,9 +970,11 @@ test.describe('snapshot:saveExternalChange IPC contract', () => {
 
     try {
       const result = await page.evaluate(async () => {
-        return await (window as unknown as {
-          marvin: { snapshot: { saveExternalChange: (r: string, c: string) => Promise<unknown> } }
-        }).marvin.snapshot.saveExternalChange('note.md', 'some content')
+        return await (
+          window as unknown as {
+            marvin: { snapshot: { saveExternalChange: (r: string, c: string) => Promise<unknown> } }
+          }
+        ).marvin.snapshot.saveExternalChange('note.md', 'some content')
       })
       const envelope = result as { ok: boolean; error?: string }
       expect(envelope.ok).toBe(false)

@@ -61,7 +61,12 @@ type LaunchOpts = {
   delayMs?: number
 }
 
-async function launchWithMock({ vaultPath, userDataDir, fixture, delayMs = 0 }: LaunchOpts) {
+async function launchWithMock({
+  vaultPath: _vaultPath,
+  userDataDir,
+  fixture,
+  delayMs = 0,
+}: LaunchOpts) {
   return electron.launch({
     args: ['.', `--user-data-dir=${userDataDir}`],
     env: {
@@ -75,7 +80,9 @@ async function launchWithMock({ vaultPath, userDataDir, fixture, delayMs = 0 }: 
 }
 
 /** Open the chat panel. Assumes vault is already loaded. */
-async function openChatPanel(page: Awaited<ReturnType<typeof electron.launch>>['_firstWindowPrivate']) {
+async function openChatPanel(
+  page: Awaited<ReturnType<typeof electron.launch>>['_firstWindowPrivate']
+) {
   // Wait for vault to load
   await expect(page.locator('.sidebar .file-tree-row.file')).toBeVisible({ timeout: 15_000 })
   // Open chat panel via keyboard shortcut
@@ -86,7 +93,7 @@ async function openChatPanel(page: Awaited<ReturnType<typeof electron.launch>>['
 /** Send a message in the chat composer. */
 async function sendMessage(
   page: Awaited<ReturnType<typeof electron.launch>>['_firstWindowPrivate'],
-  text: string,
+  text: string
 ) {
   const composer = page.locator('.chat-composer textarea, .chat-composer [contenteditable]')
   await expect(composer).toBeVisible({ timeout: 3_000 })
@@ -120,9 +127,7 @@ test.describe('IPC preload bridge', () => {
     const page = await app.firstWindow()
     await page.waitForLoadState('domcontentloaded')
     try {
-      const ok = await page.evaluate(
-        () => typeof (window as any).marvin?.agent === 'object',
-      )
+      const ok = await page.evaluate(() => typeof (window as any).marvin?.agent === 'object')
       expect(ok).toBe(true)
     } finally {
       await app.close()
@@ -138,7 +143,7 @@ test.describe('IPC preload bridge', () => {
     await page.waitForLoadState('domcontentloaded')
     try {
       const ok = await page.evaluate(
-        () => typeof (window as any).marvin?.agent?.request === 'function',
+        () => typeof (window as any).marvin?.agent?.request === 'function'
       )
       expect(ok).toBe(true)
     } finally {
@@ -155,7 +160,7 @@ test.describe('IPC preload bridge', () => {
     await page.waitForLoadState('domcontentloaded')
     try {
       const ok = await page.evaluate(
-        () => typeof (window as any).marvin?.agent?.approve === 'function',
+        () => typeof (window as any).marvin?.agent?.approve === 'function'
       )
       expect(ok).toBe(true)
     } finally {
@@ -173,7 +178,7 @@ test.describe('IPC preload bridge', () => {
     await expect(page.locator('.file-tree-row.file')).toBeVisible({ timeout: 15_000 })
     try {
       const ok = await page.evaluate(
-        () => typeof (window as any).marvin?.agent?.onEvent?.('sid', () => {}) === 'function',
+        () => typeof (window as any).marvin?.agent?.onEvent?.('sid', () => {}) === 'function'
       )
       expect(ok).toBe(true)
     } finally {
@@ -190,8 +195,8 @@ test.describe('IPC preload bridge', () => {
     await page.waitForLoadState('domcontentloaded')
     await expect(page.locator('.file-tree-row.file')).toBeVisible({ timeout: 15_000 })
     try {
-      const result = await page.evaluate(
-        async () => (window as any).marvin?.agent?.request?.({ type: '__invalid__', sessionId: 'x' }),
+      const result = await page.evaluate(async () =>
+        (window as any).marvin?.agent?.request?.({ type: '__invalid__', sessionId: 'x' })
       )
       expect(result).toBeDefined()
       if (result && !result.ok) expect(typeof result.error).toBe('string')
@@ -236,9 +241,9 @@ test.describe('AC1/AC2: default mode approval gate', () => {
       await expect(page.locator('.chat-approval-gate')).toBeVisible({ timeout: 10_000 })
 
       // Dot must be amber
-      await expect(
-        page.locator('.chat-timeline-dot[data-state="amber"]'),
-      ).toBeVisible({ timeout: 5_000 })
+      await expect(page.locator('.chat-timeline-dot[data-state="amber"]')).toBeVisible({
+        timeout: 5_000,
+      })
 
       // All three buttons present
       await expect(page.locator('[data-action="allow"]')).toBeVisible()
@@ -268,7 +273,9 @@ test.describe('AC1/AC2: default mode approval gate', () => {
 
       await expect(page.locator('.chat-approval-gate')).toBeVisible({ timeout: 10_000 })
       // WriteCard should show the filename
-      await expect(page.locator('.chat-tool-card-write .chat-tool-pill')).toContainText('test-note.md')
+      await expect(page.locator('.chat-tool-card-write .chat-tool-pill')).toContainText(
+        'test-note.md'
+      )
     } finally {
       await app.close()
     }
@@ -316,7 +323,9 @@ test.describe('AC3: Allow decision', () => {
 
       // Dot transitions from amber to running (or green if tool-result arrives fast)
       await expect(
-        page.locator('.chat-timeline-dot[data-state="running"], .chat-timeline-dot[data-state="green"]'),
+        page.locator(
+          '.chat-timeline-dot[data-state="running"], .chat-timeline-dot[data-state="green"]'
+        )
       ).toBeVisible({ timeout: 5_000 })
     } finally {
       await app.close()
@@ -385,11 +394,13 @@ test.describe('AC3 / AC5: Deny decision', () => {
       await expect(page.locator('.chat-approval-gate')).not.toBeVisible({ timeout: 5_000 })
 
       // Red dot visible
-      await expect(page.locator('.chat-timeline-dot[data-state="red"]')).toBeVisible({ timeout: 5_000 })
+      await expect(page.locator('.chat-timeline-dot[data-state="red"]')).toBeVisible({
+        timeout: 5_000,
+      })
 
       // "Denied" status label
       await expect(
-        page.locator('.chat-approval-status[data-state="denied"], [data-state="denied"]'),
+        page.locator('.chat-approval-status[data-state="denied"], [data-state="denied"]')
       ).toBeVisible({ timeout: 3_000 })
     } finally {
       await app.close()
@@ -414,7 +425,9 @@ test.describe('AC3 / AC5: Deny decision', () => {
       // Focus is on Allow button; press Escape
       await page.keyboard.press('Escape')
       await expect(page.locator('.chat-approval-gate')).not.toBeVisible({ timeout: 5_000 })
-      await expect(page.locator('.chat-timeline-dot[data-state="red"]')).toBeVisible({ timeout: 5_000 })
+      await expect(page.locator('.chat-timeline-dot[data-state="red"]')).toBeVisible({
+        timeout: 5_000,
+      })
     } finally {
       await app.close()
     }
@@ -473,9 +486,9 @@ test.describe('AC4: Timeout error renders [Resend]', () => {
       })
 
       // Resend button appears (renderer shows error card)
-      await expect(
-        page.locator('button:has-text("Resend"), [data-action="resend"]'),
-      ).toBeVisible({ timeout: 5_000 })
+      await expect(page.locator('button:has-text("Resend"), [data-action="resend"]')).toBeVisible({
+        timeout: 5_000,
+      })
     } finally {
       await app.close()
     }
@@ -576,7 +589,9 @@ test.describe('AC6: plan mode auto-denies writes', () => {
       await expect(page.locator('.chat-approval-gate')).not.toBeVisible()
 
       // Tool block shows red dot (denied)
-      await expect(page.locator('.chat-timeline-dot[data-state="red"]')).toBeVisible({ timeout: 5_000 })
+      await expect(page.locator('.chat-timeline-dot[data-state="red"]')).toBeVisible({
+        timeout: 5_000,
+      })
     } finally {
       await app.close()
     }
@@ -752,7 +767,9 @@ test.describe('ModesPicker UI', () => {
       await expect(page.locator('.chat-modes-list[role="listbox"]')).toBeVisible({ timeout: 3_000 })
       await page.locator('[role="option"]', { hasText: 'Plan mode' }).click()
 
-      await expect(page.locator('.chat-mode-pill[data-mode="plan"]')).toBeVisible({ timeout: 3_000 })
+      await expect(page.locator('.chat-mode-pill[data-mode="plan"]')).toBeVisible({
+        timeout: 3_000,
+      })
     } finally {
       await app.close()
     }

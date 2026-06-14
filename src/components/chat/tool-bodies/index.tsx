@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/static-components -- legacy pattern: component resolved during render; refactor tracked in #474 */
 import type { ComponentType } from 'react'
 import { BashCard } from './BashCard'
 import { ReadCard } from './ReadCard'
