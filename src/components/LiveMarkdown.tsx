@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components -- legacy file exports helpers alongside the component; refactor tracked in #474 */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Editor as MilkdownEditor,
@@ -112,7 +113,7 @@ export function findSelectionLineRange(selectedText: string, source: string): st
 // or the word can't be located there.
 export function misspelledWordRange(
   state: import('prosemirror-state').EditorState,
-  word: string,
+  word: string
 ): { from: number; to: number } | null {
   if (!word) return null
   const $from = state.selection.$from
@@ -140,7 +141,7 @@ export function misspelledWordRange(
 // the user by wiping a whole link when they typed adjacent content.
 function deleteReferenceBackward(
   state: import('prosemirror-state').EditorState,
-  dispatch?: (tr: import('prosemirror-state').Transaction) => void,
+  dispatch?: (tr: import('prosemirror-state').Transaction) => void
 ): boolean {
   if (!state.selection.empty) return false
   const $pos = state.selection.$from
@@ -197,7 +198,7 @@ function insertMarkdownAt(
   view: EditorView,
   event: DragEvent,
   markdown: string,
-  ctx: ParserCtxGetter,
+  ctx: ParserCtxGetter
 ): void {
   let parsed: PMNode | null
   try {
@@ -213,7 +214,7 @@ function insertMarkdownAt(
   let cursorPos: number
 
   let highlightFrom = pos
-  let highlightTo = pos
+  let highlightTo: number
 
   if (parsed.childCount === 1 && parsed.firstChild?.isTextblock) {
     // Inline-merge into the surrounding paragraph — keeps image and link
@@ -229,7 +230,7 @@ function insertMarkdownAt(
     // so we read the host content, not the just-inserted node.
     const $beforeInsert = tr.doc.resolve(pos)
     const nodeBefore = $beforeInsert.nodeBefore
-    const lastChar = nodeBefore?.isText ? nodeBefore.text?.slice(-1) ?? '' : ''
+    const lastChar = nodeBefore?.isText ? (nodeBefore.text?.slice(-1) ?? '') : ''
     const needsLeadingSpace = lastChar !== '' && !/\s/.test(lastChar)
     let insertPos = pos
     if (needsLeadingSpace) {
@@ -354,13 +355,12 @@ function LiveMarkdownInner({
   const mentionPlugin = useMemo(
     () =>
       mentionTrigger({
-        onOpen: (from, anchor) =>
-          setMentionRef.current({ from, query: '', anchor }),
+        onOpen: (from, anchor) => setMentionRef.current({ from, query: '', anchor }),
         onUpdate: (query, anchor) =>
           setMentionRef.current((prev) => (prev ? { ...prev, query, anchor } : prev)),
         onClose: () => setMentionRef.current(null),
       }),
-    [],
+    []
   )
   /* eslint-disable react-hooks/exhaustive-deps -- intentional: keymap is
      registered once per editor mount; onOpenFind from useState is
@@ -381,7 +381,7 @@ function LiveMarkdownInner({
         'Mod-g': findNext,
         'Shift-Mod-g': findPrev,
       }),
-    [],
+    []
   )
   /* eslint-enable react-hooks/exhaustive-deps */
 
@@ -400,7 +400,7 @@ function LiveMarkdownInner({
   const imageView = useMemo(
     () => imageNodeView({ filePath, vaultPath, paletteItems }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [],
+    []
   )
 
   // Render-only mermaid diagrams in Page mode. A `$view` over the existing
@@ -477,12 +477,7 @@ function LiveMarkdownInner({
                       onToast: onImportToastRef.current,
                     })
                     if (outcome.inserts.length > 0) {
-                      insertMarkdownAt(
-                        view,
-                        event,
-                        outcome.inserts.join('\n\n'),
-                        ctx,
-                      )
+                      insertMarkdownAt(view, event, outcome.inserts.join('\n\n'), ctx)
                     }
                     emitSummaryToast(outcome, onImportToastRef.current)
                   })()
@@ -592,14 +587,44 @@ function LiveMarkdownInner({
         items.push({ kind: 'separator' })
       }
       items.push(
-        { kind: 'item', id: 'cut', label: 'Cut', accelerator: 'CmdOrCtrl+X', enabled: hasSelection },
-        { kind: 'item', id: 'copy', label: 'Copy', accelerator: 'CmdOrCtrl+C', enabled: hasSelection },
-        { kind: 'item', id: 'paste', label: 'Paste', accelerator: 'CmdOrCtrl+V', enabled: canPaste },
+        {
+          kind: 'item',
+          id: 'cut',
+          label: 'Cut',
+          accelerator: 'CmdOrCtrl+X',
+          enabled: hasSelection,
+        },
+        {
+          kind: 'item',
+          id: 'copy',
+          label: 'Copy',
+          accelerator: 'CmdOrCtrl+C',
+          enabled: hasSelection,
+        },
+        {
+          kind: 'item',
+          id: 'paste',
+          label: 'Paste',
+          accelerator: 'CmdOrCtrl+V',
+          enabled: canPaste,
+        },
         { kind: 'separator' },
         { kind: 'item', id: 'selectAll', label: 'Select All', accelerator: 'CmdOrCtrl+A' },
         { kind: 'separator' },
-        { kind: 'item', id: 'undo', label: 'Undo', accelerator: 'CmdOrCtrl+Z', enabled: undoDepth(state) > 0 },
-        { kind: 'item', id: 'redo', label: 'Redo', accelerator: 'CmdOrCtrl+Shift+Z', enabled: redoDepth(state) > 0 },
+        {
+          kind: 'item',
+          id: 'undo',
+          label: 'Undo',
+          accelerator: 'CmdOrCtrl+Z',
+          enabled: undoDepth(state) > 0,
+        },
+        {
+          kind: 'item',
+          id: 'redo',
+          label: 'Redo',
+          accelerator: 'CmdOrCtrl+Shift+Z',
+          enabled: redoDepth(state) > 0,
+        }
       )
       const action = await window.marvin.app.showContextMenu(items)
       if (!action) return
@@ -672,7 +697,7 @@ function LiveMarkdownInner({
       }
       view.focus()
     },
-    [editorInfo],
+    [editorInfo]
   )
 
   // Uses the live selection head as the upper bound because PM state lags
@@ -714,7 +739,7 @@ function LiveMarkdownInner({
       } else {
         console.warn(
           '[mention] parserCtx returned an unexpected shape; falling back to literal text insert',
-          { wikiMarkdown },
+          { wikiMarkdown }
         )
         tr = tr.replaceWith(mention.from, to, view.state.schema.text(insertText))
         cursorAdvance = insertText.length
@@ -725,7 +750,7 @@ function LiveMarkdownInner({
       setMention(null)
       view.focus()
     },
-    [editorInfo, mention],
+    [editorInfo, mention]
   )
   const handleMentionDismiss = useCallback(() => setMention(null), [])
 
@@ -797,7 +822,7 @@ function LiveMarkdownInner({
           right: rect.right,
           top: rect.top,
           bottom: rect.bottom,
-        }),
+        })
       )
     }
     const onSelectionChange = () => {

@@ -48,7 +48,10 @@ export async function assertCwdInsideVaultAsync(vaultPath: string, cwd: string):
  *
  * Throws 'MARVIN_OUTSIDE_VAULT' on any violation.
  */
-export async function assertInsideVaultAsync(vaultPath: string, targetPath: string): Promise<string> {
+export async function assertInsideVaultAsync(
+  vaultPath: string,
+  targetPath: string
+): Promise<string> {
   if (targetPath.includes('\0')) throw new Error('MARVIN_OUTSIDE_VAULT')
   const vault = path.resolve(vaultPath)
   const abs = path.resolve(targetPath)
@@ -95,7 +98,7 @@ async function checkEntry(target: string, vault: string): Promise<string> {
       real = await fs.realpath(target)
     } catch (e) {
       if ((e as NodeJS.ErrnoException).code === 'ENOENT') {
-        throw new Error('MARVIN_OUTSIDE_VAULT')
+        throw new Error('MARVIN_OUTSIDE_VAULT', { cause: e })
       }
       throw e
     }

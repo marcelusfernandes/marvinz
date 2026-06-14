@@ -33,16 +33,8 @@ jobs:
           printf '%s\n' $CHANGED
           npx prettier --check $CHANGED
 
-      - name: Lint changed files
-        run: |
-          CHANGED=$(git diff --name-only --diff-filter=ACMRTUXB origin/${{ github.base_ref }}...HEAD | grep -E '\.(ts|tsx|js|cjs)$' || true)
-          if [ -z "$CHANGED" ]; then
-            echo "No changed source files to lint."
-            exit 0
-          fi
-          echo "Linting changed files:"
-          printf '%s\n' $CHANGED
-          npx eslint $CHANGED
+      - name: Lint
+        run: npx eslint .
 
       - name: Typecheck
         run: npx tsc -b

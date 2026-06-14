@@ -10,7 +10,7 @@ import { importExternal, isDenied } from '../fs-import-external.js'
 // Fixtures
 // ---------------------------------------------------------------------------
 
-let vault: string   // active vault root
+let vault: string // active vault root
 let destDir: string // destination inside vault
 let outside: string // directory outside vault but allowed (tmpdir is not blocklisted)
 
@@ -224,15 +224,15 @@ describe('importExternal — blocklist denial', () => {
 
   it('skips a file inside ~/.ssh/ with reason denied', async () => {
     const sshDir = path.join(os.homedir(), '.ssh')
-    let entries: string[] = []
+    let sshFile: string | undefined
     try {
-      entries = await fs.readdir(sshDir)
+      const entries = await fs.readdir(sshDir)
+      if (entries.length === 0) return
+      sshFile = path.join(sshDir, entries[0])
     } catch {
       return // ~/.ssh doesn't exist in this environment
     }
-    if (entries.length === 0) return
-
-    const sshFile = path.join(sshDir, entries[0])
+    if (!sshFile) return
     const result = await importExternal(vault, [sshFile], destDir)
     expect(result.skipped).toHaveLength(1)
     expect(result.skipped[0]).toMatchObject({ source: sshFile, reason: 'denied' })
@@ -327,7 +327,14 @@ describe('isDenied — expanded credential blocklist (#203)', () => {
   })
 
   it('blocks loose credential files directly in ~', () => {
-    for (const name of ['.gitconfig', '.netrc', '.npmrc', '.pypirc', '.zsh_history', '.bash_history']) {
+    for (const name of [
+      '.gitconfig',
+      '.netrc',
+      '.npmrc',
+      '.pypirc',
+      '.zsh_history',
+      '.bash_history',
+    ]) {
       expect(isDenied(`/home/u/${name}`, HOME)).toBe(true)
     }
   })

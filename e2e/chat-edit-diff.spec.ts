@@ -46,7 +46,12 @@ type LaunchOpts = {
   delayMs?: number
 }
 
-async function launchWithMock({ vaultPath, userDataDir, fixture, delayMs = 0 }: LaunchOpts) {
+async function launchWithMock({
+  vaultPath: _vaultPath,
+  userDataDir,
+  fixture,
+  delayMs = 0,
+}: LaunchOpts) {
   return electron.launch({
     args: ['.', `--user-data-dir=${userDataDir}`],
     env: {
@@ -59,7 +64,9 @@ async function launchWithMock({ vaultPath, userDataDir, fixture, delayMs = 0 }: 
   })
 }
 
-async function openChatPanel(page: Awaited<ReturnType<typeof electron.launch>>['_firstWindowPrivate']) {
+async function openChatPanel(
+  page: Awaited<ReturnType<typeof electron.launch>>['_firstWindowPrivate']
+) {
   await expect(page.locator('.sidebar .file-tree-row.file')).toBeVisible({ timeout: 15_000 })
   await page.keyboard.press('Meta+k')
   await expect(page.locator('.chat-panel')).toBeVisible({ timeout: 5_000 })
@@ -67,7 +74,7 @@ async function openChatPanel(page: Awaited<ReturnType<typeof electron.launch>>['
 
 async function sendMessage(
   page: Awaited<ReturnType<typeof electron.launch>>['_firstWindowPrivate'],
-  text: string,
+  text: string
 ) {
   const composer = page.locator('.chat-composer textarea, .chat-composer [contenteditable]')
   await expect(composer).toBeVisible({ timeout: 3_000 })
@@ -255,21 +262,18 @@ test.describe('EditCard — snapshot failure is fail-soft', () => {
       })
 
       if (sessionId) {
-        await page.evaluate(
-          (sid: string) => {
-            ;(window as any).marvin?.agent?._testEmitError?.(sid, {
-              type: 'permission-request',
-              sessionId: sid,
-              toolUseId: 'tu-snap-fail-inject',
-              toolName: 'Edit',
-              input: { file_path: '/vault/note.md', old_string: 'a', new_string: 'b' },
-              risk: 'destructive',
-              suggestion: 'review',
-              snapshotSaved: false,
-            })
-          },
-          sessionId,
-        )
+        await page.evaluate((sid: string) => {
+          ;(window as any).marvin?.agent?._testEmitError?.(sid, {
+            type: 'permission-request',
+            sessionId: sid,
+            toolUseId: 'tu-snap-fail-inject',
+            toolName: 'Edit',
+            input: { file_path: '/vault/note.md', old_string: 'a', new_string: 'b' },
+            risk: 'destructive',
+            suggestion: 'review',
+            snapshotSaved: false,
+          })
+        }, sessionId)
 
         await expect(page.locator('.chat-approval-gate')).toBeVisible({ timeout: 5_000 })
         await expect(page.locator('[data-badge="saved"]')).not.toBeVisible()
@@ -316,7 +320,9 @@ test.describe('Rewind — opens SnapshotPanel pre-selected to turn', () => {
 
       // Wait for turn to complete (turn-result event arrives)
       await expect(
-        page.locator('.chat-bubble-user [aria-label*="Rewind"], .chat-bubble-user [data-action="rewind"]'),
+        page.locator(
+          '.chat-bubble-user [aria-label*="Rewind"], .chat-bubble-user [data-action="rewind"]'
+        )
       ).toBeVisible({ timeout: 10_000 })
     } finally {
       await app.close()
@@ -337,14 +343,16 @@ test.describe('Rewind — opens SnapshotPanel pre-selected to turn', () => {
       await sendMessage(page, 'Read the note')
 
       const rewindBtn = page.locator(
-        '.chat-bubble-user [aria-label*="Rewind"], .chat-bubble-user [data-action="rewind"]',
+        '.chat-bubble-user [aria-label*="Rewind"], .chat-bubble-user [data-action="rewind"]'
       )
       await expect(rewindBtn).toBeVisible({ timeout: 10_000 })
       await rewindBtn.click()
 
       // SnapshotPanel should open
       await expect(
-        page.locator('.snapshot-panel, [data-panel="snapshot"], [role="dialog"][aria-label*="snapshot" i]'),
+        page.locator(
+          '.snapshot-panel, [data-panel="snapshot"], [role="dialog"][aria-label*="snapshot" i]'
+        )
       ).toBeVisible({ timeout: 5_000 })
     } finally {
       await app.close()
