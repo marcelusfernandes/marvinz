@@ -29,7 +29,7 @@ function quoteIfNeeded(value: string): string {
 export function formatPathsForAgent(
   paths: string[],
   agent: AgentKind,
-  workspaceRoot: string,
+  workspaceRoot: string
 ): string {
   if (paths.length === 0) return ''
   const prefix = agent === 'codex' ? '@' : ''

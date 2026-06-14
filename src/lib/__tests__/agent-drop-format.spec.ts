@@ -10,11 +10,7 @@ describe('formatPathsForAgent — Codex', () => {
 
   it('multiple paths joined by single space, each prefixed with @', () => {
     expect(
-      formatPathsForAgent(
-        ['/vault/a.md', '/vault/sub/b.md', '/vault/c.md'],
-        'codex',
-        ROOT,
-      ),
+      formatPathsForAgent(['/vault/a.md', '/vault/sub/b.md', '/vault/c.md'], 'codex', ROOT)
     ).toBe('@a.md @sub/b.md @c.md')
   })
 
@@ -25,21 +21,17 @@ describe('formatPathsForAgent — Codex', () => {
 
 describe('formatPathsForAgent — Claude Code', () => {
   it('single path → <relative> (no prefix)', () => {
-    expect(formatPathsForAgent(['/vault/notes/foo.md'], 'claude-code', ROOT)).toBe(
-      'notes/foo.md',
-    )
+    expect(formatPathsForAgent(['/vault/notes/foo.md'], 'claude-code', ROOT)).toBe('notes/foo.md')
   })
 
   it('multiple paths joined by single space, no prefix', () => {
-    expect(
-      formatPathsForAgent(['/vault/a.md', '/vault/b.md'], 'claude-code', ROOT),
-    ).toBe('a.md b.md')
+    expect(formatPathsForAgent(['/vault/a.md', '/vault/b.md'], 'claude-code', ROOT)).toBe(
+      'a.md b.md'
+    )
   })
 
   it('path with whitespace is wrapped in double quotes', () => {
-    expect(formatPathsForAgent(['/vault/my file.md'], 'claude-code', ROOT)).toBe(
-      '"my file.md"',
-    )
+    expect(formatPathsForAgent(['/vault/my file.md'], 'claude-code', ROOT)).toBe('"my file.md"')
   })
 })
 
@@ -49,9 +41,7 @@ describe('formatPathsForAgent — workspace edge cases', () => {
   })
 
   it('path outside workspace stays absolute', () => {
-    expect(
-      formatPathsForAgent(['/other/place.md'], 'claude-code', ROOT),
-    ).toBe('/other/place.md')
+    expect(formatPathsForAgent(['/other/place.md'], 'claude-code', ROOT)).toBe('/other/place.md')
   })
 
   it('workspaceRoot with trailing slash is normalized', () => {
