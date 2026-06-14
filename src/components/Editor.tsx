@@ -13,6 +13,7 @@ import { redo, redoDepth, selectAll, undo, undoDepth } from '@codemirror/command
 import { tags as t } from '@lezer/highlight'
 import { EditorSelection, type Extension } from '@codemirror/state'
 import type { EditorView as PMView } from 'prosemirror-view'
+import { undo as pmUndo, redo as pmRedo } from 'prosemirror-history'
 import { languageIdFor, loadLanguage } from '../lib/cmLanguage'
 import {
   replaceFrontmatter,
@@ -136,8 +137,22 @@ type Props = {
   saveMode?: 'auto' | 'manual'
   onDirtyChange?: (dirty: boolean) => void
   onFlushSave?: (flush: () => Promise<void>) => void
+  /**
+   * Registers an imperative undo/redo/focus handle for this editor while it is
+   * active, and clears it (null) when it goes inactive or unmounts. The global
+   * Cmd+Z fallback (#456) drives the active editor through this when focus sits
+   * outside any editor surface. Only the active editor ever registers.
+   */
+  onRegisterHandle?: (handle: EditorHandle | null) => void
   onSendSelection?: (formatted: string) => void
   agentKind?: AgentKind
+}
+
+/** Imperative undo/redo/focus over whichever surface is live (CM or PM). */
+export type EditorHandle = {
+  focus: () => void
+  undo: () => void
+  redo: () => void
 }
 
 type Mode = 'edit' | 'preview'
@@ -179,6 +194,7 @@ export function Editor({
   saveMode = 'auto',
   onDirtyChange,
   onFlushSave,
+  onRegisterHandle,
   onSendSelection,
   agentKind = 'codex',
 }: Props) {
@@ -768,6 +784,64 @@ export function Editor({
         : { data: null, body: value },
     [isMd, effectiveMode, value],
   )
+
+  // Imperative undo/redo handle for the global Cmd+Z fallback (#456). Routes to
+  // whichever surface is actually live: CodeMirror in Source mode, ProseMirror
+  // in markdown Page mode. Anything else (CSV grid, HTML preview, binary) has no
+  // text-undo surface here, so the handle no-ops and the fallback won't fire.
+  // null when the live surface has no text-undo (CSV grid / HTML preview /
+  // binary) — App then treats Cmd+Z as a dead key there instead of preventing
+  // default. CodeMirror covers every Source-mode file (incl. .csv/.html toggled
+  // to Source); ProseMirror covers markdown Page mode.
+  const editorHandle = useMemo<EditorHandle | null>(() => {
+    if (effectiveMode === 'edit') {
+      return {
+        focus: () => viewRef.current?.focus(),
+        undo: () => {
+          const v = viewRef.current
+          if (v) {
+            undo(v)
+            v.focus()
+          }
+        },
+        redo: () => {
+          const v = viewRef.current
+          if (v) {
+            redo(v)
+            v.focus()
+          }
+        },
+      }
+    }
+    if (isMd) {
+      return {
+        focus: () => pmView?.focus(),
+        undo: () => {
+          if (pmView) {
+            pmUndo(pmView.state, pmView.dispatch)
+            pmView.focus()
+          }
+        },
+        redo: () => {
+          if (pmView) {
+            pmRedo(pmView.state, pmView.dispatch)
+            pmView.focus()
+          }
+        },
+      }
+    }
+    return null
+  }, [effectiveMode, isMd, pmView])
+
+  // Register the handle only while active; clear it on inactive/unmount, and
+  // register null for unsupported surfaces so the fallback never targets a
+  // hidden editor or a no-undo surface. Re-runs on a Source/Page toggle so the
+  // registered handle always reflects the live surface (Codex #8).
+  useEffect(() => {
+    if (!isActive) return
+    onRegisterHandle?.(editorHandle)
+    return () => onRegisterHandle?.(null)
+  }, [isActive, onRegisterHandle, editorHandle])
 
   // Remount Milkdown only when the file changes (not on every keystroke);
   // typing edits are propagated through onChange and re-applied via React
