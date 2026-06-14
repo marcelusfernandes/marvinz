@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import electron from 'vite-plugin-electron/simple'
+import { visualizer } from 'rollup-plugin-visualizer'
 import { copyFileSync, mkdirSync, chmodSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { execSync } from 'node:child_process'
@@ -75,6 +76,13 @@ export default defineConfig({
     react(),
     killElectronOnSignal(),
     copyBridgePlugin(),
+    process.env.ANALYZE &&
+      visualizer({
+        open: true,
+        gzipSize: true,
+        brotliSize: true,
+        filename: 'dist/stats.html',
+      }),
     electron({
       main: {
         entry: 'electron/main.ts',
@@ -102,5 +110,5 @@ export default defineConfig({
         },
       },
     }),
-  ],
+  ].filter(Boolean),
 })
