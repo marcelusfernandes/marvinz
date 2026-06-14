@@ -351,6 +351,16 @@ export default function App() {
   const registerActiveEditorHandle = useCallback((handle: EditorHandle | null) => {
     activeEditorRef.current = handle
   }, [])
+  // Put keyboard focus back on the file tree after a file op (rename/move/trash)
+  // and after a file-op undo, so the next Cmd+Z keeps routing to the file-ops
+  // undo instead of the editor fallback (#457). Deferred a frame so it beats a
+  // dialog's focus-restore-on-close.
+  const focusFileTree = useCallback(() => {
+    requestAnimationFrame(() => {
+      const tree = document.querySelector('[data-panel="file-tree"]')
+      if (tree instanceof HTMLElement) tree.focus()
+    })
+  }, [])
   const [sidebarHidden, setSidebarHidden] = useState(() => {
     try {
       return window.localStorage.getItem(SIDEBAR_HIDDEN_KEY) === '1'
@@ -1377,6 +1387,9 @@ export default function App() {
                 : undefined
             if (res.remap) renameInTabsRef.current(res.remap.from, res.remap.to)
             if (open) setActiveTabId(open.id)
+            // Keep focus on the tree so a follow-up Cmd+Z undoes the next file
+            // op (the tab is made visible without stealing keyboard focus).
+            focusFileTree()
           })
         return
       }
@@ -1650,6 +1663,7 @@ export default function App() {
         renameInTabs(d.target, newPath)
         await loadTree(vaultPath)
         useFileOpsHistory.getState().push({ kind: 'rename', from: d.target, to: newPath })
+        focusFileTree()
       }
     } catch (err) {
       reportError(err)
@@ -1686,6 +1700,7 @@ export default function App() {
       await loadTree(vaultPath)
       if (snapshotId) {
         useFileOpsHistory.getState().push({ kind: 'trash', path: target, snapshotId })
+        focusFileTree()
       }
     } catch (err) {
       reportError(err)
@@ -1744,11 +1759,12 @@ export default function App() {
         renameInTabsRef.current(srcPath, newPath)
         await loadTree(vp)
         useFileOpsHistory.getState().push({ kind: 'move', from: srcPath, to: newPath })
+        focusFileTree()
       } catch (err) {
         reportErrorRef.current(err)
       }
     },
-    [loadTree],
+    [loadTree, focusFileTree],
   )
 
   const executePaste = useCallback(

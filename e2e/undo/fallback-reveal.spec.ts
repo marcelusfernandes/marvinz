@@ -176,6 +176,41 @@ test.describe('Cmd+Z graceful fallback + reveal (#456)', () => {
     }
   })
 
+  test('keeps focus on the tree after a file op so Cmd+Z undoes it without re-clicking (#457)', async () => {
+    const { app, page } = await launchApp(userDataDir)
+    try {
+      await expect(dirRow(page, 'folder-a')).toBeVisible({ timeout: 15_000 })
+      await dirRow(page, 'folder-a').click()
+      await dirRow(page, 'folder-b').click()
+      const docRow = fileRow(page, 'doc')
+      await expect(docRow).toBeVisible({ timeout: 8_000 })
+
+      // Move doc.md folder-a -> folder-b, then DO NOT click anything.
+      await docRow.dragTo(dirRow(page, 'folder-b'))
+      await expect
+        .poll(() => exists(path.join(vaultRoot, 'folder-b', 'doc.md')), { timeout: 8_000 })
+        .toBe(true)
+
+      // Focus must have stayed on the file tree (so the next Cmd+Z routes there).
+      await expect
+        .poll(() =>
+          page.evaluate(
+            () => !!document.activeElement?.closest('[data-panel="file-tree"]'),
+          ),
+        )
+        .toBe(true)
+
+      // Cmd+Z with no intervening click undoes the move.
+      await page.keyboard.press(`${cmdKey}+z`)
+      await expect
+        .poll(() => exists(path.join(vaultRoot, 'folder-a', 'doc.md')), { timeout: 8_000 })
+        .toBe(true)
+      expect(await exists(path.join(vaultRoot, 'folder-b', 'doc.md'))).toBe(false)
+    } finally {
+      await closeApp(app)
+    }
+  })
+
   test('undoing a move reveals the affected file by activating its background tab', async () => {
     const { app, page } = await launchApp(userDataDir)
     try {

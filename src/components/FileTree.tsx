@@ -281,6 +281,10 @@ export function FileTree({
       role="tree"
       aria-label="File tree"
       data-panel="file-tree"
+      // Programmatically focusable (not in tab order) so App can keep keyboard
+      // focus on the tree after a file op — that's what routes the next Cmd+Z
+      // to the file-ops undo (#457).
+      tabIndex={-1}
       onClick={handleEmptyAreaClick}
       onDragOverCapture={handleRootDragOverCapture}
       onDragOver={handleRootDragOver}
