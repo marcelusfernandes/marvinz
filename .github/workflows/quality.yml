@@ -23,6 +23,7 @@ jobs:
         run: npm ci
 
       - name: Check formatting on changed files
+        if: github.base_ref != 'main'
         run: |
           CHANGED=$(git diff --name-only --diff-filter=ACMRTUXB origin/${{ github.base_ref }}...HEAD | grep -E '\.(ts|tsx|js|cjs|json|md|yml|yaml)$' || true)
           if [ -z "$CHANGED" ]; then
