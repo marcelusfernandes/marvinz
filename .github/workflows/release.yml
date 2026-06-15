@@ -11,13 +11,13 @@ jobs:
       matrix:
         include:
           - os: ubuntu-latest
-            script: dist:linux
+            target: linux
             artifact-pattern: '*.AppImage'
           - os: windows-latest
-            script: dist:win
+            target: win
             artifact-pattern: '*.exe'
           - os: macos-latest
-            script: dist:mac
+            target: mac
             artifact-pattern: '*.dmg'
     runs-on: ${{ matrix.os }}
     steps:
@@ -37,7 +37,7 @@ jobs:
         run: npm run build
 
       - name: Package for ${{ matrix.os }}
-        run: npm run ${{ matrix.script }}
+        run: npx electron-builder --${{ matrix.target }} --publish=never
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
