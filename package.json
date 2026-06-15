@@ -8,6 +8,7 @@
   "scripts": {
     "dev": "ELECTRON_RUN_AS_NODE= vite",
     "build": "tsc -b && vite build",
+    "build:demo": "vite build --config vite.demo.config.ts",
     "start": "ELECTRON_RUN_AS_NODE= electron .",
     "preview:app": "npm run build && ELECTRON_RUN_AS_NODE= electron .",
     "lint": "eslint .",

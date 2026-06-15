@@ -1,0 +1,39 @@
+/* Positioning utilities the MagicUI ProgressiveBlur component expects from
+   Tailwind. This project uses CSS Modules (no Tailwind), so the handful of
+   utility classes the component references are provided here verbatim. */
+.gradient-blur {
+}
+.pointer-events-none {
+  pointer-events: none;
+}
+.absolute {
+  position: absolute;
+}
+.inset-0 {
+  inset: 0;
+}
+.inset-x-0 {
+  left: 0;
+  right: 0;
+}
+.inset-y-0 {
+  top: 0;
+  bottom: 0;
+}
+.top-0 {
+  top: 0;
+}
+.bottom-0 {
+  bottom: 0;
+}
+.z-10 {
+  z-index: 10;
+}
+
+/* Chromium renders `backdrop-filter` + `mask-image` on the same element as a
+   no-op unless that element is promoted to its own compositing layer. Each
+   ProgressiveBlur layer combines both, so force GPU promotion to make the
+   masked progressive blur actually render. */
+.gradient-blur > div {
+  transform: translateZ(0);
+}

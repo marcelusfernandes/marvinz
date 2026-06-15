@@ -1,0 +1,38 @@
+/* cutthecode: ticker sits on the SAME canvas bg (not a contrasting band),
+   55px tall, dim items. */
+.ticker {
+  height: var(--ticker-height);
+  background: transparent; /* sits directly on the page gutter bg, no band */
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+}
+
+.track {
+  margin: 0;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: 16px;
+  letter-spacing: 0.04em;
+  color: var(--text-tertiary);
+  animation: ticker-scroll 30s linear infinite;
+}
+
+.dot {
+  color: var(--accent);
+}
+
+@keyframes ticker-scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .track {
+    animation-play-state: paused;
+  }
+}

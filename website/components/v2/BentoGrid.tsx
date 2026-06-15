@@ -1,8 +1,8 @@
-import { Section } from "./Section";
-import styles from "./Features.module.css";
+import styles from "./BentoGrid.module.css";
 
-const FEATURES = [
+const CARDS = [
   {
+    span: true,
     kicker: "Vault",
     title: "Markdown vault as the agent's canvas",
     body: "Point Marvinz at any local folder. The agent reads and writes markdown directly — no sync, no upload, your files stay on your machine.",
@@ -20,7 +20,7 @@ const FEATURES = [
   {
     kicker: "Preview",
     title: "Live markdown preview",
-    body: "Side-by-side editor and rendered preview. Tables, wikilinks, code blocks — all rendered as you write or as the agent writes.",
+    body: "Side-by-side editor and rendered preview. Tables, wikilinks, code blocks — rendered as you write.",
   },
   {
     kicker: "Tabs",
@@ -28,29 +28,26 @@ const FEATURES = [
     body: "Open multiple files at once, switch between agent output and your own notes, build the context you need.",
   },
   {
+    span: true,
     kicker: "Control",
     title: "Approvable tool calls",
     body: "Every filesystem action the agent wants to take surfaces for your approval. You decide what runs — nothing happens without your review.",
   },
 ];
 
-export function Features() {
+export function BentoGrid() {
   return (
-    <Section
-      id="features"
-      eyebrow="02 · Features"
-      title="The workspace native to the Claude Code + vault workflow."
-      lead="Built for engineers and PMs who already run Claude Code alongside a markdown vault and want to read, navigate and validate what the AI generates — to trust it and build on it, instead of losing it in a terminal scroll."
-    >
-      <ul className={styles.grid}>
-        {FEATURES.map((feature) => (
-          <li key={feature.kicker} className={styles.card}>
-            <span className={styles.kicker}>{feature.kicker}</span>
-            <h3 className={styles.cardTitle}>{feature.title}</h3>
-            <p className={styles.cardBody}>{feature.body}</p>
-          </li>
-        ))}
-      </ul>
-    </Section>
+    <ul className={styles.bento}>
+      {CARDS.map((card) => (
+        <li
+          key={card.kicker}
+          className={styles.item + ("span" in card && card.span ? " " + styles.span : "")}
+        >
+          <span className={styles.kicker}>{card.kicker}</span>
+          <h3 className={styles.title}>{card.title}</h3>
+          <p className={styles.body}>{card.body}</p>
+        </li>
+      ))}
+    </ul>
   );
 }

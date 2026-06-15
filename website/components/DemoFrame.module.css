@@ -1,0 +1,40 @@
+/* The static ProductMockup (fallback) renders in normal flow and drives the
+   frame's size. The live iframe overlays the primary-window footprint using
+   the same sizing tokens, so it lines up with the static window exactly. */
+.frame {
+  position: relative;
+}
+
+.fallback {
+  position: relative;
+  z-index: 0;
+}
+
+/* The iframe overlays the static fallback's primary window. The fallback uses
+   ProductMockup fill mode (no stage margin/padding, primary window fills the
+   frame), so the iframe fills the same footprint from the top. */
+.iframe {
+  position: absolute;
+  inset: 0 0 auto 0;
+  width: 100%; /* user decision: fill the frame */
+  aspect-ratio: 16 / 10;
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: var(--surface-1);
+  box-shadow: var(--shadow-md);
+  z-index: 1;
+  opacity: 0;
+  transition: opacity var(--duration-slow) var(--ease-out);
+}
+
+.iframeLoaded {
+  opacity: 1;
+}
+
+/* On mobile the static mockup hides; hide the live iframe too rather than
+   show a cramped real app. */
+@media (max-width: 760px) {
+  .iframe {
+    display: none;
+  }
+}

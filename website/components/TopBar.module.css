@@ -7,6 +7,30 @@
   border-bottom: 1px solid var(--border);
 }
 
+/* v2 (cutthecode): transparent over the canvas, full-width, tall (~110px).
+   Content aligns to the same thin frame as the sheets. */
+.solid {
+  background: transparent;
+  backdrop-filter: none;
+  border-bottom: 0;
+}
+
+.solid .inner {
+  position: relative;
+  z-index: 20; /* above the ProgressiveBlur (z-10) so the nav stays sharp */
+  max-width: none;
+  height: 110px;
+  padding: 0 var(--v2-frame, 24px);
+}
+
+/* Scroll-activation: opacity is driven directly by scroll position (inline
+   style). A tiny transition just smooths the per-frame steps. */
+.blurScroll {
+  opacity: 0;
+  transition: opacity 90ms linear;
+}
+
+
 .inner {
   max-width: var(--maxw);
   margin: 0 auto;

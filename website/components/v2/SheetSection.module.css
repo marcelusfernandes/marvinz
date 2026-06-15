@@ -1,0 +1,43 @@
+.sheet {
+  position: relative;
+  /* Near full-bleed: thin dark frame on each side, large rounded top —
+     reads as a fine border on the dark canvas (cutthecode pattern). */
+  margin-left: var(--v2-frame);
+  margin-right: var(--v2-frame);
+  border-radius: clamp(24px, 5vw, 48px) clamp(24px, 5vw, 48px) 0 0;
+  padding: clamp(64px, 9vw, 120px) 0;
+  /* Pull up over the dark section above to create the rising-sheet overlap */
+  margin-top: calc(-1 * clamp(24px, 5vw, 48px));
+}
+
+/* Sheet 1 uses surface-1 (white when forced light); sheet 2 uses the slightly
+   cooler surface-2 for subtle tonal separation. Both resolve light via the
+   [data-sheet="light"] token override. */
+.tone1 {
+  background: var(--surface-1);
+}
+
+.tone2 {
+  background: var(--surface-2);
+  /* joins flush below sheet 1 — no rounded top, no gap */
+  border-radius: 0;
+  margin-top: 0;
+}
+
+.inner {
+  max-width: var(--maxw-v2);
+  margin: 0 auto;
+  padding: 0 var(--v2-pad);
+}
+
+@media (max-width: 760px) {
+  .sheet {
+    border-radius: 24px 24px 0 0;
+  }
+}
+
+@media (max-width: 480px) {
+  .sheet {
+    border-radius: 16px 16px 0 0;
+  }
+}

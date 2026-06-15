@@ -1,0 +1,179 @@
+.hero {
+  background: var(--bg-app); /* #161618 */
+  overflow: hidden;
+}
+
+/* cutthecode: the editorial text column is indented ~20% from the left and
+   sized to a ~59vw measure — not a full-width headline. */
+.inner {
+  max-width: var(--maxw-v2);
+  margin: 0 auto;
+  padding: clamp(56px, 9vw, 10px) var(--v2-pad) 0;
+}
+
+.col {
+  margin-left: clamp(0px, 9vw, 160px); /* user decision: less indent, wider headline */
+  max-width: 80vw;
+}
+
+/* Eyebrow — 18px bold (800) with accent dot, same left axis as the headline */
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--font-head);
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
+}
+
+.eyebrowDot {
+  color: var(--accent);
+  font-size: 12px;
+  line-height: 1;
+}
+
+/* Headline — Geist Light, tight line-height, large but indented.
+   Uses --text-primary so it reads dark on the light canvas (and would flip to
+   off-white if dark mode is re-enabled on /v2). */
+.headline {
+  margin: var(--space-4) 0 0;
+  font-family: var(--font-head);
+  font-weight: 300;
+  font-size: clamp(48px, 5.6vw, 140px); /* user decision: bigger/wider headline */
+  line-height: 0.9;
+  letter-spacing: -0.03em;
+  color: var(--text-primary);
+}
+
+.dot {
+  color: var(--accent);
+}
+
+.subdesc {
+  margin: var(--space-5) 0 0;
+  max-width: 32ch;
+  font-family: var(--font-body);
+  font-size: 18px;
+  line-height: 1.55;
+  color: var(--text-secondary);
+}
+
+.actions {
+  margin-top: var(--space-6);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.ctaPrimary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 55px;
+  background: var(--accent);
+  color: var(--on-accent);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-pill);
+  padding: 0 var(--space-5);
+  font-family: var(--font-head);
+  font-weight: 600;
+  font-size: 15px;
+  text-decoration: none;
+  transition: background var(--duration-normal) ease;
+}
+
+.ctaPrimary:hover {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+
+.ctaChip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: var(--radius-pill);
+  font-size: 12px;
+  line-height: 1;
+}
+
+.ctaSecondary {
+  display: inline-flex;
+  align-items: center;
+  height: 55px;
+  background: transparent;
+  color: var(--text-primary);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-pill);
+  padding: 0 var(--space-5);
+  font-family: var(--font-head);
+  font-weight: 600;
+  font-size: 15px;
+  text-decoration: none;
+  transition: border-color var(--duration-normal) ease, color var(--duration-normal) ease;
+}
+
+.ctaSecondary:hover {
+  border-color: var(--border-focus);
+  color: var(--text-primary);
+}
+
+/* Product window seated on a solid accent shape (cutthecode pattern). The shape
+   is a filled rounded-rect behind the window, radius on the top corners only,
+   anchored to the bottom so it bleeds into the hero fold (hero has
+   overflow:hidden). The window overlaps the shape's top edge and tilts slightly,
+   so it reads as sitting on the colored plate. */
+.frameWrap {
+  position: relative;
+  margin-top: clamp(48px, 7vw, 96px);
+  width: min(1360px, calc(100vw - 2 * var(--v2-frame))); /* product uses the page width */
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Solid colored plate — a full-width Raspberry panel that FRAMES the product
+   window (cutthecode pattern). The window is clearly narrower than the plate and
+   sits low in it, so a Raspberry band shows above the window's top and down both
+   sides; the plate bleeds off the bottom into the hero fold. Top corners rounded
+   only. Mix is strong enough to read as a present (not pale) frame on the light
+   canvas — lipe-ui calibrates the exact intensity. */
+.shape {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  /* background: color-mix(in srgb, var(--accent) 24%, var(--surface-1)); */
+  border-radius: var(--mockup-blob-radius, 36px) var(--mockup-blob-radius, 36px) 0 0;
+  z-index: 0;
+}
+
+/* Window: ~80% of the plate width, centered, pushed down so ~10% of plate shows
+   as a band above its top. Subtle perspective tilt like the reference laptop.
+   Taller than the plate's visible body at the base, so it bleeds at the fold. */
+.window {
+  position: relative;
+  z-index: 1;
+  width: 80%;
+  margin: clamp(40px, 7%, 96px) auto 0;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg, 0 24px 60px rgba(0, 0, 0, 0.18));
+  transform: perspective(2600px) rotateX(3deg);
+  transform-origin: top center;
+}
+
+@media (max-width: 760px) {
+  .frameWrap {
+    width: 100%;
+  }
+
+  .window {
+    width: 88%;
+    margin-top: clamp(24px, 6%, 48px);
+    transform: none;
+  }
+}

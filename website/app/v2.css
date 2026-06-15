@@ -1,0 +1,52 @@
+/* ============================================================
+   v2 — structural tokens (spec §13.1)
+   Page-level only. Do NOT add these to globals.css.
+   ============================================================ */
+
+.v2Root {
+  --sheet-radius: 32px; /* top-radius of light sheets rising from dark canvas */
+  --bento-radius: 24px; /* card radius in bento grid */
+  --ticker-height: 55px; /* scrolling ticker bar (cutthecode) */
+  --hero-weight: 300; /* editorial headline — Geist Light */
+  --hero-line-height: 0.88; /* tighter for display-scale type */
+  --mockup-blob-radius: 36px; /* user decision: clean rounded rect — never an organic ellipse */
+
+  /* Width — cutthecode is near-full-bleed: a thin dark frame around wide
+     content. v2 uses a generous max-width and a thin outer frame so sheets
+     read as a fine border on the dark canvas. */
+  --maxw-v2: 1640px; /* user decision: use the page width */
+  --v2-frame: clamp(16px, 2vw, 24px); /* thin dark margin around sheets */
+  --v2-pad: clamp(24px, 3vw, 48px); /* inner padding inside the wide content */
+
+  /* cutthecode page frame: a contrasting page background shows as a margin
+     around a large rounded content card (the "padding + fundo atrás"). */
+  --v2-page-bg: #f0f0f0; /* clearly perceptible gray gutter behind the rounded card */
+  --v2-surface-radius: clamp(20px, 2.2vw, 36px);
+  --v2-page-pad: clamp(16px, 3vw, 24px);
+
+  background: var(--v2-page-bg);
+  padding: 0 var(--v2-page-pad) var(--v2-page-pad); /* top zeroed (user) */
+  min-height: 100vh;
+}
+
+/* The rounded content card sitting on the contrasting v2Root. No overflow clip
+   so the sticky TopBar keeps working; the first/last children are transparent
+   so nothing pokes past the rounded corners. */
+.v2Surface {
+  background: #fafafa;
+  border-radius: var(--v2-surface-radius);
+}
+
+/* Light sheet — contained override so sheets stay light even when the page
+   default theme is dark. Does not touch [data-theme] globally (spec §13.6).
+   Tokens are set on the element itself (so its own background resolves light)
+   and inherit to all descendants. */
+[data-sheet="light"] {
+  --text-primary: #1c1c1e;
+  --text-secondary: #6b6b70;
+  --surface-1: #ffffff;
+  --surface-2: #f4f4f5;
+  --border: #e8e8ea;
+  --border-strong: #d8d8dc;
+  color: #1c1c1e;
+}

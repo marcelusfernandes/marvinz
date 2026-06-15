@@ -8,6 +8,9 @@
 # production
 /build
 
+# demo bundle — built from src/demo via `npm run build:demo` (root), not committed
+/public/demo
+
 # misc
 .DS_Store
 *.pem

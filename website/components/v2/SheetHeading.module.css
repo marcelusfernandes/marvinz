@@ -1,11 +1,5 @@
-.section {
-  border-bottom: 1px solid var(--border);
-}
-
-.inner {
+.heading {
   max-width: var(--maxw);
-  margin: 0 auto;
-  padding: clamp(64px, 9vw, 132px) var(--gutter);
 }
 
 .eyebrow {

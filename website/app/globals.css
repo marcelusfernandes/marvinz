@@ -24,6 +24,16 @@
   /* On-accent foreground — text/icons on a Raspberry fill */
   --on-accent: white;
 
+  /* Claude agent identity (Anthropic orange) — real app value. SCOPED
+     EXCEPTION (user decision): allowed ONLY inside ProductMockup, where the
+     mockup represents the product like a screenshot would, so the orange is
+     contained in the "app screen" and never leaks to the site's own UI.
+     Brandbook §5.3 still bans orange for site CTAs/links/accents (Raspberry
+     only). Do not use these tokens outside ProductMockup. */
+  --accent-claude: #c4691f;
+  --provider-claude-bg: rgba(196, 105, 31, 0.12);
+  --provider-claude-fg: #cc6600;
+
   /* Surfaces */
   --bg-app: #fafafa;
   --surface-1: #ffffff;
@@ -32,6 +42,8 @@
   /* Text */
   --text-primary: #1c1c1e;
   --text-secondary: #6b6b70;
+  --text-tertiary: #9e9e9e; /* faint — file-tree chevrons, tool meta in mockup */
+  --text-error: #dc3545; /* deny action in mockup approval gate */
 
   /* Borders */
   --border: #e8e8ea;
@@ -58,16 +70,26 @@
   --space-7: 48px;
 
   /* Radius */
+  --radius-sm: 3px;
   --radius-md: 6px;
   --radius-lg: 12px;
+  --radius-pill: 999px;
 
   /* Shadow — card hover lift (brandbook §6.4) */
   --shadow-card: 0 12px 36px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08); /* mockup window panels (real app) */
 
   /* Motion */
   --duration-fast: 120ms;
   --duration-normal: 200ms;
+  --duration-slow: 300ms; /* deliberate panel/modal open */
+  --duration-enter: 600ms; /* entrance fade-up */
+  --duration-reveal: 500ms; /* scroll-triggered section reveal */
+  --duration-float: 6000ms; /* slow ambient float on mockup windows */
+  --duration-pulse: 4000ms; /* glow breathe */
   --ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --ease-spring: cubic-bezier(0.22, 1, 0.36, 1); /* entrance — overshoots slightly */
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1); /* scroll reveals */
 
   /* Focus ring — keyboard only, applied via box-shadow */
   --focus-ring: 0 0 0 2px var(--bg-app), 0 0 0 4px var(--border-focus);
@@ -86,12 +108,17 @@
 
   --text-primary: #ececee;
   --text-secondary: #9a9aa2;
+  --text-tertiary: #6e6e76;
+  --text-error: #e07b6e;
+  --accent-claude: #d97a30;
+  --provider-claude-fg: #e6a06b;
 
   --border: #2c2c31;
   --border-strong: #3a3a41;
 
   /* Heavier shadow for visibility on near-black */
   --shadow-card: 0 12px 36px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.25);
 }
 
 *,
@@ -144,4 +171,71 @@ a {
   outline: none;
   box-shadow: var(--focus-ring);
   border-radius: 4px;
+}
+
+/* ============================================================
+   Motion system (spec §12.2)
+   Entrance + scroll reveals. Ambient float/pulse live in their
+   component CSS. Everything is fully disabled under
+   prefers-reduced-motion, leaving content static and complete.
+   ============================================================ */
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Hero entrance — staggered fade-up of each [data-step] child */
+[data-animate="hero"] [data-step] {
+  opacity: 0;
+  animation: fade-up var(--duration-enter) var(--ease-spring) both;
+}
+[data-animate="hero"] [data-step="0"] {
+  animation-delay: 0ms;
+}
+[data-animate="hero"] [data-step="1"] {
+  animation-delay: 80ms;
+}
+[data-animate="hero"] [data-step="2"] {
+  animation-delay: 160ms;
+}
+[data-animate="hero"] [data-step="3"] {
+  animation-delay: 220ms;
+}
+[data-animate="hero"] [data-step="4"] {
+  animation-delay: 300ms;
+}
+[data-animate="hero"] [data-step="5"] {
+  animation-delay: 420ms;
+}
+
+/* Scroll-triggered section reveals. The attribute is added on mount by
+   useReveal(); SSR renders without it so content is visible without JS. */
+[data-reveal] {
+  opacity: 0;
+  transform: translateY(16px);
+  transition: opacity var(--duration-reveal) var(--ease-in-out),
+    transform var(--duration-reveal) var(--ease-in-out);
+}
+[data-reveal][data-visible="true"] {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-animate="hero"] [data-step] {
+    opacity: 1;
+    animation: none;
+  }
+  [data-reveal] {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
 }
