@@ -4,13 +4,13 @@ import path from 'node:path'
 import os from 'node:os'
 
 // Approach (A): importExternal is a plain async function, ipcMain.handle just forwards.
-import { importExternal } from '../fs-import-external.js'
+import { importExternal, isDenied } from '../fs-import-external.js'
 
 // ---------------------------------------------------------------------------
 // Fixtures
 // ---------------------------------------------------------------------------
 
-let vault: string   // active vault root
+let vault: string // active vault root
 let destDir: string // destination inside vault
 let outside: string // directory outside vault but allowed (tmpdir is not blocklisted)
 
@@ -224,15 +224,15 @@ describe('importExternal — blocklist denial', () => {
 
   it('skips a file inside ~/.ssh/ with reason denied', async () => {
     const sshDir = path.join(os.homedir(), '.ssh')
-    let entries: string[] = []
+    let sshFile: string | undefined
     try {
-      entries = await fs.readdir(sshDir)
+      const entries = await fs.readdir(sshDir)
+      if (entries.length === 0) return
+      sshFile = path.join(sshDir, entries[0])
     } catch {
       return // ~/.ssh doesn't exist in this environment
     }
-    if (entries.length === 0) return
-
-    const sshFile = path.join(sshDir, entries[0])
+    if (!sshFile) return
     const result = await importExternal(vault, [sshFile], destDir)
     expect(result.skipped).toHaveLength(1)
     expect(result.skipped[0]).toMatchObject({ source: sshFile, reason: 'denied' })
@@ -265,6 +265,84 @@ describe('importExternal — blocklist denial', () => {
     const result = await importExternal(vault, [src], destDir)
     expect(result.imported).toHaveLength(1)
     expect(result.skipped).toHaveLength(0)
+  })
+
+  it('skips a dangling symlink with reason broken-symlink (not denied) (#204)', async () => {
+    const symlink = path.join(outside, 'dangling-link')
+    try {
+      await fs.symlink(path.join(outside, 'does-not-exist'), symlink)
+    } catch {
+      return // can't create symlink in this environment
+    }
+
+    const result = await importExternal(vault, [symlink], destDir)
+    expect(result.imported).toHaveLength(0)
+    expect(result.skipped).toHaveLength(1)
+    // The discriminator: a broken link is a user-fixable error, NOT a policy block.
+    expect(result.skipped[0]).toMatchObject({ source: symlink, reason: 'broken-symlink' })
+  })
+
+  it('keeps a blocklisted target as denied, not broken-symlink (#204)', async () => {
+    // /etc/hosts exists → realpath succeeds → isDenied blocks it → 'denied',
+    // confirming the broken-symlink branch only catches realpath failures.
+    const symlink = path.join(outside, 'policy-link')
+    try {
+      await fs.symlink('/etc/hosts', symlink)
+    } catch {
+      return
+    }
+    const result = await importExternal(vault, [symlink], destDir)
+    expect(result.skipped[0]).toMatchObject({ source: symlink, reason: 'denied' })
+  })
+})
+
+// ---------------------------------------------------------------------------
+// 6b. isDenied — synthetic home, covers the expanded high-value blocklist (#203)
+// ---------------------------------------------------------------------------
+
+describe('isDenied — expanded credential blocklist (#203)', () => {
+  const HOME = '/home/u'
+
+  it('blocks high-value credential directories', () => {
+    for (const p of [
+      '/home/u/.config/gcloud/application_default_credentials.json',
+      '/home/u/.docker/config.json',
+      '/home/u/.kube/config',
+      '/home/u/Library/Application Support/Google/Chrome/Login Data',
+      '/home/u/Library/Mail/x',
+      '/home/u/Library/Messages/chat.db',
+      '/home/u/Library/Containers/com.x/Data/y',
+      '/home/u/Library/Group Containers/group.x/y',
+      // pre-existing entries still blocked
+      '/home/u/.ssh/id_rsa',
+      '/home/u/.aws/credentials',
+    ]) {
+      expect(isDenied(p, HOME)).toBe(true)
+    }
+  })
+
+  it('blocks the credential directories themselves (not just children)', () => {
+    expect(isDenied('/home/u/.config', HOME)).toBe(true)
+    expect(isDenied('/home/u/.kube', HOME)).toBe(true)
+  })
+
+  it('blocks loose credential files directly in ~', () => {
+    for (const name of [
+      '.gitconfig',
+      '.netrc',
+      '.npmrc',
+      '.pypirc',
+      '.zsh_history',
+      '.bash_history',
+    ]) {
+      expect(isDenied(`/home/u/${name}`, HOME)).toBe(true)
+    }
+  })
+
+  it('allows ordinary files and avoids prefix false-positives', () => {
+    expect(isDenied('/home/u/notes/foo.md', HOME)).toBe(false)
+    expect(isDenied('/home/u/.gitconfig-backup', HOME)).toBe(false) // exact-match only
+    expect(isDenied('/home/u/.configuration/x', HOME)).toBe(false) // not the .config/ dir
   })
 })
 

@@ -1,0 +1,120 @@
+name: Feature request
+description: Propose a new capability or enhancement
+title: "feat: <short imperative description>"
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This template mirrors the section contract of `/issues:create`
+        (`.claude/commands/issues/create.md`). Keep "Current scenario" (behavior)
+        separate from "Problem" (the gap), and keep the solution out of the problem.
+        All text written in **English**; cite files as `path/to/file.ts:42`.
+
+  - type: dropdown
+    id: size
+    attributes:
+      label: Size
+      description: "Complexity for an AI coding agent, not a human day estimate. L should become a milestone with sub-issues."
+      options:
+        - "S — fits one short session (<30min context)"
+        - "M — fits one medium session (1-2h), simple cross-layer feature"
+        - "L — multi-session / squad with human gates; split into sub-issues"
+    validations:
+      required: true
+
+  - type: input
+    id: parent
+    attributes:
+      label: Parent / sub-issues
+      description: Milestone or related issue references, or "none".
+      placeholder: "none"
+    validations:
+      required: false
+
+  - type: textarea
+    id: user_story
+    attributes:
+      label: User story
+      description: From the system user's perspective, not the developer's.
+      value: |
+        **As a** <persona>,
+        **I want** <desired capability>,
+        **so that** <benefit / value>.
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Technical/business background needed to understand the request. Reference concrete files/flows.
+    validations:
+      required: true
+
+  - type: textarea
+    id: current
+    attributes:
+      label: Current scenario
+      description: What the system does today, precisely. Files/locations involved.
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: The gap between current and desired. No solution here. Numbered if more than one.
+    validations:
+      required: true
+
+  - type: textarea
+    id: consequences
+    attributes:
+      label: Consequences of the problem
+      description: Concrete impact - UX, technical risk, cost, security, debt.
+    validations:
+      required: false
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: The proposed change. Cite data contracts, states, modules, tests. Note trade-offs.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected result
+      description: Observable final state. "After this change, X happens and Y stops happening."
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      value: |
+        - [ ] <criterion - verifiable>
+        - [ ] Tests (unit / integration / e2e as applicable)
+        - [ ] Documentation updated (README of the touched area, project rules if needed)
+    validations:
+      required: true
+
+  - type: textarea
+    id: out_of_scope
+    attributes:
+      label: Out of scope
+      description: Items explicitly excluded so the issue does not inflate.
+    validations:
+      required: false
+
+  - type: textarea
+    id: references
+    attributes:
+      label: References
+      description: Relevant files (`path:line`), related issues/PRs, external docs, project rules under `.claude/rules/`.
+    validations:
+      required: false

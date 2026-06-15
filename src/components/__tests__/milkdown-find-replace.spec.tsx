@@ -173,13 +173,16 @@ vi.mock('@milkdown/react', () => ({
 vi.mock('@milkdown/preset-commonmark', () => ({
   commonmark: {},
   imageSchema: { node: {} },
+  codeBlockSchema: { node: {} },
+  bulletListSchema: { type: () => ({}) },
+  listItemSchema: { type: () => ({}) },
 }))
-vi.mock('@milkdown/preset-gfm', () => ({ gfm: {} }))
+vi.mock('@milkdown/preset-gfm', () => ({ gfm: {}, extendListItemSchemaForTask: { node: {} } }))
 vi.mock('@milkdown/plugin-listener', () => ({
   listener: {},
   listenerCtx: LISTENER_CTX,
 }))
-vi.mock('@milkdown/utils', () => ({ $view: () => ({}) }))
+vi.mock('@milkdown/utils', () => ({ $view: () => ({}), $inputRule: () => ({}) }))
 
 // ---------------------------------------------------------------------------
 // Mock Icon (FindReplaceOverlay imports it)

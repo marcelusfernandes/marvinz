@@ -1,0 +1,89 @@
+name: Bug report
+description: Report something that is broken or behaving incorrectly
+title: "fix: <short imperative description>"
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for filing a bug. All text that goes to GitHub is written in **English**
+        (see `.claude/rules/git-workflow.md`). Cite files as `path/to/file.ts:42` where useful.
+
+  - type: dropdown
+    id: size
+    attributes:
+      label: Size
+      description: "Complexity for an AI coding agent, not human day estimate. S = short session, M = 1-2h, L = multi-session / squad."
+      options:
+        - "S — surgical fix in 1-2 files"
+        - "M — cross-layer fix with some design decisions"
+        - "L — complex; split into a milestone with sub-issues"
+    validations:
+      required: true
+
+  - type: textarea
+    id: current
+    attributes:
+      label: Current behavior
+      description: What the system does today, precisely. Include code snippets, JSON, or screenshots when relevant.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Numbered, deterministic steps. Note the vault/file state if relevant.
+      placeholder: |
+        1. Open a vault with ...
+        2. Click ...
+        3. Observe ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What should happen instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: consequences
+    attributes:
+      label: Consequences / impact
+      description: Concrete impact - user experience, data loss/trust, security, regressions.
+    validations:
+      required: false
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: OS + version, app version (package.json), Node version, `claude` CLI version if relevant.
+      placeholder: |
+        - OS: macOS 15.5
+        - Marvin: 0.10.0
+        - Node: 20.x
+    validations:
+      required: false
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Objectively verifiable conditions for "fixed".
+      value: |
+        - [ ] <criterion - verifiable>
+        - [ ] Regression test added (unit / integration / e2e as applicable)
+    validations:
+      required: false
+
+  - type: textarea
+    id: references
+    attributes:
+      label: References
+      description: Relevant files (`path:line`), related issues/PRs, project rules under `.claude/rules/`.
+    validations:
+      required: false

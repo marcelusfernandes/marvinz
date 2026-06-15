@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components -- legacy file exports type+helpers alongside the component; refactor tracked in #474 */
 import { forwardRef } from 'react'
 import { Icon } from '../Icon'
 import type { PermissionMode } from '../../lib/chat/types'
@@ -49,7 +50,7 @@ type Props = {
  */
 export const ModePill = forwardRef<HTMLButtonElement, Props>(function ModePill(
   { mode, expanded = false, disabled = false, onClick },
-  ref,
+  ref
 ) {
   return (
     <button

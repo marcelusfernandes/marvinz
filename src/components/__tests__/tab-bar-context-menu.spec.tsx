@@ -72,17 +72,17 @@ const tabC = { type: 'note' as const, id: 'c', path: '/vault/gamma.md' }
 function renderTabs(tabs = [tabA, tabB, tabC], activeId = 'b') {
   const onClose = vi.fn()
   const onActivate = vi.fn()
-  const onNewBrowserTab = vi.fn()
+  const onNewTab = vi.fn()
   const utils = render(
     <TabBar
       tabs={tabs}
       activeId={activeId}
       onActivate={onActivate}
       onClose={onClose}
-      onNewBrowserTab={onNewBrowserTab}
+      onNewTab={onNewTab}
     />,
   )
-  return { ...utils, onClose, onActivate, onNewBrowserTab }
+  return { ...utils, onClose, onActivate, onNewTab }
 }
 
 function getTabAt(container: HTMLElement, index: number): HTMLElement {

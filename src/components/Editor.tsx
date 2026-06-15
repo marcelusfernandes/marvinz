@@ -13,6 +13,7 @@ import { redo, redoDepth, selectAll, undo, undoDepth } from '@codemirror/command
 import { tags as t } from '@lezer/highlight'
 import { EditorSelection, type Extension } from '@codemirror/state'
 import type { EditorView as PMView } from 'prosemirror-view'
+import { undo as pmUndo, redo as pmRedo } from 'prosemirror-history'
 import { languageIdFor, loadLanguage } from '../lib/cmLanguage'
 import {
   replaceFrontmatter,
@@ -31,16 +32,23 @@ import type { ImportToastState } from './ImportToast'
 import type { PaletteItem } from '../lib/paletteRanker'
 import {
   MARVIN_PATH_MIME,
+  MARVIN_PATHS_MIME,
   collectFiles,
   emitSummaryToast,
   internalDragMarkdown,
   persistDroppedFiles,
+  readDraggedPaths,
 } from '../lib/dropAttachments'
-import { isWikilinkHref, resolveWikilink, stripMdExt } from '../lib/wikilinks'
+import { isWikilinkHref, resolveWikilink } from '../lib/wikilinks'
+import { mentionInsertText } from '../lib/mentionInsert'
 import { Icon } from './Icon'
 import { useVisualStyle } from '../lib/visualStyle'
 import { mentionTrigger } from '../lib/cmMentionTrigger'
 import { MentionPicker } from './MentionPicker'
+import type { AgentKind } from '../lib/agent-drop-format'
+import { formatSelectionForAgent } from '../lib/agent-selection-format'
+import { clampToViewport } from '../lib/chipViewportClamp'
+import { EditorSelectionChip } from './EditorSelectionChip'
 
 const codeHighlightStyle = HighlightStyle.define([
   // Language tokens (TS/JS/JSON/etc.)
@@ -93,6 +101,15 @@ const legacyCodeHighlightStyle = HighlightStyle.define([
 ])
 
 type Props = {
+  /** False when this editor belongs to a hidden (non-active) tab in the
+   * mounted-but-hidden stack (#440). Active-only behaviors — find/replace open
+   * ticks and the selection-chip viewport (resize) listener — are gated off
+   * when inactive so a hidden editor never pops a find bar or attaches global
+   * listeners in response to ticks meant for the active tab. The CodeMirror
+   * EditorState itself is never rebuilt on this flag, so undo history, cursor,
+   * and scroll survive a switch. Defaults to true so an Editor rendered on its
+   * own (outside the tab stack) behaves as the active/visible one. */
+  isActive?: boolean
   filePath: string
   vaultPath: string
   initialContent: string
@@ -120,6 +137,22 @@ type Props = {
   saveMode?: 'auto' | 'manual'
   onDirtyChange?: (dirty: boolean) => void
   onFlushSave?: (flush: () => Promise<void>) => void
+  /**
+   * Registers an imperative undo/redo/focus handle for this editor while it is
+   * active, and clears it (null) when it goes inactive or unmounts. The global
+   * Cmd+Z fallback (#456) drives the active editor through this when focus sits
+   * outside any editor surface. Only the active editor ever registers.
+   */
+  onRegisterHandle?: (handle: EditorHandle | null) => void
+  onSendSelection?: (formatted: string) => void
+  agentKind?: AgentKind
+}
+
+/** Imperative undo/redo/focus over whichever surface is live (CM or PM). */
+export type EditorHandle = {
+  focus: () => void
+  undo: () => void
+  redo: () => void
 }
 
 type Mode = 'edit' | 'preview'
@@ -141,6 +174,7 @@ function resolveLink(href: string, currentFile: string, vaultPath: string): stri
 }
 
 export function Editor({
+  isActive = true,
   filePath,
   vaultPath,
   initialContent,
@@ -160,6 +194,9 @@ export function Editor({
   saveMode = 'auto',
   onDirtyChange,
   onFlushSave,
+  onRegisterHandle,
+  onSendSelection,
+  agentKind = 'codex',
 }: Props) {
   const visualStyle = useVisualStyle()
   const [value, setValue] = useState(initialContent)
@@ -169,6 +206,10 @@ export function Editor({
   const [langExt, setLangExt] = useState<Extension | null>(null)
   const timer = useRef<number | null>(null)
   const latestValue = useRef(initialContent)
+  // Last content known to be on disk for this buffer. Seeded from
+  // initialContent and advanced after each successful save so dirty can be
+  // derived by comparison (undo back to this value clears dirty).
+  const savedContentRef = useRef(initialContent)
   const viewRef = useRef<EditorView | null>(null)
   const isDirtyRef = useRef(false)
   const saveModeRef = useRef(saveMode)
@@ -179,6 +220,13 @@ export function Editor({
   useEffect(() => {
     onDirtyChangeRef.current = onDirtyChange
   }, [onDirtyChange])
+  // In the mounted-but-hidden stack (#440), App only wires onDirtyChange while
+  // this editor is active. `setDirty` only emits on a CHANGE, so on becoming
+  // active we push the current dirty state once — otherwise the global dirty
+  // indicator would lag this tab's true state until the next keystroke.
+  useEffect(() => {
+    if (isActive) onDirtyChangeRef.current?.(isDirtyRef.current)
+  }, [isActive])
   const onSaveRef = useRef(onSave)
   useEffect(() => {
     onSaveRef.current = onSave
@@ -209,6 +257,15 @@ export function Editor({
     from: number
     query: string
     anchor: { x: number; y: number }
+  } | null>(null)
+  // Selection chip state. Pinned to viewport coords of `sel.to` (caret end)
+  // and cleared when the selection becomes empty. Driven from CodeMirror's
+  // `onUpdate` callback below so a single render path covers both the
+  // production view and the test surface (which mocks ViewPlugin).
+  const [selectionChip, setSelectionChip] = useState<{
+    from: number
+    to: number
+    coords: { left: number; right: number; top: number; bottom: number }
   } | null>(null)
   // Lightweight in-pane confirmation that floats over the editor body
   // (top-center) after Replace / Replace All. Two-phase lifecycle:
@@ -256,18 +313,22 @@ export function Editor({
   // The local CM/PM keymaps still handle in-editor presses; the parent
   // listener defers to them by inspecting the event target. Skip the first
   // render (no tick change) so opening a tab doesn't auto-pop the bar.
+  // Hidden editors in the stack receive the same tick value as the active one,
+  // so gate on isActive: an inactive editor consumes the tick (advances its
+  // ref) without opening its find bar, so re-activating it later doesn't replay
+  // a tick fired while it was hidden.
   const lastFindTickRef = useRef(openFindTick ?? 0)
   useEffect(() => {
     if (openFindTick === undefined || openFindTick === lastFindTickRef.current) return
     lastFindTickRef.current = openFindTick
-    openFind('find')
-  }, [openFindTick, openFind])
+    if (isActive) openFind('find')
+  }, [openFindTick, openFind, isActive])
   const lastReplaceTickRef = useRef(openReplaceTick ?? 0)
   useEffect(() => {
     if (openReplaceTick === undefined || openReplaceTick === lastReplaceTickRef.current) return
     lastReplaceTickRef.current = openReplaceTick
-    openFind('replace')
-  }, [openReplaceTick, openFind])
+    if (isActive) openFind('replace')
+  }, [openReplaceTick, openFind, isActive])
 
   useEffect(() => {
     setLangExt(null)
@@ -330,9 +391,12 @@ export function Editor({
     const handleInternalDrop = (
       view: EditorView,
       event: DragEvent,
-      absolutePath: string,
+      paths: string[],
     ): void => {
-      insertAt(view, event, internalDragMarkdown(filePath, absolutePath))
+      // Multi-drag: produce one markdown line per path and insert them all in
+      // a single dispatch so undo reverts the whole drop atomically.
+      const markdown = paths.map((p) => internalDragMarkdown(filePath, p)).join('\n')
+      insertAt(view, event, markdown)
     }
 
     const handleExternalDrop = async (
@@ -354,7 +418,12 @@ export function Editor({
     return EditorView.domEventHandlers({
       dragover(event) {
         const types = event.dataTransfer?.types ?? []
-        if (!types.includes('Files') && !types.includes(MARVIN_PATH_MIME)) return false
+        if (
+          !types.includes('Files') &&
+          !types.includes(MARVIN_PATH_MIME) &&
+          !types.includes(MARVIN_PATHS_MIME)
+        )
+          return false
         event.preventDefault()
         // 'move' suppresses the macOS green-plus copy badge while staying
         // compatible with the file tree's effectAllowed.
@@ -364,12 +433,12 @@ export function Editor({
       drop(event, view) {
         const dt = event.dataTransfer
         if (!dt) return false
-        const internalPath = dt.getData(MARVIN_PATH_MIME)
+        const internalPaths = readDraggedPaths(dt)
         const files = collectFiles(dt)
-        if (internalPath) {
+        if (internalPaths.length > 0) {
           event.preventDefault()
           event.stopPropagation()
-          handleInternalDrop(view, event, internalPath)
+          handleInternalDrop(view, event, internalPaths)
           return true
         }
         if (files.length > 0) {
@@ -421,6 +490,7 @@ export function Editor({
   useEffect(() => {
     setValue(initialContent)
     latestValue.current = initialContent
+    savedContentRef.current = initialContent
     setSavedAt(null)
     setDirty(false)
   }, [filePath, initialContent, setDirty])
@@ -437,10 +507,14 @@ export function Editor({
       timer.current = null
     }
     setSaving(true)
+    // Snapshot the content being written so a keystroke racing the await
+    // doesn't make us record a stale saved value or wrongly clear dirty.
+    const saved = latestValue.current
     try {
-      await onSaveRef.current(latestValue.current)
+      await onSaveRef.current(saved)
+      savedContentRef.current = saved
       setSavedAt(Date.now())
-      setDirty(false)
+      setDirty(latestValue.current !== saved)
     } finally {
       setSaving(false)
     }
@@ -460,7 +534,7 @@ export function Editor({
       setValue(next)
       latestValue.current = next
       onBufferChange?.(next)
-      setDirty(true)
+      setDirty(next !== savedContentRef.current)
       if (saveModeRef.current === 'manual') {
         if (timer.current) {
           window.clearTimeout(timer.current)
@@ -528,11 +602,12 @@ export function Editor({
     [filePath, vaultPath, paletteItems, onNavigate],
   )
 
-  // Mention selection: replace the `@`+query span with `[[name]]`. We use
-  // the current selection head as the upper bound because the user may
-  // have typed beyond what onUpdate last reported (CodeMirror state lags
-  // React state by one render tick). Clearing `mention` tears the picker
-  // down; the inserted wikilink lives on as plain text in the document.
+  // Mention selection: replace the `@`+query span with the type-specific
+  // insert text (wikilink, image embed, or markdown link). We use the
+  // current selection head as the upper bound because the user may have
+  // typed beyond what onUpdate last reported (CodeMirror state lags React
+  // state by one render tick). Clearing `mention` tears the picker down;
+  // the inserted text lives on as plain text in the document.
   const handleMentionSelect = useCallback(
     (item: PaletteItem) => {
       const view = viewRef.current
@@ -541,11 +616,7 @@ export function Editor({
         return
       }
       const to = view.state.selection.main.head
-      // Obsidian-style wikilinks omit the `.md` extension: `[[My Note]]`,
-      // not `[[My Note.md]]`. The resolver in `wikilinks.ts` also matches
-      // by stripped basename, so keeping the extension would only break
-      // round-tripping for `.markdown` files.
-      const insert = `[[${stripMdExt(item.name)}]]`
+      const insert = mentionInsertText(item, filePath)
       view.dispatch({
         changes: { from: mention.from, to, insert },
         selection: EditorSelection.cursor(mention.from + insert.length),
@@ -553,9 +624,96 @@ export function Editor({
       setMention(null)
       view.focus()
     },
-    [mention],
+    [mention, filePath],
   )
   const handleMentionDismiss = useCallback(() => setMention(null), [])
+
+  // mirrors view into viewRef each update so test mocks that skip onCreateEditor still see it
+  const handleCmUpdate = useCallback(
+    (update: {
+      selectionSet?: boolean
+      state: { selection: { main: { from: number; to: number; empty: boolean } } }
+      view: EditorView
+    }) => {
+      viewRef.current = update.view
+      if (!update.selectionSet) return
+      const sel = update.state.selection.main
+      if (sel.empty) {
+        setSelectionChip(null)
+        return
+      }
+      const c = update.view.coordsAtPos(sel.to)
+      if (!c) {
+        setSelectionChip(null)
+        return
+      }
+      setSelectionChip({
+        from: sel.from,
+        to: sel.to,
+        coords: clampToViewport({ left: c.left, right: c.right, top: c.top, bottom: c.bottom }),
+      })
+    },
+    [],
+  )
+
+  const handleChipClick = useCallback(() => {
+    const view = viewRef.current
+    if (!view || !selectionChip || !onSendSelection) return
+    const text = view.state.sliceDoc(selectionChip.from, selectionChip.to)
+    const formatted = formatSelectionForAgent(text, agentKind)
+    if (formatted === '') return
+    const startLine = view.state.doc.lineAt(selectionChip.from).number
+    const endLine = view.state.doc.lineAt(selectionChip.to).number
+    const range = startLine === endLine ? `${startLine}` : `${startLine}-${endLine}`
+    const prefix = agentKind === 'codex' ? `@${filePath}:${range}` : `${filePath}:${range}`
+    onSendSelection(`${prefix}\n\n${formatted}`)
+  }, [selectionChip, onSendSelection, agentKind, filePath])
+
+  // Reposition the chip when the editor scrolls or the viewport resizes.
+  // The chip's coords come from `view.coordsAtPos(to)` (viewport-relative),
+  // so the doc offsets stay stable but the screen position drifts as the
+  // user scrolls. rAF-throttle so a burst of wheel events collapses into
+  // one re-measure. Effect dep is the `to` offset only: re-measures
+  // inside the setState updater don't restart the effect, so attach /
+  // detach happens once per distinct selection range.
+  const chipActiveTo = selectionChip?.to ?? null
+  useEffect(() => {
+    // Hidden editors don't repaint and must not attach window-level (resize)
+    // listeners; only the active editor tracks its chip against the viewport.
+    if (!isActive || chipActiveTo === null) return
+    const view = viewRef.current
+    if (!view) return
+    let frame = 0
+    const reposition = () => {
+      if (frame) return
+      frame = window.requestAnimationFrame(() => {
+        frame = 0
+        const liveView = viewRef.current
+        if (!liveView) return
+        const c = liveView.coordsAtPos(chipActiveTo)
+        if (!c) {
+          setSelectionChip(null)
+          return
+        }
+        setSelectionChip((prev) =>
+          prev
+            ? {
+                ...prev,
+                coords: clampToViewport({ left: c.left, right: c.right, top: c.top, bottom: c.bottom }),
+              }
+            : prev,
+        )
+      })
+    }
+    const scrollEl = view.scrollDOM
+    scrollEl.addEventListener('scroll', reposition, { passive: true })
+    window.addEventListener('resize', reposition)
+    return () => {
+      if (frame) window.cancelAnimationFrame(frame)
+      scrollEl.removeEventListener('scroll', reposition)
+      window.removeEventListener('resize', reposition)
+    }
+  }, [chipActiveTo, isActive])
 
   const handleContextMenu = useCallback(async (e: React.MouseEvent<HTMLDivElement>) => {
     const view = viewRef.current
@@ -627,19 +785,68 @@ export function Editor({
     [isMd, effectiveMode, value],
   )
 
+  // Imperative undo/redo handle for the global Cmd+Z fallback (#456). Routes to
+  // whichever surface is actually live: CodeMirror in Source mode, ProseMirror
+  // in markdown Page mode. Anything else (CSV grid, HTML preview, binary) has no
+  // text-undo surface here, so the handle no-ops and the fallback won't fire.
+  // null when the live surface has no text-undo (CSV grid / HTML preview /
+  // binary) — App then treats Cmd+Z as a dead key there instead of preventing
+  // default. CodeMirror covers every Source-mode file (incl. .csv/.html toggled
+  // to Source); ProseMirror covers markdown Page mode.
+  const editorHandle = useMemo<EditorHandle | null>(() => {
+    if (effectiveMode === 'edit') {
+      return {
+        focus: () => viewRef.current?.focus(),
+        undo: () => {
+          const v = viewRef.current
+          if (v) {
+            undo(v)
+            v.focus()
+          }
+        },
+        redo: () => {
+          const v = viewRef.current
+          if (v) {
+            redo(v)
+            v.focus()
+          }
+        },
+      }
+    }
+    if (isMd) {
+      return {
+        focus: () => pmView?.focus(),
+        undo: () => {
+          if (pmView) {
+            pmUndo(pmView.state, pmView.dispatch)
+            pmView.focus()
+          }
+        },
+        redo: () => {
+          if (pmView) {
+            pmRedo(pmView.state, pmView.dispatch)
+            pmView.focus()
+          }
+        },
+      }
+    }
+    return null
+  }, [effectiveMode, isMd, pmView])
+
+  // Register the handle only while active; clear it on inactive/unmount, and
+  // register null for unsupported surfaces so the fallback never targets a
+  // hidden editor or a no-undo surface. Re-runs on a Source/Page toggle so the
+  // registered handle always reflects the live surface (Codex #8).
+  useEffect(() => {
+    if (!isActive) return
+    onRegisterHandle?.(editorHandle)
+    return () => onRegisterHandle?.(null)
+  }, [isActive, onRegisterHandle, editorHandle])
+
   // Remount Milkdown only when the file changes (not on every keystroke);
   // typing edits are propagated through onChange and re-applied via React
   // state without forcing a re-init of the editor.
   const liveKey = filePath
-
-  // The `@`-mention picker only supports markdown wikilinks (`[[Name]]`).
-  // Non-markdown items (images, attachments) would need the embed form
-  // `![[file.png]]` — that is a follow-up. Filter here so the picker's
-  // ranker never surfaces a row that cannot be inserted as a wikilink.
-  const mentionItems = useMemo(
-    () => paletteItems.filter((it) => it.isMarkdown),
-    [paletteItems],
-  )
 
   return (
     <div className="editor">
@@ -740,7 +947,7 @@ export function Editor({
         {mention && effectiveMode === 'edit' && (
           <MentionPicker
             query={mention.query}
-            items={mentionItems}
+            items={paletteItems}
             anchor={mention.anchor}
             onSelect={handleMentionSelect}
             onDismiss={handleMentionDismiss}
@@ -761,6 +968,12 @@ export function Editor({
               : `${replaceToast.count} replacements made`}
           </div>
         )}
+        {selectionChip && effectiveMode === 'edit' && onSendSelection && (
+          <EditorSelectionChip
+            coords={selectionChip.coords}
+            onClick={handleChipClick}
+          />
+        )}
         {effectiveMode === 'edit' ? (
           <CodeMirror
             value={value}
@@ -773,6 +986,7 @@ export function Editor({
               viewRef.current = view
               setCmView(view)
             }}
+            onUpdate={handleCmUpdate}
             basicSetup={{
               lineNumbers: true,
               foldGutter: false,
@@ -810,6 +1024,8 @@ export function Editor({
                 onOpenFind={openFind}
                 onViewReady={setPmView}
                 onImportToast={onImportToast}
+                onSendSelection={onSendSelection}
+                agentKind={agentKind}
               />
             </div>
           </div>

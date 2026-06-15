@@ -2,8 +2,8 @@ import type { PaletteItem } from './paletteRanker'
 
 const WIKILINK_HREF_PREFIX = 'wikilink:'
 const WIKILINK_IMAGE_HREF_PREFIX = 'wikilink-image:'
-const WIKILINK_IMAGE_RE = /!\[\[([^\[\]\n|]+)(?:\|([^\[\]\n]+))?\]\]/g
-const WIKILINK_RE = /\[\[([^\[\]\n|]+)(?:\|([^\[\]\n]+))?\]\]/g
+const WIKILINK_IMAGE_RE = /!\[\[([^[\]\n|]+)(?:\|([^[\]\n]+))?\]\]/g
+const WIKILINK_RE = /\[\[([^[\]\n|]+)(?:\|([^[\]\n]+))?\]\]/g
 const WIKILINK_LINK_RE = /\[([^\]\n]+)\]\(wikilink:([^)\s]+)\)/g
 const WIKILINK_IMAGE_LINK_RE = /!\[([^\]\n]*)\]\(wikilink-image:([^)\s]+)\)/g
 
@@ -89,23 +89,20 @@ export function resolveWikilink(
   name: string,
   currentFile: string,
   vaultPath: string,
-  items: PaletteItem[],
+  items: PaletteItem[]
 ): string | null {
   const noFragment = name.split('#')[0].trim()
   if (!noFragment) return null
 
   if (noFragment.includes('/')) {
-    const withExt =
-      /\.(md|markdown)$/i.test(noFragment) ? noFragment : `${noFragment}.md`
+    const withExt = /\.(md|markdown)$/i.test(noFragment) ? noFragment : `${noFragment}.md`
     const absPath = `${vaultPath}/${withExt}`
     const exact = items.find((it) => it.path === absPath && it.isMarkdown)
     return exact ? exact.path : null
   }
 
   const target = stripMdExt(noFragment)
-  const matches = items.filter(
-    (it) => it.isMarkdown && stripMdExt(it.name) === target,
-  )
+  const matches = items.filter((it) => it.isMarkdown && stripMdExt(it.name) === target)
   if (matches.length === 0) return null
   if (matches.length === 1) return matches[0].path
 
@@ -127,7 +124,7 @@ export function resolveWikilinkImage(
   nameOrSrc: string,
   currentFile: string,
   vaultPath: string,
-  items: PaletteItem[],
+  items: PaletteItem[]
 ): string | null {
   const raw = nameOrSrc.startsWith(WIKILINK_IMAGE_HREF_PREFIX)
     ? safeDecode(nameOrSrc.slice(WIKILINK_IMAGE_HREF_PREFIX.length))

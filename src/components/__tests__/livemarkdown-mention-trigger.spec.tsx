@@ -185,7 +185,7 @@ vi.mock('@milkdown/react', () => ({
 }))
 
 vi.mock('@milkdown/preset-commonmark', () => ({ commonmark: {} }))
-vi.mock('@milkdown/preset-gfm', () => ({ gfm: {} }))
+vi.mock('@milkdown/preset-gfm', () => ({ gfm: {}, extendListItemSchemaForTask: { node: {} } }))
 vi.mock('@milkdown/plugin-listener', () => ({
   listener: {},
   listenerCtx: LISTENER_CTX,
@@ -217,6 +217,7 @@ vi.mock('prosemirror-state', async () => {
 })
 
 vi.mock('../../lib/imageNodeView', () => ({ imageNodeView: () => ({}) }))
+vi.mock('../../lib/mermaidNodeView', () => ({ mermaidNodeView: () => ({}) }))
 vi.mock('../../lib/pmJustReplacedHighlight', () => ({ justReplacedPlugin: () => ({}) }))
 vi.mock('../../lib/pmJustInsertedHighlight', () => ({
   justInsertedPlugin: () => ({}),
@@ -228,13 +229,21 @@ vi.mock('../../lib/wikilinks', () => ({
   unparseWikilinks: (s: string) => s,
   stripMdExt: (name: string) => name.replace(/\.md$/, ''),
 }))
-vi.mock('../../lib/dropAttachments', () => ({
-  MARVIN_PATH_MIME: 'application/x-marvin-path',
-  collectFiles: () => [],
-  emitSummaryToast: () => {},
-  internalDragMarkdown: () => '',
-  persistDroppedFiles: async () => ({ inserts: [], errors: [] }),
-}))
+vi.mock('../../lib/dropAttachments', async () => {
+  // Keep the real path helpers (linkFromNoteDir/mdLinkTarget) so mentionInsertText
+  // produces a faithful file-relative target; only stub the drop machinery.
+  const actual = await vi.importActual<typeof import('../../lib/dropAttachments')>(
+    '../../lib/dropAttachments',
+  )
+  return {
+    ...actual,
+    MARVIN_PATH_MIME: 'application/x-marvin-path',
+    collectFiles: () => [],
+    emitSummaryToast: () => {},
+    internalDragMarkdown: () => '',
+    persistDroppedFiles: async () => ({ inserts: [], errors: [] }),
+  }
+})
 
 // Intercept mentionTrigger to capture the callbacks LiveMarkdown passes in.
 vi.mock('../../lib/pmMentionTrigger', () => ({
@@ -453,7 +462,7 @@ describe('LiveMarkdown — @-mention trigger integration', () => {
     expect(document.body.querySelector('.mention-picker')).toBeFalsy()
   })
 
-  it('filters out non-markdown items from mentionItems', async () => {
+  it('surfaces non-markdown items in the picker (filter removed)', async () => {
     const nonMarkdown = { name: 'photo.png', path: '/v/photo.png', rel: 'photo.png', isMarkdown: false, mtime: 0 }
     render(<LiveMarkdown {...defaultProps([nonMarkdown])} />)
 
@@ -461,7 +470,52 @@ describe('LiveMarkdown — @-mention trigger integration', () => {
       capturedMentionCallbacks.onOpen!(0, { x: 100, y: 200 })
     })
 
-    // With no matching markdown items, MentionPicker renders null
-    expect(document.body.querySelector('.mention-picker')).toBeFalsy()
+    // Non-markdown rows are now eligible for mention insertion.
+    expect(document.body.querySelector('button.mention-picker-row')).toBeTruthy()
+  })
+
+  it('routes an image item through parseWikilinks (embed, not literal text)', async () => {
+    const { fireEvent } = await import('@testing-library/react')
+    const image = { name: 'photo.png', path: '/v/photo.png', rel: 'photo.png', isMarkdown: false, mtime: 0 }
+    render(<LiveMarkdown {...defaultProps([image])} />)
+
+    await act(async () => {
+      capturedMentionCallbacks.onOpen!(0, { x: 100, y: 200 })
+    })
+    const row = document.body.querySelector('button.mention-picker-row')
+    await act(async () => {
+      fireEvent.click(row!)
+    })
+
+    // mentionInsertText yields `![[photo.png]]`, which parseWikilinks rewrites
+    // to embed-link markdown and the parser turns into a node — so the inserted
+    // content must be a parsed node, never the literal `![[photo.png]]` text.
+    const tr = fakeView.dispatch.mock.calls[0]?.[0] as {
+      _replaceWiths: Array<{ content: { _kind?: string; text?: string } }>
+    }
+    expect(tr._replaceWiths[0].content._kind).toBeUndefined()
+    expect((tr._replaceWiths[0].content as { text?: string }).text).not.toBe('![[photo.png]]')
+  })
+
+  it('inserts a markdown link via literal-text fallback for a pdf item', async () => {
+    const { fireEvent } = await import('@testing-library/react')
+    const pdf = { name: 'report.pdf', path: '/vault/docs/report.pdf', rel: 'docs/report.pdf', isMarkdown: false, mtime: 0 }
+    render(<LiveMarkdown {...defaultProps([pdf])} />)
+
+    await act(async () => {
+      capturedMentionCallbacks.onOpen!(0, { x: 100, y: 200 })
+    })
+    const row = document.body.querySelector('button.mention-picker-row')
+    await act(async () => {
+      fireEvent.click(row!)
+    })
+
+    const tr = fakeView.dispatch.mock.calls[0]?.[0] as {
+      _replaceWiths: Array<{ content: { _kind: string; text?: string } }>
+    }
+    expect(tr._replaceWiths[0].content).toEqual({
+      _kind: 'text',
+      text: '[report.pdf](docs/report.pdf)',
+    })
   })
 })

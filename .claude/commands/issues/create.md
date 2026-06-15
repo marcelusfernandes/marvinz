@@ -1,5 +1,5 @@
 ---
-description: Cria uma issue no GitHub seguindo o padrão User Story / Contexto / Cenário atual / Problema / Consequências / Solução / Resultado esperado
+description: Cria uma issue no GitHub (corpo em inglês) seguindo o padrão User story / Context / Current scenario / Problem / Consequences / Proposed solution / Expected result
 argument-hint: Descrição livre do problema/feature (texto, imagens, links, screenshots)
 ---
 
@@ -29,7 +29,7 @@ Entrada do usuário: $ARGUMENTS
 
 ### 3. Escolher título e label
 
-- **Título** segue Conventional Commit: `feat:`, `fix:`, `refactor:`, `docs:`, `test:`, `chore:`, `perf:`, `ci:`, com escopo opcional. Curto (< 80 chars), em PT-BR ou EN conforme o tom do usuário.
+- **Título** segue Conventional Commit: `feat:`, `fix:`, `refactor:`, `docs:`, `test:`, `chore:`, `perf:`, `ci:`, com escopo opcional. Curto (< 80 chars), **em inglês** (todo conteúdo que vai pro GitHub é inglês — ver `.claude/rules/git-workflow.md`).
 - **Labels**: use `gh label list` para ver as labels do repo e escolher 1-2 que façam sentido (`enhancement`, `bug`, `security`, `documentation`, etc.). Se a label não existir, omita — não crie label nova sem pedir.
 
 ### 4. Escrever o corpo da issue no padrão abaixo
@@ -37,8 +37,8 @@ Entrada do usuário: $ARGUMENTS
 **Header (antes de User Story)** — quote-block com metadata estrutural. Inclua:
 
 ```markdown
-> **Tamanho:** <S | M | L> — <descrição curta do escopo>
-> **Parent / Sub-issues:** <#refs ou "nenhuma">
+> **Size:** <S | M | L> — <short scope description>
+> **Parent / Sub-issues:** <#refs or "none">
 ```
 
 **Convenção de Tamanho** (calibrada para AI Coding Agents executando via /squad ou Agent SDK, NÃO estimativa de dev humano):
@@ -49,59 +49,61 @@ Entrada do usuário: $ARGUMENTS
 
 **Importante**: NÃO use "~N dias" em estimativas. Tempo wallclock pra agente é dominado por (a) tamanho da janela de contexto, (b) número de gates humanos, (c) iterações de review. Dias-pessoa só faz sentido pra reuniões e priorização de roadmap humano.
 
+O corpo da issue é escrito **em inglês** (regra do `git-workflow.md`). Use exatamente estes cabeçalhos de seção — eles espelham o form `.github/ISSUE_TEMPLATE/feature_request.yml`:
+
 ```markdown
-## User Story
+## User story
 
-**Como** <persona>,
-**quero** <capacidade desejada>,
-**para que** <benefício/valor>.
-
----
-
-## Contexto
-
-<Background técnico/negócio necessário para entender a issue. Cite arquivos, módulos, fluxos, decisões prévias. Use links/refs concretas (`src/x/y.py:42`).>
-
-## Cenário atual
-
-<O que o sistema faz hoje, com precisão. Inclua trechos de código, JSON de exemplo, fluxos ou screenshots quando relevante. Liste arquivos/locais envolvidos.>
-
-## Problema
-
-<Descreva o(s) problema(s) de forma numerada quando houver mais de um. Foco no GAP entre o atual e o desejável. Sem solução aqui.>
-
-## Consequências do problema
-
-<Impacto concreto: experiência do usuário, risco técnico, custo, segurança, dívida, compliance, etc. Bullets.>
+**As a** <persona>,
+**I want** <desired capability>,
+**so that** <benefit / value>.
 
 ---
 
-## O que é a solução
+## Context
 
-<Descrição da solução proposta. Pode subdividir em itens numerados (1., 2., ...) com sub-seções (`### 1. ...`) se for multi-parte. Cite contratos de dados, estados, módulos, testes. Indique trade-offs e preferências quando houver mais de uma opção.>
+<Technical/business background needed to understand the issue. Cite files, modules, flows, prior decisions. Use concrete links/refs (`src/x/y.ts:42`).>
 
-## Resultado esperado com a solução
+## Current scenario
 
-<O estado final observável após a entrega. Lista de bullets descrevendo "depois desta mudança, X acontece e Y deixa de acontecer". Concreto e verificável.>
+<What the system does today, precisely. Include code snippets, sample JSON, flows or screenshots when relevant. List the files/locations involved.>
+
+## Problem
+
+<Describe the problem(s), numbered if more than one. Focus on the GAP between current and desired. No solution here.>
+
+## Consequences of the problem
+
+<Concrete impact: user experience, technical risk, cost, security, debt, compliance, etc. Bullets.>
 
 ---
 
-## Acceptance Criteria
+## Proposed solution
 
-- [ ] <critério 1 — verificável>
-- [ ] <critério 2>
-- [ ] Testes (unit / integration / e2e conforme aplicável)
-- [ ] Documentação atualizada (README da pasta tocada, rules do projeto se necessário)
+<Description of the proposed solution. May be split into numbered items (1., 2., ...) with sub-sections (`### 1. ...`) if multi-part. Cite data contracts, states, modules, tests. Note trade-offs and preferences when there is more than one option.>
 
-## Fora de escopo
+## Expected result
 
-- <itens explicitamente excluídos para não inflar a issue>
+<The observable final state after delivery. Bullets describing "after this change, X happens and Y stops happening". Concrete and verifiable.>
 
-## Referências
+---
 
-- <arquivos relevantes com caminho:linha>
-- <rules do projeto em `.claude/rules/permanent/` quando aplicável>
-- <links externos / docs / issues relacionadas>
+## Acceptance criteria
+
+- [ ] <criterion 1 — verifiable>
+- [ ] <criterion 2>
+- [ ] Tests (unit / integration / e2e as applicable)
+- [ ] Documentation updated (README of the touched area, project rules if needed)
+
+## Out of scope
+
+- <items explicitly excluded so the issue does not inflate>
+
+## References
+
+- <relevant files with path:line>
+- <project rules under `.claude/rules/` when applicable>
+- <external links / docs / related issues>
 ```
 
 ### 5. Criar a issue
@@ -124,18 +126,22 @@ EOF
 - Retorne a URL da issue.
 - Resuma em 3-5 bullets: título, labels, seções incluídas, qualquer ajuste de auth que tenha sido necessário.
 
+### 7. Harness — predição da Fase 1 (não-fatal, opcional)
+
+Esta skill cria **somente a issue** — não emite a predição aqui (não há branch para commitar o ledger). Mas para que a issue entre no complexity harness mesmo fora do `/squad`, **avise no relatório**: quando o trabalho começar (após `gh issue develop`), rodar `/harness:predict <n>` na feature branch emite o `PredictionVector` a priori. Ver `.claude/commands/harness/predict.md`. Pular isto nunca afeta a criação da issue (§1.9).
+
 ---
 
 ## Regras de qualidade
 
-- **Padrão de seções é fixo**: header (Tamanho + Parent/Sub-issues) → User Story → Contexto → Cenário atual → Problema → Consequências do problema → O que é a solução → Resultado esperado com a solução → Acceptance Criteria → Fora de escopo → Referências. **Não pule seções**. Se uma seção genuinamente não se aplica, escreva "N/A" com 1 frase explicando.
+- **Padrão de seções é fixo** (cabeçalhos em inglês, espelhando o form `.github/ISSUE_TEMPLATE/feature_request.yml`): header (Size + Parent/Sub-issues) → User story → Context → Current scenario → Problem → Consequences of the problem → Proposed solution → Expected result → Acceptance criteria → Out of scope → References. **Não pule seções**. Se uma seção genuinamente não se aplica, escreva "N/A" com 1 frase explicando.
 - **Tamanho NÃO é estimativa de dias humanos**: é classificação de complexidade pra AI agent (S/M/L = sessão curta/média/múltiplas — ver definição completa no Passo 4). Não escreva "~N dias" no campo.
 - **User Story em primeira pessoa do usuário do sistema**, não do dev. Persona realista (cliente, engenheiro de plantão, analista de segurança, etc.).
-- **Cenário atual ≠ Problema**: Cenário descreve o comportamento; Problema é o gap. Não misturar.
+- **Current scenario ≠ Problem**: "Current scenario" descreve o comportamento; "Problem" é o gap. Não misturar.
 - **Solução não vai dentro do Problema**, e vice-versa.
 - **Citações concretas** > prosa genérica. Use `arquivo.py:linha` sempre que possível.
 - **Acceptance criteria verificáveis**: cada item deve ser testável objetivamente (sem "melhorar X", sim "X passa a retornar Y quando Z").
-- **Idioma**: respeite o idioma do usuário (geralmente PT-BR neste projeto).
+- **Idioma**: título e corpo da issue **sempre em inglês** (regra do `git-workflow.md`: todo texto que vai pro GitHub é em inglês). A conversa com o usuário neste chat continua em PT-BR; só o conteúdo que sai pro repositório é forçado a inglês.
 - **Sem markdown quebrado**: valide que blocos de código fecham, listas estão consistentes, links válidos.
 - **Não crie commits, branches ou PRs** — esta skill cria **somente issue**.
 - **Não rotacione secrets nem invente CVEs** — issues de segurança descrevem o problema; mitigação operacional é responsabilidade de quem implementa.

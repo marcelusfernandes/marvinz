@@ -1,32 +1,41 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { FileChangeSource, FileNode, MenuItemSpec } from './types'
 import { FileTree } from './components/FileTree'
-import { Editor } from './components/Editor'
+import { Editor, type EditorHandle } from './components/Editor'
 import { AgentsPane } from './components/AgentsPane'
 import type { AgentDef } from './components/AgentTerminal'
+import type { AgentKind } from './lib/agent-drop-format'
 import { BrowserPane } from './components/BrowserPane'
 import { Splitter } from './components/Splitter'
 import { ImageViewer } from './components/ImageViewer'
 import { PdfViewer } from './components/PdfViewer'
 import { DocxViewer } from './components/DocxViewer'
+import { XlsxViewer } from './components/XlsxViewer'
 import { InputDialog } from './components/InputDialog'
 import { FileTreeToolbar } from './components/FileTreeToolbar'
 import { Icon } from './components/Icon'
 import { TabBar } from './components/TabBar'
+import { EmptyTab } from './components/EmptyTab'
 import { CommandPalette } from './components/CommandPalette'
 import { SettingsModal } from './components/SettingsModal'
 import { seedFromMain, useSetting } from './lib/settingsStore'
 import { resolveAppFindShortcut } from './lib/appFindShortcut'
-import { useColorTheme } from './lib/colorTheme'
+import { useClipboardStore, clipPasteLabel } from './lib/clipboardStore'
+import { useFileClipboardShortcuts } from './lib/useFileClipboardShortcuts'
+import { useColorTheme, useAgentsPaneTransparent, useEditorEffects } from './lib/colorTheme'
+import { useFileOpsHistory } from './lib/fileOpsHistory'
+import { getActivePanelContext, resolveUndoTarget } from './lib/panelContext'
 import { useVisualStyle } from './lib/visualStyle'
+import { useThemeFlavor } from './lib/themeFlavor'
 import { TopBar } from './components/TopBar'
 import { SnapshotPanel } from './components/SnapshotPanel'
 import { SnapshotToast } from './components/SnapshotToast'
 import { ImportToast, type ImportToastState } from './components/ImportToast'
-import type { CreatingIn, ImportOutcome } from './components/FileTree'
+import type { CreatingIn, ImportOutcome, SelectModifiers } from './components/FileTree'
 import { ExternalChangeBanner } from './components/ExternalChangeBanner'
 import type { PaletteItem } from './lib/paletteRanker'
 import { flattenTree } from './lib/paletteItems'
+import { flattenVisibleTree } from './lib/flattenVisibleTree'
 import type { LayoutMode } from './components/LayoutToggle'
 import './App.css'
 import './styles/legacy.css'
@@ -119,13 +128,36 @@ type DocxTab = {
   path: string
 }
 
-type Tab = NoteTab | BrowserTabState | ImageTab | PdfTab | DocxTab
+type XlsxTab = {
+  type: 'xlsx'
+  id: string
+  path: string
+}
+
+export type EmptyTab = {
+  type: 'empty'
+  id: string
+  title: string
+}
+
+type Tab = NoteTab | BrowserTabState | ImageTab | PdfTab | DocxTab | XlsxTab | EmptyTab
+
+const DEFAULT_BROWSER_URL = 'https://www.google.com'
+
+// Cap on simultaneously-mounted note editors (#440). The hidden-stack keeps an
+// editor mounted per open note tab to preserve undo/cursor/scroll across
+// switches; this bounds the memory cost to the K most-recently-active tabs.
+// Six comfortably covers normal multi-file editing; older tabs unmount and
+// rebuild on activate (history resets at that edge).
+const MAX_MOUNTED_EDITORS = 6
 
 const isNoteTab = (t: Tab): t is NoteTab => t.type === 'note'
 const isBrowserTab = (t: Tab): t is BrowserTabState => t.type === 'browser'
 const isImageTab = (t: Tab): t is ImageTab => t.type === 'image'
 const isPdfTab = (t: Tab): t is PdfTab => t.type === 'pdf'
 const isDocxTab = (t: Tab): t is DocxTab => t.type === 'docx'
+const isXlsxTab = (t: Tab): t is XlsxTab => t.type === 'xlsx'
+const isEmptyTab = (t: Tab): t is EmptyTab => t.type === 'empty'
 
 type Dialog =
   | { kind: 'rename'; target: string; isDir: boolean }
@@ -150,6 +182,10 @@ function isPdfPath(p: string): boolean {
 
 function isDocxPath(p: string): boolean {
   return /\.docx$/i.test(p)
+}
+
+function isXlsxPath(p: string): boolean {
+  return /\.xlsx$/i.test(p)
 }
 
 function isHtmlPath(p: string): boolean {
@@ -252,7 +288,10 @@ function humanizeError(err: unknown): string {
 
 export default function App() {
   useColorTheme()
+  useAgentsPaneTransparent()
+  useEditorEffects()
   const visualStyle = useVisualStyle()
+  useThemeFlavor()
   const saveMode = useSetting('saveMode') ?? 'auto'
   const [vaultPath, setVaultPath] = useState<string | null>(null)
   const [tree, setTree] = useState<FileNode[]>([])
@@ -266,6 +305,9 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [openPaths, setOpenPaths] = useState<Set<string>>(() => new Set())
   const [selectedPaths, setSelectedPaths] = useState<Set<string>>(() => new Set())
+  // Anchor for shift-click ranges — the last path that was selected via a
+  // non-shift gesture (plain click or Cmd-click).
+  const [anchorPath, setAnchorPath] = useState<string | null>(null)
   const [creatingIn, setCreatingIn] = useState<CreatingIn | null>(null)
   const [snapshotPanel, setSnapshotPanel] = useState<
     | {
@@ -288,6 +330,10 @@ export default function App() {
   const [layoutMode, setLayoutModeState] = useState<LayoutMode>(() => readStoredLayout())
   const [urlBarFocusTick, setUrlBarFocusTick] = useState(0)
   const [newAgentTabTick, setNewAgentTabTick] = useState(0)
+  const [focusedAgent, setFocusedAgent] = useState<{
+    ptyId: string
+    agentKind: AgentKind
+  } | null>(null)
   // Window-level Cmd+F / Cmd+Alt+F → bumps a tick that the Editor watches
   // so the find bar opens even when focus is on the sidebar / agents / tab
   // bar. Keep separate ticks so the variant (find vs replace-expanded)
@@ -295,7 +341,26 @@ export default function App() {
   const [openFindTick, setOpenFindTick] = useState(0)
   const [openReplaceTick, setOpenReplaceTick] = useState(0)
   const [isDirty, setIsDirty] = useState(false)
+  // Manual-mode close awaiting a Save/Discard/Cancel choice.
   const flushSaveRef = useRef<(() => Promise<void>) | null>(null)
+  // Imperative undo/redo handle for the active editor — populated by the active
+  // Editor via onRegisterHandle, used by the global Cmd+Z fallback (#456).
+  const activeEditorRef = useRef<EditorHandle | null>(null)
+  // Stable so the Editor's registration effect doesn't re-run (and briefly
+  // null the handle) on every App render.
+  const registerActiveEditorHandle = useCallback((handle: EditorHandle | null) => {
+    activeEditorRef.current = handle
+  }, [])
+  // Put keyboard focus back on the file tree after a file op (rename/move/trash)
+  // and after a file-op undo, so the next Cmd+Z keeps routing to the file-ops
+  // undo instead of the editor fallback (#457). Deferred a frame so it beats a
+  // dialog's focus-restore-on-close.
+  const focusFileTree = useCallback(() => {
+    requestAnimationFrame(() => {
+      const tree = document.querySelector('[data-panel="file-tree"]')
+      if (tree instanceof HTMLElement) tree.focus()
+    })
+  }, [])
   const [sidebarHidden, setSidebarHidden] = useState(() => {
     try {
       return window.localStorage.getItem(SIDEBAR_HIDDEN_KEY) === '1'
@@ -375,7 +440,52 @@ export default function App() {
   // used to detect "dirty" state when an external write lands.
   const bufferContentRef = useRef<Map<string, string>>(new Map())
 
+  // Tab ids with an in-flight close (awaiting flush or the confirm sheet) so a
+  // rapid double-click can't spawn two close flows / stacked dialogs for one tab.
+  const pendingCloseIds = useRef<Set<string>>(new Set())
+
   const activeTab = tabs.find((t) => t.id === activeTabId) ?? null
+
+  // Bounded mounted-editor window (#440). Each open note tab keeps its own live
+  // CodeMirror instance so undo history / cursor / scroll survive tab switches,
+  // but every mounted editor costs DOM + EditorState — so only the
+  // MAX_MOUNTED_EDITORS most-recently-active note tabs stay mounted. Note tabs
+  // beyond that fall back to today's behavior (unmounted, rebuilt on activate
+  // with a fresh history). `editorMru` holds note-tab ids most-recent-first.
+  const [editorMru, setEditorMru] = useState<string[]>([])
+  useEffect(() => {
+    if (!activeTabId) return
+    setEditorMru((prev) =>
+      prev[0] === activeTabId
+        ? prev
+        : [activeTabId, ...prev.filter((id) => id !== activeTabId)],
+    )
+  }, [activeTabId])
+
+  const mountedNoteTabs = useMemo(() => {
+    const noteTabs = tabs.filter(isNoteTab)
+    const rank = new Map(editorMru.map((id, i) => [id, i] as const))
+    const ordered = [...noteTabs].sort(
+      (a, b) => (rank.get(a.id) ?? Infinity) - (rank.get(b.id) ?? Infinity),
+    )
+    const keep = new Set(ordered.slice(0, MAX_MOUNTED_EDITORS).map((t) => t.id))
+    // Always keep the active tab mounted even if the MRU effect hasn't run yet
+    // (a freshly opened tab renders before its effect updates `editorMru`).
+    if (activeTabId) keep.add(activeTabId)
+    const evicted = noteTabs.filter((t) => !keep.has(t.id))
+    if (evicted.length > 0) {
+      console.debug(
+        `[App] unmounting ${evicted.length} editor(s) beyond MAX_MOUNTED_EDITORS=${MAX_MOUNTED_EDITORS} (rebuild-on-activate):`,
+        evicted.map((t) => t.path),
+      )
+    }
+    return noteTabs.filter((t) => keep.has(t.id))
+  }, [tabs, editorMru, activeTabId])
+
+  // Latest tabs snapshot for handlers (closeTab) that must read current tab
+  // state without taking `tabs` as a dependency. Reassigned in the ref-hub
+  // effect below (matching the project's latest-ref pattern).
+  const tabsRef = useRef(tabs)
 
   // Monotonic counter that invalidates in-flight tree responses when a newer
   // load is started (e.g. rapid vault switching). Without this, a slow
@@ -619,7 +729,11 @@ export default function App() {
     setTabs([])
     setActiveTabId(null)
     setSelectedPaths(new Set())
+    setAnchorPath(null)
     setCreatingIn(null)
+    // Drop the file-ops undo stack: its entries reference the previous vault's
+    // paths/snapshots, so a Cmd+Z after switching must not act on them.
+    useFileOpsHistory.getState().reset()
     lastDiskContentRef.current.clear()
     bufferContentRef.current.clear()
     // The useEffect on `vaultPath` is the single trigger for loadTree —
@@ -634,7 +748,8 @@ export default function App() {
           (isNoteTab(t) && t.path === path) ||
           (isImageTab(t) && t.path === path) ||
           (isPdfTab(t) && t.path === path) ||
-          (isDocxTab(t) && t.path === path),
+          (isDocxTab(t) && t.path === path) ||
+          (isXlsxTab(t) && t.path === path),
       )
       if (existing) {
         setActiveTabId(existing.id)
@@ -657,6 +772,12 @@ export default function App() {
       if (isDocxPath(path)) {
         const id = newTabId()
         setTabs((prev) => [...prev, { type: 'docx', id, path }])
+        setActiveTabId(id)
+        return
+      }
+      if (isXlsxPath(path)) {
+        const id = newTabId()
+        setTabs((prev) => [...prev, { type: 'xlsx', id, path }])
         setActiveTabId(id)
         return
       }
@@ -782,7 +903,27 @@ export default function App() {
     }
   }, [activeTab, readFreshContent])
 
-  const closeTab = useCallback(
+  // Writes the live buffer for a path straight to disk, path-keyed so it works
+  // for any note tab (active or not — both refs are keyed by path, no mounted
+  // editor required). Keeps lastDiskContentRef in sync so the path reads clean
+  // afterwards. Returns false on write failure so callers can abort a close.
+  const saveBuffer = useCallback(async (path: string): Promise<boolean> => {
+    const buffer = bufferContentRef.current.get(path)
+    if (buffer == null) return true
+    try {
+      await window.marvin.file.write(path, buffer)
+      lastDiskContentRef.current.set(path, buffer)
+      return true
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : String(err)
+      setError(`Failed to save ${basenameOf(path)}: ${detail}`)
+      return false
+    }
+  }, [])
+
+  // Removes the tab and its tracked buffer; no dirty checks. Callers gate the
+  // entry (see closeTab) so this stays a pure removal step.
+  const performCloseTab = useCallback(
     (id: string) => {
       setTabs((prev) => {
         const idx = prev.findIndex((t) => t.id === id)
@@ -812,17 +953,126 @@ export default function App() {
     [activeTabId],
   )
 
+  const closeTab = useCallback(
+    (id: string) => {
+      const tab = tabsRef.current.find((t) => t.id === id)
+      // Dirty = the path's live buffer diverges from last-known disk content.
+      // Both refs are path-keyed, so this is honest whether or not the tab is
+      // the active one (a background tab can stay dirty in manual mode).
+      const isDirtyNote =
+        tab != null &&
+        isNoteTab(tab) &&
+        bufferContentRef.current.get(tab.path) !==
+          lastDiskContentRef.current.get(tab.path)
+      if (!isDirtyNote) {
+        performCloseTab(id)
+        return
+      }
+      // Dedupe concurrent closes of the same tab (double-click) so we never
+      // stack two confirm sheets or fire two writes for one tab.
+      if (pendingCloseIds.current.has(id)) return
+      pendingCloseIds.current.add(id)
+      const path = tab.path
+      if (saveMode === 'auto') {
+        // Auto mode never prompts: write the buffer, then close. If a keystroke
+        // raced the write, flush the newer buffer once more before closing so
+        // trailing input isn't dropped on close.
+        void (async () => {
+          try {
+            if (!(await saveBuffer(path))) return
+            if (
+              bufferContentRef.current.get(path) !==
+              lastDiskContentRef.current.get(path)
+            ) {
+              if (!(await saveBuffer(path))) return
+            }
+            performCloseTab(id)
+          } finally {
+            pendingCloseIds.current.delete(id)
+          }
+        })()
+        return
+      }
+      // Manual mode: native confirm sheet decides the outcome.
+      void (async () => {
+        try {
+          const choice = await window.marvin.app.confirmUnsavedChanges(basenameOf(path))
+          if (choice === 'cancel') return
+          // Save aborts the close if the write fails so the buffer isn't lost.
+          if (choice === 'save' && !(await saveBuffer(path))) return
+          performCloseTab(id)
+        } catch (err) {
+          // Surface an IPC failure instead of dropping it; the tab stays open.
+          const detail = err instanceof Error ? err.message : String(err)
+          setError(`Couldn't close ${basenameOf(path)}: ${detail}`)
+        } finally {
+          pendingCloseIds.current.delete(id)
+        }
+      })()
+    },
+    [saveMode, performCloseTab, saveBuffer],
+  )
+
   // Latest-ref hub for handlers passed to FileTree. We capture volatile
   // dependencies via refs so the handler identities can stay stable, which is
   // what React.memo on FileTree relies on to skip re-renders.
   const openInTabRef = useRef(openInTab)
+  const treeRef = useRef(tree)
+  const openPathsRef = useRef(openPaths)
+  const anchorPathRef = useRef(anchorPath)
   useEffect(() => {
     openInTabRef.current = openInTab
+    treeRef.current = tree
+    openPathsRef.current = openPaths
+    anchorPathRef.current = anchorPath
+    tabsRef.current = tabs
   })
 
-  const handleTreeSelect = useCallback((node: FileNode) => {
-    setSelectedPaths(new Set([node.path]))
-    if (!node.isDir) void openInTabRef.current(node.path)
+  const handleTreeSelect = useCallback(
+    (node: FileNode, mods: SelectModifiers) => {
+      const path = node.path
+      if (mods.cmdOrCtrl) {
+        // Cmd-click only toggles selection; does not open the file.
+        setSelectedPaths((prev) => {
+          const next = new Set(prev)
+          if (next.has(path)) next.delete(path)
+          else next.add(path)
+          return next
+        })
+        setAnchorPath(path)
+        return
+      }
+      if (mods.shift) {
+        const anchor = anchorPathRef.current
+        const flat = flattenVisibleTree(treeRef.current, openPathsRef.current)
+        const anchorIdx = anchor
+          ? flat.findIndex((it) => it.node.path === anchor)
+          : -1
+        const currentIdx = flat.findIndex((it) => it.node.path === path)
+        if (anchorIdx >= 0) {
+          const [lo, hi] =
+            anchorIdx < currentIdx ? [anchorIdx, currentIdx] : [currentIdx, anchorIdx]
+          const range = flat.slice(lo, hi + 1).map((it) => it.node.path)
+          setSelectedPaths(new Set(range))
+          // anchor preserved on shift-click
+          return
+        }
+        // Anchor missing or no longer visible — fall back to single-select.
+        setSelectedPaths(new Set([path]))
+        setAnchorPath(path)
+        if (!node.isDir) void openInTabRef.current(path)
+        return
+      }
+      setSelectedPaths(new Set([path]))
+      setAnchorPath(path)
+      if (!node.isDir) void openInTabRef.current(path)
+    },
+    [],
+  )
+
+  const handleClearSelection = useCallback(() => {
+    setSelectedPaths(new Set())
+    setAnchorPath(null)
   }, [])
 
   // Cmd/Ctrl+Click on a path in the agent terminal opens it via the same
@@ -830,6 +1080,14 @@ export default function App() {
   const handleOpenFileFromTerminal = useCallback((absolutePath: string) => {
     void openInTabRef.current(absolutePath)
   }, [])
+
+  const handleSendSelectionToFocusedAgent = useCallback(
+    (formatted: string) => {
+      if (!focusedAgent) return
+      void window.marvin.pty.write(focusedAgent.ptyId, formatted)
+    },
+    [focusedAgent],
+  )
 
   const handleToggleOpen = useCallback((p: string) => {
     setOpenPaths((prev) => {
@@ -889,7 +1147,7 @@ export default function App() {
 
   const openNewBrowserTab = useCallback(() => {
     const id = newTabId()
-    const url = 'https://www.google.com'
+    const url = DEFAULT_BROWSER_URL
     setTabs((prev) => [
       ...prev,
       {
@@ -907,6 +1165,54 @@ export default function App() {
     setActiveTabId(id)
     // Focus URL bar on open so the user can immediately type a different URL.
     setUrlBarFocusTick((t) => t + 1)
+  }, [])
+
+  const openEmptyTab = useCallback(() => {
+    const id = newTabId()
+    setTabs((prev) => [...prev, { type: 'empty', id, title: 'New tab' }])
+    setActiveTabId(id)
+  }, [])
+
+  const convertEmptyToBrowser = useCallback((emptyTabId: string) => {
+    const url = DEFAULT_BROWSER_URL
+    setTabs((prev) =>
+      prev.map((t) =>
+        isEmptyTab(t) && t.id === emptyTabId
+          ? {
+              type: 'browser',
+              id: t.id,
+              url,
+              draftUrl: url,
+              title: 'New tab',
+              canBack: false,
+              canForward: false,
+              loading: true,
+              ready: false,
+            }
+          : t,
+      ),
+    )
+    setUrlBarFocusTick((t) => t + 1)
+  }, [])
+
+  const startNoteFromEmpty = useCallback(
+    (emptyTabId: string) => {
+      if (!vaultPath) return
+      setTabs((prev) => prev.filter((t) => t.id !== emptyTabId))
+      setActiveTabId((id) => (id === emptyTabId ? null : id))
+      setCreatingIn({ parentDir: vaultPath, kind: 'file' })
+    },
+    [vaultPath],
+  )
+
+  const chooseFileFromEmpty = useCallback(async (emptyTabId: string) => {
+    const picked = await window.marvin.file.pick()
+    if (!picked) return
+    setTabs((prev) => prev.filter((t) => t.id !== emptyTabId))
+    setActiveTabId((id) => (id === emptyTabId ? null : id))
+    // If openInTab rejects, the empty tab is already gone; surface the
+    // error so the user isn't left staring at a blank pane silently.
+    void openInTabRef.current(picked).catch(console.error)
   }, [])
 
   const handleBrowserDraftChange = useCallback((id: string, value: string) => {
@@ -1038,6 +1344,52 @@ export default function App() {
         void flushSaveRef.current?.()
         return
       }
+      // Cmd+Z / Cmd+Shift+Z → focus-routed undo/redo chain (#456). A truly
+      // focused editor or editable control keeps its native undo (we return null
+      // and do NOT preventDefault). The file tree undoes the last file op and
+      // reveals the affected file; neutral focus falls back to the active
+      // editor so Cmd+Z is never a dead key while a note is open.
+      // The active editor registers a handle only when its live surface can
+      // undo (CodeMirror in any Source mode, ProseMirror in markdown Page) and
+      // null otherwise — so this reflects the current mode, not just the
+      // extension (a .csv/.html toggled to Source still gets the fallback).
+      const undoRoute = resolveUndoTarget(
+        e,
+        getActivePanelContext(),
+        activeEditorRef.current != null,
+      )
+      if (undoRoute?.target === 'file-tree') {
+        e.preventDefault()
+        void useFileOpsHistory
+          .getState()
+          .undoLast((msg) =>
+            setImportToast({
+              state: /cannot undo/i.test(msg) ? 'error' : 'success',
+              message: msg,
+            }),
+          )
+          .then((res) => {
+            if (!res.ok) return
+            // Update the affected file's tab path IN PLACE so its tab name
+            // reflects an undone rename/move (renameInTabs also handles open
+            // tabs under an undone folder op). We deliberately do NOT switch the
+            // active tab — the user stays where they are. Focus stays on the
+            // tree so a follow-up Cmd+Z keeps undoing file ops.
+            if (res.remap) renameInTabsRef.current(res.remap.from, res.remap.to)
+            focusFileTree()
+          })
+        return
+      }
+      if (
+        undoRoute?.target === 'fallback-editor' &&
+        !modalOpen &&
+        !e.defaultPrevented
+      ) {
+        e.preventDefault()
+        if (undoRoute.direction === 'redo') activeEditorRef.current?.redo()
+        else activeEditorRef.current?.undo()
+        return
+      }
       // Cmd+F / Cmd+Alt+F → open the find bar in the active markdown editor
       // even when focus sits outside the editor surface. Predicate is
       // extracted (see resolveAppFindShortcut) so it can be unit-tested
@@ -1060,6 +1412,53 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey)
   }, [vaultPath, openNewBrowserTab, modalOpen, activeTab])
 
+  // Native app menu → renderer. Each menu item emits an action string the
+  // main process forwards over `menu:action`; we map it to the same handler
+  // the keyboard shortcut uses (no duplicated logic). The active note governs
+  // export/reveal, and the same `!vaultPath` early-return the keydown applies
+  // is mirrored here since the menu template doesn't gate items on vault state.
+  const handleMenuAction = (action: string) => {
+    switch (action) {
+      case 'settings':
+        setSettingsOpen(true)
+        break
+      case 'command-palette':
+        if (!vaultPath) return
+        setPaletteOpen(true)
+        break
+      case 'find':
+        // Mirror the keydown guards (resolveAppFindShortcut): no find while a
+        // modal owns focus, and only on a markdown note (not PDF/image/browser).
+        if (modalOpen) return
+        if (!activeTab || !isNoteTab(activeTab) || !isMarkdownPath(activeTab.path)) return
+        setOpenFindTick((t) => t + 1)
+        break
+      case 'new-note':
+        if (!vaultPath) return
+        setCreatingIn({ parentDir: vaultPath, kind: 'file' })
+        break
+      case 'open-vault':
+        void handlePickVault()
+        break
+      case 'export-pdf':
+        if (!activeTab || !isNoteTab(activeTab)) return
+        void window.marvin.file.exportPdf(activeTab.path)
+        break
+      case 'reveal':
+        if (!activeTab || !isNoteTab(activeTab)) return
+        void window.marvin.shell.reveal(activeTab.path)
+        break
+      case 'save':
+        if (!activeTab || !isNoteTab(activeTab)) return
+        void flushSaveRef.current?.()
+        break
+      case 'new-agent-terminal':
+        if (!vaultPath) return
+        setNewAgentTabTick((t) => t + 1)
+        break
+    }
+  }
+
   const handlePalettePick = useCallback(
     async (item: PaletteItem, replaceCurrent: boolean) => {
       setPaletteOpen(false)
@@ -1076,21 +1475,22 @@ export default function App() {
     [activeTab, navigateInActiveTab, openInTab],
   )
 
+  // Path-explicit so a hidden editor's debounced save writes to ITS OWN file,
+  // not whatever tab is active (#440 — multiple editors are mounted at once).
   const handleSave = useCallback(
-    async (content: string) => {
-      if (!activeTab || !isNoteTab(activeTab)) return
+    async (path: string, content: string) => {
       try {
-        await window.marvin.file.write(activeTab.path, content)
-        lastDiskContentRef.current.set(activeTab.path, content)
-        bufferContentRef.current.set(activeTab.path, content)
+        await window.marvin.file.write(path, content)
+        lastDiskContentRef.current.set(path, content)
+        bufferContentRef.current.set(path, content)
       } catch (err) {
-        const name = basenameOf(activeTab.path)
+        const name = basenameOf(path)
         const detail = err instanceof Error ? err.message : String(err)
         setError(`Failed to save ${name}: ${detail}`)
         throw err
       }
     },
-    [activeTab],
+    [],
   )
 
   const handleBufferChange = useCallback((path: string, content: string) => {
@@ -1249,6 +1649,8 @@ export default function App() {
         await window.marvin.path.rename(d.target, newPath)
         renameInTabs(d.target, newPath)
         await loadTree(vaultPath)
+        useFileOpsHistory.getState().push({ kind: 'rename', from: d.target, to: newPath })
+        focusFileTree()
       }
     } catch (err) {
       reportError(err)
@@ -1258,9 +1660,35 @@ export default function App() {
   const handleTrash = async (target: string) => {
     if (!vaultPath) return
     try {
+      // Capture a recoverable copy BEFORE the destructive trash so file-panel
+      // undo (#149) can restore the content. A capture failure must not block
+      // the user's delete — warn them, and don't record a recovery-promising
+      // entry the undo could not honour.
+      //
+      // Only markdown notes are captured: the snapshot store reads/writes utf8,
+      // so capturing a directory would EISDIR (a spurious error toast on every
+      // folder delete) and a binary file would be lossily decoded and corrupted
+      // on restore. Non-markdown targets trash directly with no undo entry.
+      let snapshotId: string | null = null
+      if (isMarkdownPath(target)) {
+        try {
+          const res = await window.marvin.snapshot.capture([target], 'user-trash')
+          if (res.ok) snapshotId = res.data.snapshotId
+          else throw new Error(res.error)
+        } catch {
+          setImportToast({
+            state: 'error',
+            message: 'Could not prepare safety copy — undo will not recover content',
+          })
+        }
+      }
       await window.marvin.path.trash(target)
       closeTabsUnder(target)
       await loadTree(vaultPath)
+      if (snapshotId) {
+        useFileOpsHistory.getState().push({ kind: 'trash', path: target, snapshotId })
+        focusFileTree()
+      }
     } catch (err) {
       reportError(err)
     }
@@ -1274,13 +1702,34 @@ export default function App() {
   const openSnapshotPanelRef = useRef(openSnapshotPanel)
   const handleTrashRef = useRef(handleTrash)
   const vaultPathRef = useRef(vaultPath)
+  const selectedPathsRef = useRef(selectedPaths)
+  const handleMenuActionRef = useRef(handleMenuAction)
   useEffect(() => {
     renameInTabsRef.current = renameInTabs
     reportErrorRef.current = reportError
     openSnapshotPanelRef.current = openSnapshotPanel
     handleTrashRef.current = handleTrash
     vaultPathRef.current = vaultPath
+    selectedPathsRef.current = selectedPaths
+    handleMenuActionRef.current = handleMenuAction
   })
+
+  // Subscribe once to native menu actions; the ref keeps the handler current
+  // without tearing down the IPC listener on every vault/tab change.
+  useEffect(() => {
+    return window.marvin.app.onMenuAction((action) => {
+      handleMenuActionRef.current(action)
+    })
+  }, [])
+
+  // Report whether a note tab is active so the menu can disable the
+  // note-only items (Export PDF, Reveal in Finder). Depend on the derived
+  // boolean, not the activeTab object — avoids rebuilding the native menu on
+  // every unrelated tab-object change (version bump, external-change flag, …).
+  const hasNoteTabActive = !!activeTab && isNoteTab(activeTab)
+  useEffect(() => {
+    window.marvin.app.setMenuNoteContext(hasNoteTabActive)
+  }, [hasNoteTabActive])
 
   // Drag-and-drop: move src into destDir via rename.
   const handleDropMove = useCallback(
@@ -1296,12 +1745,64 @@ export default function App() {
         await window.marvin.path.rename(srcPath, newPath)
         renameInTabsRef.current(srcPath, newPath)
         await loadTree(vp)
+        useFileOpsHistory.getState().push({ kind: 'move', from: srcPath, to: newPath })
+        focusFileTree()
+      } catch (err) {
+        reportErrorRef.current(err)
+      }
+    },
+    [loadTree, focusFileTree],
+  )
+
+  const executePaste = useCallback(
+    async (target: string) => {
+      const clip = useClipboardStore.getState()
+      if (clip.mode === null || clip.paths.size === 0) return
+      const vp = vaultPathRef.current
+      if (!vp) return
+      try {
+        if (clip.mode === 'copy') {
+          const failed: string[] = []
+          for (const p of clip.paths) {
+            try {
+              await window.marvin.file.copy(p, target)
+            } catch {
+              failed.push(p)
+            }
+          }
+          if (failed.length > 0) {
+            reportErrorRef.current(new Error(`Failed to copy: ${failed.join(', ')}`))
+          }
+        } else {
+          const results = await window.marvin.file.moveBatch(Array.from(clip.paths), target)
+          for (const r of results) {
+            if (r.ok) renameInTabsRef.current(r.src, r.dest)
+          }
+          const failed = results.filter((r) => !r.ok)
+          if (failed.length === 0) {
+            useClipboardStore.getState().clear()
+          } else {
+            reportErrorRef.current(
+              new Error(`Failed to move: ${failed.map((f) => f.error ?? f.src).join(', ')}`),
+            )
+          }
+        }
+        await loadTree(vp)
       } catch (err) {
         reportErrorRef.current(err)
       }
     },
     [loadTree],
   )
+
+  useFileClipboardShortcuts({
+    vaultPath,
+    selectedPaths,
+    tree,
+    onClearSelection: handleClearSelection,
+    onPaste: executePaste,
+    onError: (msg) => reportErrorRef.current(new Error(msg)),
+  })
 
   const handleNodeContextMenu = useCallback(
     async (e: React.MouseEvent, node: FileNode) => {
@@ -1315,7 +1816,22 @@ export default function App() {
           { kind: 'separator' },
         )
       }
+      const clip = useClipboardStore.getState()
       items.push(
+        { kind: 'item', id: 'copy', label: 'Copy', accelerator: 'CmdOrCtrl+C' },
+        { kind: 'item', id: 'cut', label: 'Cut', accelerator: 'CmdOrCtrl+X' },
+      )
+      if (node.isDir) {
+        items.push({
+          kind: 'item',
+          id: 'paste',
+          label: clipPasteLabel(clip),
+          accelerator: 'CmdOrCtrl+V',
+          enabled: clip.mode !== null,
+        })
+      }
+      items.push(
+        { kind: 'separator' },
         { kind: 'item', id: 'rename', label: 'Rename' },
         { kind: 'item', id: 'reveal', label: 'Reveal in Finder' },
       )
@@ -1342,6 +1858,18 @@ export default function App() {
         case 'new-folder':
           setCreatingIn({ parentDir: node.path, kind: 'folder' })
           break
+        case 'copy':
+        case 'cut': {
+          const paths =
+            selectedPathsRef.current.size === 0
+              ? [node.path]
+              : Array.from(selectedPathsRef.current)
+          useClipboardStore.getState().set(action, paths)
+          break
+        }
+        case 'paste':
+          void executePaste(node.path)
+          break
         case 'rename':
           setDialog({ kind: 'rename', target: node.path, isDir: node.isDir })
           break
@@ -1359,7 +1887,7 @@ export default function App() {
           break
       }
     },
-    [],
+    [executePaste],
   )
 
   const handleImportResult = useCallback(
@@ -1446,9 +1974,18 @@ export default function App() {
       return
     }
     e.preventDefault()
+    const clip = useClipboardStore.getState()
     const items: MenuItemSpec[] = [
       { kind: 'item', id: 'new-file', label: 'New File' },
       { kind: 'item', id: 'new-folder', label: 'New Folder' },
+      { kind: 'separator' },
+      {
+        kind: 'item',
+        id: 'paste',
+        label: clipPasteLabel(clip),
+        accelerator: 'CmdOrCtrl+V',
+        enabled: clip.mode !== null,
+      },
       { kind: 'separator' },
       { kind: 'item', id: 'refresh', label: 'Refresh' },
     ]
@@ -1460,6 +1997,9 @@ export default function App() {
         break
       case 'new-folder':
         setCreatingIn({ parentDir: vaultPath, kind: 'folder' })
+        break
+      case 'paste':
+        void executePaste(vaultPath)
         break
       case 'refresh':
         void loadTree(vaultPath)
@@ -1589,6 +2129,7 @@ export default function App() {
           creatingIn={creatingIn}
           onToggleOpen={handleToggleOpen}
           onSelect={handleTreeSelect}
+          onClearSelection={handleClearSelection}
           onCreatingInChange={setCreatingIn}
           onContextMenu={handleNodeContextMenu}
           onMove={handleDropMove}
@@ -1631,63 +2172,96 @@ export default function App() {
           dirtyTabId={isDirty ? activeTabId : null}
           onActivate={setActiveTabId}
           onClose={closeTab}
-          onNewBrowserTab={openNewBrowserTab}
+          onNewTab={openEmptyTab}
         />
         <div className="editor-stack">
-          {activeTab && isNoteTab(activeTab) && (
-            <div className="note-tab-container">
-              {activeTab.pendingExternalChange && (
-                <ExternalChangeBanner
-                  filePath={activeTab.path}
-                  getCurrentBuffer={() =>
-                    bufferContentRef.current.get(activeTab.path) ?? activeTab.content
+          {/* Note/markdown editor tabs are rendered as a stack (all mounted,
+              inactive ones hidden) keyed by stable tab.id so switching tabs
+              does NOT unmount the CodeMirror instance — undo history, cursor,
+              and scroll survive the switch (#440). Mirrors the browser-tab
+              precedent below. The set of mounted tabs is bounded by an MRU
+              cap (see mountedNoteTabs). */}
+          {mountedNoteTabs.map((noteTab) => {
+            const isActive = noteTab.id === activeTabId
+            return (
+              <div
+                key={noteTab.id}
+                className="note-tab-container"
+                hidden={!isActive}
+                data-tab-id={noteTab.id}
+              >
+                {isActive && noteTab.pendingExternalChange && (
+                  <ExternalChangeBanner
+                    filePath={noteTab.path}
+                    getCurrentBuffer={() =>
+                      bufferContentRef.current.get(noteTab.path) ?? noteTab.content
+                    }
+                    diskContent={noteTab.pendingExternalChange.diskContent}
+                    diskChangedAt={noteTab.pendingExternalChange.diskChangedAt}
+                    source={noteTab.pendingExternalChange.source}
+                    onAcceptDisk={() =>
+                      handleAcceptDisk(
+                        noteTab.path,
+                        noteTab.pendingExternalChange!.diskContent,
+                        bufferContentRef.current.get(noteTab.path) ?? noteTab.content,
+                      )
+                    }
+                    onKeepMine={() =>
+                      handleKeepMine(
+                        noteTab.path,
+                        noteTab.pendingExternalChange!.source,
+                        noteTab.pendingExternalChange!.diskContent,
+                      )
+                    }
+                    onDismiss={() => clearPendingExternalChange(noteTab.path)}
+                  />
+                )}
+                <Editor
+                  key={noteTab.id}
+                  isActive={isActive}
+                  filePath={noteTab.path}
+                  vaultPath={vaultPath}
+                  initialContent={noteTab.content}
+                  version={noteTab.version}
+                  geometryKey={`${layoutMode}#${sidebarWidth}#${agentsWidth}`}
+                  paletteItems={paletteItemsWithMeta}
+                  onSave={(content) => handleSave(noteTab.path, content)}
+                  onBufferChange={(content) => handleBufferChange(noteTab.path, content)}
+                  onNavigate={navigateOrOpen}
+                  canBack={noteTab.back.length > 0}
+                  canForward={noteTab.forward.length > 0}
+                  onBack={goBack}
+                  onForward={goForward}
+                  openFindTick={openFindTick}
+                  openReplaceTick={openReplaceTick}
+                  onImportToast={setImportToast}
+                  saveMode={saveMode}
+                  // Only the active editor drives the global dirty indicator and
+                  // owns the single flush ref (Cmd+S / menu save target). Hidden
+                  // editors mustn't overwrite either — the last one to mount
+                  // would otherwise win. Background-tab saving still works: it
+                  // goes through the path-keyed closeTab → saveBuffer, not this
+                  // ref. Editor re-emits its dirty state when it becomes active.
+                  onDirtyChange={isActive ? setIsDirty : undefined}
+                  onFlushSave={
+                    isActive
+                      ? (fn) => {
+                          flushSaveRef.current = fn
+                        }
+                      : undefined
                   }
-                  diskContent={activeTab.pendingExternalChange.diskContent}
-                  diskChangedAt={activeTab.pendingExternalChange.diskChangedAt}
-                  source={activeTab.pendingExternalChange.source}
-                  onAcceptDisk={() =>
-                    handleAcceptDisk(
-                      activeTab.path,
-                      activeTab.pendingExternalChange!.diskContent,
-                      bufferContentRef.current.get(activeTab.path) ?? activeTab.content,
-                    )
+                  // Passed to every mounted editor; each self-gates on isActive
+                  // and clears the ref on going inactive/unmount, so the Cmd+Z
+                  // fallback always targets the visible editor (never a hidden one).
+                  onRegisterHandle={registerActiveEditorHandle}
+                  onSendSelection={
+                    focusedAgent ? handleSendSelectionToFocusedAgent : undefined
                   }
-                  onKeepMine={() =>
-                    handleKeepMine(
-                      activeTab.path,
-                      activeTab.pendingExternalChange!.source,
-                      activeTab.pendingExternalChange!.diskContent,
-                    )
-                  }
-                  onDismiss={() => clearPendingExternalChange(activeTab.path)}
+                  agentKind={focusedAgent?.agentKind}
                 />
-              )}
-              <Editor
-                key={`${activeTab.id}#${activeTab.path}`}
-                filePath={activeTab.path}
-                vaultPath={vaultPath}
-                initialContent={activeTab.content}
-                version={activeTab.version}
-                geometryKey={`${layoutMode}#${sidebarWidth}#${agentsWidth}`}
-                paletteItems={paletteItemsWithMeta}
-                onSave={handleSave}
-                onBufferChange={(content) => handleBufferChange(activeTab.path, content)}
-                onNavigate={navigateOrOpen}
-                canBack={activeTab.back.length > 0}
-                canForward={activeTab.forward.length > 0}
-                onBack={goBack}
-                onForward={goForward}
-                openFindTick={openFindTick}
-                openReplaceTick={openReplaceTick}
-                onImportToast={setImportToast}
-                saveMode={saveMode}
-                onDirtyChange={setIsDirty}
-                onFlushSave={(fn) => {
-                  flushSaveRef.current = fn
-                }}
-              />
-            </div>
-          )}
+              </div>
+            )
+          })}
           {activeTab && isImageTab(activeTab) && (
             <ImageViewer
               key={activeTab.id}
@@ -1707,6 +2281,18 @@ export default function App() {
               key={activeTab.id}
               path={activeTab.path}
               onRevealInFinder={(p) => void window.marvin.shell.reveal(p)}
+            />
+          )}
+          {activeTab && isXlsxTab(activeTab) && (
+            <XlsxViewer path={activeTab.path} />
+          )}
+          {activeTab && isEmptyTab(activeTab) && (
+            <EmptyTab
+              key={activeTab.id}
+              onOpenBrowser={() => convertEmptyToBrowser(activeTab.id)}
+              onCreateNote={() => startNoteFromEmpty(activeTab.id)}
+              onChooseFile={() => void chooseFileFromEmpty(activeTab.id)}
+              isVaultOpen={!!vaultPath}
             />
           )}
           {!activeTab && (
@@ -1742,6 +2328,7 @@ export default function App() {
             setTurnToast({ turnId: summary.turnId, files: summary.fileNames })
           }
           onOpenFile={handleOpenFileFromTerminal}
+          onFocusChange={setFocusedAgent}
         />
       </aside>
 

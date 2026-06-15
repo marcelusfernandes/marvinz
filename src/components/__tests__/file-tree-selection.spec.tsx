@@ -7,9 +7,12 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, cleanup } from '@testing-library/react'
+import { useState } from 'react'
 import { FileTree } from '../FileTree'
+import type { SelectModifiers } from '../FileTree'
 import { smallTree } from './file-tree-fixtures'
 import { setupVirtualizerMocks } from './_virtualizerSetup'
+import { flattenVisibleTree } from '../../lib/flattenVisibleTree'
 import type { FileNode } from '../../types'
 
 vi.mock('../../lib/settingsStore', () => ({
@@ -111,12 +114,13 @@ describe('FileTree — folder row .selected class', () => {
 
 describe('FileTree — folder click uses unified onSelect', () => {
   it('clicking a folder calls onSelect with that folder node', () => {
-    const onSelect = vi.fn<(node: FileNode) => void>()
+    const onSelect = vi.fn<(node: FileNode, mods: SelectModifiers) => void>()
     render(<FileTree {...baseProps({ onSelect })} />)
     fireEvent.click(screen.getByText('docs').closest('button')!)
     expect(onSelect).toHaveBeenCalledTimes(1)
     expect(onSelect).toHaveBeenCalledWith(
       expect.objectContaining({ path: '/vault/docs', isDir: true }),
+      { cmdOrCtrl: false, shift: false },
     )
   })
 
@@ -128,6 +132,7 @@ describe('FileTree — folder click uses unified onSelect', () => {
     expect(onToggleOpen).toHaveBeenCalledWith('/vault/docs')
     expect(onSelect).toHaveBeenCalledWith(
       expect.objectContaining({ path: '/vault/docs', isDir: true }),
+      { cmdOrCtrl: false, shift: false },
     )
   })
 
@@ -217,5 +222,276 @@ describe('FileTree — .active-file class', () => {
     container.querySelectorAll('button.file-tree-row').forEach((btn) => {
       expect(btn.classList.contains('active-file')).toBe(false)
     })
+  })
+})
+
+// ===========================================================================
+// 5. FileTree forwards modifier flags to onSelect (issue #349)
+// ===========================================================================
+
+describe('FileTree — onSelect receives modifier flags', () => {
+  it('plain click passes { cmdOrCtrl: false, shift: false }', () => {
+    const onSelect = vi.fn<(node: FileNode, mods: SelectModifiers) => void>()
+    render(<FileTree {...baseProps({ onSelect })} />)
+    fireEvent.click(screen.getByText('readme').closest('button')!)
+    expect(onSelect).toHaveBeenCalledTimes(1)
+    const [, mods] = onSelect.mock.calls[0]
+    expect(mods).toEqual({ cmdOrCtrl: false, shift: false })
+  })
+
+  it('Cmd-click passes { cmdOrCtrl: true, shift: false }', () => {
+    const onSelect = vi.fn<(node: FileNode, mods: SelectModifiers) => void>()
+    render(<FileTree {...baseProps({ onSelect })} />)
+    fireEvent.click(screen.getByText('readme').closest('button')!, { metaKey: true })
+    const [, mods] = onSelect.mock.calls[0]
+    expect(mods).toEqual({ cmdOrCtrl: true, shift: false })
+  })
+
+  it('Shift-click passes { cmdOrCtrl: false, shift: true }', () => {
+    const onSelect = vi.fn<(node: FileNode, mods: SelectModifiers) => void>()
+    render(<FileTree {...baseProps({ onSelect })} />)
+    fireEvent.click(screen.getByText('readme').closest('button')!, { shiftKey: true })
+    const [, mods] = onSelect.mock.calls[0]
+    expect(mods).toEqual({ cmdOrCtrl: false, shift: true })
+  })
+
+  it('Ctrl-click (non-Mac) passes { cmdOrCtrl: true, shift: false }', () => {
+    const onSelect = vi.fn<(node: FileNode, mods: SelectModifiers) => void>()
+    render(<FileTree {...baseProps({ onSelect })} />)
+    fireEvent.click(screen.getByText('readme').closest('button')!, { ctrlKey: true })
+    const [, mods] = onSelect.mock.calls[0]
+    expect(mods).toEqual({ cmdOrCtrl: true, shift: false })
+  })
+
+  it('folder click also passes modifiers', () => {
+    const onSelect = vi.fn<(node: FileNode, mods: SelectModifiers) => void>()
+    render(<FileTree {...baseProps({ onSelect })} />)
+    fireEvent.click(screen.getByText('docs').closest('button')!, { metaKey: true })
+    expect(onSelect).toHaveBeenCalledTimes(1)
+    const [node, mods] = onSelect.mock.calls[0]
+    expect(node).toMatchObject({ path: '/vault/docs', isDir: true })
+    expect(mods).toEqual({ cmdOrCtrl: true, shift: false })
+  })
+})
+
+// ===========================================================================
+// 6. Multi-select logic: Cmd-click toggle + Shift-click range (issue #349)
+//
+// Uses a stateful wrapper that mirrors App.tsx's handleTreeSelect logic so we
+// can assert the resulting selectedPaths and .selected classes after each gesture.
+// ===========================================================================
+
+function MultiSelectWrapper({
+  initialSelectedPaths = new Set<string>(),
+  initialAnchorPath = null as string | null,
+  openPaths = new Set<string>(),
+}: {
+  initialSelectedPaths?: Set<string>
+  initialAnchorPath?: string | null
+  openPaths?: Set<string>
+}) {
+  const [selectedPaths, setSelectedPaths] = useState<Set<string>>(initialSelectedPaths)
+  const [anchorPath, setAnchorPath] = useState<string | null>(initialAnchorPath)
+
+  function handleSelect(node: FileNode, mods: SelectModifiers) {
+    const path = node.path
+    if (mods.cmdOrCtrl) {
+      setSelectedPaths((prev) => {
+        const next = new Set(prev)
+        if (next.has(path)) next.delete(path)
+        else next.add(path)
+        return next
+      })
+      setAnchorPath(path)
+    } else if (mods.shift && anchorPath) {
+      const flat = flattenVisibleTree(smallTree, openPaths)
+      const anchorIdx = flat.findIndex((it) => it.node.path === anchorPath)
+      const currentIdx = flat.findIndex((it) => it.node.path === path)
+      if (anchorIdx >= 0) {
+        const [lo, hi] =
+          anchorIdx < currentIdx ? [anchorIdx, currentIdx] : [currentIdx, anchorIdx]
+        const range = flat.slice(lo, hi + 1).map((it) => it.node.path)
+        setSelectedPaths(new Set(range))
+      } else {
+        // anchor no longer visible — fall back to single-select
+        setSelectedPaths(new Set([path]))
+        setAnchorPath(path)
+      }
+    } else {
+      setSelectedPaths(new Set([path]))
+      setAnchorPath(path)
+    }
+  }
+
+  return (
+    <FileTree
+      nodes={smallTree}
+      vaultPath="/vault"
+      selectedPaths={selectedPaths}
+      activeFilePath={null}
+      openPaths={openPaths}
+      creatingIn={null}
+      onToggleOpen={vi.fn()}
+      onSelect={handleSelect}
+      onCreatingInChange={vi.fn()}
+      onContextMenu={vi.fn()}
+      onMove={vi.fn()}
+      onImportResult={vi.fn()}
+    />
+  )
+}
+
+describe('multi-select — plain click resets', () => {
+  it('plain click on a file sets selectedPaths to { clicked.path }', () => {
+    render(
+      <MultiSelectWrapper
+        initialSelectedPaths={new Set(['/vault/docs', '/vault/readme.md'])}
+      />,
+    )
+    fireEvent.click(screen.getByText('assets').closest('button')!)
+    expect(screen.getByText('assets').closest('button')!.classList.contains('selected')).toBe(true)
+    expect(screen.getByText('docs').closest('button')!.classList.contains('selected')).toBe(false)
+    expect(screen.getByText('readme').closest('button')!.classList.contains('selected')).toBe(false)
+  })
+})
+
+describe('multi-select — Cmd-click', () => {
+  it('Cmd-click on unselected item adds it to the set', () => {
+    render(
+      <MultiSelectWrapper initialSelectedPaths={new Set(['/vault/readme.md'])} />,
+    )
+    fireEvent.click(screen.getByText('docs').closest('button')!, { metaKey: true })
+    expect(screen.getByText('readme').closest('button')!.classList.contains('selected')).toBe(true)
+    expect(screen.getByText('docs').closest('button')!.classList.contains('selected')).toBe(true)
+  })
+
+  it('Cmd-click on selected item removes it from the set', () => {
+    render(
+      <MultiSelectWrapper
+        initialSelectedPaths={new Set(['/vault/readme.md', '/vault/docs'])}
+      />,
+    )
+    fireEvent.click(screen.getByText('docs').closest('button')!, { metaKey: true })
+    expect(screen.getByText('docs').closest('button')!.classList.contains('selected')).toBe(false)
+    expect(screen.getByText('readme').closest('button')!.classList.contains('selected')).toBe(true)
+  })
+
+  it('repeated Cmd-click toggles back on (add → remove → add)', () => {
+    render(
+      <MultiSelectWrapper initialSelectedPaths={new Set(['/vault/readme.md'])} />,
+    )
+    const docsBtn = screen.getByText('docs').closest('button')!
+    fireEvent.click(docsBtn, { metaKey: true })
+    expect(docsBtn.classList.contains('selected')).toBe(true)
+    fireEvent.click(docsBtn, { metaKey: true })
+    expect(docsBtn.classList.contains('selected')).toBe(false)
+    fireEvent.click(docsBtn, { metaKey: true })
+    expect(docsBtn.classList.contains('selected')).toBe(true)
+  })
+})
+
+describe('multi-select — Shift-click range', () => {
+  it('Shift-click extends selection from anchor to clicked item (forward)', () => {
+    // With openPaths empty, flat order is: docs, assets, readme
+    // anchor = docs, shift-click readme → range = [docs, assets, readme]
+    render(
+      <MultiSelectWrapper
+        initialSelectedPaths={new Set(['/vault/docs'])}
+        initialAnchorPath="/vault/docs"
+      />,
+    )
+    fireEvent.click(screen.getByText('readme').closest('button')!, { shiftKey: true })
+    expect(screen.getByText('docs').closest('button')!.classList.contains('selected')).toBe(true)
+    expect(screen.getByText('assets').closest('button')!.classList.contains('selected')).toBe(true)
+    expect(screen.getByText('readme').closest('button')!.classList.contains('selected')).toBe(true)
+  })
+
+  it('Shift-click extends selection from anchor to clicked item (reversed — item before anchor)', () => {
+    // anchor = readme, shift-click docs → range = [docs, assets, readme]
+    render(
+      <MultiSelectWrapper
+        initialSelectedPaths={new Set(['/vault/readme.md'])}
+        initialAnchorPath="/vault/readme.md"
+      />,
+    )
+    fireEvent.click(screen.getByText('docs').closest('button')!, { shiftKey: true })
+    expect(screen.getByText('docs').closest('button')!.classList.contains('selected')).toBe(true)
+    expect(screen.getByText('assets').closest('button')!.classList.contains('selected')).toBe(true)
+    expect(screen.getByText('readme').closest('button')!.classList.contains('selected')).toBe(true)
+  })
+
+  it('Shift-click with null anchor falls back to single-select', () => {
+    render(<MultiSelectWrapper />)
+    fireEvent.click(screen.getByText('readme').closest('button')!, { shiftKey: true })
+    expect(screen.getByText('readme').closest('button')!.classList.contains('selected')).toBe(true)
+    expect(screen.getByText('docs').closest('button')!.classList.contains('selected')).toBe(false)
+    expect(screen.getByText('assets').closest('button')!.classList.contains('selected')).toBe(false)
+  })
+
+  it('Shift-click anchor preserved — second Shift-click from same anchor', () => {
+    // anchor = docs, shift-click readme → [docs, assets, readme]
+    // shift-click assets again → [docs, assets] (anchor still docs)
+    render(
+      <MultiSelectWrapper
+        initialSelectedPaths={new Set(['/vault/docs'])}
+        initialAnchorPath="/vault/docs"
+      />,
+    )
+    fireEvent.click(screen.getByText('readme').closest('button')!, { shiftKey: true })
+    fireEvent.click(screen.getByText('assets').closest('button')!, { shiftKey: true })
+    expect(screen.getByText('docs').closest('button')!.classList.contains('selected')).toBe(true)
+    expect(screen.getByText('assets').closest('button')!.classList.contains('selected')).toBe(true)
+    expect(screen.getByText('readme').closest('button')!.classList.contains('selected')).toBe(false)
+  })
+
+  it('collapsed folder children do not enter shift-click range', () => {
+    // openPaths empty — docs children (intro.md, guide.md) are not visible
+    // anchor = docs, shift-click readme → range = [docs, assets, readme], not 5 items
+    render(
+      <MultiSelectWrapper
+        initialSelectedPaths={new Set(['/vault/docs'])}
+        initialAnchorPath="/vault/docs"
+        openPaths={new Set()}
+      />,
+    )
+    fireEvent.click(screen.getByText('readme').closest('button')!, { shiftKey: true })
+    const allSelected = document.querySelectorAll('button.file-tree-row.selected')
+    expect(allSelected).toHaveLength(3) // docs, assets, readme — not intro.md or guide.md
+  })
+})
+
+// ===========================================================================
+// 7. Empty-area click clears selection (issue #349, reviewer observation C)
+// ===========================================================================
+
+describe('multi-select — empty-area click clears selection', () => {
+  it('clicking the empty area below the tree clears selectedPaths', () => {
+    const onClearSelection = vi.fn()
+    const { container } = render(
+      <FileTree
+        {...baseProps({
+          selectedPaths: new Set(['/vault/readme.md', '/vault/docs']),
+          onClearSelection,
+        })}
+      />,
+    )
+    // Click the tree container itself (not a row) — handleEmptyAreaClick guards .file-tree-row children
+    const treeEl = container.querySelector('[role="tree"]')!
+    fireEvent.click(treeEl)
+    expect(onClearSelection).toHaveBeenCalledTimes(1)
+  })
+
+  it('clicking a file row does NOT clear selection (closest .file-tree-row guard)', () => {
+    const onClearSelection = vi.fn()
+    render(
+      <FileTree
+        {...baseProps({
+          selectedPaths: new Set(['/vault/readme.md']),
+          onClearSelection,
+        })}
+      />,
+    )
+    fireEvent.click(screen.getByText('readme').closest('button')!)
+    expect(onClearSelection).not.toHaveBeenCalled()
   })
 })

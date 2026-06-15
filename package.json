@@ -2,7 +2,7 @@
   "name": "marvin",
   "productName": "Marvin",
   "private": true,
-  "version": "0.10.0",
+  "version": "0.11.0",
   "type": "module",
   "main": "dist-electron/main.cjs",
   "scripts": {
@@ -11,11 +11,65 @@
     "start": "ELECTRON_RUN_AS_NODE= electron .",
     "preview:app": "npm run build && ELECTRON_RUN_AS_NODE= electron .",
     "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "preview": "vite preview",
     "postinstall": "node scripts/fix-node-pty.cjs",
+    "prepare": "husky",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "complexity:predict": "tsx scripts/complexity/record-prediction.ts",
+    "complexity:outcome": "tsx scripts/complexity/record-outcome.ts",
+    "complexity:trend": "tsx scripts/complexity/trend-report.ts",
+    "complexity:version": "tsx scripts/complexity/harness-version.ts",
+    "jscpd": "jscpd --config .jscpd.json",
+    "knip": "knip",
+    "depcruise": "depcruise --config .dependency-cruiser.cjs src electron scripts",
+    "scan:todo": "grep -rn 'TODO|FIXME|XXX' src electron scripts --include='*.ts' --include='*.tsx' --include='*.js' --include='*.cjs' || true",
+    "pack": "npm run build && electron-builder --dir",
+    "dist": "npm run build && electron-builder",
+    "dist:mac": "npm run build && electron-builder --mac",
+    "dist:win": "npm run build && electron-builder --win",
+    "dist:linux": "npm run build && electron-builder --linux"
+  },
+  "build": {
+    "appId": "com.marvinz.app",
+    "productName": "Marvin",
+    "asar": true,
+    "asarUnpack": [
+      "**/node_modules/node-pty/**"
+    ],
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "dist/**",
+      "dist-electron/**",
+      "package.json"
+    ],
+    "mac": {
+      "target": [
+        "dmg"
+      ],
+      "icon": "build/icon.icns",
+      "category": "public.app-category.productivity"
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ],
+      "icon": "build/icon.png"
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "icon": "build/icon.png",
+      "category": "Utility"
+    }
   },
   "dependencies": {
     "@codemirror/lang-cpp": "^6.0.3",
@@ -59,6 +113,7 @@
     "dompurify": "^3.4.7",
     "mammoth": "^1.12.0",
     "marked": "^18.0.4",
+    "mermaid": "^11.15.0",
     "nanoid": "^5.1.11",
     "node-pty": "^1.1.0",
     "papaparse": "^5.5.3",
@@ -69,6 +124,7 @@
     "react-dom": "^19.2.5",
     "react-markdown": "^10.1.0",
     "remark-gfm": "^4.0.1",
+    "xlsx": "^0.18.5",
     "yaml": "^2.8.4",
     "zustand": "^5.0.13"
   },
@@ -82,22 +138,41 @@
     "@types/papaparse": "^5.5.2",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
+    "@types/xlsx": "^0.0.35",
     "@vitejs/plugin-react": "^6.0.1",
     "@vitest/coverage-v8": "^4.1.7",
     "concurrently": "^9.2.1",
+    "dependency-cruiser": "^17.4.3",
     "electron": "^42.2.0",
     "electron-builder": "^26.8.1",
     "eslint": "^10.2.1",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.5.0",
+    "husky": "^9.1.7",
+    "jscpd": "^5.0.9",
     "jsdom": "^29.1.1",
+    "knip": "^6.16.1",
+    "lint-staged": "^17.0.7",
     "playwright": "^1.60.0",
+    "prettier": "^3.8.4",
+    "rollup-plugin-visualizer": "^7.0.1",
+    "tsx": "^4.22.3",
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.58.2",
     "vite": "^8.0.10",
     "vite-plugin-electron": "^0.29.1",
     "vite-plugin-electron-renderer": "^0.14.7",
-    "vitest": "^4.1.7"
+    "vitest": "^4.1.7",
+    "zod": "^4.4.3"
+  },
+  "lint-staged": {
+    "*.{ts,tsx}": [
+      "prettier --write",
+      "eslint --fix"
+    ],
+    "*.{js,cjs,json,md,yml,yaml}": [
+      "prettier --write"
+    ]
   }
 }

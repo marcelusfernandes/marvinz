@@ -26,6 +26,8 @@ export default defineConfig({
           environment: 'jsdom',
           include: [
             'src/components/__tests__/**/*.spec.{ts,tsx}',
+            // src/lib/__tests__ convention: .spec.tsx → editor (jsdom); .spec.ts → electron (node).
+            'src/lib/__tests__/**/*.spec.tsx',
           ],
           setupFiles: ['src/lib/chat/__tests__/setup.ts'],
         },
@@ -56,6 +58,13 @@ export default defineConfig({
             reporter: ['text', 'lcov'],
             thresholds: { lines: 80, functions: 80, branches: 80 },
           },
+        },
+      },
+      {
+        test: {
+          name: 'complexity',
+          environment: 'node',
+          include: ['scripts/complexity/__tests__/**/*.spec.ts'],
         },
       },
     ],

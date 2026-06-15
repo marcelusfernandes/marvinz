@@ -156,6 +156,46 @@
   --timeline-connector: var(--border-subtle);
 }
 
+[data-flavor='pastel'] {
+  /* === Surfaces — warm cream canvas (ramp lowered for reading comfort) === */
+  --bg-app:    #f7f2eb;  /* warm cream canvas */
+  --surface-1: #f2ebe0;  /* cream; cards, sidebars */
+  --surface-2: #ebe0d2;  /* warm beige; recessed inputs, search */
+  --surface-3: #e3d5c4;  /* tan; hover fills, inactive tabs */
+
+  /* === Borders — warm, muted === */
+  --border-subtle: rgba(92, 60, 30, 0.06);  /* warm tint replaces cool black/5% */
+  --border:        #e0d0be;                  /* warm divider; replaces #e8e8ea */
+  --border-strong: #8f6e5c;                  /* warm emphasis; ≥3:1 on revised surfaces (AA UI component) */
+
+  /* === Text — warm-brown scale === */
+  --text-primary:   #2b1f14;  /* dark espresso; 14.78:1 on bg-app */
+  --text-secondary: #6b5344;  /* medium warm brown; 6.57:1 on bg-app */
+  --text-tertiary:  #766050;  /* muted warm brown; 4.5:1 on surface-2 (AA) */
+
+  /* === Accent — clay/coral (Claude brand family) === */
+  --accent:       #a84f2b;                   /* clay; replaces raspberry #c95d7f */
+  --accent-bg:    rgba(168, 79, 43, 0.12);   /* warm tint wash */
+  --accent-text:  #a84f2b;                   /* same clay; 5.07:1 on bg-app (AA) */
+  --on-accent:    #ffffff;                   /* white on clay; 5.50:1 (AA) */
+
+  /* === Hover washes — warm tint === */
+  --bg-hover:        rgba(92, 60, 30, 0.07);   /* warm hover; replaces cool black/6% */
+  --bg-hover-strong: rgba(92, 60, 30, 0.12);   /* warm strong hover */
+
+  /* === Shell wash — deeper than panels so surface-1 reads as elevated === */
+  --shell-wash: rgba(235, 224, 210, 0.85);  /* surface-2 base, 0.85 opacity resists vibrancy lightening */
+
+  /* === Shadows — warmer tint for clay surfaces === */
+  --shadow-sm: 0 1px 2px rgba(60, 35, 10, 0.06);
+  --shadow-md: 0 4px 12px rgba(60, 35, 10, 0.10);
+  --shadow-lg: 0 12px 30px rgba(60, 35, 10, 0.18);
+
+  /* === Focus ring — warm tint === */
+  --focus-ring:       0 0 0 3px rgba(92, 60, 30, 0.35);
+  --focus-ring-inset: inset 0 0 0 2px rgba(92, 60, 30, 0.50);
+}
+
 [data-theme='dark'] {
   /* Surface scale inverted from light: in dark, "elevated" surfaces are
      LIGHTER (more luminance). surface-2 = recessed inputs/search,
@@ -232,6 +272,46 @@
   /* Chat panel — provider labels (dark) */
   --provider-claude-fg: #e6a06b;
   --provider-codex-fg: #e6a06b;
+}
+
+[data-flavor='pastel'][data-theme='dark'] {
+  /* === Surfaces — warm-neutral charcoal; R-B +6/+8 (subtle warmth, not espresso) === */
+  --bg-app:    #1a1614;  /* warm charcoal canvas */
+  --surface-1: #1f1b19;  /* warm charcoal; cards */
+  --surface-2: #24211e;  /* warm dark; inputs */
+  --surface-3: #2b2723;  /* raised; hover tabs */
+
+  /* === Borders — warm dark === */
+  --border-subtle: rgba(255, 200, 150, 0.07);  /* warm white tint */
+  --border:        #3d2b1e;                     /* warm dark divider */
+  --border-strong: #9a7460;                     /* warm dark emphasis; 3.56:1 on surface-3 (AA UI component) */
+
+  /* === Text — warm cream scale === */
+  --text-primary:   #f5ede4;  /* warm cream; 15.48:1 on bg-app */
+  --text-secondary: #c9a98f;  /* warm tan; 8.17:1 on bg-app */
+  --text-tertiary:  #b09070;  /* muted warm; 6.04:1 on bg-app */
+
+  /* === Accent — lighter clay for dark surfaces === */
+  --accent:       #d97a45;                   /* lighter clay; bright enough on dark */
+  --accent-bg:    rgba(217, 122, 69, 0.18);  /* warm tint wash */
+  --accent-text:  #d97a45;                   /* 5.83:1 on bg-app (AA) */
+  --on-accent:    #1a1614;                   /* dark text on light clay; 5.84:1 (AA) */
+
+  /* === Hover washes — warm light tint === */
+  --bg-hover:        rgba(255, 200, 150, 0.08);
+  --bg-hover-strong: rgba(255, 200, 150, 0.13);
+
+  /* === Shell wash — dark espresso vibrancy tint === */
+  --shell-wash: rgba(18, 12, 8, 0.78);
+
+  /* === Shadows — heavier for dark as per token rules === */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.20);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.35);
+  --shadow-lg: 0 12px 30px rgba(0, 0, 0, 0.55);
+
+  /* === Focus ring — warm tint on dark === */
+  --focus-ring:       0 0 0 3px rgba(255, 200, 150, 0.35);
+  --focus-ring-inset: inset 0 0 0 2px rgba(255, 200, 150, 0.50);
 }
 
 * {
@@ -707,6 +787,10 @@ button {
   color: var(--text-primary);
 }
 
+.file-tree-row.cut {
+  opacity: 0.5;
+}
+
 .file-tree-row.active-file.file .name,
 .file-tree-row.active-file.file.non-md .name {
   color: var(--accent);
@@ -864,6 +948,76 @@ button {
   align-items: center;
   justify-content: center;
   color: var(--text-tertiary);
+}
+
+.empty-tab {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-7);
+  background: var(--surface-1);
+  border-radius: var(--radius-lg);
+}
+
+.empty-tab-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 240px));
+  gap: var(--space-4);
+  width: 100%;
+  max-width: 520px;
+}
+
+@media (max-width: 640px) {
+  .empty-tab-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.empty-tab-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-5);
+  background: var(--surface-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  color: var(--text-primary);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out);
+}
+
+.empty-tab-card:hover {
+  background: var(--bg-hover);
+  border-color: var(--border);
+  box-shadow: var(--shadow-md);
+}
+
+.empty-tab-card:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.empty-tab-card-icon {
+  color: var(--accent);
+}
+
+.empty-tab-card-title {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-tight);
+}
+
+.empty-tab-card-description {
+  font-size: var(--font-size-md);
+  color: var(--text-secondary);
+  line-height: var(--line-height-normal);
 }
 
 .editor {
@@ -1036,6 +1190,55 @@ button {
   background: transparent;
   color: var(--accent-text);
   font-weight: 700;
+}
+
+/* Selection-to-agent chip — floats above CodeMirror selection end */
+.selection-chip {
+  position: fixed;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  margin-top: var(--space-1);
+  background: var(--accent);
+  color: var(--on-accent);
+  border: 0;
+  font: inherit;
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-sm);
+  z-index: var(--z-popover);
+  cursor: pointer;
+  overflow: hidden;
+  max-width: 20px;
+  white-space: nowrap;
+  transition:
+    max-width var(--duration-fast) var(--ease-out),
+    opacity var(--duration-fast) var(--ease-out);
+  opacity: 0.85;
+}
+
+.selection-chip:hover,
+.selection-chip:focus-visible {
+  max-width: 110px;
+  padding: var(--space-1) var(--space-2);
+  opacity: 1;
+}
+
+.selection-chip:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.selection-chip__label {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  opacity: 0;
+  transition: opacity var(--duration-fast) var(--ease-out);
+}
+
+.selection-chip:hover .selection-chip__label,
+.selection-chip:focus-visible .selection-chip__label {
+  opacity: 1;
 }
 
 .tab-bar {
@@ -1482,6 +1685,318 @@ button {
   box-shadow: var(--focus-ring-inset);
 }
 
+/* === XlsxViewer === */
+
+.xlsx-viewer {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--surface-1);
+}
+
+.xlsx-viewer-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-2) var(--space-4);
+  border-bottom: 1px solid var(--border);
+  height: 38px;
+  flex-shrink: 0;
+  font-size: var(--font-size-md);
+  color: var(--text-secondary);
+  gap: var(--space-3);
+}
+
+.xlsx-viewer-name {
+  font-weight: var(--font-weight-medium);
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.xlsx-viewer-dirty {
+  color: var(--text-secondary);
+  margin-left: var(--space-1);
+}
+
+.xlsx-viewer-dirty-text {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.xlsx-viewer-sheets {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-4);
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border-subtle);
+  overflow-x: auto;
+  flex-shrink: 0;
+}
+
+.xlsx-viewer-sheet {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-md);
+  background: transparent;
+  border: 1px solid transparent;
+  white-space: nowrap;
+  transition: background var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+}
+
+.xlsx-viewer-sheet:hover:not(.xlsx-viewer-sheet-active):not([aria-disabled='true']) {
+  color: var(--text-primary);
+  background: var(--surface-3);
+}
+
+.xlsx-viewer-sheet[aria-disabled='true'] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.xlsx-viewer-sheet-active {
+  color: var(--text-primary);
+  background: var(--surface-1);
+  border-color: var(--border);
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+
+.xlsx-viewer-sheet:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+
+.xlsx-viewer-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  background: var(--bg-error-subtle);
+  color: var(--text-error);
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: var(--font-size-sm);
+  flex-shrink: 0;
+}
+
+.xlsx-viewer-grid-host {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  background: var(--surface-1);
+}
+
+.xlsx-viewer-grid {
+  border-collapse: separate;
+  border-spacing: 0;
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-md);
+  color: var(--text-primary);
+  width: max-content;
+  min-width: 100%;
+}
+
+.xlsx-viewer-corner,
+.xlsx-viewer-colhead,
+.xlsx-viewer-rowhead {
+  background: var(--surface-2);
+  color: var(--text-secondary);
+  font-weight: var(--font-weight-medium);
+  font-size: var(--font-size-sm);
+  text-align: center;
+  border-right: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--border-subtle);
+  position: sticky;
+  user-select: none;
+}
+
+.xlsx-viewer-corner,
+.xlsx-viewer-colhead {
+  top: 0;
+  z-index: 2;
+}
+
+.xlsx-viewer-rowhead {
+  left: 0;
+  z-index: 1;
+  min-width: 44px;
+  padding: var(--space-2);
+}
+
+.xlsx-viewer-corner {
+  left: 0;
+  z-index: 3;
+  min-width: 44px;
+}
+
+.xlsx-viewer-colhead {
+  padding: var(--space-2) var(--space-3);
+  min-width: 96px;
+}
+
+.xlsx-viewer-cell {
+  border-right: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--border-subtle);
+  padding: 0;
+  min-width: 96px;
+  max-width: 320px;
+  height: 28px;
+  vertical-align: middle;
+  cursor: cell;
+  background: var(--surface-1);
+}
+
+.xlsx-viewer-cell:hover {
+  background: var(--bg-hover);
+}
+
+.xlsx-viewer-cell-editing {
+  padding: 0;
+  background: var(--surface-1);
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+.xlsx-viewer-cell-value {
+  display: block;
+  padding: var(--space-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.xlsx-viewer-cell-input {
+  width: 100%;
+  height: 100%;
+  padding: var(--space-2);
+  border: none;
+  outline: none;
+  background: transparent;
+  font-family: inherit;
+  font-size: inherit;
+  color: var(--text-primary);
+}
+
+.xlsx-viewer-empty {
+  padding: var(--space-6);
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: var(--font-size-md);
+}
+
+.xlsx-viewer-status {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-6);
+  font-size: var(--font-size-md);
+  color: var(--text-secondary);
+}
+
+.xlsx-viewer-error-card {
+  margin: var(--space-4);
+  padding: var(--space-4);
+  border: 1px solid var(--border-error);
+  background: var(--bg-error-subtle);
+  color: var(--text-error);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-md);
+}
+
+.xlsx-viewer-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  border-top: 1px solid var(--border);
+  background: var(--surface-1);
+  flex-shrink: 0;
+  height: 44px;
+}
+
+.xlsx-viewer-save-error {
+  font-size: var(--font-size-sm);
+  color: var(--text-error);
+  margin-right: auto;
+}
+
+.xlsx-viewer-action {
+  font-size: var(--font-size-sm);
+  color: var(--text-tertiary);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  transition: background var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+}
+
+.xlsx-viewer-action:hover:not(:disabled) {
+  color: var(--text-primary);
+  background: var(--surface-3);
+}
+
+.xlsx-viewer-action:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.xlsx-viewer-action:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+
+.xlsx-viewer-action-primary {
+  color: var(--text-primary);
+  background: var(--accent-bg);
+  border-color: var(--border-strong);
+}
+
+/* Test-visible state classes (loading / error / content) */
+.xlsx-viewer-loading {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-6);
+  font-size: var(--font-size-md);
+  color: var(--text-secondary);
+}
+
+.xlsx-viewer-error {
+  margin: var(--space-4);
+  padding: var(--space-4);
+  border: 1px solid var(--border-error);
+  background: var(--bg-error-subtle);
+  color: var(--text-error);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-md);
+  flex-shrink: 0;
+}
+
+/* .xlsx-viewer-cell-header — data-row header cells (first row of the sheet) */
+.xlsx-viewer-cell-header {
+  background: var(--surface-2);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+}
+
+/* Actions bar (Edit / Save / Discard / Reveal buttons) */
+.xlsx-viewer-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
 /* === Editor / browser stack (everything below the tab bar) === */
 
 .editor-stack {
@@ -1503,6 +2018,15 @@ button {
   min-height: 0;
   display: flex;
   flex-direction: column;
+}
+
+/* Inactive editors are hidden with the HTML `hidden` attribute (mounted-but-
+   hidden stack, #440). The `display: flex` above would otherwise override the
+   UA `[hidden] { display: none }`, leaving every open editor stacked and
+   visible. The class+attribute selector restores display:none so only the
+   active tab renders. */
+.note-tab-container[hidden] {
+  display: none;
 }
 
 .note-tab-container > .editor {
@@ -1895,6 +2419,19 @@ button {
   border-left: 2px solid var(--accent) !important;
 }
 
+/* Caret slide — the cursor glides to its new position via a transition on the
+   left/transform CodeMirror sets per measure. Gated on both data-attrs and on
+   the reduced-motion media query (the robust opt-out). A large paragraph jump
+   still glides on `left`; if that reads poorly, a JS distance cap is a follow-up
+   for a later sub-issue (out of scope here). */
+@media (prefers-reduced-motion: no-preference) {
+  [data-editor-effects='on'][data-editor-effect-caret-slide='on'] .cm-host .cm-cursor {
+    transition:
+      left var(--duration-fast) var(--ease-out),
+      transform var(--duration-fast) var(--ease-out);
+  }
+}
+
 .cm-host .cm-gutters {
   background: var(--surface-1);
   border-right: 1px solid var(--border);
@@ -2018,6 +2555,15 @@ button {
   background: var(--surface-1);
   border-radius: var(--radius-lg);
   overflow: hidden;
+}
+
+[data-agents-pane-transparent='true'] .claude-pane {
+  background: transparent;
+  border-radius: 0;
+}
+
+[data-agents-pane-transparent='true'] .agent-tabs {
+  padding: 0;
 }
 
 .claude-terminal {
@@ -2363,6 +2909,16 @@ button {
   pointer-events: auto;
 }
 
+.agent-terminal-drop-overlay {
+  position: absolute;
+  inset: var(--space-2);
+  border: 2px solid var(--accent);
+  border-radius: var(--radius-lg);
+  background: var(--accent-bg);
+  pointer-events: none;
+  z-index: 1;
+}
+
 .agent-restart-bar {
   display: flex;
   justify-content: flex-end;
@@ -2493,6 +3049,11 @@ button {
   font-size: var(--font-size-sm);
   color: var(--text-tertiary);
   margin-top: 2px;
+}
+
+/* A sub-toggle whose parent master switch is off: dimmed but value preserved. */
+.modal-section-row.is-disabled {
+  opacity: 0.5;
 }
 
 /* Segmented control — visual language matches LayoutToggle */
@@ -2829,7 +3390,7 @@ button {
 .md-preview-inner h5,
 .md-preview-inner h6 {
   font-weight: var(--font-weight-semibold);
-  margin: 1.6em 0 0.6em;
+  margin: 2em 0 0.6em;
   line-height: var(--line-height-tight);
   color: var(--text-primary);
 }
@@ -2917,7 +3478,8 @@ button {
 .md-preview-inner hr {
   border: none;
   border-top: 1px solid var(--border);
-  margin: 2em 0;
+  /* Effective gap was ~3em (margin + prev block's 1em rhythm); tightened to 1.5em. */
+  margin: 1.5em 0;
 }
 
 .md-preview-inner table {
@@ -2939,6 +3501,19 @@ button {
   font-weight: 600;
 }
 
+/* Strip ghost bottom-rhythm margin: cell/blockquote/doc last block, and every nested list. */
+.md-preview-inner :is(td, th) > :last-child,
+.md-preview-inner blockquote > :last-child,
+.md-preview-inner li > :is(ul, ol),
+.md-preview-inner > :last-child {
+  margin-bottom: 0;
+}
+
+/* Bold-only paragraph before a list = its section label (`**Label:**` pattern); bind it below. */
+.md-preview-inner p:has(> strong:only-child):has(+ :is(ul, ol)) {
+  margin-bottom: 0.3em;
+}
+
 .md-preview-inner img {
   max-width: 100%;
   border-radius: var(--radius-md);
@@ -2954,6 +3529,87 @@ button {
   background: var(--surface-2);
   border: 1px dashed var(--border);
   border-radius: var(--radius-sm);
+}
+
+/* Mermaid diagrams rendered in Page mode (issue #353). The container reads as
+   a subtle inset card; the SVG is rendered into the inner __canvas. */
+.mermaid-diagram {
+  display: block;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  margin-top: var(--space-4);
+  margin-bottom: var(--space-4);
+  box-shadow: var(--shadow-sm);
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+/* Dark theme already carries heavier shadows; a lift on dark surfaces reads
+   as noise, so drop it. */
+[data-theme='dark'] .mermaid-diagram {
+  box-shadow: none;
+}
+
+.mermaid-diagram__canvas {
+  display: flex;
+  justify-content: center;
+  transition: min-height var(--duration-fast) var(--ease-out);
+}
+
+.mermaid-diagram__canvas svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.mermaid-diagram--loading .mermaid-diagram__canvas {
+  min-height: 80px;
+  background: linear-gradient(
+    90deg,
+    var(--surface-2) 25%,
+    var(--surface-3) 50%,
+    var(--surface-2) 75%
+  );
+  background-size: 200% 100%;
+  animation: mermaid-shimmer var(--duration-slow) ease-in-out infinite;
+  border-radius: var(--radius-md);
+}
+
+@keyframes mermaid-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.mermaid-diagram--error {
+  border-color: var(--border-error);
+  background: var(--bg-error-subtle);
+}
+
+.mermaid-diagram__error {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.mermaid-diagram__error-label {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-error);
+}
+
+.mermaid-diagram__error-detail {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-regular);
+  color: var(--text-secondary);
+  font-family: var(--font-family-mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .md-preview-inner input[type='checkbox'] {
@@ -3320,9 +3976,8 @@ button.prop-bool {
 .live-md h5,
 .live-md h6 {
   font-weight: var(--font-weight-semibold);
-  /* Zero top margin: rely on the previous element's bottom margin for
-     separation. This keeps WYSIWYG transforms from "jumping" the line. */
-  margin: 0.4em 0 0.6em;
+  /* 2em top matches preview parity; trade-off: a line becoming a heading mid-typing shifts down. */
+  margin: 2em 0 0.6em;
   line-height: var(--line-height-tight);
   color: var(--text-primary);
 }
@@ -3401,7 +4056,7 @@ button.prop-bool {
 .live-md hr {
   border: none;
   border-top: 1px solid var(--border);
-  margin: 2em 0;
+  margin: 1.5em 0;
 }
 
 .live-md table {
@@ -3423,6 +4078,18 @@ button.prop-bool {
   font-weight: 600;
 }
 
+/* Same as preview, minus the root `> :last-child` — live editor keeps cursor room after the last block. */
+.live-md :is(td, th) > :last-child,
+.live-md blockquote > :last-child,
+.live-md li > :is(ul, ol) {
+  margin-bottom: 0;
+}
+
+/* Same label-binding heuristic as the preview. */
+.live-md p:has(> strong:only-child):has(+ :is(ul, ol)) {
+  margin-bottom: 0.3em;
+}
+
 .live-md img {
   max-width: 100%;
   border-radius: var(--radius-md);
@@ -3431,6 +4098,47 @@ button.prop-bool {
 .live-md input[type='checkbox'] {
   margin-right: 6px;
   vertical-align: middle;
+}
+
+/* GFM task items (issue #437): the node view renders
+   `<li data-item-type="task"><input type="checkbox"><div class="task-list-item__content">…`.
+   Lay the checkbox and its content on one line and hide the list bullet for
+   task items only — regular bullet/ordered items keep their marker.
+
+   With the bullet hidden, the list's bullet-reserved `padding-left` (1.6em on
+   `ul`/`ol`) leaves an orphan gap before the checkbox. The negative
+   `margin-left` (matching that reserved indent) pulls the task item left so the
+   checkbox aligns to the content margin. Scoped to the task `<li>` itself (not
+   the `<ul>`) so a regular sibling in a mixed list keeps its marker and indent;
+   nesting is preserved because a nested task list still sits inside its parent
+   item's flex content and keeps its own `<ul>` padding — the negative margin
+   only cancels the one bullet-reserved level. */
+.live-md li[data-item-type='task'],
+.md-preview-inner li[data-item-type='task'] {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  list-style: none;
+  margin-left: -1.6em;
+}
+
+/* The checkbox spacing comes from the flex `gap`; drop the generic
+   `margin-right` so task items don't get a double gap. */
+.live-md li[data-item-type='task'] > input[type='checkbox'],
+.md-preview-inner li[data-item-type='task'] > input[type='checkbox'] {
+  margin-right: 0;
+  flex: none;
+}
+
+.live-md .task-list-item__content,
+.md-preview-inner .task-list-item__content {
+  flex: 1;
+  min-width: 0;
+}
+
+.live-md .task-list-item__content > p,
+.md-preview-inner .task-list-item__content > p {
+  margin: 0;
 }
 
 .live-md del {
@@ -5161,6 +5869,7 @@ button.prop-bool {
 /* Composer -------------------------------------------------------- */
 
 .chat-composer {
+  position: relative;
   background: var(--surface-3);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
@@ -5173,6 +5882,16 @@ button.prop-bool {
 .chat-composer.disabled {
   opacity: 0.5;
   pointer-events: none;
+}
+
+.chat-composer-drop-overlay {
+  position: absolute;
+  inset: var(--space-2);
+  border: 2px solid var(--accent);
+  border-radius: var(--radius-lg);
+  background: var(--accent-bg);
+  pointer-events: none;
+  z-index: 1;
 }
 
 .chat-composer-input-row {

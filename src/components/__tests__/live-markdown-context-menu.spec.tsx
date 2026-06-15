@@ -35,10 +35,14 @@ type FakePMState = {
   selection: { empty: boolean; from: number; to: number }
   _undoDepth: number
   _redoDepth: number
-  doc: { textBetween: (from: number, to: number, blockSep?: string, leafText?: string) => string }
+  doc: {
+    textBetween: (from: number, to: number, blockSep?: string, leafText?: string) => string
+    slice: (from: number, to: number) => { content: { _fragment: true } }
+  }
   tr: {
     deleteSelection: () => { _kind: 'delete' }
     insertText: (text: string) => { _kind: 'insertText'; _text: string }
+    replaceSelection: (slice: unknown) => { _kind: 'replaceSelection'; _slice: unknown }
   }
 }
 
@@ -52,10 +56,12 @@ function makePMState(overrides: Partial<{ hasSelection: boolean; undoDepth: numb
     _redoDepth: overrides.redoDepth ?? 0,
     doc: {
       textBetween: (f: number, t: number) => docText.slice(f, t),
+      slice: () => ({ content: { _fragment: true as const } }),
     },
     tr: {
       deleteSelection: () => ({ _kind: 'delete' }),
       insertText: (text: string) => ({ _kind: 'insertText', _text: text }),
+      replaceSelection: (slice: unknown) => ({ _kind: 'replaceSelection', _slice: slice }),
     },
   }
 }
@@ -65,6 +71,7 @@ type FakePMView = {
   dom: HTMLElement
   focus: ReturnType<typeof vi.fn>
   dispatch: ReturnType<typeof vi.fn>
+  someProp: (name: string) => unknown
 }
 
 function makePMView(stateOverrides?: Parameters<typeof makePMState>[0]): FakePMView {
@@ -75,6 +82,10 @@ function makePMView(stateOverrides?: Parameters<typeof makePMState>[0]): FakePMV
     dom,
     focus: vi.fn(),
     dispatch: vi.fn(),
+    // Rich-clipboard wire-up calls view.someProp('clipboardSerializer') / 'clipboardParser';
+    // returning undefined makes the handler fall through to the text-only path that
+    // these tests exercise (`insertText` for paste, empty `html` for copy/cut).
+    someProp: () => undefined,
   }
 }
 
@@ -158,14 +169,17 @@ vi.mock('@milkdown/react', () => ({
 vi.mock('@milkdown/preset-commonmark', () => ({
   commonmark: {},
   imageSchema: { node: {} },
+  codeBlockSchema: { node: {} },
+  bulletListSchema: { type: () => ({}) },
+  listItemSchema: { type: () => ({}) },
 }))
-vi.mock('@milkdown/preset-gfm', () => ({ gfm: {} }))
+vi.mock('@milkdown/preset-gfm', () => ({ gfm: {}, extendListItemSchemaForTask: { node: {} } }))
 vi.mock('@milkdown/plugin-listener', () => ({
   listener: {},
   listenerCtx: Symbol('listenerCtx'),
 }))
 vi.mock('@milkdown/plugin-history', () => ({ history: [] }))
-vi.mock('@milkdown/utils', () => ({ $view: () => ({}) }))
+vi.mock('@milkdown/utils', () => ({ $view: () => ({}), $inputRule: () => ({}) }))
 vi.mock('@milkdown/prose/view', () => ({}))
 
 // ---------------------------------------------------------------------------
@@ -190,14 +204,16 @@ import { LiveMarkdown } from '../LiveMarkdown'
 
 let showContextMenuMock: ReturnType<typeof vi.fn>
 let canPasteMock: ReturnType<typeof vi.fn>
-let writeClipboardMock: ReturnType<typeof vi.fn>
-let readClipboardMock: ReturnType<typeof vi.fn>
+let writeClipboardRichMock: ReturnType<typeof vi.fn>
+let readClipboardRichMock: ReturnType<typeof vi.fn>
+let getSpellcheckContextMock: ReturnType<typeof vi.fn>
 
 function setupMarvinMock() {
   showContextMenuMock = vi.fn()
   canPasteMock = vi.fn().mockResolvedValue(false)
-  writeClipboardMock = vi.fn().mockResolvedValue(undefined)
-  readClipboardMock = vi.fn().mockResolvedValue('')
+  writeClipboardRichMock = vi.fn().mockResolvedValue(undefined)
+  readClipboardRichMock = vi.fn().mockResolvedValue({ html: '', text: '' })
+  getSpellcheckContextMock = vi.fn().mockResolvedValue({ misspelledWord: '', suggestions: [] })
   Object.defineProperty(globalThis, 'window', {
     value: {
       ...(typeof window !== 'undefined' ? window : {}),
@@ -207,8 +223,11 @@ function setupMarvinMock() {
           canPaste: canPasteMock,
         },
         editor: {
-          writeClipboard: writeClipboardMock,
-          readClipboard: readClipboardMock,
+          writeClipboard: vi.fn(),
+          readClipboard: vi.fn(),
+          writeClipboardRich: writeClipboardRichMock,
+          readClipboardRich: readClipboardRichMock,
+          getSpellcheckContext: getSpellcheckContextMock,
         },
         shell: { openExternal: vi.fn() },
       },
@@ -454,37 +473,39 @@ describe('LiveMarkdown — context menu action dispatch', () => {
     expect(mockPMRedo).toHaveBeenCalledWith(currentPMView.state, currentPMView.dispatch)
   })
 
-  it('writes selected text to clipboard when action is cut, then dispatches deleteSelection', async () => {
+  it('writes rich clipboard payload when action is cut, then dispatches deleteSelection', async () => {
     currentPMView = makePMView({ hasSelection: true, docText: 'hello world', selectionFrom: 0, selectionTo: 5 })
     showContextMenuMock.mockResolvedValue('cut')
     const { container } = render(<LiveMarkdown {...defaultProps()} />)
     await act(async () => {
       rightClickLiveMD(container)
     })
-    expect(writeClipboardMock).toHaveBeenCalledWith('hello')
+    expect(writeClipboardRichMock).toHaveBeenCalledTimes(1)
+    expect(writeClipboardRichMock.mock.calls[0][0]).toEqual({ html: '', text: 'hello' })
     expect(currentPMView.dispatch).toHaveBeenCalledWith({ _kind: 'delete' })
   })
 
-  it('writes selected text to clipboard when action is copy, without dispatching', async () => {
+  it('writes rich clipboard payload when action is copy, without dispatching', async () => {
     currentPMView = makePMView({ hasSelection: true, docText: 'hello world', selectionFrom: 0, selectionTo: 5 })
     showContextMenuMock.mockResolvedValue('copy')
     const { container } = render(<LiveMarkdown {...defaultProps()} />)
     await act(async () => {
       rightClickLiveMD(container)
     })
-    expect(writeClipboardMock).toHaveBeenCalledWith('hello')
+    expect(writeClipboardRichMock).toHaveBeenCalledTimes(1)
+    expect(writeClipboardRichMock.mock.calls[0][0]).toEqual({ html: '', text: 'hello' })
     expect(currentPMView.dispatch).not.toHaveBeenCalled()
   })
 
-  it('reads clipboard and dispatches insertText when action is paste', async () => {
+  it('reads rich clipboard and dispatches insertText when action is paste (text-only payload)', async () => {
     currentPMView = makePMView()
-    readClipboardMock.mockResolvedValue('pasted text')
+    readClipboardRichMock.mockResolvedValue({ html: '', text: 'pasted text' })
     showContextMenuMock.mockResolvedValue('paste')
     const { container } = render(<LiveMarkdown {...defaultProps()} />)
     await act(async () => {
       rightClickLiveMD(container)
     })
-    expect(readClipboardMock).toHaveBeenCalled()
+    expect(readClipboardRichMock).toHaveBeenCalled()
     expect(currentPMView.dispatch).toHaveBeenCalledWith({ _kind: 'insertText', _text: 'pasted text' })
   })
 
@@ -495,7 +516,7 @@ describe('LiveMarkdown — context menu action dispatch', () => {
     await act(async () => {
       rightClickLiveMD(container)
     })
-    expect(writeClipboardMock).not.toHaveBeenCalled()
+    expect(writeClipboardRichMock).not.toHaveBeenCalled()
   })
 
   it('calls view.focus() after any action', async () => {

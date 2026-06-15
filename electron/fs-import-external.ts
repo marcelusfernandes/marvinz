@@ -6,7 +6,7 @@ import { resolveImportName } from './fs-import-names.js'
 
 type ImportResult = {
   imported: string[]
-  skipped: { source: string; reason: 'not-found' | 'denied' | 'fs-error' }[]
+  skipped: { source: string; reason: 'not-found' | 'denied' | 'broken-symlink' | 'fs-error' }[]
 }
 
 // Best-effort defense in depth against trivial exfiltration of well-known
@@ -38,8 +38,27 @@ const BLOCKED_HOME_SUBPATHS = [
   '.ssh/',
   '.aws/',
   '.gnupg/',
+  '.config/', // gcloud, gh CLI, and many other tool credentials/configs
+  '.docker/', // registry credentials
+  '.kube/', // cluster admin kubeconfigs
   'Library/Keychains/',
   'Library/Cookies/',
+  'Library/Application Support/', // browser saved passwords, IDE tokens, Slack/Discord auth
+  'Library/Mail/',
+  'Library/Messages/',
+  'Library/Containers/',
+  'Library/Group Containers/',
+]
+
+// Loose credential-bearing files directly in ~ (the subpath matcher only
+// covers directories). Matched as exact `~/<name>`.
+const BLOCKED_HOME_FILES = [
+  '.gitconfig', // may carry [credential] plaintext
+  '.netrc',
+  '.npmrc',
+  '.pypirc',
+  '.zsh_history',
+  '.bash_history',
 ]
 
 // os.homedir() may contain symlink components on macOS (FileVault, NFS mounts).
@@ -51,7 +70,7 @@ async function getResolvedHome(): Promise<string> {
   return resolvedHome
 }
 
-function isDenied(real: string, home: string): boolean {
+export function isDenied(real: string, home: string): boolean {
   // POSIX separators only — Marvinz targets macOS (Linux best-effort, Windows unsupported)
   const isBlockedAbsolute = BLOCKED_PATH_PREFIXES.some(
     p => real.startsWith(p) || real + '/' === p,
@@ -60,7 +79,8 @@ function isDenied(real: string, home: string): boolean {
     const base = home + '/' + p.replace(/\/$/, '')
     return real === base || real.startsWith(base + '/')
   })
-  return isBlockedAbsolute || isBlockedInHome
+  const isBlockedFile = BLOCKED_HOME_FILES.some(name => real === home + '/' + name)
+  return isBlockedAbsolute || isBlockedInHome || isBlockedFile
 }
 
 export async function importExternal(
@@ -95,8 +115,12 @@ export async function importExternal(
     let real: string
     try {
       real = await realpath(source)
-    } catch {
-      skipped.push({ source, reason: 'denied' })
+    } catch (e) {
+      // ENOENT here means a dangling symlink (target gone) — a user error they
+      // can fix, distinct from a security-policy block. Other codes (EACCES,
+      // ELOOP) stay 'denied' for defense.
+      const reason = (e as NodeJS.ErrnoException).code === 'ENOENT' ? 'broken-symlink' : 'denied'
+      skipped.push({ source, reason })
       continue
     }
 

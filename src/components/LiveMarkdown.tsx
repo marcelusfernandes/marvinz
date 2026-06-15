@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components -- legacy file exports helpers alongside the component; refactor tracked in #474 */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Editor as MilkdownEditor,
@@ -21,20 +22,31 @@ import { Plugin, TextSelection } from 'prosemirror-state'
 import { dropCursor } from 'prosemirror-dropcursor'
 import type { EditorView } from 'prosemirror-view'
 import { imageNodeView } from '../lib/imageNodeView'
+import { mermaidNodeView } from '../lib/mermaidNodeView'
+import { taskListNodeView } from '../lib/taskListNodeView'
+import { taskListBracketInputRule } from '../lib/taskListInputRule'
 import { justInsertedPlugin, justInsertedPluginKey } from '../lib/pmJustInsertedHighlight'
 import { justReplacedPlugin } from '../lib/pmJustReplacedHighlight'
 import type { PaletteItem } from '../lib/paletteRanker'
-import { parseWikilinks, stripMdExt, unparseWikilinks } from '../lib/wikilinks'
+import { parseWikilinks, unparseWikilinks } from '../lib/wikilinks'
+import { mentionInsertText } from '../lib/mentionInsert'
 import { mentionTrigger } from '../lib/pmMentionTrigger'
 import { MentionPicker } from './MentionPicker'
 import {
   MARVIN_PATH_MIME,
+  MARVIN_PATHS_MIME,
   collectFiles,
   emitSummaryToast,
   internalDragMarkdown,
   persistDroppedFiles,
+  readDraggedPaths,
 } from '../lib/dropAttachments'
 import type { ImportToastState } from './ImportToast'
+import type { AgentKind } from '../lib/agent-drop-format'
+import type { MenuItemSpec } from '../types'
+import { formatSelectionForAgent } from '../lib/agent-selection-format'
+import { clampToViewport } from '../lib/chipViewportClamp'
+import { EditorSelectionChip } from './EditorSelectionChip'
 
 type Props = {
   /** Markdown body (without frontmatter) to render. */
@@ -67,9 +79,60 @@ type Props = {
   onViewReady?: (view: EditorView | null) => void
   /** Surfaces drag-drop import outcomes (success / error / partial). */
   onImportToast?: (toast: { state: ImportToastState; message: string }) => void
+  /** Click handler for the floating selection chip. Receives the formatted
+   * selection text ready to send to the focused agent. */
+  onSendSelection?: (formatted: string) => void
+  /** Agent the formatted selection targets. */
+  agentKind?: AgentKind
 }
 
 type ParserCtxGetter = { get: (key: typeof parserCtx) => (text: string) => PMNode | null }
+
+// Locates the line range of a rendered selection inside the markdown source.
+// Returns "N" or "N-M" if an unambiguous match exists; null otherwise (caller
+// falls back to no range). Best-effort: rendered text equals source for plain
+// paragraphs, but markdown decorations (bold, headings, emphasis) strip on
+// render — those selections fail to match and gracefully degrade.
+export function findSelectionLineRange(selectedText: string, source: string): string | null {
+  const trimmed = selectedText.replace(/\s+$/, '')
+  if (!trimmed || !source) return null
+  const idx = source.indexOf(trimmed)
+  if (idx === -1) return null
+  if (source.indexOf(trimmed, idx + 1) !== -1) return null
+  const startLine = source.slice(0, idx).split('\n').length
+  const endLine = source.slice(0, idx + trimmed.length).split('\n').length
+  return startLine === endLine ? `${startLine}` : `${startLine}-${endLine}`
+}
+
+// Resolve the document range of a misspelled word so a suggestion can replace
+// it. The native context-menu event positions the caret inside the clicked
+// word but the IPC returns no range, so we scan the caret's textblock for the
+// occurrence of `word` that contains the cursor offset. Picking the occurrence
+// under the caret (rather than the first match) keeps the right word when it
+// repeats in the block. Returns null when the caret isn't inside a textblock
+// or the word can't be located there.
+export function misspelledWordRange(
+  state: import('prosemirror-state').EditorState,
+  word: string
+): { from: number; to: number } | null {
+  if (!word) return null
+  const $from = state.selection.$from
+  const parent = $from.parent
+  if (!parent.isTextblock) return null
+  const blockStart = $from.start()
+  const text = parent.textContent
+  const caret = $from.pos - blockStart
+  let idx = text.indexOf(word)
+  while (idx !== -1) {
+    // Strict upper bound: caret at idx + word.length sits in the gap after the
+    // word (e.g. on the following space), which is not inside the word.
+    if (caret >= idx && caret < idx + word.length) {
+      return { from: blockStart + idx, to: blockStart + idx + word.length }
+    }
+    idx = text.indexOf(word, idx + 1)
+  }
+  return null
+}
 
 // Backspace command: when the cursor is immediately after an atom inline
 // node (image), delete it in a single keystroke instead of the default
@@ -78,7 +141,7 @@ type ParserCtxGetter = { get: (key: typeof parserCtx) => (text: string) => PMNod
 // the user by wiping a whole link when they typed adjacent content.
 function deleteReferenceBackward(
   state: import('prosemirror-state').EditorState,
-  dispatch?: (tr: import('prosemirror-state').Transaction) => void,
+  dispatch?: (tr: import('prosemirror-state').Transaction) => void
 ): boolean {
   if (!state.selection.empty) return false
   const $pos = state.selection.$from
@@ -135,7 +198,7 @@ function insertMarkdownAt(
   view: EditorView,
   event: DragEvent,
   markdown: string,
-  ctx: ParserCtxGetter,
+  ctx: ParserCtxGetter
 ): void {
   let parsed: PMNode | null
   try {
@@ -151,7 +214,7 @@ function insertMarkdownAt(
   let cursorPos: number
 
   let highlightFrom = pos
-  let highlightTo = pos
+  let highlightTo: number
 
   if (parsed.childCount === 1 && parsed.firstChild?.isTextblock) {
     // Inline-merge into the surrounding paragraph — keeps image and link
@@ -167,7 +230,7 @@ function insertMarkdownAt(
     // so we read the host content, not the just-inserted node.
     const $beforeInsert = tr.doc.resolve(pos)
     const nodeBefore = $beforeInsert.nodeBefore
-    const lastChar = nodeBefore?.isText ? nodeBefore.text?.slice(-1) ?? '' : ''
+    const lastChar = nodeBefore?.isText ? (nodeBefore.text?.slice(-1) ?? '') : ''
     const needsLeadingSpace = lastChar !== '' && !/\s/.test(lastChar)
     let insertPos = pos
     if (needsLeadingSpace) {
@@ -237,6 +300,8 @@ function LiveMarkdownInner({
   onOpenFind,
   onViewReady,
   onImportToast,
+  onSendSelection,
+  agentKind = 'codex',
 }: Props) {
   // Refs avoid re-creating the editor on every change of these props.
   const onChangeRef = useRef(onChange)
@@ -290,13 +355,12 @@ function LiveMarkdownInner({
   const mentionPlugin = useMemo(
     () =>
       mentionTrigger({
-        onOpen: (from, anchor) =>
-          setMentionRef.current({ from, query: '', anchor }),
+        onOpen: (from, anchor) => setMentionRef.current({ from, query: '', anchor }),
         onUpdate: (query, anchor) =>
           setMentionRef.current((prev) => (prev ? { ...prev, query, anchor } : prev)),
         onClose: () => setMentionRef.current(null),
       }),
-    [],
+    []
   )
   /* eslint-disable react-hooks/exhaustive-deps -- intentional: keymap is
      registered once per editor mount; onOpenFind from useState is
@@ -317,7 +381,7 @@ function LiveMarkdownInner({
         'Mod-g': findNext,
         'Shift-Mod-g': findPrev,
       }),
-    [],
+    []
   )
   /* eslint-enable react-hooks/exhaustive-deps */
 
@@ -336,8 +400,20 @@ function LiveMarkdownInner({
   const imageView = useMemo(
     () => imageNodeView({ filePath, vaultPath, paletteItems }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [],
+    []
   )
+
+  // Render-only mermaid diagrams in Page mode. A `$view` over the existing
+  // `code_block` node — renders when the fence language is `mermaid`, falls
+  // through to an editable code view otherwise. No schema change, so the fence
+  // round-trips losslessly.
+  const mermaidView = useMemo(() => mermaidNodeView(), [])
+
+  // Render-only checkbox for GFM task-list items in Page mode. A `$view` over
+  // the `list_item` node — renders a real `<input type="checkbox">` when the
+  // item carries a `checked` attr, falls through to a plain `<li>` otherwise.
+  // No schema change, so `- [ ]` / `- [x]` round-trips losslessly.
+  const taskListView = useMemo(() => taskListNodeView(), [])
 
   const editorInfo = useEditor((root) => {
     return MilkdownEditor.make()
@@ -360,7 +436,12 @@ function LiveMarkdownInner({
             handleDOMEvents: {
               dragover(_view, event) {
                 const types = event.dataTransfer?.types ?? []
-                if (!types.includes('Files') && !types.includes(MARVIN_PATH_MIME)) return false
+                if (
+                  !types.includes('Files') &&
+                  !types.includes(MARVIN_PATH_MIME) &&
+                  !types.includes(MARVIN_PATHS_MIME)
+                )
+                  return false
                 event.preventDefault()
                 // 'move' suppresses the macOS green-plus copy badge while
                 // staying compatible with the file tree's effectAllowed.
@@ -370,12 +451,17 @@ function LiveMarkdownInner({
               drop(view, event) {
                 const dt = event.dataTransfer
                 if (!dt) return false
-                const internalPath = dt.getData(MARVIN_PATH_MIME)
+                const internalPaths = readDraggedPaths(dt)
                 const files = collectFiles(dt)
-                if (internalPath) {
+                if (internalPaths.length > 0) {
                   event.preventDefault()
                   event.stopPropagation()
-                  const md = internalDragMarkdown(filePathRef.current, internalPath)
+                  // Multi-drag: one markdown line per path joined by '\n' so
+                  // the parser produces N successive blocks and the whole
+                  // drop lands in a single PM transaction (undo-atomic).
+                  const md = internalPaths
+                    .map((p) => internalDragMarkdown(filePathRef.current, p))
+                    .join('\n')
                   insertMarkdownAt(view, event, md, ctx)
                   return true
                 }
@@ -391,12 +477,7 @@ function LiveMarkdownInner({
                       onToast: onImportToastRef.current,
                     })
                     if (outcome.inserts.length > 0) {
-                      insertMarkdownAt(
-                        view,
-                        event,
-                        outcome.inserts.join('\n\n'),
-                        ctx,
-                      )
+                      insertMarkdownAt(view, event, outcome.inserts.join('\n\n'), ctx)
                     }
                     emitSummaryToast(outcome, onImportToastRef.current)
                   })()
@@ -445,6 +526,9 @@ function LiveMarkdownInner({
       .use(gfm)
       .use(listener)
       .use(imageView)
+      .use(mermaidView)
+      .use(taskListView)
+      .use(taskListBracketInputRule)
   }, [])
 
   // Single delegated click handler for the editor surface — intercepts
@@ -484,18 +568,80 @@ function LiveMarkdownInner({
       e.preventDefault()
       const state = view.state
       const hasSelection = !state.selection.empty
-      const canPaste = await window.marvin.app.canPaste()
-      const action = await window.marvin.app.showContextMenu([
-        { kind: 'item', id: 'cut', label: 'Cut', accelerator: 'CmdOrCtrl+X', enabled: hasSelection },
-        { kind: 'item', id: 'copy', label: 'Copy', accelerator: 'CmdOrCtrl+C', enabled: hasSelection },
-        { kind: 'item', id: 'paste', label: 'Paste', accelerator: 'CmdOrCtrl+V', enabled: canPaste },
+      // Native spellcheck context — main caches the last context-menu params
+      // (misspelled word + dictionary suggestions). No range comes back, so we
+      // resolve the word boundary around the caret below before replacing.
+      // Both IPCs run in parallel to keep the menu round-trip snappy.
+      // A rejected spellcheck IPC must not abort the whole menu — fall back to empty.
+      const [canPaste, spell] = await Promise.all([
+        window.marvin.app.canPaste(),
+        window.marvin.editor
+          .getSpellcheckContext()
+          .catch(() => ({ misspelledWord: '', suggestions: [] as string[] })),
+      ])
+      const items: MenuItemSpec[] = []
+      if (spell.misspelledWord && spell.suggestions.length > 0) {
+        spell.suggestions.slice(0, 5).forEach((s, i) => {
+          items.push({ kind: 'item', id: `spell:${i}`, label: s })
+        })
+        items.push({ kind: 'separator' })
+      }
+      items.push(
+        {
+          kind: 'item',
+          id: 'cut',
+          label: 'Cut',
+          accelerator: 'CmdOrCtrl+X',
+          enabled: hasSelection,
+        },
+        {
+          kind: 'item',
+          id: 'copy',
+          label: 'Copy',
+          accelerator: 'CmdOrCtrl+C',
+          enabled: hasSelection,
+        },
+        {
+          kind: 'item',
+          id: 'paste',
+          label: 'Paste',
+          accelerator: 'CmdOrCtrl+V',
+          enabled: canPaste,
+        },
         { kind: 'separator' },
         { kind: 'item', id: 'selectAll', label: 'Select All', accelerator: 'CmdOrCtrl+A' },
         { kind: 'separator' },
-        { kind: 'item', id: 'undo', label: 'Undo', accelerator: 'CmdOrCtrl+Z', enabled: undoDepth(state) > 0 },
-        { kind: 'item', id: 'redo', label: 'Redo', accelerator: 'CmdOrCtrl+Shift+Z', enabled: redoDepth(state) > 0 },
-      ])
+        {
+          kind: 'item',
+          id: 'undo',
+          label: 'Undo',
+          accelerator: 'CmdOrCtrl+Z',
+          enabled: undoDepth(state) > 0,
+        },
+        {
+          kind: 'item',
+          id: 'redo',
+          label: 'Redo',
+          accelerator: 'CmdOrCtrl+Shift+Z',
+          enabled: redoDepth(state) > 0,
+        }
+      )
+      const action = await window.marvin.app.showContextMenu(items)
       if (!action) return
+      if (action.startsWith('spell:')) {
+        const replacement = spell.suggestions[Number(action.slice(6))]
+        if (replacement) {
+          // Snapshot state once: range offsets and the transaction must share
+          // the same document, or a dispatch between the two reads shifts them.
+          const currentState = view.state
+          const range = misspelledWordRange(currentState, spell.misspelledWord)
+          // insertText replaces the range and inherits its marks, so adjacent
+          // bold/link formatting on the word survives the correction.
+          if (range) view.dispatch(currentState.tr.insertText(replacement, range.from, range.to))
+        }
+        view.focus()
+        return
+      }
       switch (action) {
         case 'selectAll':
           selectAll(view.state, view.dispatch, view)
@@ -508,39 +654,50 @@ function LiveMarkdownInner({
           break
         case 'copy':
         case 'cut': {
-          // Synthetic ClipboardEvent has isTrusted=false and Chromium blocks
-          // access to the system clipboard for such events. Use the Electron
-          // clipboard module via IPC instead. Trim leading/trailing newlines so
-          // a single-paragraph copy never carries a trailing block separator
-          // that would force a paragraph split on paste.
+          // Serialize the selected slice through Milkdown's clipboardSerializer
+          // so formatting (bold, links, lists) survives cross-app paste via the
+          // HTML clipboard channel. Text fallback is preserved for non-rich
+          // targets and trims block separators so a single-paragraph copy
+          // never forces a paragraph split on paste.
           const selection = view.state.selection
           if (selection.empty) break
+          const slice = view.state.doc.slice(selection.from, selection.to)
+          const serializer = view.someProp('clipboardSerializer')
+          let html = ''
+          if (serializer) {
+            const dom = serializer.serializeFragment(slice.content)
+            const wrapper = document.createElement('div')
+            wrapper.appendChild(dom)
+            html = wrapper.innerHTML
+          }
           const text = view.state.doc
             .textBetween(selection.from, selection.to, '\n', '\n')
             .replace(/^\n+|\n+$/g, '')
-          await window.marvin.editor.writeClipboard(text)
+          await window.marvin.editor.writeClipboardRich({ html, text })
           if (action === 'cut') view.dispatch(view.state.tr.deleteSelection())
           break
         }
         case 'paste': {
-          const text = await window.marvin.editor.readClipboard()
+          // Prefer HTML so formatting survives — clipboardParser sanitizes by
+          // dropping marks/nodes unsupported by the schema. Fall back to plain
+          // text when no HTML payload is present (cross-app text-only sources).
+          const { html, text } = await window.marvin.editor.readClipboardRich()
+          if (html) {
+            const dom = new DOMParser().parseFromString(html, 'text/html').body
+            const parser = view.someProp('clipboardParser')
+            if (parser) {
+              const slice = parser.parseSlice(dom, { preserveWhitespace: 'full' })
+              view.dispatch(view.state.tr.replaceSelection(slice))
+              break
+            }
+          }
           if (text) view.dispatch(view.state.tr.insertText(text))
           break
         }
       }
       view.focus()
     },
-    [editorInfo],
-  )
-
-  // The `@`-mention picker only supports markdown wikilinks (`[[Name]]`).
-  // Non-markdown items (images, attachments) would need the embed form
-  // `![[file.png]]` — that is a follow-up. Filter here so the picker's
-  // ranker never surfaces a row that cannot be inserted as a wikilink.
-  // Mirrors the same decision in Editor.tsx (CodeMirror surface).
-  const mentionItems = useMemo(
-    () => paletteItems.filter((it) => it.isMarkdown),
-    [paletteItems],
+    [editorInfo]
   )
 
   // Uses the live selection head as the upper bound because PM state lags
@@ -561,7 +718,7 @@ function LiveMarkdownInner({
         return
       }
       const to = view.state.selection.from
-      const insertText = `[[${stripMdExt(item.name)}]]`
+      const insertText = mentionInsertText(item, filePathRef.current)
       const wikiMarkdown = parseWikilinks(insertText)
       let parsed: PMNode | null
       try {
@@ -569,10 +726,10 @@ function LiveMarkdownInner({
       } catch {
         parsed = null
       }
-      // Expected shape: paragraph > text(linked). Anything else means the
-      // parser couldn't produce a link node — fall back to a literal-text
-      // insert so the user at least sees a visible `[[Name]]` chip and can
-      // recover via mode-switch round-trip.
+      // Expected shape: paragraph > inline node (link, image, or text).
+      // Anything else means the parser couldn't produce that node — fall
+      // back to a literal-text insert so the user at least sees the raw
+      // markdown and can recover via mode-switch round-trip.
       const inlineNode = parsed?.firstChild?.firstChild
       let tr = view.state.tr
       let cursorAdvance: number
@@ -582,7 +739,7 @@ function LiveMarkdownInner({
       } else {
         console.warn(
           '[mention] parserCtx returned an unexpected shape; falling back to literal text insert',
-          { wikiMarkdown },
+          { wikiMarkdown }
         )
         tr = tr.replaceWith(mention.from, to, view.state.schema.text(insertText))
         cursorAdvance = insertText.length
@@ -593,7 +750,7 @@ function LiveMarkdownInner({
       setMention(null)
       view.focus()
     },
-    [editorInfo, mention],
+    [editorInfo, mention]
   )
   const handleMentionDismiss = useCallback(() => setMention(null), [])
 
@@ -618,17 +775,97 @@ function LiveMarkdownInner({
     }
   }, [editorInfo])
 
+  // Selection chip — pinned to viewport coords from Range.getBoundingClientRect.
+  const [selectionRect, setSelectionRect] = useState<{
+    left: number
+    right: number
+    top: number
+    bottom: number
+  } | null>(null)
+  useEffect(() => {
+    if (!onSendSelection) return
+    let debounceId: number | null = null
+    const evaluate = () => {
+      debounceId = null
+      const root = containerRef.current
+      if (!root) {
+        setSelectionRect(null)
+        return
+      }
+      const sel = window.getSelection()
+      if (!sel || sel.rangeCount === 0 || sel.toString() === '') {
+        setSelectionRect(null)
+        return
+      }
+      const anchor = sel.anchorNode
+      if (!anchor || !root.contains(anchor)) {
+        setSelectionRect(null)
+        return
+      }
+      const range = sel.getRangeAt(0)
+      // Pick the last non-empty client rect (trailing edge of selection on its final line).
+      // Skips zero-width caret rects ProseMirror emits at paragraph boundaries — those
+      // collapse to the right edge of the formatting context, pulling the chip far off.
+      // Bounding rect would be the union of all lines, placing the chip past the longest line.
+      const rects = range.getClientRects()
+      let rect: DOMRect | null = null
+      for (let i = rects.length - 1; i >= 0; i--) {
+        if (rects[i].width > 0 && rects[i].height > 0) {
+          rect = rects[i]
+          break
+        }
+      }
+      if (!rect) rect = range.getBoundingClientRect()
+      setSelectionRect(
+        clampToViewport({
+          left: rect.left,
+          right: rect.right,
+          top: rect.top,
+          bottom: rect.bottom,
+        })
+      )
+    }
+    const onSelectionChange = () => {
+      if (debounceId !== null) window.clearTimeout(debounceId)
+      // ~50ms debounce keeps the chip steady during drag-to-extend selections.
+      debounceId = window.setTimeout(evaluate, 50)
+    }
+    document.addEventListener('selectionchange', onSelectionChange)
+    return () => {
+      document.removeEventListener('selectionchange', onSelectionChange)
+      if (debounceId !== null) window.clearTimeout(debounceId)
+    }
+  }, [onSendSelection])
+
+  const handleChipClick = useCallback(() => {
+    if (!onSendSelection) return
+    const text = window.getSelection()?.toString()
+    if (!text) return
+    const formatted = formatSelectionForAgent(text, agentKind)
+    if (formatted === '') return
+    // Best-effort: locate the rendered selection in the markdown source by substring
+    // match. Works for plain text; fails (gracefully → no range) for selections that
+    // include markdown decorations stripped during render (bold, headings, etc.).
+    const range = findSelectionLineRange(text, body)
+    const pathRef = range ? `${filePath}:${range}` : filePath
+    const prefix = agentKind === 'codex' ? `@${pathRef}` : pathRef
+    onSendSelection(`${prefix}\n\n${formatted}`)
+  }, [onSendSelection, agentKind, filePath, body])
+
   return (
     <div ref={containerRef} className="live-md" onContextMenu={handleContextMenu}>
       <Milkdown />
       {mention && (
         <MentionPicker
           query={mention.query}
-          items={mentionItems}
+          items={paletteItems}
           anchor={mention.anchor}
           onSelect={handleMentionSelect}
           onDismiss={handleMentionDismiss}
         />
+      )}
+      {selectionRect && onSendSelection && (
+        <EditorSelectionChip coords={selectionRect} onClick={handleChipClick} />
       )}
     </div>
   )

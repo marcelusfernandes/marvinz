@@ -23,11 +23,33 @@ function readFromLocalStorage(): Settings {
     if (visualStyle === 'modern' || visualStyle === 'legacy') {
       out.visualStyle = visualStyle
     }
+    const themeFlavor = window.localStorage.getItem(`${LS_PREFIX}themeFlavor`)
+    if (themeFlavor === 'default' || themeFlavor === 'pastel') {
+      out.themeFlavor = themeFlavor
+    }
     const terminalModeEnabled = window.localStorage.getItem(
       `${LS_PREFIX}terminalModeEnabled`,
     )
     if (terminalModeEnabled === 'true' || terminalModeEnabled === 'false') {
       out.terminalModeEnabled = terminalModeEnabled === 'true'
+    }
+    const agentsPaneTransparent = window.localStorage.getItem(
+      `${LS_PREFIX}agentsPaneTransparent`,
+    )
+    if (agentsPaneTransparent === 'true' || agentsPaneTransparent === 'false') {
+      out.agentsPaneTransparent = agentsPaneTransparent === 'true'
+    }
+    const editorEffectsMaster = window.localStorage.getItem(
+      `${LS_PREFIX}editorEffectsMaster`,
+    )
+    if (editorEffectsMaster === 'true' || editorEffectsMaster === 'false') {
+      out.editorEffectsMaster = editorEffectsMaster === 'true'
+    }
+    const editorEffectCaretSlide = window.localStorage.getItem(
+      `${LS_PREFIX}editorEffectCaretSlide`,
+    )
+    if (editorEffectCaretSlide === 'true' || editorEffectCaretSlide === 'false') {
+      out.editorEffectCaretSlide = editorEffectCaretSlide === 'true'
     }
     const saveMode = window.localStorage.getItem(`${LS_PREFIX}saveMode`)
     if (saveMode === 'auto' || saveMode === 'manual') {

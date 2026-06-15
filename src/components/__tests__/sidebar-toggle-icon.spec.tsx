@@ -50,7 +50,11 @@ vi.mock('../../lib/settingsStore', () => ({
   seedFromMain: vi.fn(),
   useSetting: (_key: string, fallback: unknown) => [fallback, vi.fn()],
 }))
-vi.mock('../../lib/colorTheme', () => ({ useColorTheme: () => 'light' }))
+vi.mock('../../lib/colorTheme', () => ({
+  useColorTheme: () => 'light',
+  useAgentsPaneTransparent: () => false,
+  useEditorEffects: () => {},
+}))
 vi.mock('../../lib/visualStyle', () => ({ useVisualStyle: () => 'modern' }))
 vi.mock('../../lib/paletteRanker', () => ({}))
 
@@ -66,6 +70,8 @@ function setupMarvinMock() {
       app: {
         showContextMenu: vi.fn().mockResolvedValue(null),
         canPaste: vi.fn().mockResolvedValue(false),
+        onMenuAction: vi.fn(() => () => {}),
+        setMenuNoteContext: vi.fn(),
       },
       shell: {
         reveal: vi.fn().mockResolvedValue(undefined),
@@ -202,7 +208,6 @@ describe('Sidebar search button — icon only', () => {
 
 describe('Sidebar search button — opens command palette on click', () => {
   it('clicking search button triggers setPaletteOpen (CommandPalette mock receives open=true)', async () => {
-    let paletteOpen = false
     const { CommandPalette: OrigCmdPalette } = await import('../CommandPalette').catch(() => ({
       CommandPalette: null,
     }))
@@ -222,8 +227,6 @@ describe('Sidebar search button — opens command palette on click', () => {
 
     // Shell should still NOT be hidden after clicking search
     expect(getShell(container).classList.contains('sidebar-hidden')).toBe(false)
-    paletteOpen = true // guard so var is used
-    expect(paletteOpen).toBe(true)
   })
 })
 

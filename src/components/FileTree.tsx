@@ -8,19 +8,28 @@ import { MaterialIcon } from './MaterialIcon'
 import { fileIconFor } from '../lib/fileIcons'
 import { useSetting } from '../lib/settingsStore'
 import { toMarvinUrl } from '../lib/marvinUrl'
+import { MARVIN_PATHS_MIME } from '../lib/dropAttachments'
+import { useClipboardStore } from '../lib/clipboardStore'
 
 const IMAGE_EXT_RE = /\.(png|jpe?g|gif|svg|webp|avif|bmp|ico|heic|heif)$/i
 
 // Build a compact drag ghost so the preview shown while dragging isn't the
 // full file-tree row. Images get a small thumbnail (relies on the marvin://
 // URL being cached if previously rendered); everything else gets a small
-// chip with just the file name. Wrapped in a spacer so the visible content
-// sits slightly below the pointer instead of crowding it.
-function buildDragGhost(name: string, absolutePath: string): HTMLElement {
+// chip with just the file name. When `count > 1`, the ghost shows an
+// "N items" chip instead so the user sees how many paths are attached to
+// the gesture. Wrapped in a spacer so the visible content sits slightly
+// below the pointer instead of crowding it.
+function buildDragGhost(name: string, absolutePath: string, count = 1): HTMLElement {
   const wrapper = document.createElement('div')
   wrapper.className = 'file-tree-drag-ghost'
   let body: HTMLElement
-  if (IMAGE_EXT_RE.test(name)) {
+  if (count > 1) {
+    const chip = document.createElement('div')
+    chip.className = 'file-tree-drag-chip'
+    chip.textContent = `${count} items`
+    body = chip
+  } else if (IMAGE_EXT_RE.test(name)) {
     const img = document.createElement('img')
     img.src = toMarvinUrl(absolutePath)
     img.className = 'file-tree-drag-thumb'
@@ -41,6 +50,8 @@ export type ImportOutcome =
 
 export type CreatingIn = { parentDir: string; kind: 'file' | 'folder' }
 
+export type SelectModifiers = { cmdOrCtrl: boolean; shift: boolean }
+
 type Props = {
   nodes: FileNode[]
   vaultPath: string
@@ -49,7 +60,8 @@ type Props = {
   openPaths: Set<string>
   creatingIn?: CreatingIn | null
   onToggleOpen: (path: string) => void
-  onSelect: (node: FileNode) => void
+  onSelect: (node: FileNode, mods: SelectModifiers) => void
+  onClearSelection?: () => void
   onCreatingInChange?: (value: CreatingIn | null) => void
   onContextMenu: (e: React.MouseEvent, node: FileNode) => void
   onMove: (srcPath: string, destDir: string) => void
@@ -119,6 +131,7 @@ export function FileTree({
   creatingIn = null,
   onToggleOpen,
   onSelect,
+  onClearSelection,
   onCreatingInChange = noopCreatingInChange,
   onContextMenu,
   onMove,
@@ -255,12 +268,24 @@ export function FileTree({
   const virtualItems = virtualizer.getVirtualItems()
   const totalSize = virtualizer.getTotalSize()
 
+  const handleEmptyAreaClick = (e: React.MouseEvent) => {
+    if (!onClearSelection) return
+    if ((e.target as HTMLElement).closest('.file-tree-row')) return
+    onClearSelection()
+  }
+
   return (
     <ul
       ref={scrollRef}
       className={`file-tree${rootHover ? ' drop-root' : ''}`}
       role="tree"
       aria-label="File tree"
+      data-panel="file-tree"
+      // Programmatically focusable (not in tab order) so App can keep keyboard
+      // focus on the tree after a file op — that's what routes the next Cmd+Z
+      // to the file-ops undo (#457).
+      tabIndex={-1}
+      onClick={handleEmptyAreaClick}
       onDragOverCapture={handleRootDragOverCapture}
       onDragOver={handleRootDragOver}
       onDragLeave={(e) => {
@@ -339,7 +364,7 @@ type FileTreeNodeProps = {
   hoveredPath: string | null
   iconTheme: string
   onToggleOpen: (path: string) => void
-  onSelect: (node: FileNode) => void
+  onSelect: (node: FileNode, mods: SelectModifiers) => void
   onCreatingInChange: (value: CreatingIn | null) => void
   onContextMenu: (e: React.MouseEvent, node: FileNode) => void
   onMove: (srcPath: string, destDir: string) => void
@@ -416,18 +441,32 @@ function FileTreeNodeImpl({
   const hovered = hoveredPath === node.path
   const isSelected = selectedPaths.has(node.path)
   const isActiveFile = activeFilePath === node.path
+  const isCut = useClipboardStore((s) => s.mode === 'cut' && s.paths.has(node.path))
   const padding = 8 + depth * 14
 
   const handleDragStart = (e: React.DragEvent) => {
-    e.dataTransfer.setData(DRAG_MIME, node.path)
-    e.dataTransfer.setData('text/plain', node.path) // fallback
+    // When the dragged item is part of a multi-selection, ship the entire
+    // selection in the plural MIME (JSON-encoded) so drop handlers can
+    // insert one reference per path. Dragging an item that isn't selected
+    // keeps the singular-MIME behavior intact (compat retro). Set insertion
+    // order is the click order — don't sort.
+    const isSelected = selectedPaths.has(node.path)
+    const paths = isSelected && selectedPaths.size > 1
+      ? Array.from(selectedPaths)
+      : [node.path]
+    if (paths.length > 1) {
+      e.dataTransfer.setData(MARVIN_PATHS_MIME, JSON.stringify(paths))
+    } else {
+      e.dataTransfer.setData(DRAG_MIME, node.path)
+    }
+    e.dataTransfer.setData('text/plain', paths.join('\n')) // fallback
     // 'copyMove' lets the editor accept this drag as a copy (insert link) while
     // the tree's own drop handlers still default to move (rearrange).
     e.dataTransfer.effectAllowed = 'copyMove'
     // Some test environments stub dataTransfer without setDragImage; guard
     // so the production path can use it without breaking unit tests.
     if (typeof e.dataTransfer.setDragImage === 'function') {
-      const ghost = buildDragGhost(node.name, node.path)
+      const ghost = buildDragGhost(node.name, node.path, paths.length)
       document.body.appendChild(ghost)
       // anchor: x ≈ 16px in from the left edge; y = 0 so the wrapper's top
       // sits at the pointer. The wrapper's top padding pushes the visible
@@ -489,16 +528,17 @@ function FileTreeNodeImpl({
       >
         <button
           type="button"
-          className={`file-tree-row dir${hovered ? ' drop-target' : ''}${isSelected ? ' selected' : ''}`}
+          className={`file-tree-row dir${hovered ? ' drop-target' : ''}${isSelected ? ' selected' : ''}${isCut ? ' cut' : ''}`}
           style={{ paddingLeft: padding }}
           draggable
           onDragStart={handleDragStart}
           onDragOver={handleDragOver}
           onDragLeave={() => onHoverChange(null)}
           onDrop={handleDrop}
-          onClick={() => {
-            onSelect(node)
-            onToggleOpen(node.path)
+          onClick={(e) => {
+            const mods = { cmdOrCtrl: e.metaKey || e.ctrlKey, shift: e.shiftKey }
+            onSelect(node, mods)
+            if (!mods.cmdOrCtrl && !mods.shift) onToggleOpen(node.path)
           }}
           onContextMenu={(e) => onContextMenu(e, node)}
         >
@@ -538,11 +578,13 @@ function FileTreeNodeImpl({
     >
       <button
         type="button"
-        className={`file-tree-row file${isSelected ? ' selected' : ''}${isActiveFile ? ' active-file' : ''}${md ? '' : ' non-md'}`}
+        className={`file-tree-row file${isSelected ? ' selected' : ''}${isActiveFile ? ' active-file' : ''}${md ? '' : ' non-md'}${isCut ? ' cut' : ''}`}
         style={{ paddingLeft: padding + 20 }}
         draggable
         onDragStart={handleDragStart}
-        onClick={() => onSelect(node)}
+        onClick={(e) =>
+          onSelect(node, { cmdOrCtrl: e.metaKey || e.ctrlKey, shift: e.shiftKey })
+        }
         onContextMenu={(e) => onContextMenu(e, node)}
       >
         {iconTheme === 'material' ? (

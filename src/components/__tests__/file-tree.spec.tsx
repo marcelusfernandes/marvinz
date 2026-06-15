@@ -216,6 +216,7 @@ describe('FileTree — toggle folder', () => {
     expect(onSelect).toHaveBeenCalledTimes(1)
     expect(onSelect).toHaveBeenCalledWith(
       expect.objectContaining({ path: '/vault/docs', isDir: true }),
+      { cmdOrCtrl: false, shift: false },
     )
   })
 })
@@ -233,6 +234,7 @@ describe('FileTree — file selection', () => {
     expect(onSelect).toHaveBeenCalledTimes(1)
     expect(onSelect).toHaveBeenCalledWith(
       expect.objectContaining({ path: '/vault/readme.md', isDir: false }),
+      { cmdOrCtrl: false, shift: false },
     )
   })
 
@@ -245,6 +247,7 @@ describe('FileTree — file selection', () => {
     expect(onSelect).toHaveBeenCalledTimes(1)
     expect(onSelect).toHaveBeenCalledWith(
       expect.objectContaining({ path: '/vault/docs/intro.md' }),
+      { cmdOrCtrl: false, shift: false },
     )
   })
 

@@ -49,7 +49,7 @@ vi.mock('../../lib/settingsStore', () => ({
   seedFromMain: vi.fn(),
   useSetting: (_key: string, fallback: unknown) => [fallback, vi.fn()],
 }))
-vi.mock('../../lib/colorTheme', () => ({ useColorTheme: () => 'light' }))
+vi.mock('../../lib/colorTheme', () => ({ useColorTheme: () => 'light', useAgentsPaneTransparent: () => false, useEditorEffects: () => {} }))
 vi.mock('../../lib/visualStyle', () => ({ useVisualStyle: () => 'modern' }))
 vi.mock('../../lib/paletteRanker', () => ({}))
 
@@ -71,6 +71,8 @@ function setupMarvinMock() {
       app: {
         showContextMenu: vi.fn().mockResolvedValue(null),
         canPaste: vi.fn().mockResolvedValue(false),
+        onMenuAction: vi.fn(() => () => {}),
+        setMenuNoteContext: vi.fn(),
       },
       shell: {
         reveal: vi.fn().mockResolvedValue(undefined),

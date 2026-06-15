@@ -20,8 +20,12 @@ export function SettingsModal({ onClose, layoutMode, onLayoutChange }: Props) {
 
   const iconTheme = useSetting('iconTheme') ?? 'codicon'
   const colorTheme = useSetting('colorTheme') ?? 'system'
+  const themeFlavor = useSetting('themeFlavor') ?? 'default'
   const visualStyle = useSetting('visualStyle') ?? 'modern'
   const terminalModeEnabled = useSetting('terminalModeEnabled') ?? false
+  const agentsPaneTransparent = useSetting('agentsPaneTransparent') ?? false
+  const editorEffectsMaster = useSetting('editorEffectsMaster') ?? true
+  const editorEffectCaretSlide = useSetting('editorEffectCaretSlide') ?? true
   const saveMode = useSetting('saveMode') ?? 'auto'
 
   return (
@@ -75,6 +79,34 @@ export function SettingsModal({ onClose, layoutMode, onLayoutChange }: Props) {
           </div>
           <div className="modal-section-row">
             <div>
+              <div className="modal-section-label">Color flavor</div>
+              <div className="modal-section-hint">
+                Use the default palette or a softer pastel tint.
+              </div>
+            </div>
+            <div className="segmented" role="radiogroup" aria-label="Color flavor">
+              <button
+                type="button"
+                role="radio"
+                aria-checked={themeFlavor === 'default'}
+                className={`segmented-btn${themeFlavor === 'default' ? ' active' : ''}`}
+                onClick={() => void setSetting('themeFlavor', 'default')}
+              >
+                Default
+              </button>
+              <button
+                type="button"
+                role="radio"
+                aria-checked={themeFlavor === 'pastel'}
+                className={`segmented-btn${themeFlavor === 'pastel' ? ' active' : ''}`}
+                onClick={() => void setSetting('themeFlavor', 'pastel')}
+              >
+                Pastel
+              </button>
+            </div>
+          </div>
+          <div className="modal-section-row">
+            <div>
               <div className="modal-section-label">File tree icons</div>
               <div className="modal-section-hint">
                 Switch between monochrome and colorful icons.
@@ -100,6 +132,25 @@ export function SettingsModal({ onClose, layoutMode, onLayoutChange }: Props) {
                 Material
               </button>
             </div>
+          </div>
+          <div className="modal-section-row">
+            <div>
+              <div className="modal-section-label">Transparent agents pane</div>
+              <div className="modal-section-hint">
+                Let the macOS window vibrancy show through the right-side agents panel.
+              </div>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={agentsPaneTransparent}
+              className={`segmented-btn${agentsPaneTransparent ? ' active' : ''}`}
+              onClick={() =>
+                void setSetting('agentsPaneTransparent', !agentsPaneTransparent)
+              }
+            >
+              {agentsPaneTransparent ? 'On' : 'Off'}
+            </button>
           </div>
         </section>
 
@@ -196,6 +247,49 @@ export function SettingsModal({ onClose, layoutMode, onLayoutChange }: Props) {
                 Manual
               </button>
             </div>
+          </div>
+        </section>
+
+        <section className="modal-section">
+          <div className="modal-section-header">Editor effects</div>
+          <div className="modal-section-row">
+            <div>
+              <div className="modal-section-label">Smooth editor</div>
+              <div className="modal-section-hint">
+                Master switch for editor micro-animations.
+              </div>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={editorEffectsMaster}
+              className={`segmented-btn${editorEffectsMaster ? ' active' : ''}`}
+              onClick={() =>
+                void setSetting('editorEffectsMaster', !editorEffectsMaster)
+              }
+            >
+              {editorEffectsMaster ? 'On' : 'Off'}
+            </button>
+          </div>
+          <div className={`modal-section-row${editorEffectsMaster ? '' : ' is-disabled'}`}>
+            <div>
+              <div className="modal-section-label">Caret slide</div>
+              <div className="modal-section-hint">
+                The text cursor glides to its new position instead of jumping.
+              </div>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={editorEffectCaretSlide}
+              disabled={!editorEffectsMaster}
+              className={`segmented-btn${editorEffectCaretSlide ? ' active' : ''}`}
+              onClick={() =>
+                void setSetting('editorEffectCaretSlide', !editorEffectCaretSlide)
+              }
+            >
+              {editorEffectCaretSlide ? 'On' : 'Off'}
+            </button>
           </div>
         </section>
 

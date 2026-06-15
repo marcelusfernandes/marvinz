@@ -33,6 +33,8 @@ export type BrowserEvent =
 
 export type FileChangeSource = 'agent' | 'external'
 
+export type MoveResult = { src: string; dest: string; ok: boolean; error?: string }
+
 export type SnapshotTrigger = 'file:write' | 'watcher' | 'restore' | 'cascade' | 'buffer-save' | 'external-rejected'
 
 export type SnapshotStatus = 'active' | 'completed'
@@ -73,11 +75,27 @@ export type Settings = {
   iconTheme?: 'codicon' | 'material'
   colorTheme?: 'light' | 'dark' | 'system'
   visualStyle?: 'modern' | 'legacy'
+  themeFlavor?: 'default' | 'pastel'
   /**
    * When true, new agent tabs default to the legacy PTY terminal instead of
    * the native chat panel. Per-tab type is preserved across the toggle.
    */
   terminalModeEnabled?: boolean
+  /**
+   * When true, the right-side agents pane renders transparently so the macOS
+   * window vibrancy shows through. Defaults to opaque.
+   */
+  agentsPaneTransparent?: boolean
+  /**
+   * Master switch for editor micro-animations. When false, every editor effect
+   * is suppressed regardless of the per-effect toggles. Defaults to on.
+   */
+  editorEffectsMaster?: boolean
+  /**
+   * When true, the editor caret glides to its new position instead of jumping.
+   * Gated behind editorEffectsMaster. Defaults to on.
+   */
+  editorEffectCaretSlide?: boolean
   saveMode?: 'auto' | 'manual'
 }
 
@@ -94,16 +112,21 @@ export type MarvinAPI = {
     onChanged: (cb: () => void) => () => void
   }
   file: {
+    pick: () => Promise<string | null>
     read: (filePath: string) => Promise<string>
     write: (filePath: string, content: string) => Promise<void>
     exportPdf: (filePath: string) => Promise<void>
     create: (parentDir: string, name: string) => Promise<string>
     writeBinary: (payload: { vaultPath: string; relPath: string; base64Bytes: string; maxBytes?: number }) => Promise<string>
+    copy: (srcPath: string, destDir: string) => Promise<string>
+    moveBatch: (srcs: string[], destDir: string) => Promise<MoveResult[]>
     onChanged: (cb: (filePath: string, source: FileChangeSource) => void) => () => void
   }
   office: {
     readDocx: (filePath: string) => Promise<{ html: string; messages: unknown[] }>
     writeDocx: (filePath: string, plainText: string) => Promise<void>
+    readXlsx: (filePath: string, sheetName?: string) => Promise<{ rows: string[][]; sheetNames: string[] }>
+    writeXlsx: (filePath: string, rows: string[][], sheetName: string) => Promise<void>
   }
   folder: {
     create: (parentDir: string, name: string) => Promise<string>
@@ -166,14 +189,29 @@ export type MarvinAPI = {
     saveBuffer: (relPath: string, content: string) => Promise<SnapshotEnvelope<{ turnId: string; saved: boolean }>>
     saveExternalChange: (relPath: string, content: string) => Promise<SnapshotEnvelope<{ turnId: string; saved: boolean }>>
     onTurnCompleted: (cb: (event: SnapshotTurnCompletedEvent) => void) => () => void
+    // User-driven snapshot bucket (U2 / #148) — exposed by preload but the
+    // types were omitted in that PR; added here for U3 (#149) consumers.
+    capture: (
+      paths: string[],
+      trigger: string,
+    ) => Promise<SnapshotEnvelope<{ snapshotId: string }>>
+    restoreOne: (
+      snapshotId: string,
+    ) => Promise<SnapshotEnvelope<Record<string, never>>>
   }
   editor: {
     readClipboard: () => Promise<string>
     writeClipboard: (text: string) => Promise<void>
+    writeClipboardRich: (payload: { html: string; text: string }) => Promise<void>
+    readClipboardRich: () => Promise<{ html: string; text: string }>
+    getSpellcheckContext: () => Promise<{ misspelledWord: string; suggestions: string[] }>
   }
   app: {
     showContextMenu: (items: MenuItemSpec[]) => Promise<string | null>
     canPaste: () => Promise<boolean>
+    onMenuAction: (cb: (action: string) => void) => () => void
+    setMenuNoteContext: (hasNoteTab: boolean) => void
+    confirmUnsavedChanges: (fileName: string) => Promise<'save' | 'discard' | 'cancel'>
   }
   fs: {
     importExternal: (sources: string[], destDir: string) => Promise<ImportExternalResult>
@@ -186,7 +224,7 @@ export type MarvinAPI = {
 
 export type ImportExternalResult = {
   imported: string[]
-  skipped: { source: string; reason: 'not-found' | 'denied' | 'fs-error' }[]
+  skipped: { source: string; reason: 'not-found' | 'denied' | 'broken-symlink' | 'fs-error' }[]
 }
 
 export type ContentHit = {

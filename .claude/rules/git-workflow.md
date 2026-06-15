@@ -16,6 +16,7 @@ A regra é não-negociável. Se o usuário pedir pra pular ("é só uma mudança
 **PR body sempre tem `Closes #N` em texto puro** — sem bold (`Closes **#N**`) ou itálico (`Closes _#N_`). O parser de auto-close do GitHub falha com formatação no `#N` (ver drift histórico em #63).
 
 **Exceções** (não precisam de issue prévia):
+
 - Typo fixes
 - Single-file edits < 50 LOC com baixa cognitive load
 - Comandos read-only/exploratórios ("explica X", "mostra Y", status reports)
@@ -30,16 +31,16 @@ A regra é não-negociável. Se o usuário pedir pra pular ("é só uma mudança
 
 Slug em kebab-case. Prefixo conforme o tipo:
 
-| Prefixo      | Quando usar                                            |
-| ------------ | ------------------------------------------------------ |
-| `feat/`      | Nova funcionalidade voltada ao usuário                 |
-| `fix/`       | Correção de bug                                        |
-| `refactor/`  | Reestrutura de código sem mudar comportamento          |
-| `perf/`      | Otimização de performance                              |
-| `chore/`     | Deps, configs, tooling, infra                          |
-| `docs/`      | Documentação apenas                                    |
-| `test/`      | Adição/ajuste de testes                                |
-| `ci/`        | CI/CD, GitHub Actions, hooks                           |
+| Prefixo     | Quando usar                                   |
+| ----------- | --------------------------------------------- |
+| `feat/`     | Nova funcionalidade voltada ao usuário        |
+| `fix/`      | Correção de bug                               |
+| `refactor/` | Reestrutura de código sem mudar comportamento |
+| `perf/`     | Otimização de performance                     |
+| `chore/`    | Deps, configs, tooling, infra                 |
+| `docs/`     | Documentação apenas                           |
+| `test/`     | Adição/ajuste de testes                       |
+| `ci/`       | CI/CD, GitHub Actions, hooks                  |
 
 Exemplos: `feat/wikilinks`, `fix/pty-spawn-race`, `refactor/file-tree`, `chore/upgrade-electron`, `docs/readme`.
 
@@ -59,6 +60,7 @@ Exemplos: `feat/wikilinks`, `fix/pty-spawn-race`, `refactor/file-tree`, `chore/u
 - **Nunca** committar direto em `main` ou `develop`
 - **Nunca** abrir PR para `main` (apenas `develop` → `main`, e essa decisão é do usuário)
 - **Nunca** fazer merge de PR — usuário sempre revisa
+  - **Exceção: release PRs** (bump version → develop, e promote develop → main): podem ser auto-merged via `gh pr merge --merge` **após confirmação mecânica explícita do usuário no chat** (ex: resposta "sim" / "yes" / "proceed"). O gate humano é a decisão de prosseguir, não o clique na UI. Sempre merge commit, nunca squash/rebase.
 - **Não** push da feature branch antes da confirmação do usuário
 - **Não** force-push em `main` ou `develop` em hipótese nenhuma
 
@@ -79,6 +81,7 @@ Justificativa: histórico do repo + reviewers eventuais (open source ou colabora
 ## Commit message
 
 Formato: `<type>: <short imperative description>`
+
 - Same `<type>` as the branch (`feat`, `fix`, `refactor`, etc.)
 - Description in lowercase, no trailing period, **in English**
 - Attribution (Co-Authored-By) is globally disabled
@@ -89,15 +92,15 @@ Example: `feat: wikilink resolver by basename`
 
 Toda PR aberta deve ter os campos abaixo preenchidos. Verificar e completar logo após `gh pr create` — alguns são auto-populados, outros precisam de comando explícito.
 
-| Campo | Auto-populado? | Como garantir |
-|---|---|---|
-| **Title + Body em inglês** | Não | Escrever em inglês na criação |
-| **`Closes #<num>` no body** | Não | Incluir manualmente quando a PR resolve uma issue (Step 4.4 do `/squad`). Liga ao **Development** da issue + auto-fecha no merge |
-| **Assignees: autor da PR** | Sim (GitHub) | Default em todas as PRs do projeto. Se cair fora, `gh pr edit <num> --add-assignee @me` |
-| **Project: Marvinz** | Sim (automation do GitHub) | Verifica via `gh pr view <num> --json projectItems`. Se vazio, `gh pr edit <num> --add-project Marvinz` (precisa scope `project`) |
+| Campo                           | Auto-populado?                                   | Como garantir                                                                                                                                                          |
+| ------------------------------- | ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Title + Body em inglês**      | Não                                              | Escrever em inglês na criação                                                                                                                                          |
+| **`Closes #<num>` no body**     | Não                                              | Incluir manualmente quando a PR resolve uma issue (Step 4.4 do `/squad`). Liga ao **Development** da issue + auto-fecha no merge                                       |
+| **Assignees: autor da PR**      | Sim (GitHub)                                     | Default em todas as PRs do projeto. Se cair fora, `gh pr edit <num> --add-assignee @me`                                                                                |
+| **Project: Marvinz**            | Sim (automation do GitHub)                       | Verifica via `gh pr view <num> --json projectItems`. Se vazio, `gh pr edit <num> --add-project Marvinz` (precisa scope `project`)                                      |
 | **Development → Issue linkada** | Sim, se branch foi criada via `gh issue develop` | Sempre criar branch dessa forma quando há issue (`gh issue develop <num> --base develop --name <type>/<slug>`). Reforço extra: `Closes #X` no body também ativa o link |
-| **Labels** | Não | Adicionar 1-2 que reflitam o tipo do trabalho (`enhancement`, `bug`, `security`, etc.) na criação ou `gh pr edit --add-label` |
-| **Milestone** | Não | Se a PR fecha issue de milestone (ex: G2), associar via `gh pr edit --milestone "<name>"` |
+| **Labels**                      | Não                                              | Adicionar 1-2 que reflitam o tipo do trabalho (`enhancement`, `bug`, `security`, etc.) na criação ou `gh pr edit --add-label`                                          |
+| **Milestone**                   | Não                                              | Se a PR fecha issue de milestone (ex: G2), associar via `gh pr edit --milestone "<name>"`                                                                              |
 
 **Verificação rápida após `gh pr create`**:
 

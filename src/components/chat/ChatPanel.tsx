@@ -99,6 +99,7 @@ export function ChatPanel({
           onSend={send}
           onCancel={cancel}
           isStreaming={isStreaming}
+          vaultPath={vaultPath}
         />
       </div>
     </div>

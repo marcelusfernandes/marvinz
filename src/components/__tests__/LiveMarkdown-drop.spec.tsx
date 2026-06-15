@@ -165,7 +165,7 @@ vi.mock('@milkdown/react', () => ({
 }))
 
 vi.mock('@milkdown/preset-commonmark', () => ({ commonmark: {} }))
-vi.mock('@milkdown/preset-gfm', () => ({ gfm: {} }))
+vi.mock('@milkdown/preset-gfm', () => ({ gfm: {}, extendListItemSchemaForTask: { node: {} } }))
 vi.mock('@milkdown/plugin-listener', () => ({
   listener: {},
   listenerCtx: LISTENER_CTX,
@@ -198,6 +198,7 @@ vi.mock('prosemirror-search', () => ({
 }))
 
 vi.mock('../../lib/imageNodeView', () => ({ imageNodeView: () => ({}) }))
+vi.mock('../../lib/mermaidNodeView', () => ({ mermaidNodeView: () => ({}) }))
 vi.mock('../../lib/pmJustReplacedHighlight', () => ({ justReplacedPlugin: () => ({}) }))
 vi.mock('../../lib/wikilinks', () => ({
   parseWikilinks: (s: string) => s,
@@ -237,18 +238,25 @@ function setupMarvinMock(writeBinary?: ReturnType<typeof vi.fn>) {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function makeDragEvent(files: File[], internalPath = ''): DragEvent {
+function makeDragEvent(
+  files: File[],
+  internalPath = '',
+  internalPaths: string[] = [],
+): DragEvent {
   const event = new Event('drop', { bubbles: true, cancelable: true }) as DragEvent
   const types: string[] = []
-  if (internalPath) types.push('application/x-marvin-path')
+  if (internalPaths.length > 0) types.push('application/x-marvin-paths')
+  else if (internalPath) types.push('application/x-marvin-path')
   if (files.length > 0) types.push('Files')
+  const mimeData: Record<string, string> = {}
+  if (internalPath) mimeData['application/x-marvin-path'] = internalPath
+  if (internalPaths.length > 0) mimeData['application/x-marvin-paths'] = JSON.stringify(internalPaths)
   Object.defineProperty(event, 'dataTransfer', {
     value: {
       files: files as unknown as FileList,
       items: [],
       types,
-      getData: (k: string) =>
-        k === 'application/x-marvin-path' ? internalPath : '',
+      getData: (k: string) => mimeData[k] ?? '',
       dropEffect: 'none',
     },
     writable: false,
@@ -466,5 +474,49 @@ describe('LiveMarkdown — Milkdown drop handler (issue #290)', () => {
     const fileEvent = makeDragEvent([new File(['x'], 'a.png', { type: 'image/png' })])
     expect(capturedHandlers.dragover!(fakeView, fileEvent)).toBe(true)
     expect(fileEvent.preventDefault).toHaveBeenCalled()
+  })
+
+  it('dragover accepts plural MIME (application/x-marvin-paths)', () => {
+    render(<LiveMarkdown {...defaultProps()} />)
+    const event = makeDragEvent([], '', ['/vault/a.md', '/vault/b.md'])
+    const result = capturedHandlers.dragover!(fakeView, event)
+    expect(result).toBe(true)
+    expect(event.preventDefault).toHaveBeenCalled()
+  })
+
+  it('plural MIME (3 paths): parser called once with all 3 markdown lines joined by \\n, single dispatch', async () => {
+    render(<LiveMarkdown {...defaultProps()} />)
+
+    const paths = ['/vault/a.md', '/vault/b.md', '/vault/c.md']
+    const event = makeDragEvent([], '', paths)
+    const result = capturedHandlers.drop!(fakeView, event)
+
+    expect(result).toBe(true)
+    expect(event.preventDefault).toHaveBeenCalled()
+
+    // Parser must be called exactly once (single transaction)
+    expect(fakeParser).toHaveBeenCalledTimes(1)
+    const markdownArg = fakeParser.mock.calls[0]?.[0] as string
+    // Each path relative to /vault/note.md → filename only (same dir)
+    expect(markdownArg).toContain('[a.md](a.md)')
+    expect(markdownArg).toContain('[b.md](b.md)')
+    expect(markdownArg).toContain('[c.md](c.md)')
+    const lines = markdownArg.split('\n')
+    expect(lines).toHaveLength(3)
+    // Single dispatch = single undo step (PM drop handler is synchronous, no cleanup timer)
+    expect(fakeView.dispatch).toHaveBeenCalledTimes(1)
+  })
+
+  it('singular MIME only: backward-compat single-path drop still works', () => {
+    render(<LiveMarkdown {...defaultProps()} />)
+
+    const event = makeDragEvent([], '/vault/sub/photo.png')
+    capturedHandlers.drop!(fakeView, event)
+
+    expect(writeBinaryMock).not.toHaveBeenCalled()
+    expect(fakeParser).toHaveBeenCalledTimes(1)
+    const arg = fakeParser.mock.calls[0]?.[0] as string
+    expect(arg).toMatch(/!\[photo\.png\]/)
+    expect(fakeView.dispatch).toHaveBeenCalledTimes(1)
   })
 })
