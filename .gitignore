@@ -29,8 +29,9 @@ release
 .docs/audit/
 .docs/vision-audit.md
 
-# Claude Code agent worktrees (runtime artifacts)
+# Claude Code agent worktrees + session data (runtime artifacts)
 .claude/worktrees/
+.claude/projects/
 
 # Marvin snapshot storage (runtime artifacts, not for repo)
 **/.marvin/
@@ -39,5 +40,7 @@ release
 coverage/
 test-results/
 playwright-report/
+.playwright-mcp/
+.a11y/
 .marvin/
 .claude/scheduled_tasks.lock
