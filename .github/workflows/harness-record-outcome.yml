@@ -1,9 +1,10 @@
 name: Harness — record outcome
 
 # On merge into develop, measure the OutcomeRecord from git/gh and append it to
-# the complexity ledger (Phase 2). develop is unprotected, so the bot commits
-# the ledger row directly — this is automation, the §1.6 separate measurement
-# step. Non-fatal in spirit: if there's no linked issue, it no-ops.
+# the complexity ledger (Phase 2) — this is automation, the §1.6 separate
+# measurement step. Non-fatal in spirit: if there's no linked issue, it no-ops.
+# NOTE: develop is now protected (branch ruleset requires PRs), so the direct
+# ledger commit is PARKED below (`if: false`) until a bypass token is wired in.
 
 on:
   pull_request:
@@ -69,7 +70,12 @@ jobs:
           # Build the OutcomeRecord and append it (both CLIs validate; never throw).
           npx tsx scripts/complexity/measure-outcome.ts | npx tsx scripts/complexity/record-outcome.ts
 
+      # PARKED: develop now requires PRs (branch ruleset), so the bot can no
+      # longer push the ledger row directly. Re-enable with a bypass token
+      # (fine-grained PAT / GitHub App in the develop ruleset bypass list)
+      # when revisiting the harness ledger storage.
       - name: Commit the ledger row
+        if: false
         run: |
           set -euo pipefail
           if git diff --quiet -- _complexity-ledger/outcomes.jsonl; then
