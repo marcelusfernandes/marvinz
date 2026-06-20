@@ -43,6 +43,9 @@ playwright-report/
 .marvin/
 .claude/scheduled_tasks.lock
 
+# Generated project-mapping docs (droid wiki) — not versioned for now
+droid-wiki/
+
 # Harness outcome ledger lives on the orphan `complexity-ledger` branch, not here.
 # trend-report materializes it locally via `git show`; never (re)commit it to develop.
 _complexity-ledger/outcomes.jsonl
