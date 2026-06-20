@@ -42,7 +42,11 @@ vi.mock('../../lib/settingsStore', () => ({
     return undefined
   },
 }))
-vi.mock('../../lib/colorTheme', () => ({ useColorTheme: vi.fn(), useAgentsPaneTransparent: vi.fn(), useEditorEffects: vi.fn() }))
+vi.mock('../../lib/colorTheme', () => ({
+  useColorTheme: vi.fn(),
+  useAgentsPaneTransparent: vi.fn(),
+  useEditorEffects: vi.fn(),
+}))
 vi.mock('../../lib/visualStyle', () => ({ useVisualStyle: () => 'modern' }))
 vi.mock('../../lib/paletteRanker', () => ({}))
 
@@ -147,7 +151,9 @@ async function renderAppWithEmptyTab() {
   await act(async () => {})
   // Open an empty tab via the + button
   const newTabBtn = screen.getByRole('button', { name: /new.*tab/i })
-  await act(async () => { fireEvent.click(newTabBtn) })
+  await act(async () => {
+    fireEvent.click(newTabBtn)
+  })
   return utils
 }
 
@@ -164,7 +170,9 @@ describe('chooseFileFromEmpty — cancel (null) keeps empty tab', () => {
     await renderAppWithEmptyTab()
 
     const arquivosBtn = screen.getByText('Arquivos').closest('button') as HTMLButtonElement
-    await act(async () => { fireEvent.click(arquivosBtn) })
+    await act(async () => {
+      fireEvent.click(arquivosBtn)
+    })
 
     expect(screen.getByText('Arquivos')).toBeInTheDocument()
   })

@@ -20,9 +20,7 @@ type Props = {
 export function MessageList({ sessionId, onRewind }: Props) {
   const scrollRef = useRef<HTMLElement | null>(null)
   const ordering = useChatStore((s) => s.sessions[sessionId]?.ordering)
-  const isStreaming = useChatStore(
-    (s) => s.sessions[sessionId]?.turnState === 'streaming',
-  )
+  const isStreaming = useChatStore((s) => s.sessions[sessionId]?.turnState === 'streaming')
   useStickToBottom(scrollRef, isStreaming ?? false)
 
   if (!ordering || ordering.length === 0) {
@@ -50,12 +48,7 @@ export function MessageList({ sessionId, onRewind }: Props) {
       aria-atomic="false"
     >
       {ordering.map((mid) => (
-        <MessageRow
-          key={mid}
-          sessionId={sessionId}
-          messageId={mid}
-          onRewind={onRewind}
-        />
+        <MessageRow key={mid} sessionId={sessionId} messageId={mid} onRewind={onRewind} />
       ))}
     </ol>
   )
@@ -70,9 +63,7 @@ function MessageRow({
   messageId: string
   onRewind?: (turnId: string) => void
 }) {
-  const message = useChatStore(
-    (s) => s.sessions[sessionId]?.messages[messageId],
-  )
+  const message = useChatStore((s) => s.sessions[sessionId]?.messages[messageId])
   if (!message) return null
   if (message.role === 'user') {
     return (

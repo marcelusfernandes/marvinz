@@ -18,12 +18,7 @@ type Card = {
   disabled?: boolean
 }
 
-export function EmptyTab({
-  onOpenBrowser,
-  onCreateNote,
-  onChooseFile,
-  isVaultOpen = true,
-}: Props) {
+export function EmptyTab({ onOpenBrowser, onCreateNote, onChooseFile, isVaultOpen = true }: Props) {
   const cards: Card[] = [
     {
       id: 'browser',

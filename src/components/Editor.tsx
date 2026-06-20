@@ -8,7 +8,12 @@ import {
   justInsertedField,
 } from '../lib/cmJustInsertedHighlight'
 import { justReplacedField } from '../lib/cmJustReplacedHighlight'
-import { bracketMatching, indentUnit, HighlightStyle, syntaxHighlighting } from '@codemirror/language'
+import {
+  bracketMatching,
+  indentUnit,
+  HighlightStyle,
+  syntaxHighlighting,
+} from '@codemirror/language'
 import { redo, redoDepth, selectAll, undo, undoDepth } from '@codemirror/commands'
 import { tags as t } from '@lezer/highlight'
 import { EditorSelection, type Extension } from '@codemirror/state'
@@ -58,14 +63,22 @@ const codeHighlightStyle = HighlightStyle.define([
   { tag: [t.number, t.bool, t.null, t.atom], color: 'var(--code-number)' },
   { tag: [t.function(t.variableName), t.function(t.propertyName)], color: 'var(--code-function)' },
   { tag: [t.propertyName, t.definition(t.propertyName)], color: 'var(--code-property)' },
-  { tag: [t.comment, t.lineComment, t.blockComment], color: 'var(--code-comment)', fontStyle: 'italic' },
+  {
+    tag: [t.comment, t.lineComment, t.blockComment],
+    color: 'var(--code-comment)',
+    fontStyle: 'italic',
+  },
   { tag: [t.tagName, t.attributeName], color: 'var(--code-tag)' },
   { tag: t.operator, color: 'var(--code-operator)' },
 
   // Markdown-specific — heading scale mirrors a typical editor (Obsidian/Bear).
   { tag: t.heading1, fontWeight: '700', fontSize: '1.428em', color: 'var(--text-primary)' },
   { tag: t.heading2, fontWeight: '700', fontSize: '1.143em', color: 'var(--text-primary)' },
-  { tag: [t.heading3, t.heading4, t.heading5, t.heading6], fontWeight: '600', color: 'var(--text-primary)' },
+  {
+    tag: [t.heading3, t.heading4, t.heading5, t.heading6],
+    fontWeight: '600',
+    color: 'var(--text-primary)',
+  },
   { tag: t.strong, fontWeight: '700', color: 'var(--text-primary)' },
   { tag: t.emphasis, fontStyle: 'italic', color: 'var(--text-primary)' },
   { tag: [t.link, t.url], color: 'var(--accent)' },
@@ -85,7 +98,11 @@ const legacyCodeHighlightStyle = HighlightStyle.define([
   { tag: [t.number, t.bool, t.null, t.atom], color: 'var(--code-number)' },
   { tag: [t.function(t.variableName), t.function(t.propertyName)], color: 'var(--code-function)' },
   { tag: [t.propertyName, t.definition(t.propertyName)], color: 'var(--code-property)' },
-  { tag: [t.comment, t.lineComment, t.blockComment], color: 'var(--code-comment)', fontStyle: 'italic' },
+  {
+    tag: [t.comment, t.lineComment, t.blockComment],
+    color: 'var(--code-comment)',
+    fontStyle: 'italic',
+  },
   { tag: [t.tagName, t.attributeName], color: 'var(--code-tag)' },
   { tag: t.operator, color: 'var(--code-operator)' },
 
@@ -283,7 +300,7 @@ export function Editor({
     if (!replaceToast || replaceToast.phase !== 'enter') return
     const t = window.setTimeout(
       () => setReplaceToast((prev) => (prev ? { ...prev, phase: 'leave' } : null)),
-      2000,
+      2000
     )
     return () => window.clearTimeout(t)
   }, [replaceToast])
@@ -367,14 +384,13 @@ export function Editor({
           },
         },
       ]),
-    [openFind],
+    [openFind]
   )
 
   const dropExtension = useMemo(() => {
     const insertAt = (view: EditorView, event: DragEvent, text: string): void => {
       const pos =
-        view.posAtCoords({ x: event.clientX, y: event.clientY }) ??
-        view.state.selection.main.head
+        view.posAtCoords({ x: event.clientX, y: event.clientY }) ?? view.state.selection.main.head
       const to = pos + text.length
       view.dispatch({
         changes: { from: pos, insert: text },
@@ -388,11 +404,7 @@ export function Editor({
       }, 500)
     }
 
-    const handleInternalDrop = (
-      view: EditorView,
-      event: DragEvent,
-      paths: string[],
-    ): void => {
+    const handleInternalDrop = (view: EditorView, event: DragEvent, paths: string[]): void => {
       // Multi-drag: produce one markdown line per path and insert them all in
       // a single dispatch so undo reverts the whole drop atomically.
       const markdown = paths.map((p) => internalDragMarkdown(filePath, p)).join('\n')
@@ -402,7 +414,7 @@ export function Editor({
     const handleExternalDrop = async (
       view: EditorView,
       event: DragEvent,
-      files: File[],
+      files: File[]
     ): Promise<void> => {
       const outcome = await persistDroppedFiles({
         files,
@@ -466,7 +478,7 @@ export function Editor({
           setMention((prev) => (prev ? { ...prev, query, anchor } : prev)),
         onClose: () => setMention(null),
       }),
-    [],
+    []
   )
 
   const extensions = useMemo(() => {
@@ -547,14 +559,14 @@ export function Editor({
         void runSave()
       }, SAVE_DEBOUNCE_MS)
     },
-    [onBufferChange, runSave, setDirty],
+    [onBufferChange, runSave, setDirty]
   )
 
   const handleSourceChange = useCallback(
     (next: string) => {
       scheduleSave(next)
     },
-    [scheduleSave],
+    [scheduleSave]
   )
 
   // Live-preview body changes: keep the current frontmatter, replace the body.
@@ -568,7 +580,7 @@ export function Editor({
       const yaml = serializeFrontmatter(data)
       scheduleSave(`---\n${yaml}\n---\n\n${newBody}`)
     },
-    [scheduleSave],
+    [scheduleSave]
   )
 
   // Properties changes: replace the frontmatter, keep the body untouched.
@@ -577,7 +589,7 @@ export function Editor({
       const next = replaceFrontmatter(latestValue.current, nextData)
       scheduleSave(next)
     },
-    [scheduleSave],
+    [scheduleSave]
   )
 
   const handleLinkClick = useCallback(
@@ -599,7 +611,7 @@ export function Editor({
         onNavigate(resolved, modifier === 'replace')
       }
     },
-    [filePath, vaultPath, paletteItems, onNavigate],
+    [filePath, vaultPath, paletteItems, onNavigate]
   )
 
   // Mention selection: replace the `@`+query span with the type-specific
@@ -624,7 +636,7 @@ export function Editor({
       setMention(null)
       view.focus()
     },
-    [mention, filePath],
+    [mention, filePath]
   )
   const handleMentionDismiss = useCallback(() => setMention(null), [])
 
@@ -653,7 +665,7 @@ export function Editor({
         coords: clampToViewport({ left: c.left, right: c.right, top: c.top, bottom: c.bottom }),
       })
     },
-    [],
+    []
   )
 
   const handleChipClick = useCallback(() => {
@@ -699,9 +711,14 @@ export function Editor({
           prev
             ? {
                 ...prev,
-                coords: clampToViewport({ left: c.left, right: c.right, top: c.top, bottom: c.bottom }),
+                coords: clampToViewport({
+                  left: c.left,
+                  right: c.right,
+                  top: c.top,
+                  bottom: c.bottom,
+                }),
               }
-            : prev,
+            : prev
         )
       })
     }
@@ -727,13 +744,31 @@ export function Editor({
     const canPaste = await window.marvin.app.canPaste()
     const action = await window.marvin.app.showContextMenu([
       { kind: 'item', id: 'cut', label: 'Cut', accelerator: 'CmdOrCtrl+X', enabled: hasSelection },
-      { kind: 'item', id: 'copy', label: 'Copy', accelerator: 'CmdOrCtrl+C', enabled: hasSelection },
+      {
+        kind: 'item',
+        id: 'copy',
+        label: 'Copy',
+        accelerator: 'CmdOrCtrl+C',
+        enabled: hasSelection,
+      },
       { kind: 'item', id: 'paste', label: 'Paste', accelerator: 'CmdOrCtrl+V', enabled: canPaste },
       { kind: 'separator' },
       { kind: 'item', id: 'selectAll', label: 'Select All', accelerator: 'CmdOrCtrl+A' },
       { kind: 'separator' },
-      { kind: 'item', id: 'undo', label: 'Undo', accelerator: 'CmdOrCtrl+Z', enabled: undoDepth(state) > 0 },
-      { kind: 'item', id: 'redo', label: 'Redo', accelerator: 'CmdOrCtrl+Shift+Z', enabled: redoDepth(state) > 0 },
+      {
+        kind: 'item',
+        id: 'undo',
+        label: 'Undo',
+        accelerator: 'CmdOrCtrl+Z',
+        enabled: undoDepth(state) > 0,
+      },
+      {
+        kind: 'item',
+        id: 'redo',
+        label: 'Redo',
+        accelerator: 'CmdOrCtrl+Shift+Z',
+        enabled: redoDepth(state) > 0,
+      },
     ])
     if (!action) return
     switch (action) {
@@ -779,10 +814,8 @@ export function Editor({
 
   const { data: frontmatter, body: previewBody } = useMemo(
     () =>
-      isMd && effectiveMode === 'preview'
-        ? splitFrontmatter(value)
-        : { data: null, body: value },
-    [isMd, effectiveMode, value],
+      isMd && effectiveMode === 'preview' ? splitFrontmatter(value) : { data: null, body: value },
+    [isMd, effectiveMode, value]
   )
 
   // Imperative undo/redo handle for the global Cmd+Z fallback (#456). Routes to
@@ -872,16 +905,10 @@ export function Editor({
           >
             <Icon name="chevron-right" />
           </button>
-          <PathSuggest
-            value={relativePath}
-            items={paletteItems}
-            onCommit={onNavigate}
-          />
+          <PathSuggest value={relativePath} items={paletteItems} onCommit={onNavigate} />
         </div>
         <div className="editor-header-right">
-          <span className="editor-status">
-            {saving ? 'Saving…' : savedAt ? 'Saved' : ''}
-          </span>
+          <span className="editor-status">{saving ? 'Saving…' : savedAt ? 'Saved' : ''}</span>
           {isMd && (
             <button
               type="button"
@@ -969,10 +996,7 @@ export function Editor({
           </div>
         )}
         {selectionChip && effectiveMode === 'edit' && onSendSelection && (
-          <EditorSelectionChip
-            coords={selectionChip.coords}
-            onClick={handleChipClick}
-          />
+          <EditorSelectionChip coords={selectionChip.coords} onClick={handleChipClick} />
         )}
         {effectiveMode === 'edit' ? (
           <CodeMirror
@@ -1000,19 +1024,13 @@ export function Editor({
             }
           />
         ) : isCsv ? (
-          <CsvEditor
-            filePath={filePath}
-            initialContent={value}
-            onChange={scheduleSave}
-          />
+          <CsvEditor filePath={filePath} initialContent={value} onChange={scheduleSave} />
         ) : isHtml ? (
           <HtmlPreview filePath={filePath} version={version} geometryKey={geometryKey} />
         ) : (
           <div className="md-preview">
             <div className="md-preview-inner">
-              {frontmatter && (
-                <Properties data={frontmatter} onChange={handlePropertiesChange} />
-              )}
+              {frontmatter && <Properties data={frontmatter} onChange={handlePropertiesChange} />}
               <LiveMarkdown
                 body={previewBody}
                 onChange={handleBodyChange}
