@@ -69,7 +69,12 @@ jobs:
           # Build the OutcomeRecord and append it (both CLIs validate; never throw).
           npx tsx scripts/complexity/measure-outcome.ts | npx tsx scripts/complexity/record-outcome.ts
 
+      # PARKED: develop now requires PRs (branch ruleset), so the bot can no
+      # longer push the ledger row directly. Re-enable with a bypass token
+      # (fine-grained PAT / GitHub App in the develop ruleset bypass list)
+      # when revisiting the harness ledger storage.
       - name: Commit the ledger row
+        if: false
         run: |
           set -euo pipefail
           if git diff --quiet -- _complexity-ledger/outcomes.jsonl; then
