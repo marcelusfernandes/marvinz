@@ -27,6 +27,15 @@ A regra é não-negociável. Se o usuário pedir pra pular ("é só uma mudança
 - `develop` → desenvolvimento ativo. Base de toda branch nova.
 - `<type>/<slug>` → feature/fix, criadas a partir de `develop`.
 
+## Branch protection (enforced via rulesets)
+
+As regras abaixo são **enforced server-side** por GitHub branch rulesets — não são só convenção. O bypass é `Repository admin` (você); ninguém mais fura. Push direto em `main`/`develop` é bloqueado — tudo via PR.
+
+- **`main`**: PR obrigatório + **1 approval** · **só merge commit** (squash/rebase bloqueados) · **commits assinados** (signed) · sem force-push/delete. Como você não pode aprovar o próprio PR, o promote `develop → main` é mergeado com `gh pr merge --merge --admin` — o `--admin` usa o bypass de admin pra satisfazer o approval e a assinatura.
+- **`develop`**: PR obrigatório (**0 approvals**) · **squash ou merge commit** (rebase bloqueado) · sem force-push/delete. Collaborators (Write) abrem PR e fazem self-merge aqui; não alcançam `main` nem tags.
+- **Tags `v*`**: create/update/delete restrito a admin — só você dispara release (ver [`commands/release.md`](../commands/release.md)).
+- **CODEOWNERS** (`.github/CODEOWNERS`): PRs que tocam `.github/`, `electron/`, `.claude/rules/`, `docs/`, `package.json`, `package-lock.json` exigem review de `@marcelusfernandes`.
+
 ## Branch naming
 
 Slug em kebab-case. Prefixo conforme o tipo:

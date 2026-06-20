@@ -17,7 +17,8 @@ Orquestra a promoção de `develop` → `main` como release. Você (assistente) 
 - **Nunca force-push** em `main` ou `develop`.
 - **Tudo que vai pro GitHub em inglês** — PR title/body, tag, release notes, comments.
 - **Convenção de release do repo**: tag **leve** `vX.Y.Z` apontando pro tip da `main`. O CI (`release.yml`) cria o **GitHub Release** com build cross-platform e notas auto-geradas — não criar release manualmente.
-- **Merge de release PRs é SEMPRE `--merge` (merge commit)** — nunca Squash/Rebase. Squash/Rebase quebram a ancestralidade compartilhada e fazem as próximas promoções re-conflitarem.
+- **Merge de release PRs é SEMPRE `--merge` (merge commit)** — nunca Squash/Rebase. Squash/Rebase quebram a ancestralidade compartilhada e fazem as próximas promoções re-conflitarem. (O ruleset da `main` já bloqueia squash/rebase server-side.)
+- **Tags `v*` são admin-only** — um branch ruleset restringe create/update/delete ao `Repository admin`. Só o dono do repo dispara release; collaborator não consegue empurrar a tag.
 
 ## Passo 0 — Detecção de fase (idempotente)
 

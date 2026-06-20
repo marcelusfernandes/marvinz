@@ -1,9 +1,10 @@
 name: Harness — record outcome
 
 # On merge into develop, measure the OutcomeRecord from git/gh and append it to
-# the complexity ledger (Phase 2). develop is unprotected, so the bot commits
-# the ledger row directly — this is automation, the §1.6 separate measurement
-# step. Non-fatal in spirit: if there's no linked issue, it no-ops.
+# the complexity ledger (Phase 2) — this is automation, the §1.6 separate
+# measurement step. Non-fatal in spirit: if there's no linked issue, it no-ops.
+# NOTE: develop is now protected (branch ruleset requires PRs), so the direct
+# ledger commit is PARKED below (`if: false`) until a bypass token is wired in.
 
 on:
   pull_request:
