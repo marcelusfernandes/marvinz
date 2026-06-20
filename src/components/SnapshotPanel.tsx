@@ -263,7 +263,7 @@ function labelForTrigger(trigger: SnapshotManifest['trigger']): string {
 }
 
 const ERROR_MESSAGES: Record<string, string> = {
-  SNAPSHOT_NO_VAULT: 'No vault is open.',
+  SNAPSHOT_NO_VAULT: 'No folder is open.',
   SNAPSHOT_INVALID_TURN_ID: 'Invalid version identifier.',
   SNAPSHOT_INVALID_REL_PATH: 'Invalid file path.',
   SNAPSHOT_INTERNAL_ERROR: 'Internal snapshot error. Please try again.',

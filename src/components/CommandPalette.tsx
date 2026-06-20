@@ -193,7 +193,7 @@ export function CommandPalette({ items, onPick, onClose, vaultPath = '' }: Props
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder={
-            vaultPath ? `Search in ${vaultPath.split('/').pop() || 'vault'}…` : 'Search files…'
+            vaultPath ? `Search in ${vaultPath.split('/').pop() || 'folder'}…` : 'Search files…'
           }
           spellCheck={false}
           autoComplete="off"

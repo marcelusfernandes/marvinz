@@ -931,19 +931,17 @@ export function Editor({
                 type="button"
                 className={`mode-btn${mode === 'edit' ? ' active' : ''}`}
                 onClick={() => setMode('edit')}
-                title="Source (raw markdown)"
+                title="Raw markdown"
               >
-                <Icon name="code" size={14} />
-                Source
+                Raw
               </button>
               <button
                 type="button"
                 className={`mode-btn${mode === 'preview' ? ' active' : ''}`}
                 onClick={() => setMode('preview')}
-                title="Page (rendered)"
+                title="Rendered"
               >
-                <Icon name="file-text" size={14} />
-                Page
+                Rendered
               </button>
             </div>
           )}

@@ -275,7 +275,7 @@ function humanizeError(err: unknown): string {
   if (/MARVIN_BINARY/.test(raw)) return 'Binary file — opened externally instead.'
   if (/MARVIN_IS_DIRECTORY/.test(raw)) return 'This is a folder, not a file.'
   if (/MARVIN_OUTSIDE_VAULT/.test(raw))
-    return 'File is no longer in the active vault. Refreshing tree…'
+    return 'File is no longer in the active folder. Refreshing tree…'
   const tooLarge = raw.match(/MARVIN_TOO_LARGE: (\d+)/)
   if (tooLarge) {
     const mb = (Number(tooLarge[1]) / (1024 * 1024)).toFixed(1)
@@ -628,7 +628,7 @@ export default function App() {
       if (!vaultPath) return
       const prefix = vaultPath + '/'
       if (!filePath.startsWith(prefix)) {
-        setError('File is outside the current vault')
+        setError('File is outside the current folder')
         return
       }
       const relPath = filePath.slice(prefix.length)
@@ -1977,7 +1977,7 @@ export default function App() {
         <h1>Marvin</h1>
         <p>Markdown notes with Claude Code in your sidebar.</p>
         <button type="button" onClick={handlePickVault}>
-          Open vault folder
+          Open folder
         </button>
       </div>
     )
@@ -2066,7 +2066,6 @@ export default function App() {
                   kind: 'folder',
                 })
               }
-              onRefresh={() => void loadTree(vaultPath)}
               onToggleAll={() =>
                 setOpenPaths((prev) => (prev.size > 0 ? new Set() : new Set(collectDirPaths(tree))))
               }
@@ -2090,7 +2089,7 @@ export default function App() {
           <div className="sidebar-footer">
             {visualStyle === 'legacy' ? (
               <button type="button" className="text-btn" onClick={handlePickVault}>
-                Switch vault
+                Switch folder
               </button>
             ) : (
               <>

@@ -99,7 +99,7 @@ function EmptyState() {
         ✨
       </div>
       <h3 className="chat-empty-heading">Start a conversation</h3>
-      <p className="chat-empty-sub">Ask Marvin anything about your vault</p>
+      <p className="chat-empty-sub">Ask Marvin anything about your folder</p>
     </div>
   )
 }
