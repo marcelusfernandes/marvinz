@@ -65,6 +65,18 @@ jobs:
           export HARNESS_CREATED_AT=$(gh pr view "$PR" --json createdAt --jq '.createdAt')
           export HARNESS_MERGED_AT=$(gh pr view "$PR" --json mergedAt --jq '.mergedAt')
 
+          # Without `set -e`, a failed gh call leaves the var empty; Number("")=0 is a
+          # valid int to Zod, so we'd record a syntactically-valid all-zero outcome.
+          # Bail instead — never land garbage on the ledger (§1.9: skip, don't fail).
+          for k in HARNESS_VERSION HARNESS_FILES HARNESS_ITERATIONS HARNESS_REVIEW_CYCLES \
+                   HARNESS_CHANGES_REQUESTED HARNESS_CREATED_AT HARNESS_MERGED_AT; do
+            if [ -z "${!k}" ]; then
+              echo "::warning::$k empty (gh call failed?) — skipping outcome (non-fatal §1.9)"
+              echo "have_outcome=0" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          done
+
           # Recompute downstream fanout of the changed src/electron files (best-effort grep).
           CHANGED=$(gh pr view "$PR" --json files --jq '.files[].path' | grep -E '^(src|electron)/.*\.(ts|tsx)$' | grep -v __tests__ || true)
           FANOUT=0
@@ -92,7 +104,10 @@ jobs:
           # outcome.json is one validated OutcomeRecord JSON line. Append it to the
           # orphan data branch via a worktree, so this checkout stays untouched.
           # Re-fetch + reset + re-append per attempt → race-safe against concurrent merges.
-          git fetch origin complexity-ledger
+          if ! git fetch origin complexity-ledger 2>/dev/null; then
+            echo "::warning::complexity-ledger branch not found — skipping (non-fatal §1.9)"
+            exit 0
+          fi
           git worktree add --force /tmp/ledger origin/complexity-ledger
           for attempt in 1 2 3; do
             git -C /tmp/ledger fetch origin complexity-ledger

@@ -18,8 +18,8 @@ import type { OutcomeRecord as OutcomeRecordType } from './schema.ts'
 export type PrFacts = {
   issueId: string
   harnessVersion: string
-  prNumber: number // ponteiro de rastreabilidade p/ deep-dive
-  mergeSha: string // ponteiro de rastreabilidade p/ deep-dive
+  prNumber: number | null // ponteiro de rastreabilidade p/ deep-dive (null se ausente)
+  mergeSha: string | null // ponteiro de rastreabilidade p/ deep-dive (null se ausente)
   filesTouched: number
   actualIterations: number // review cycles + correction commits pós-1º review
   downstreamFanout: number
@@ -76,11 +76,11 @@ export function buildOutcome(f: PrFacts): OutcomeRecordType {
   })
 }
 
+// pr_number / merge_sha são nullable no schema → ficam FORA daqui (opcionais no
+// CLI; ausente = null é válido). Só os campos genuinamente obrigatórios entram.
 const ENV_KEYS = [
   'HARNESS_ISSUE',
-  'HARNESS_PR_NUMBER',
-  'HARNESS_MERGE_SHA',
-  'HARNESS_MERGE_SHA',
+  'HARNESS_VERSION',
   'HARNESS_FILES',
   'HARNESS_ITERATIONS',
   'HARNESS_FANOUT',
@@ -98,7 +98,6 @@ export function main(env: NodeJS.ProcessEnv = process.env): number {
     }
   }
   const nums = {
-    prNumber: Number(env.HARNESS_PR_NUMBER),
     filesTouched: Number(env.HARNESS_FILES),
     actualIterations: Number(env.HARNESS_ITERATIONS),
     downstreamFanout: Number(env.HARNESS_FANOUT),
@@ -109,11 +108,17 @@ export function main(env: NodeJS.ProcessEnv = process.env): number {
     process.stderr.write('error: a numeric env var is not a finite number\n')
     return 2
   }
+  // Rastreabilidade opcional (nullable no schema): ausente/vazio/garbage → null,
+  // nunca derruba o registro por um ponteiro de deep-dive.
+  const prNumberRaw = Number(env.HARNESS_PR_NUMBER)
+  const prNumber = env.HARNESS_PR_NUMBER && Number.isFinite(prNumberRaw) ? prNumberRaw : null
+  const mergeSha = env.HARNESS_MERGE_SHA || null
   try {
     const outcome = buildOutcome({
       issueId: env.HARNESS_ISSUE as string,
       harnessVersion: env.HARNESS_VERSION as string,
-      mergeSha: env.HARNESS_MERGE_SHA as string,
+      prNumber,
+      mergeSha,
       createdAt: env.HARNESS_CREATED_AT as string,
       mergedAt: env.HARNESS_MERGED_AT as string,
       ...nums,
