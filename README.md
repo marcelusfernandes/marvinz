@@ -2,7 +2,7 @@
 
 A minimal Obsidian-style Markdown editor with **Claude Code** running as a sidebar. Your vault is just a folder of `.md` files; an embedded terminal runs the `claude` CLI scoped to that folder, so you can ask Claude to read, edit, and create notes via natural language while you write.
 
-> Status: 0.2.0 — early but usable. Built on Electron + React + Vite + TypeScript.
+> Status: 0.11.0 — usable and actively developed. Built on Electron + React + Vite + TypeScript.
 
 ## Features
 
@@ -13,13 +13,15 @@ A minimal Obsidian-style Markdown editor with **Claude Code** running as a sideb
 - **CodeMirror 6 editor** with Markdown highlighting, line wrap, and debounced autosave.
 - **Live preview** rendered with `react-markdown` + GFM (tables, task lists, strikethrough). Internal `.md` links resolve relative to the note; external `https://` / `mailto:` links open in the system browser.
 - **Image previews** — `![alt](path)` and `![[name]]` render inline using a custom `marvin://` protocol that enforces the vault boundary. See [Image syntax](#image-syntax) for the supported forms.
+- **Wikilinks** — `[[Note]]` and `[[Note|Display]]` link to notes by basename; `![[image.png]]` embeds images. `@`-mentioning a note inserts the wikilink for you.
+- **Full-text search** — a command palette searches across the whole vault (note filenames plus content, via `ripgrep`) and jumps to the matching line.
 - **External-edit hot reload** — `chokidar` watches the vault; when Claude (or anything else) edits a file open in a tab, the tab updates without losing your unrelated tabs. The watcher distinguishes our own saves from external writes by content equality.
 - **Claude Code sidebar** — `xterm.js` + `node-pty` running the `claude` CLI with `cwd = vault` and an inherited shell environment (so `git`, `node`, `ripgrep`, etc. are on `PATH`). The CLI's native `@`-mention completion sees every note in your vault.
 - **Restart button** when Claude exits (logout / crash) — re-spawns without reloading the window.
 
 ## Requirements
 
-- macOS (Linux/Windows untested but should mostly work)
+- macOS, Windows, or Linux — prebuilt installers are published on the [Releases](https://github.com/marcelusfernandes/marvinz/releases) page
 - Node.js 20+
 - [`claude`](https://docs.claude.com/en/docs/claude-code/quickstart) on `PATH`. Marvin detects it via `which claude` and falls back to `~/.local/bin`, `/usr/local/bin`, `/opt/homebrew/bin`. Install via `npm i -g @anthropic-ai/claude-code` or the install script.
 
@@ -86,12 +88,12 @@ scripts/
 
 The live preview resolves four image-source shapes, each routed through the `marvin://` protocol so the renderer cannot escape the active vault:
 
-| Form | Example | Resolution |
-|---|---|---|
-| Relative path | `![diagram](./assets/diagram.png)` | Resolved against the directory of the current note. `..` segments are allowed but cannot escape the vault. |
-| Vault-absolute | `![logo](/assets/logo.png)` | Joined with the vault root. The leading `/` does **not** mean the OS filesystem root. |
-| Embed wikilink | `![[cover.png]]` or `![[cover.png\|cover alt]]` | Looked up by filename across the vault (basename match, same-folder preference on ambiguity). |
-| External | `![banner](https://example.com/banner.png)` or `data:image/...` | Passed through unchanged. |
+| Form           | Example                                                         | Resolution                                                                                                 |
+| -------------- | --------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| Relative path  | `![diagram](./assets/diagram.png)`                              | Resolved against the directory of the current note. `..` segments are allowed but cannot escape the vault. |
+| Vault-absolute | `![logo](/assets/logo.png)`                                     | Joined with the vault root. The leading `/` does **not** mean the OS filesystem root.                      |
+| Embed wikilink | `![[cover.png]]` or `![[cover.png\|cover alt]]`                 | Looked up by filename across the vault (basename match, same-folder preference on ambiguity).              |
+| External       | `![banner](https://example.com/banner.png)` or `data:image/...` | Passed through unchanged.                                                                                  |
 
 When an image cannot be resolved (path escapes the vault, wikilink target missing, file not found at load time), the preview renders an inline `image not found` placeholder showing the original `src` in its `title`. The on-disk markdown is never rewritten — switch to `Edit` mode to see the raw syntax.
 
@@ -107,11 +109,8 @@ See [`.claude/rules/git-workflow.md`](.claude/rules/git-workflow.md) for the bra
 
 ## What's not (yet) here
 
-- Wikilinks `[[name]]`
-- Full-text search
 - Backlinks panel / graph view
 - Plugin system
-- Code-signed / notarized macOS builds (DMG generates, but Gatekeeper warns on other Macs)
-- Linux / Windows packaging validated on host (config wired, untested)
+- Code-signed / notarized builds (installers generate, but Gatekeeper on macOS and SmartScreen on Windows warn until signing is wired in)
 - Auto-updater
 - Sync (use `git`, iCloud, Syncthing, etc. on the vault folder)
