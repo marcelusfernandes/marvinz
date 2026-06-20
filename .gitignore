@@ -27,9 +27,8 @@ release
 *.sln
 *.sw?
 
-# Local audit notes (not for repo)
-.docs/audit/
-.docs/vision-audit.md
+# Local working docs (specs, issues, reports — not for repo)
+.docs/
 
 # Claude Code agent worktrees (runtime artifacts)
 .claude/worktrees/
