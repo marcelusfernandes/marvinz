@@ -26,17 +26,32 @@ and accountability for routing — not a statistical model.
 
 ## Files
 
-| File | Role |
-|---|---|
-| `schema.ts` | Zod contract (`SCHEMA_VERSION = "2.0"`) + pure derived helpers |
-| `harness-version.ts` | content hash → `${model}+${hash7}` (also a CLI) |
-| `ledger.ts` | JSONL append/read + `calibrationPairs()` join by `issue_id` |
-| `record-prediction.ts` | CLI: stdin JSON → validate → append prediction. Exit `0`/`1`/`2` |
-| `record-outcome.ts` | CLI: stdin JSON → validate → append outcome. Exit `0`/`1`/`2` |
-| `trend.ts` | pure trend computation (binary split, ordinal co-movement, routing audit) |
-| `trend-report.ts` | CLI: read ledger → emit a `TrendReport` for one `harness_version` |
+| File                   | Role                                                                      |
+| ---------------------- | ------------------------------------------------------------------------- |
+| `schema.ts`            | Zod contract (`SCHEMA_VERSION = "2.0"`) + pure derived helpers            |
+| `harness-version.ts`   | content hash → `${model}+${hash7}` (also a CLI)                           |
+| `ledger.ts`            | JSONL append/read + `calibrationPairs()` join by `issue_id`               |
+| `record-prediction.ts` | CLI: stdin JSON → validate → append prediction. Exit `0`/`1`/`2`          |
+| `record-outcome.ts`    | CLI: stdin JSON → validate → append outcome. Exit `0`/`1`/`2`             |
+| `trend.ts`             | pure trend computation (binary split, ordinal co-movement, routing audit) |
+| `trend-report.ts`      | CLI: read ledger → emit a `TrendReport` for one `harness_version`         |
 
-Ledger: `_complexity-ledger/{predictions,outcomes}.jsonl` (repo root, versioned in git).
+Ledger (two stores, joined by `issue_id`):
+
+- **Predictions** → `_complexity-ledger/predictions.jsonl` on `develop`. Written on the
+  feature branch and merged via the issue's PR (rides the normal PR flow).
+- **Outcomes** → `_complexity-ledger/outcomes.jsonl` on the orphan `complexity-ledger`
+  branch. `develop` is protected (PRs only), so the post-merge
+  `harness-record-outcome` workflow appends there via the native `GITHUB_TOKEN`
+  (no secret). On `develop` this file is git-ignored; materialize it before reading:
+
+  ```bash
+  git show origin/complexity-ledger:_complexity-ledger/outcomes.jsonl \
+    > _complexity-ledger/outcomes.jsonl
+  ```
+
+  Each `OutcomeRecord` carries `pr_number` + `merge_sha` so a row traces back to its
+  PR (and that PR's variance comment) for a deep-dive.
 
 ## Usage
 
@@ -62,18 +77,18 @@ These are frozen **before** the first outcome is collected, so the label can't d
 The measurement step is run **post-merge by whoever did not predict or implement**, and
 reads the factual fields from git/gh; only the last is a judgement.
 
-| Field | Provenance | Definition (the exact thing measured) |
-|---|---|---|
-| `actual_files_touched` | `measured` | `git diff --name-only <base>...<merge> \| wc -l` |
-| `actual_iterations` | `measured` | commit count on the PR — the operative proxy for correction rounds, as collected by the merge automation (`gh pr view --json commits`). `pr_review_cycles` tracks review submissions separately. |
-| `actual_downstream_fanout` | `measured` | importers of the touched files, recomputed post-merge (`grep -rl`) |
-| `pr_review_cycles` | `measured` | distinct review submissions on the PR |
-| `time_to_merge_hours` | `measured` | PR `createdAt` → `mergedAt` |
-| `revisited` | `measured` | issue reopened within `revisit_window_days` (default 30) |
-| `rework_after_merge` | `measured` | merged code rewritten/deleted within the window (`git log`) |
-| `escaped_to_production` | `measured` | a bug from this change shipped and was later fixed |
-| `nondeterministic_regression` | `measured` | if it touched AI/prompt: prod evals degraded? else `null` |
-| `actual_human_interventions` | **`estimated`** | times a human had to decide/correct — the only judged field, noisiest label; calibration distrusts it |
+| Field                         | Provenance      | Definition (the exact thing measured)                                                                                                                                                            |
+| ----------------------------- | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `actual_files_touched`        | `measured`      | `git diff --name-only <base>...<merge> \| wc -l`                                                                                                                                                 |
+| `actual_iterations`           | `measured`      | commit count on the PR — the operative proxy for correction rounds, as collected by the merge automation (`gh pr view --json commits`). `pr_review_cycles` tracks review submissions separately. |
+| `actual_downstream_fanout`    | `measured`      | importers of the touched files, recomputed post-merge (`grep -rl`)                                                                                                                               |
+| `pr_review_cycles`            | `measured`      | distinct review submissions on the PR                                                                                                                                                            |
+| `time_to_merge_hours`         | `measured`      | PR `createdAt` → `mergedAt`                                                                                                                                                                      |
+| `revisited`                   | `measured`      | issue reopened within `revisit_window_days` (default 30)                                                                                                                                         |
+| `rework_after_merge`          | `measured`      | merged code rewritten/deleted within the window (`git log`)                                                                                                                                      |
+| `escaped_to_production`       | `measured`      | a bug from this change shipped and was later fixed                                                                                                                                               |
+| `nondeterministic_regression` | `measured`      | if it touched AI/prompt: prod evals degraded? else `null`                                                                                                                                        |
+| `actual_human_interventions`  | **`estimated`** | times a human had to decide/correct — the only judged field, noisiest label; calibration distrusts it                                                                                            |
 
 ## Scope & honesty
 

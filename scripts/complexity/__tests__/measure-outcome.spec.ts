@@ -6,6 +6,8 @@ import { buildOutcome, main, type PrFacts } from '../measure-outcome.ts'
 const FACTS: PrFacts = {
   issueId: '429',
   harnessVersion: 'claude-opus-4-8+4fca3fa',
+  prNumber: 487,
+  mergeSha: '55ad81e0000000000000000000000000000000aa',
   filesTouched: 12,
   actualIterations: 2,
   downstreamFanout: 5,
@@ -19,6 +21,8 @@ function envFor(facts: PrFacts): NodeJS.ProcessEnv {
   return {
     HARNESS_ISSUE: facts.issueId,
     HARNESS_VERSION: facts.harnessVersion,
+    HARNESS_PR_NUMBER: String(facts.prNumber),
+    HARNESS_MERGE_SHA: facts.mergeSha,
     HARNESS_FILES: String(facts.filesTouched),
     HARNESS_ITERATIONS: String(facts.actualIterations),
     HARNESS_FANOUT: String(facts.downstreamFanout),
@@ -48,6 +52,12 @@ describe('buildOutcome', () => {
     expect(outcome.actual_human_interventions.provenance).toBe('estimated')
     expect(outcome.actual_human_interventions.value).toBe(3)
     expect(outcome.actual_human_interventions.evidence).toContain('NOT human-judged')
+  })
+
+  it('carrega pr_number e merge_sha p/ rastreabilidade do deep-dive', () => {
+    const outcome = buildOutcome(FACTS)
+    expect(outcome.pr_number).toBe(487)
+    expect(outcome.merge_sha).toBe('55ad81e0000000000000000000000000000000aa')
   })
 })
 

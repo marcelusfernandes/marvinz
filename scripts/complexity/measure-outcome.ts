@@ -18,6 +18,8 @@ import type { OutcomeRecord as OutcomeRecordType } from './schema.ts'
 export type PrFacts = {
   issueId: string
   harnessVersion: string
+  prNumber: number // ponteiro de rastreabilidade p/ deep-dive
+  mergeSha: string // ponteiro de rastreabilidade p/ deep-dive
   filesTouched: number
   actualIterations: number // review cycles + correction commits pós-1º review
   downstreamFanout: number
@@ -37,6 +39,8 @@ export function buildOutcome(f: PrFacts): OutcomeRecordType {
     issue_id: f.issueId,
     completed_at: f.mergedAt,
     harness_version: f.harnessVersion,
+    pr_number: f.prNumber,
+    merge_sha: f.mergeSha,
     actual_files_touched: {
       value: f.filesTouched,
       provenance: 'measured',
@@ -45,7 +49,8 @@ export function buildOutcome(f: PrFacts): OutcomeRecordType {
     actual_iterations: {
       value: f.actualIterations,
       provenance: 'measured',
-      evidence: 'review submissions + correction commits after 1st review (gh pr view --json reviews,commits)',
+      evidence:
+        'review submissions + correction commits after 1st review (gh pr view --json reviews,commits)',
     },
     actual_downstream_fanout: {
       value: f.downstreamFanout,
@@ -74,6 +79,8 @@ export function buildOutcome(f: PrFacts): OutcomeRecordType {
 const ENV_KEYS = [
   'HARNESS_ISSUE',
   'HARNESS_VERSION',
+  'HARNESS_PR_NUMBER',
+  'HARNESS_MERGE_SHA',
   'HARNESS_FILES',
   'HARNESS_ITERATIONS',
   'HARNESS_FANOUT',
@@ -91,6 +98,7 @@ export function main(env: NodeJS.ProcessEnv = process.env): number {
     }
   }
   const nums = {
+    prNumber: Number(env.HARNESS_PR_NUMBER),
     filesTouched: Number(env.HARNESS_FILES),
     actualIterations: Number(env.HARNESS_ITERATIONS),
     downstreamFanout: Number(env.HARNESS_FANOUT),
@@ -105,6 +113,7 @@ export function main(env: NodeJS.ProcessEnv = process.env): number {
     const outcome = buildOutcome({
       issueId: env.HARNESS_ISSUE as string,
       harnessVersion: env.HARNESS_VERSION as string,
+      mergeSha: env.HARNESS_MERGE_SHA as string,
       createdAt: env.HARNESS_CREATED_AT as string,
       mergedAt: env.HARNESS_MERGED_AT as string,
       ...nums,

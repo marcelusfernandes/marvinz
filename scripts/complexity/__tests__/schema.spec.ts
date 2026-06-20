@@ -13,7 +13,7 @@ import { makePrediction } from './fixtures.ts'
 describe('PredictionVector', () => {
   it('valida um vetor de exemplo e aplica defaults honestos', () => {
     const parsed = PredictionVector.parse(makePrediction())
-    expect(parsed.schema_version).toBe('2.0')
+    expect(parsed.schema_version).toBe('2.1')
     expect(parsed.score_source).toBe('heuristic') // §1.8 — heuristic por padrão
     expect(parsed.prediction_confidence).toBe('medium')
     expect(parsed.complexity_score).toBeNull()
@@ -32,7 +32,7 @@ describe('PredictionVector', () => {
 
   it('rejeita predicted_size fora da banda', () => {
     expect(PredictionVector.safeParse(makePrediction({ predicted_size: 'epic' })).success).toBe(
-      false,
+      false
     )
   })
 })
