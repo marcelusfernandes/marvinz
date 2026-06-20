@@ -57,10 +57,11 @@ Exemplos: `feat/wikilinks`, `fix/pty-spawn-race`, `refactor/file-tree`, `chore/u
 
 1. `git checkout develop && git pull`
 2. `git checkout -b <type>/<slug>`
-3. Implementar e commitar na branch
-4. **Aguardar usuário confirmar** que funciona
-5. **Após confirmação**: `git push -u origin <type>/<slug>` e `gh pr create --base develop`
-6. Parar. Usuário revisa e decide o merge.
+3. **Garantir a predição do harness (cobertura obrigatória, §503)**: se a issue ainda não tem `PredictionVector` no ledger (`_complexity-ledger/predictions.jsonl`), rode `/harness:predict <n>` **antes de implementar** — emite e commita a row na feature branch. Issues criadas via `/issues:create` já trazem o bloco `<!-- harness:prediction -->`, e o predict o reusa. Não-fatal (§1.9): se a emissão falhar, registre e siga.
+4. Implementar e commitar na branch
+5. **Aguardar usuário confirmar** que funciona
+6. **Após confirmação**: `git push -u origin <type>/<slug>` e `gh pr create --base develop`
+7. Parar. Usuário revisa e decide o merge.
 
 ## Regras invioláveis
 

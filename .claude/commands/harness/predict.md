@@ -23,6 +23,8 @@ trava o trabalho. Independência §1.6: quem prediz ≠ quem implementa ≠ quem
 
 ## Passos
 
+0. **Reusar a predição da criação, se houver.** Se a issue tem um comentário com o marcador `<!-- harness:prediction -->` (postado pelo `/issues:create`, §503), parse o `PredictionVector` JSON dele e **pule direto pro passo 6** (emitir) com esse vetor — é a predição da triage, antes da implementação (independência §1.6). Só compute do zero (passos 1-5) se não existir bloco. Para achar: `gh issue view <n> --comments` e procure o marcador.
+
 1. **Ler a issue** alvo: `gh issue view <n> --json title,body,labels`. Dela saem `predicted_size` (do header `Tamanho:`), `spec_branch_count` (cenários da Acceptance Criteria), riscos (de Consequências).
 
 2. **Versão do harness:** `npx tsx scripts/complexity/harness-version.ts claude-opus-4-8`.
@@ -42,6 +44,7 @@ trava o trabalho. Independência §1.6: quem prediz ≠ quem implementa ≠ quem
 5. **Alvos + roteamento:** `predicted_size` / `predicted_iterations` / `predicted_decision_density`, `prediction_confidence`, `assigned_oversight` (`autonomous` trivial / `light_review` padrão / `deep_review` se denso), `assigned_to: null`.
 
 6. **Emitir:**
+
    ```bash
    echo '<PredictionVector JSON>' | npx tsx scripts/complexity/record-prediction.ts
    # exit 0 = registrado · 1 = inválido · 2 = vazio. exit != 0 → logue e siga.

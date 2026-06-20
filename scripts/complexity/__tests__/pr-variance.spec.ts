@@ -5,7 +5,13 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { appendPrediction } from '../ledger.ts'
-import { buildVariance, main, renderComment, VARIANCE_MARKER } from '../pr-variance.ts'
+import {
+  buildVariance,
+  main,
+  renderComment,
+  renderNoPrediction,
+  VARIANCE_MARKER,
+} from '../pr-variance.ts'
 import { PredictionVector } from '../schema.ts'
 import { makePrediction } from './fixtures.ts'
 
@@ -45,6 +51,15 @@ describe('renderComment', () => {
   })
 })
 
+describe('renderNoPrediction', () => {
+  it('emite advisory de cobertura com o marker e o comando de remediação (§503)', () => {
+    const out = renderNoPrediction('432')
+    expect(out).toContain(VARIANCE_MARKER)
+    expect(out).toContain('/harness:predict 432')
+    expect(out).toContain('Advisory')
+  })
+})
+
 describe('pr-variance CLI', () => {
   let root: string
   beforeEach(() => {
@@ -63,10 +78,11 @@ describe('pr-variance CLI', () => {
     expect(main(['429'], { HARNESS_FILES: 'x', HARNESS_FANOUT: '1' }, root)).toBe(2)
   })
 
-  it('sem predição p/ a issue → exit 0, no-op (nada no stdout)', () => {
+  it('sem predição p/ a issue → exit 0 e imprime advisory de cobertura (§503)', () => {
     const write = vi.spyOn(process.stdout, 'write').mockReturnValue(true)
     expect(main(['999'], { HARNESS_FILES: '3', HARNESS_FANOUT: '3' }, root)).toBe(0)
-    expect(write).not.toHaveBeenCalled()
+    expect(write).toHaveBeenCalledOnce()
+    expect(write.mock.calls[0][0] as string).toContain('/harness:predict 999')
   })
 
   it('com predição → exit 0 e imprime o comentário', () => {
