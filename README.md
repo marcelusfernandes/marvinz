@@ -2,7 +2,7 @@
 
 A minimal Obsidian-style Markdown editor with **Claude Code** running as a sidebar. Your vault is just a folder of `.md` files; an embedded terminal runs the `claude` CLI scoped to that folder, so you can ask Claude to read, edit, and create notes via natural language while you write.
 
-> Status: 0.11.0 — usable and actively developed. Built on Electron + React + Vite + TypeScript.
+> Status: 0.11.1 — usable and actively developed. Built on Electron + React + Vite + TypeScript.
 
 ## Features
 
