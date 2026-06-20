@@ -1,0 +1,3 @@
+# Complexity-estimation harness ledger (append-only, versioned).
+# predictions.jsonl is created on first emission via the /squad triage step.
+# See docs/specs/harness-estimative.md and scripts/complexity/.
