@@ -88,12 +88,12 @@ scripts/
 
 The live preview resolves four image-source shapes, each routed through the `marvin://` protocol so the renderer cannot escape the active vault:
 
-| Form | Example | Resolution |
-|---|---|---|
-| Relative path | `![diagram](./assets/diagram.png)` | Resolved against the directory of the current note. `..` segments are allowed but cannot escape the vault. |
-| Vault-absolute | `![logo](/assets/logo.png)` | Joined with the vault root. The leading `/` does **not** mean the OS filesystem root. |
-| Embed wikilink | `![[cover.png]]` or `![[cover.png\|cover alt]]` | Looked up by filename across the vault (basename match, same-folder preference on ambiguity). |
-| External | `![banner](https://example.com/banner.png)` or `data:image/...` | Passed through unchanged. |
+| Form           | Example                                                         | Resolution                                                                                                 |
+| -------------- | --------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| Relative path  | `![diagram](./assets/diagram.png)`                              | Resolved against the directory of the current note. `..` segments are allowed but cannot escape the vault. |
+| Vault-absolute | `![logo](/assets/logo.png)`                                     | Joined with the vault root. The leading `/` does **not** mean the OS filesystem root.                      |
+| Embed wikilink | `![[cover.png]]` or `![[cover.png\|cover alt]]`                 | Looked up by filename across the vault (basename match, same-folder preference on ambiguity).              |
+| External       | `![banner](https://example.com/banner.png)` or `data:image/...` | Passed through unchanged.                                                                                  |
 
 When an image cannot be resolved (path escapes the vault, wikilink target missing, file not found at load time), the preview renders an inline `image not found` placeholder showing the original `src` in its `title`. The on-disk markdown is never rewritten — switch to `Edit` mode to see the raw syntax.
 
