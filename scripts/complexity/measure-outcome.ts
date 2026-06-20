@@ -78,8 +78,8 @@ export function buildOutcome(f: PrFacts): OutcomeRecordType {
 
 const ENV_KEYS = [
   'HARNESS_ISSUE',
-  'HARNESS_VERSION',
   'HARNESS_PR_NUMBER',
+  'HARNESS_MERGE_SHA',
   'HARNESS_MERGE_SHA',
   'HARNESS_FILES',
   'HARNESS_ITERATIONS',
