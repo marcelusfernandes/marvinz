@@ -1,9 +1,8 @@
 // @vitest-environment jsdom
 //
-// Focused tests for the Raw/Rendered mode toggle introduced in commit 3c36f47.
+// Focused tests for the Raw/Rendered mode toggle (replaced the old Source/Page toggle).
 // Ensures the toggle renders with the new labels and that the old labels
 // ("Source", "Page") are absent.
-// Focused tests for the Raw/Rendered mode toggle (replaced the old Source/Page toggle).
 // The toggle only renders when hasPreview is true (isMd || isCsv || isHtml).
 // We use filePath: '/vault/note.md' so hasPreview is true.
 

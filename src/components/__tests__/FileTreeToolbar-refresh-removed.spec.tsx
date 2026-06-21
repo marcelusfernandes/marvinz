@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 //
-// Focused tests for FileTreeToolbar after commit 3c36f47 removed the
-// Refresh button (onRefresh prop dropped; chokidar handles auto-reload).
+// Focused tests for FileTreeToolbar after the Refresh button was removed
+// (onRefresh prop dropped; chokidar handles auto-reload).
 //
 // Positive assertion (New file button present) guards against a vacuous pass
 // if the component fails to render at all.
