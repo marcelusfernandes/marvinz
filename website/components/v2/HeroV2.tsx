@@ -24,7 +24,7 @@ export function HeroV2() {
           <div className={styles.actions} data-step="2">
             <a className={styles.ctaPrimary} href={RELEASES_URL}>
               <span className={styles.ctaChip} aria-hidden="true">
-                +
+                ↓
               </span>
               Download
             </a>
@@ -32,6 +32,10 @@ export function HeroV2() {
               See how it works
             </a>
           </div>
+
+          <p className={styles.openSource} data-step="2">
+            Open source and local-first — your vault never leaves your machine.
+          </p>
         </div>
 
         {/* Product window inset on a solid accent plate that bleeds into the

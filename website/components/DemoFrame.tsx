@@ -28,15 +28,20 @@ export function DemoFrame(_props: DemoFrameProps = {}) {
   return (
     <div className={styles.frame}>
       <div className={styles.skeleton} aria-hidden={loaded || undefined} />
-      <img
-        ref={imgRef}
-        className={styles.img + (loaded ? " " + styles.imgLoaded : "")}
-        src="/hero-app.png"
-        alt="Marvinz workspace — file tree, a rendered markdown note with an embedded diagram, and the Claude Code and Codex terminal"
-        loading="lazy"
-        decoding="async"
-        onLoad={() => setLoaded(true)}
-      />
+      <picture className={styles.picture}>
+        {/* On phones the full 3-pane desktop window is illegible, so serve a
+            crop of the editor pane (the rendered note) instead. */}
+        <source media="(max-width: 760px)" srcSet="/hero-app-mobile.png" />
+        <img
+          ref={imgRef}
+          className={styles.img + (loaded ? " " + styles.imgLoaded : "")}
+          src="/hero-app.png"
+          alt="Marvinz workspace — file tree, a rendered markdown note with an embedded diagram, and the Claude Code and Codex terminal"
+          loading="lazy"
+          decoding="async"
+          onLoad={() => setLoaded(true)}
+        />
+      </picture>
     </div>
   );
 }

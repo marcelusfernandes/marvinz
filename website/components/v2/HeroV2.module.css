@@ -49,6 +49,15 @@
   gap: var(--space-3);
 }
 
+/* Open-source / local-first signal under the CTAs. */
+.openSource {
+  margin: var(--space-4) 0 0;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.03em;
+  color: var(--text-tertiary);
+}
+
 .ctaPrimary {
   display: inline-flex;
   align-items: center;

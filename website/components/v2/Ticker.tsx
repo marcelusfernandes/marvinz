@@ -7,6 +7,7 @@ const PHRASES = [
   "Restore any version",
   "Read side-by-side",
   "Your files, your terms",
+  "Open source",
 ];
 
 function Run() {

@@ -15,6 +15,19 @@
   background: var(--surface-1);
 }
 
+/* picture is layout-transparent; the <img> inside is absolutely positioned. */
+.picture {
+  display: contents;
+}
+
+/* Mobile serves a near-square editor-pane crop (see DemoFrame), so the frame
+   matches that aspect instead of the wide desktop one. */
+@media (max-width: 760px) {
+  .skeleton {
+    aspect-ratio: 1391 / 1442;
+  }
+}
+
 /* The screenshot — rounded + shadowed, fades in over the skeleton on decode. */
 .img {
   position: absolute;
