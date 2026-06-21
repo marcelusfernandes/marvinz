@@ -74,5 +74,9 @@ export function main(argv: string[] = process.argv.slice(2), repoRoot?: string):
 
 const invokedPath = process.argv[1] ? resolve(process.argv[1]) : ''
 if (invokedPath && fileURLToPath(import.meta.url) === invokedPath) {
-  process.exit(main())
+  try {
+    process.exit(main())
+  } catch {
+    process.exit(1)
+  }
 }

@@ -33,6 +33,12 @@ describe('buildMilestoneReport', () => {
     expect(r.median_iterations).toBeNull()
     expect(r.median_fanout_underestimate).toBeNull()
   })
+
+  it('conta pares onde o fanout real superou o previsto', () => {
+    // fixture default: previsto 3, real 4 → underestimate +1
+    const r = buildMilestoneReport([pair('1')], ['1'], 'M')
+    expect(r.fanout_underestimated).toBe(1)
+  })
 })
 
 describe('renderMilestoneReport', () => {

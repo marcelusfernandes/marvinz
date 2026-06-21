@@ -33,6 +33,7 @@ jobs:
         run: |
           set -uo pipefail
           if git fetch origin complexity-ledger 2>/dev/null; then
+            mkdir -p _complexity-ledger
             git show origin/complexity-ledger:_complexity-ledger/outcomes.jsonl \
               > _complexity-ledger/outcomes.jsonl || true
           else
@@ -59,6 +60,7 @@ jobs:
               [ -z "$title" ] && continue
               ISSUES=$(gh issue list --repo "$REPO" --milestone "$title" --state all --json number --jq '.[].number' | tr '\n' ' ')
               if [ -n "$ISSUES" ]; then
+                # shellcheck disable=SC2086 — word-split intentional: each number a separate arg
                 npx tsx scripts/complexity/milestone-report.ts "$title" $ISSUES || true
                 echo ''
               fi
