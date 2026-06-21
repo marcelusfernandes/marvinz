@@ -2,7 +2,7 @@
 
 **Issue:** #425  
 **Branch:** `feat/website-landing`  
-**Source of truth:** `/tmp/marvinz-brandbook.html` (Brandbook v1, 2026-05-27)  
+**Source of truth:** this spec, derived from Brandbook v1 (2026-05-27) — a design artefact not committed to the repo; this file supersedes it.  
 **Status:** v1.1 — implementation-ready
 
 ---
