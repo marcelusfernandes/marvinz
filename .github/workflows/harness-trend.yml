@@ -1,0 +1,66 @@
+name: Harness — trend
+
+# Surfaces the complexity-harness calibration (§505) for the repo owner. Low-noise:
+# weekly + on-demand, output to the run's Step Summary (no comment/commit spam).
+# Reads only — predictions from develop, outcomes materialized from the orphan
+# `complexity-ledger` branch. Public repo: the summary is publicly visible (it's
+# non-sensitive metrics).
+
+on:
+  schedule:
+    - cron: '0 9 * * 1' # Mondays 09:00 UTC
+  workflow_dispatch:
+
+jobs:
+  trend:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: develop
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - run: npm ci
+
+      - name: Materialize outcomes from the orphan ledger branch
+        run: |
+          set -uo pipefail
+          if git fetch origin complexity-ledger 2>/dev/null; then
+            git show origin/complexity-ledger:_complexity-ledger/outcomes.jsonl \
+              > _complexity-ledger/outcomes.jsonl || true
+          else
+            echo "::warning::complexity-ledger branch not found — trend will see no outcomes"
+          fi
+
+      - name: Trend report + milestone rollup → Step Summary
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -uo pipefail
+          {
+            echo "## 🔭 Harness trend"
+            echo ''
+            echo '```json'
+            npx tsx scripts/complexity/trend-report.ts || echo '{ "note": "no predictions in ledger yet" }'
+            echo '```'
+            echo ''
+            echo "## Milestone rollup"
+            echo ''
+            # A milestone = the accumulation of its sub-issues. Membership comes from gh.
+            gh api "repos/$REPO/milestones?state=all" --jq '.[] | "\(.title)"' | while IFS= read -r title; do
+              [ -z "$title" ] && continue
+              ISSUES=$(gh issue list --repo "$REPO" --milestone "$title" --state all --json number --jq '.[].number' | tr '\n' ' ')
+              if [ -n "$ISSUES" ]; then
+                npx tsx scripts/complexity/milestone-report.ts "$title" $ISSUES || true
+                echo ''
+              fi
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
