@@ -106,3 +106,20 @@ the check stays green (it never blocks — §1.7). Severity is the **worst of** 
 files ratios (actual / expected), by **heuristic, provisional** cuts: 🟢 ≤1.2× · 🟡 1.2–2× ·
 🔴 >2×. When the expected value is 0, it falls back to absolute counts (🟡 ≥2 · 🔴 ≥4). These
 cuts are not data-fit (too few pairs — §1.8); recalibrate once the trend (#505) has enough.
+
+## Trend automation + milestone rollup (§505)
+
+`.github/workflows/harness-trend.yml` runs weekly (Mondays 09:00 UTC) and on demand
+(`workflow_dispatch`), low-noise: it writes to the run's **Step Summary** (no comments/commits).
+It materializes outcomes from the orphan branch, runs `trend-report` for the latest
+`harness_version`, then a **milestone rollup** — for each milestone it gathers the sub-issue
+numbers via `gh` and runs `milestone-report.ts`, which aggregates the prediction×outcome pairs
+of those issues (pairs found, median iterations, median fanout underestimate). A milestone is
+the accumulation of its sub-issues, so its calibration view is that aggregate.
+
+```bash
+# Rollup for one milestone locally (issue numbers from `gh issue list --milestone ...`):
+npx tsx scripts/complexity/milestone-report.ts "Harness calibration pipeline" 502 503 504 505
+```
+
+On a public repo the Step Summary is publicly visible — acceptable, it's non-sensitive metrics.
