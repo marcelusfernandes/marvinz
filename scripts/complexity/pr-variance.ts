@@ -20,12 +20,19 @@ export const VARIANCE_MARKER = '<!-- harness:variance -->'
 
 export type Actuals = { filesTouched: number; downstreamFanout: number }
 
+/** Severidade visual (§504). Heurística e provisória — recalibrada via #505. */
+export type SeverityLevel = 'ok' | 'warn' | 'over'
+
+const SEVERITY_EMOJI: Record<SeverityLevel, string> = { ok: '🟢', warn: '🟡', over: '🔴' }
+const SEVERITY_RANK: Record<SeverityLevel, number> = { ok: 0, warn: 1, over: 2 }
+
 export type Variance = {
   predicted_size: string
   predicted_fanout: number
   actual_fanout: number
   fanout_underestimate: number
   files_touched: number
+  severity: SeverityLevel
   flags: string[]
 }
 
@@ -34,6 +41,27 @@ const SIZE_FILE_BUDGET: Record<string, number> = {
   low: 5,
   medium: 20,
   high: Number.POSITIVE_INFINITY,
+}
+
+/**
+ * Severidade por razão actual/esperado (só subestimativa importa). Cortes
+ * heurísticos (§504): 🟢 ≤1.2× · 🟡 1.2–2× · 🔴 >2×. Quando o esperado é 0
+ * (sem base de razão), usa valor absoluto: 🟡 ≥2 · 🔴 ≥4.
+ */
+export function ratioSeverity(actual: number, expected: number): SeverityLevel {
+  if (expected <= 0) {
+    if (actual >= 4) return 'over'
+    if (actual >= 2) return 'warn'
+    return 'ok'
+  }
+  const ratio = actual / expected
+  if (ratio > 2) return 'over'
+  if (ratio > 1.2) return 'warn'
+  return 'ok'
+}
+
+function worst(a: SeverityLevel, b: SeverityLevel): SeverityLevel {
+  return SEVERITY_RANK[a] >= SEVERITY_RANK[b] ? a : b
 }
 
 export function buildVariance(prediction: PredictionVector, actuals: Actuals): Variance {
@@ -51,18 +79,25 @@ export function buildVariance(prediction: PredictionVector, actuals: Actuals): V
       `mais arquivos (${actuals.filesTouched}) que o esperado para size '${prediction.predicted_size}' (~${budget}).`
     )
   }
+  // Severidade geral = pior entre fanout e arquivos (por razão actual/esperado).
+  const severity = worst(
+    ratioSeverity(actuals.downstreamFanout, predicted_fanout),
+    ratioSeverity(actuals.filesTouched, budget)
+  )
   return {
     predicted_size: prediction.predicted_size,
     predicted_fanout,
     actual_fanout: actuals.downstreamFanout,
     fanout_underestimate,
     files_touched: actuals.filesTouched,
+    severity,
     flags,
   }
 }
 
 export function renderComment(v: Variance): string {
-  const head = `${VARIANCE_MARKER}\n### 🔭 Harness — variância predição × diff (advisory)\n`
+  // Badge de severidade no título → visível de relance, mesmo com o check verde (§504).
+  const head = `${VARIANCE_MARKER}\n### ${SEVERITY_EMOJI[v.severity]} Harness — variância predição × diff (advisory)\n`
   const foot = '\n\n_Advisory — não bloqueia o merge; escalar review é decisão humana (§1.7)._'
   const summary = `predicted_size **${v.predicted_size}** · fanout previsto **${v.predicted_fanout}** vs real **${v.actual_fanout}** · arquivos **${v.files_touched}**`
   if (v.flags.length === 0) {

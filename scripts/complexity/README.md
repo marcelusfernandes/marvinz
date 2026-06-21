@@ -98,3 +98,11 @@ estimator. With small N it stays mostly "insufficient data"; that is correct, no
 from the prediction and then affects the outcome, so the routing audit is text, not a verdict.
 Promote `score_source` to `calibrated` only when a trend is `consistente` across more than
 one `harness_version` **and** survives a validation window.
+
+## PR variance severity (§504)
+
+The PR-variance advisory shows a 🟢/🟡/🔴 badge so drift is visible at a glance even when
+the check stays green (it never blocks — §1.7). Severity is the **worst of** the fanout and
+files ratios (actual / expected), by **heuristic, provisional** cuts: 🟢 ≤1.2× · 🟡 1.2–2× ·
+🔴 >2×. When the expected value is 0, it falls back to absolute counts (🟡 ≥2 · 🔴 ≥4). These
+cuts are not data-fit (too few pairs — §1.8); recalibrate once the trend (#505) has enough.
