@@ -1,0 +1,103 @@
+name: Milestone completeness gate
+
+# A milestone must not ship incomplete (#506). On the release PR (develop → main)
+# the gate BLOCKS if the PR's milestone still has open issues, listing them. On
+# feature PRs (→ develop) it posts a non-blocking advisory derived from the linked
+# issue's milestone, so progress is visible without deadlocking feature merges.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+    branches: [main, develop]
+
+jobs:
+  gate:
+    if: github.base_ref == 'main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 1 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: npm ci
+      - name: Gate release on milestone completeness
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -uo pipefail
+          # Guard each gh call: a failed API call must FAIL the gate (red), never
+          # silently produce an empty issues.json that reads as "nothing to gate".
+          MS=$(gh pr view "$PR" --repo "$REPO" --json milestone --jq '.milestone.title // ""') \
+            || { echo "::error::gh pr view failed"; exit 1; }
+          if [ -z "$MS" ]; then
+            echo "Release PR has no milestone set — nothing to gate. (Set the PR's milestone to gate it.)"
+            exit 0
+          fi
+          gh issue list --repo "$REPO" --milestone "$MS" --state all --json number,title,state > issues.json \
+            || { echo "::error::gh issue list failed for milestone $MS"; exit 1; }
+          # tsx exit 1 = milestone incomplete (expected) → capture so we can print the
+          # list; exit 2 = usage/parse error. Both surface as a non-zero gate.
+          OUT=$(npx tsx scripts/ci/milestone-gate.ts "$MS" < issues.json)
+          CODE=$?
+          echo "$OUT"
+          echo "$OUT" >> "$GITHUB_STEP_SUMMARY"
+          exit $CODE
+
+  advisory:
+    if: github.base_ref == 'develop'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 1 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: npm ci
+      - name: Compute milestone advisory
+        id: advisory
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -uo pipefail
+          # Advisory only — any gh failure skips quietly (never a misleading comment).
+          BODY=$(gh pr view "$PR" --repo "$REPO" --json body --jq '.body') \
+            || { echo "skip=1" >> "$GITHUB_OUTPUT"; exit 0; }
+          ISSUE=$(printf '%s' "$BODY" | grep -oiE '(close[sd]?|fix(e[sd])?|resolve[sd]?) +#[0-9]+' | grep -oE '[0-9]+' | head -1 || true)
+          if [ -z "${ISSUE:-}" ]; then echo "skip=1" >> "$GITHUB_OUTPUT"; exit 0; fi
+          MS=$(gh issue view "$ISSUE" --repo "$REPO" --json milestone --jq '.milestone.title // ""') \
+            || { echo "skip=1" >> "$GITHUB_OUTPUT"; exit 0; }
+          if [ -z "$MS" ]; then echo "skip=1" >> "$GITHUB_OUTPUT"; exit 0; fi
+          gh issue list --repo "$REPO" --milestone "$MS" --state all --json number,title,state > issues.json \
+            || { echo "skip=1" >> "$GITHUB_OUTPUT"; exit 0; }
+          # Suppress only exit 1 (incomplete — still want the advisory); exit 2
+          # (usage/parse) means advisory.md is empty → fail loudly, don't post blank.
+          npx tsx scripts/ci/milestone-gate.ts "$MS" < issues.json > advisory.md; EXIT=$?
+          [ "$EXIT" -le 1 ] || { echo "::error::milestone-gate usage/parse error ($EXIT)"; exit "$EXIT"; }
+          echo "skip=0" >> "$GITHUB_OUTPUT"
+      - name: Upsert advisory comment
+        if: steps.advisory.outputs.skip == '0'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs')
+            const marker = '<!-- milestone:gate -->'
+            const body = `${marker}\n### 🏁 Milestone progress (advisory)\n\n${fs.readFileSync('advisory.md', 'utf8')}\n\n_Advisory — does not block this PR._`
+            const prNumber = context.payload.pull_request.number
+            const { data: comments } = await github.rest.issues.listComments({ ...context.repo, issue_number: prNumber })
+            const existing = comments.find((c) => c.body && c.body.includes(marker))
+            if (existing) {
+              await github.rest.issues.updateComment({ ...context.repo, comment_id: existing.id, body })
+            } else {
+              await github.rest.issues.createComment({ ...context.repo, issue_number: prNumber, body })
+            }

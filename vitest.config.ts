@@ -14,7 +14,11 @@ export default defineConfig({
           ],
           coverage: {
             provider: 'v8',
-            include: ['electron/snapshot.ts', 'src/lib/marvinUrl.ts', 'electron/agent/permissions.ts'],
+            include: [
+              'electron/snapshot.ts',
+              'src/lib/marvinUrl.ts',
+              'electron/agent/permissions.ts',
+            ],
             reporter: ['text', 'lcov'],
             thresholds: { lines: 80, functions: 80, branches: 80 },
           },
@@ -65,6 +69,13 @@ export default defineConfig({
           name: 'complexity',
           environment: 'node',
           include: ['scripts/complexity/__tests__/**/*.spec.ts'],
+        },
+      },
+      {
+        test: {
+          name: 'ci',
+          environment: 'node',
+          include: ['scripts/ci/__tests__/**/*.spec.ts'],
         },
       },
     ],
