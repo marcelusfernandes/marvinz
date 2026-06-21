@@ -31,12 +31,18 @@ jobs:
           REPO: ${{ github.repository }}
         run: |
           set -uo pipefail
-          MS=$(gh pr view "$PR" --repo "$REPO" --json milestone --jq '.milestone.title // ""')
+          # Guard each gh call: a failed API call must FAIL the gate (red), never
+          # silently produce an empty issues.json that reads as "nothing to gate".
+          MS=$(gh pr view "$PR" --repo "$REPO" --json milestone --jq '.milestone.title // ""') \
+            || { echo "::error::gh pr view failed"; exit 1; }
           if [ -z "$MS" ]; then
             echo "Release PR has no milestone set — nothing to gate. (Set the PR's milestone to gate it.)"
             exit 0
           fi
-          gh issue list --repo "$REPO" --milestone "$MS" --state all --json number,title,state > issues.json
+          gh issue list --repo "$REPO" --milestone "$MS" --state all --json number,title,state > issues.json \
+            || { echo "::error::gh issue list failed for milestone $MS"; exit 1; }
+          # tsx exit 1 = milestone incomplete (expected) → capture so we can print the
+          # list; exit 2 = usage/parse error. Both surface as a non-zero gate.
           OUT=$(npx tsx scripts/ci/milestone-gate.ts "$MS" < issues.json)
           CODE=$?
           echo "$OUT"
@@ -64,13 +70,20 @@ jobs:
           REPO: ${{ github.repository }}
         run: |
           set -uo pipefail
-          BODY=$(gh pr view "$PR" --repo "$REPO" --json body --jq '.body')
+          # Advisory only — any gh failure skips quietly (never a misleading comment).
+          BODY=$(gh pr view "$PR" --repo "$REPO" --json body --jq '.body') \
+            || { echo "skip=1" >> "$GITHUB_OUTPUT"; exit 0; }
           ISSUE=$(printf '%s' "$BODY" | grep -oiE '(close[sd]?|fix(e[sd])?|resolve[sd]?) +#[0-9]+' | grep -oE '[0-9]+' | head -1 || true)
           if [ -z "${ISSUE:-}" ]; then echo "skip=1" >> "$GITHUB_OUTPUT"; exit 0; fi
-          MS=$(gh issue view "$ISSUE" --repo "$REPO" --json milestone --jq '.milestone.title // ""')
+          MS=$(gh issue view "$ISSUE" --repo "$REPO" --json milestone --jq '.milestone.title // ""') \
+            || { echo "skip=1" >> "$GITHUB_OUTPUT"; exit 0; }
           if [ -z "$MS" ]; then echo "skip=1" >> "$GITHUB_OUTPUT"; exit 0; fi
-          gh issue list --repo "$REPO" --milestone "$MS" --state all --json number,title,state > issues.json
-          npx tsx scripts/ci/milestone-gate.ts "$MS" < issues.json > advisory.md || true
+          gh issue list --repo "$REPO" --milestone "$MS" --state all --json number,title,state > issues.json \
+            || { echo "skip=1" >> "$GITHUB_OUTPUT"; exit 0; }
+          # Suppress only exit 1 (incomplete — still want the advisory); exit 2
+          # (usage/parse) means advisory.md is empty → fail loudly, don't post blank.
+          npx tsx scripts/ci/milestone-gate.ts "$MS" < issues.json > advisory.md; EXIT=$?
+          [ "$EXIT" -le 1 ] || { echo "::error::milestone-gate usage/parse error ($EXIT)"; exit "$EXIT"; }
           echo "skip=0" >> "$GITHUB_OUTPUT"
       - name: Upsert advisory comment
         if: steps.advisory.outputs.skip == '0'
