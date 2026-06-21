@@ -148,12 +148,18 @@
 }
 
 @media (max-width: 760px) {
+  /* Drop the editorial left indent on mobile so the headline uses full width. */
+  .col {
+    margin-left: 0;
+    max-width: 100%;
+  }
+
   .frameWrap {
     width: 100%;
   }
 
   .window {
-    width: 88%;
+    width: 100%;
     margin-top: clamp(24px, 6%, 48px);
     transform: none;
   }

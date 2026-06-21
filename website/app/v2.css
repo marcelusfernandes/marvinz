@@ -37,6 +37,16 @@
   border-radius: var(--v2-surface-radius);
 }
 
+/* Mobile: tighten the page gutter, frame and inner padding so content gets more
+   of the narrow viewport (user request). */
+@media (max-width: 640px) {
+  .v2Root {
+    --v2-frame: 10px;
+    --v2-pad: 16px;
+    --v2-page-pad: 8px;
+  }
+}
+
 /* Light sheet — contained override so sheets stay light even when the page
    default theme is dark. Does not touch [data-theme] globally (spec §13.6).
    Tokens are set on the element itself (so its own background resolves light)
