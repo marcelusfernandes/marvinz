@@ -9,7 +9,7 @@ const STEPS = [
   {
     kicker: "02",
     title: "The agent works — output lands as navigable markdown.",
-    body: "Claude Code edits your local files. Every change lands as a linked, readable note in your vault, snapshotted so you can roll back any turn.",
+    body: "Claude Code and Codex edit your local files. Every change lands as a linked, readable note in your vault, snapshotted so you can roll back any turn.",
   },
   {
     kicker: "03",

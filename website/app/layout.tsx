@@ -10,7 +10,7 @@ const inter = Inter({
   display: "swap",
 });
 
-const SITE_TITLE = "Marvinz — The visual workspace for Claude Code";
+const SITE_TITLE = "Marvinz — The visual workspace for Claude Code & Codex";
 const SITE_DESCRIPTION =
   "Where AI output becomes knowledge you can navigate. Point Marvinz at your markdown vault and read, navigate, and validate everything the agent produces.";
 

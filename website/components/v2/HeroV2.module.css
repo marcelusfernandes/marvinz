@@ -16,24 +16,6 @@
   max-width: 80vw;
 }
 
-/* Eyebrow — 18px bold (800) with accent dot, same left axis as the headline */
-.eyebrow {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  font-family: var(--font-head);
-  font-size: 18px;
-  font-weight: 800;
-  letter-spacing: -0.01em;
-  color: var(--text-primary);
-}
-
-.eyebrowDot {
-  color: var(--accent);
-  font-size: 12px;
-  line-height: 1;
-}
-
 /* Headline — Geist Light, tight line-height, large but indented.
    Uses --text-primary so it reads dark on the light canvas (and would flip to
    off-white if dark mode is re-enabled on /v2). */
@@ -53,7 +35,7 @@
 
 .subdesc {
   margin: var(--space-5) 0 0;
-  max-width: 32ch;
+  max-width: 46ch;
   font-family: var(--font-body);
   font-size: 18px;
   line-height: 1.55;
@@ -130,7 +112,7 @@
 .frameWrap {
   position: relative;
   margin-top: clamp(48px, 7vw, 96px);
-  width: min(1360px, calc(100vw - 2 * var(--v2-frame))); /* product uses the page width */
+  width: min(1360px, 100%); /* fill the inner content width, never overflow its padding (no clip on smaller screens) */
   margin-left: auto;
   margin-right: auto;
 }
@@ -152,16 +134,15 @@
   z-index: 0;
 }
 
-/* Window: ~80% of the plate width, centered, pushed down so ~10% of plate shows
-   as a band above its top. Subtle perspective tilt like the reference laptop.
-   Taller than the plate's visible body at the base, so it bleeds at the fold. */
+/* Window: fills the plate width (user decision: wider than the headline above),
+   pushed down with a subtle perspective tilt like the reference laptop. Taller
+   than the plate's visible body at the base, so it bleeds at the fold. */
 .window {
   position: relative;
   z-index: 1;
-  width: 80%;
+  width: 100%;
   margin: clamp(40px, 7%, 96px) auto 0;
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg, 0 24px 60px rgba(0, 0, 0, 0.18));
+  /* radius + shadow now live on DemoFrame's image (single source of depth) */
   transform: perspective(2600px) rotateX(3deg);
   transform-origin: top center;
 }

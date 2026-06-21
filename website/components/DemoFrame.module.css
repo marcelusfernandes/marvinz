@@ -1,40 +1,39 @@
-/* The static ProductMockup (fallback) renders in normal flow and drives the
-   frame's size. The live iframe overlays the primary-window footprint using
-   the same sizing tokens, so it lines up with the static window exactly. */
+/* Real app screenshot fills the frame. The skeleton defines the footprint
+   (image aspect) so there's no layout shift; the image owns the radius + shadow
+   so both mount points (hero + "See it") read as one floating product window. */
+
 .frame {
   position: relative;
+  width: 100%;
 }
 
-.fallback {
-  position: relative;
-  z-index: 0;
-}
-
-/* The iframe overlays the static fallback's primary window. The fallback uses
-   ProductMockup fill mode (no stage margin/padding, primary window fills the
-   frame), so the iframe fills the same footprint from the top. */
-.iframe {
-  position: absolute;
-  inset: 0 0 auto 0;
-  width: 100%; /* user decision: fill the frame */
-  aspect-ratio: 16 / 10;
-  border: 0;
+/* Neutral loading skeleton — sized to the screenshot's aspect ratio. */
+.skeleton {
+  width: 100%;
+  aspect-ratio: 2600 / 1442;
   border-radius: var(--radius-lg);
   background: var(--surface-1);
-  box-shadow: var(--shadow-md);
-  z-index: 1;
-  opacity: 0;
-  transition: opacity var(--duration-slow) var(--ease-out);
 }
 
-.iframeLoaded {
+/* The screenshot — rounded + shadowed, fades in over the skeleton on decode. */
+.img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg, 0 24px 60px rgba(0, 0, 0, 0.18));
+  opacity: 0;
+  transition: opacity var(--duration-normal) ease;
+}
+
+.imgLoaded {
   opacity: 1;
 }
 
-/* On mobile the static mockup hides; hide the live iframe too rather than
-   show a cramped real app. */
-@media (max-width: 760px) {
-  .iframe {
-    display: none;
+@media (prefers-reduced-motion: reduce) {
+  .img {
+    transition: none;
   }
 }

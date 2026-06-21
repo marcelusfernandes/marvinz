@@ -25,7 +25,9 @@
 }
 
 .inner {
-  max-width: var(--maxw-v2);
+  /* Centered content column — narrower than the full sheet so copy and visuals
+     sit together and read as a centered column on the page (not edge-to-edge). */
+  max-width: 1120px;
   margin: 0 auto;
   padding: 0 var(--v2-pad);
 }

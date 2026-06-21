@@ -1,0 +1,131 @@
+.showcase {
+  margin: var(--space-7) 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(40px, 6vw, 88px);
+}
+
+/* Zig-zag row: copy + animated product slice, side by side. Even rows flip the
+   column order so the visual alternates sides down the page. */
+.row {
+  display: grid;
+  /* Equal columns so the screenshot is the same width on every row (the 5/7
+     split made the image jump size as it alternated sides). */
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: center;
+  gap: clamp(28px, 4vw, 72px);
+}
+
+.row:nth-child(even) .copy {
+  order: 2;
+}
+
+.copy {
+  max-width: 46ch;
+}
+
+.kicker {
+  display: block;
+  margin-bottom: var(--space-4);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent-text, var(--accent));
+}
+
+.title {
+  margin: 0 0 var(--space-3);
+  font-family: var(--font-head);
+  font-weight: 600;
+  font-size: clamp(24px, 3vw, 34px);
+  letter-spacing: var(--track-head);
+  color: var(--text-primary);
+}
+
+.body {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: clamp(15px, 1.6vw, 17px);
+  line-height: 1.55;
+  color: var(--text-secondary);
+}
+
+/* Visual column — a real screenshot in a consistent window frame, or (Snapshots)
+   a text-only card. One frame treatment unifies shots of different aspects. */
+.vis {
+  min-width: 0;
+  display: flex;
+  justify-content: center;
+}
+
+.frame {
+  width: 100%;
+  /* Keep the screenshot modest — it shouldn't dwarf the copy. */
+  max-width: 520px;
+  overflow: hidden;
+  /* Fixed aspect so every feature shot is the same size regardless of the
+     source crop; object-fit: cover fills it (object-position keeps the
+     meaningful top of each shot). */
+  aspect-ratio: 16 / 10;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  background: var(--surface-1);
+  box-shadow: var(--shadow-lg, 0 24px 60px rgba(0, 0, 0, 0.12));
+}
+
+.shot {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top center;
+}
+
+/* Snapshots — text-only visual (no screenshot), styled as a monospace card. */
+.note {
+  width: 100%;
+  max-width: 520px;
+  aspect-ratio: 16 / 10;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--space-3);
+  padding: clamp(28px, 4vw, 56px);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  background: var(--surface-1);
+  box-shadow: var(--shadow-lg, 0 24px 60px rgba(0, 0, 0, 0.12));
+  font-family: var(--font-mono);
+}
+
+.noteLabel {
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent-text, var(--accent));
+}
+
+.notePath {
+  font-family: var(--font-mono);
+  font-size: clamp(16px, 2vw, 22px);
+  color: var(--text-primary);
+  word-break: break-all;
+}
+
+.noteRestore {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+@media (max-width: 760px) {
+  .row,
+  .row:nth-child(even) .copy {
+    grid-template-columns: 1fr;
+    order: 0;
+  }
+
+  .copy {
+    max-width: none;
+  }
+}

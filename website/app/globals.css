@@ -25,11 +25,12 @@
   --on-accent: white;
 
   /* Claude agent identity (Anthropic orange) — real app value. SCOPED
-     EXCEPTION (user decision): allowed ONLY inside ProductMockup, where the
-     mockup represents the product like a screenshot would, so the orange is
-     contained in the "app screen" and never leaks to the site's own UI.
-     Brandbook §5.3 still bans orange for site CTAs/links/accents (Raspberry
-     only). Do not use these tokens outside ProductMockup. */
+     EXCEPTION (user decision): allowed ONLY inside the product replicas (the
+     Features vignettes + Claude mascot), where they depict the app like a
+     screenshot would, so the orange stays contained in the "app screen" and
+     never leaks to the site's own UI. Brandbook §5.3 still bans orange for site
+     CTAs/links/accents (Raspberry only). Do not use these tokens for the
+     site's own chrome. */
   --accent-claude: #c4691f;
   --provider-claude-bg: rgba(196, 105, 31, 0.12);
   --provider-claude-fg: #cc6600;

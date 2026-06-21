@@ -7,7 +7,7 @@ const CARDS = [
   },
   {
     title: "The agent works.",
-    body: "Claude Code edits your files. Output lands as linked, readable notes — snapshotted on every turn so you can roll back.",
+    body: "Claude Code and Codex edit your files. Output lands as linked, readable notes — snapshotted on every turn so you can roll back.",
   },
   {
     title: "Read, navigate, validate.",

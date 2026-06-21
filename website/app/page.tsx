@@ -8,7 +8,7 @@ import { ServiceCards } from "@/components/v2/ServiceCards";
 import { SheetSection } from "@/components/v2/SheetSection";
 import { SheetHeading } from "@/components/v2/SheetHeading";
 import { StepsRow } from "@/components/v2/StepsRow";
-import { BentoGrid } from "@/components/v2/BentoGrid";
+import { FeatureShowcase } from "@/components/v2/FeatureShowcase";
 import { MockupSpreadV2 } from "@/components/v2/MockupSpreadV2";
 import { V2ThemeDefault } from "@/components/v2/V2ThemeDefault";
 
@@ -31,7 +31,7 @@ export default function Home() {
               eyebrow="01 · How it works"
               title="One product, not two."
               titleId="v2-how-title"
-              lead="Marvinz makes the DIY stack of “Claude Code CLI + Obsidian” one product. The agent edits your local markdown directly inside a workspace where you read, navigate and curate — every change snapshotted, every tool call approvable."
+              lead="Marvinz makes the DIY stack of “Claude Code / Codex CLI + Obsidian” one product. The agent edits your local markdown directly inside a workspace where you read, navigate and curate — every change snapshotted, every tool call approvable."
             />
             <StepsRow />
           </SheetSection>
@@ -39,11 +39,11 @@ export default function Home() {
           <SheetSection id="features" tone="2" ariaLabel="Features">
             <SheetHeading
               eyebrow="02 · Features"
-              title="The workspace native to the Claude Code + vault workflow."
+              title="The workspace native to the Claude Code / Codex + vault workflow."
               titleId="v2-features-title"
-              lead="Built for engineers and PMs who already run Claude Code alongside a markdown vault and want to read, navigate and validate what the AI generates — to trust it and build on it, instead of losing it in a terminal scroll."
+              lead="Built for engineers and PMs who already run Claude Code or Codex alongside a markdown vault and want to read, navigate and validate what the AI generates — to trust it and build on it, instead of losing it in a terminal scroll."
             />
-            <BentoGrid />
+            <FeatureShowcase />
           </SheetSection>
 
         <MockupSpreadV2 />

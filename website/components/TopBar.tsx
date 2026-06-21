@@ -6,9 +6,10 @@ import { ProgressiveBlur } from "./magicui/progressive-blur";
 import styles from "./TopBar.module.css";
 
 const NAV_LINKS = [
-  { href: "#how-it-works", label: "How it works" },
-  { href: "#features", label: "Features" },
-  { href: "#see-it", label: "See it" },
+  { href: "/#how-it-works", label: "How it works" },
+  { href: "/#features", label: "Features" },
+  { href: "/#see-it", label: "See it" },
+  { href: "/changelog", label: "Changelog" },
 ];
 
 export function TopBar({
@@ -53,7 +54,7 @@ export function TopBar({
         </div>
       )}
       <div className={styles.inner}>
-        <a href="#top" className={styles.brand}>
+        <a href="/" className={styles.brand}>
           Marvinz<span className={styles.dot}>.</span>
         </a>
 
