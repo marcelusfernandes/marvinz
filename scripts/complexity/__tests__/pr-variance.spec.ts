@@ -48,6 +48,13 @@ describe('buildVariance', () => {
     const v = buildVariance(p, { filesTouched: 16, downstreamFanout: 2 })
     expect(v.severity).toBe('over')
   })
+
+  it("size 'high' nunca alerta por arquivos (budget infinito)", () => {
+    // budget = Infinity → qualquer nº de arquivos é 'ok'; fanout no alvo → severity ok
+    const p = pred({ predicted_size: 'high' })
+    const v = buildVariance(p, { filesTouched: 100, downstreamFanout: 3 })
+    expect(v.severity).toBe('ok')
+  })
 })
 
 describe('ratioSeverity (§504)', () => {
@@ -55,6 +62,7 @@ describe('ratioSeverity (§504)', () => {
     expect(ratioSeverity(6, 5)).toBe('ok') // 1.2x
     expect(ratioSeverity(7, 5)).toBe('warn') // 1.4x
     expect(ratioSeverity(11, 5)).toBe('over') // 2.2x
+    expect(ratioSeverity(3, 5)).toBe('ok') // overestimate (0.6x) → nunca alerta
   })
 
   it('esperado 0 → valor absoluto: 🟡 ≥2 · 🔴 ≥4', () => {
