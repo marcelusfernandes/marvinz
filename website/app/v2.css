@@ -33,7 +33,7 @@
    so the sticky TopBar keeps working; the first/last children are transparent
    so nothing pokes past the rounded corners. */
 .v2Surface {
-  background: #fafafa;
+  background: var(--bg-app);
   border-radius: var(--v2-surface-radius);
 }
 
@@ -58,5 +58,5 @@
   --surface-2: #f4f4f5;
   --border: #e8e8ea;
   --border-strong: #d8d8dc;
-  color: #1c1c1e;
+  color: var(--text-primary);
 }

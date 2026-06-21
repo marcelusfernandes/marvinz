@@ -24,7 +24,8 @@
   border: 1px solid var(--border);
   border-radius: var(--bento-radius);
   padding: clamp(24px, 3vw, 36px);
-  transition: transform 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+  transition: transform var(--duration-normal) ease, border-color var(--duration-normal) ease,
+    box-shadow var(--duration-normal) ease;
 }
 
 .card:hover {

@@ -10,7 +10,7 @@ export function Footer() {
   return (
     <footer className={styles.footer}>
       <div className={styles.inner}>
-        <div className={styles.brandCol}>
+        <div>
           <p className={styles.wordmark}>
             Marvinz<span className={styles.dot}>.</span>
           </p>
