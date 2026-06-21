@@ -373,7 +373,11 @@
 }
 
 [data-style='legacy'] .cm-host .cm-selectionBackground,
-[data-style='legacy'] .cm-host.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground {
+[data-style='legacy']
+  .cm-host.cm-focused
+  > .cm-scroller
+  > .cm-selectionLayer
+  .cm-selectionBackground {
   background: unset !important;
 }
 

@@ -23,9 +23,7 @@ function AgentCardImpl({ tool, input, status, result, errorMessage }: ToolBodyPr
         {subagentType && (
           <span className="chat-tool-pill chat-tool-agent-type">{subagentType}</span>
         )}
-        {description && (
-          <span className="chat-tool-agent-desc">{description}</span>
-        )}
+        {description && <span className="chat-tool-agent-desc">{description}</span>}
       </div>
       {prompt && <p className="chat-tool-agent-prompt">{prompt}</p>}
       {output && (

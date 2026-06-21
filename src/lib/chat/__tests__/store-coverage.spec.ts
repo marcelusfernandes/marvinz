@@ -12,7 +12,10 @@ import type { AssistantBlock } from '../types'
 // ---------------------------------------------------------------------------
 
 setStreamingScheduler({
-  schedule: (cb) => { cb(); return 1 },
+  schedule: (cb) => {
+    cb()
+    return 1
+  },
   cancel: (_h) => {},
 })
 
@@ -20,7 +23,9 @@ setStreamingScheduler({
 // Helpers
 // ---------------------------------------------------------------------------
 
-function getStore() { return useChatStore.getState() }
+function getStore() {
+  return useChatStore.getState()
+}
 
 function resetStore() {
   resetStreamingBuffers()
@@ -486,8 +491,20 @@ describe('applyStreamEvent: thinking-delta via ref buffer', () => {
   beforeEach(setup)
 
   it('accumulates thinking deltas and flush creates a thinking block', () => {
-    getStore().applyStreamEvent(SID, { type: 'thinking-delta', sessionId: SID, messageId: MID, delta: 'Let me think', seq: 0 })
-    getStore().applyStreamEvent(SID, { type: 'thinking-delta', sessionId: SID, messageId: MID, delta: ' about this', seq: 1 })
+    getStore().applyStreamEvent(SID, {
+      type: 'thinking-delta',
+      sessionId: SID,
+      messageId: MID,
+      delta: 'Let me think',
+      seq: 0,
+    })
+    getStore().applyStreamEvent(SID, {
+      type: 'thinking-delta',
+      sessionId: SID,
+      messageId: MID,
+      delta: ' about this',
+      seq: 1,
+    })
     flushPendingDeltas()
     const thinkingBlock = getBlocks(SID, MID).find((b) => b.kind === 'thinking')
     expect(thinkingBlock).toBeDefined()
@@ -497,8 +514,20 @@ describe('applyStreamEvent: thinking-delta via ref buffer', () => {
   })
 
   it('thinking and text blocks are separate in same message', () => {
-    getStore().applyStreamEvent(SID, { type: 'thinking-delta', sessionId: SID, messageId: MID, delta: 'Reasoning', seq: 0 })
-    getStore().applyStreamEvent(SID, { type: 'text-delta', sessionId: SID, messageId: MID, delta: 'Answer', seq: 0 })
+    getStore().applyStreamEvent(SID, {
+      type: 'thinking-delta',
+      sessionId: SID,
+      messageId: MID,
+      delta: 'Reasoning',
+      seq: 0,
+    })
+    getStore().applyStreamEvent(SID, {
+      type: 'text-delta',
+      sessionId: SID,
+      messageId: MID,
+      delta: 'Answer',
+      seq: 0,
+    })
     flushPendingDeltas()
     const thinkingBlock = getBlocks(SID, MID).find((b) => b.kind === 'thinking')
     const textBlock = getBlocks(SID, MID).find((b) => b.kind === 'text')
@@ -719,7 +748,7 @@ describe('withSession guard — unknown session', () => {
         code: 'ERR',
         message: 'test',
         recoverable: false,
-      }),
+      })
     ).not.toThrow()
   })
 })

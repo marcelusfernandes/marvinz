@@ -68,7 +68,7 @@ export type UndoRoute =
 export function resolveUndoTarget(
   e: Pick<KeyboardEvent, 'key' | 'shiftKey' | 'metaKey' | 'ctrlKey'>,
   context: PanelContext,
-  hasEditableActiveTab: boolean,
+  hasEditableActiveTab: boolean
 ): UndoRoute {
   const isCmd = e.metaKey || e.ctrlKey
   if (!isCmd) return null

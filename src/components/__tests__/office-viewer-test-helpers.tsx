@@ -50,7 +50,7 @@ export function setupDocxMock(): void {
 export async function renderViewerLoaded(
   Component: ComponentType<ViewerProps>,
   contentSelector: string,
-  path: string,
+  path: string
 ): Promise<RenderResult> {
   const result = render(<Component path={path} />)
   await waitFor(() => expect(result.container.querySelector(contentSelector)).not.toBeNull())

@@ -41,7 +41,7 @@ function mkPair(opts: {
       issue_id: opts.id,
       harness_version: version,
       actual_iterations: { value: opts.iters, provenance: 'measured', evidence: 'gh pr view' },
-    }),
+    })
   )
   return { prediction, outcome }
 }
@@ -68,7 +68,12 @@ describe('binaryTrend', () => {
       mkPair({ id: '3', nd: false, iters: 2 }),
       mkPair({ id: '4', nd: false, iters: 1 }),
     ]
-    const t = binaryTrend('touches_nondeterministic', (p) => p.prediction.structural.touches_nondeterministic, pairs, true)
+    const t = binaryTrend(
+      'touches_nondeterministic',
+      (p) => p.prediction.structural.touches_nondeterministic,
+      pairs,
+      true
+    )
     expect(t).not.toBeNull()
     expect(t!.direction).toContain('mais iterações')
     expect(t!.supporting_examples).toBe(4)
@@ -77,7 +82,14 @@ describe('binaryTrend', () => {
 
   it('sem contraste (só um grupo) → null', () => {
     const pairs = [mkPair({ id: '1', nd: true, iters: 5 }), mkPair({ id: '2', nd: true, iters: 4 })]
-    expect(binaryTrend('touches_nondeterministic', (p) => p.prediction.structural.touches_nondeterministic, pairs, true)).toBeNull()
+    expect(
+      binaryTrend(
+        'touches_nondeterministic',
+        (p) => p.prediction.structural.touches_nondeterministic,
+        pairs,
+        true
+      )
+    ).toBeNull()
   })
 })
 
@@ -88,14 +100,29 @@ describe('ordinalTrend', () => {
       mkPair({ id: '2', fanout: 2, iters: 2 }),
       mkPair({ id: '3', fanout: 3, iters: 3 }),
     ]
-    const t = ordinalTrend('downstream_fanout', (p) => p.prediction.structural.downstream_fanout.value, pairs, true)
+    const t = ordinalTrend(
+      'downstream_fanout',
+      (p) => p.prediction.structural.downstream_fanout.value,
+      pairs,
+      true
+    )
     expect(t).not.toBeNull()
     expect(t!.direction).toContain('mais iterações')
   })
 
   it('< 3 pares → null (variação insuficiente)', () => {
-    const pairs = [mkPair({ id: '1', fanout: 1, iters: 1 }), mkPair({ id: '2', fanout: 2, iters: 2 })]
-    expect(ordinalTrend('downstream_fanout', (p) => p.prediction.structural.downstream_fanout.value, pairs, true)).toBeNull()
+    const pairs = [
+      mkPair({ id: '1', fanout: 1, iters: 1 }),
+      mkPair({ id: '2', fanout: 2, iters: 2 }),
+    ]
+    expect(
+      ordinalTrend(
+        'downstream_fanout',
+        (p) => p.prediction.structural.downstream_fanout.value,
+        pairs,
+        true
+      )
+    ).toBeNull()
   })
 })
 

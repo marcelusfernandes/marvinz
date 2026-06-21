@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import {
-  useChatStore,
-  setStreamingScheduler,
-  resetStreamingBuffers,
-} from '../store'
+import { useChatStore, setStreamingScheduler, resetStreamingBuffers } from '../store'
 import type { AssistantBlock } from '../types'
 
 // ---------------------------------------------------------------------------
@@ -11,7 +7,10 @@ import type { AssistantBlock } from '../types'
 // ---------------------------------------------------------------------------
 
 setStreamingScheduler({
-  schedule: (cb) => { cb(); return 1 },
+  schedule: (cb) => {
+    cb()
+    return 1
+  },
   cancel: (_h) => {},
 })
 
@@ -19,7 +18,9 @@ setStreamingScheduler({
 // Helpers
 // ---------------------------------------------------------------------------
 
-function getStore() { return useChatStore.getState() }
+function getStore() {
+  return useChatStore.getState()
+}
 
 function resetStore() {
   resetStreamingBuffers()

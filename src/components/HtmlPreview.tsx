@@ -15,7 +15,6 @@ function marvinFileUrl(absPath: string, version: number): string {
   return `marvin://localhost${encoded}?v=${version}`
 }
 
-
 export function HtmlPreview({ filePath, version, geometryKey }: Props) {
   const hostRef = useRef<HTMLDivElement>(null)
   const id = `html-preview-${filePath}`
@@ -45,11 +44,7 @@ export function HtmlPreview({ filePath, version, geometryKey }: Props) {
         })
         if (cancelled) return
         // Register the descriptor so main can recompute on the first OS resize.
-        const insets = computeViewInsets(
-          hostRef.current,
-          window.innerWidth,
-          window.innerHeight,
-        )
+        const insets = computeViewInsets(hostRef.current, window.innerWidth, window.innerHeight)
         if (insets) void window.marvin.browser.setGeometry(id, insets)
       } catch (err) {
         console.error('[HtmlPreview] create failed', err)

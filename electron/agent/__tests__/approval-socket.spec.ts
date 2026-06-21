@@ -8,11 +8,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import net from 'node:net'
 import { createApprovalServer, approvalSocketPath } from '../approval-socket'
-import {
-  clearSessionRules,
-  recordDecision,
-  resolveApproval,
-} from '../permissions'
+import { clearSessionRules, recordDecision, resolveApproval } from '../permissions'
 import type { AgentEvent } from '../protocol'
 
 // ---------------------------------------------------------------------------
@@ -30,7 +26,7 @@ type ServerHandle = Awaited<ReturnType<typeof createApprovalServer>>
 
 async function spawnServer(
   permissionMode: 'default' | 'acceptEdits' | 'plan' | 'auto' = 'default',
-  emit = makeEmit(),
+  emit = makeEmit()
 ): Promise<{ handle: ServerHandle; emit: ReturnType<typeof makeEmit> }> {
   const pendingApprovalIds = new Set<string>()
   const pendingToolNames = new Map<string, string>()
@@ -39,16 +35,13 @@ async function spawnServer(
     { sessionId: SESSION, permissionMode, vaultRoot: VAULT },
     pendingApprovalIds,
     pendingToolNames,
-    emit,
+    emit
   )
   return { handle, emit }
 }
 
 /** Open a socket to the server, write a message, collect the response. */
-async function roundtrip(
-  socketPath: string,
-  message: Record<string, unknown>,
-): Promise<string> {
+async function roundtrip(socketPath: string, message: Record<string, unknown>): Promise<string> {
   return new Promise((resolve, reject) => {
     const sock = net.createConnection(socketPath)
     let buf = ''
@@ -119,7 +112,10 @@ describe('createApprovalServer — lifecycle', () => {
     // Connect succeeds
     const sock = net.createConnection(handle.socketPath)
     await new Promise<void>((res, rej) => {
-      sock.on('connect', () => { sock.destroy(); res() })
+      sock.on('connect', () => {
+        sock.destroy()
+        res()
+      })
       sock.on('error', rej)
     })
   })
@@ -133,8 +129,10 @@ describe('createApprovalServer — lifecycle', () => {
     await expect(
       new Promise<void>((_, rej) => {
         const s = net.createConnection(p)
-        s.on('error', (e) => { rej(e) })
-      }),
+        s.on('error', (e) => {
+          rej(e)
+        })
+      })
     ).rejects.toThrow()
   })
 })
@@ -204,7 +202,7 @@ describe('handleConnection — mode: acceptEdits', () => {
     expect(parseResponse(raw).decision).toBe('allow')
     expect(emit).toHaveBeenCalledWith(
       `agent:event:${SESSION}`,
-      expect.objectContaining({ type: 'permission-request', toolUseId: 'tu-ae-bash' }),
+      expect.objectContaining({ type: 'permission-request', toolUseId: 'tu-ae-bash' })
     )
   })
 })
@@ -269,7 +267,7 @@ describe('handleConnection — mode: default, action: request', () => {
         sessionId: SESSION,
         toolUseId: 'tu-req-1',
         toolName: 'Bash',
-      }),
+      })
     )
   })
 

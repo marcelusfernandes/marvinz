@@ -36,8 +36,12 @@ function makeMenuMock() {
   capturedItems = []
   capturedPopupArg = undefined
   return {
-    append: vi.fn((item: MenuItemOptions) => { capturedItems.push(item) }),
-    popup: vi.fn((arg?: { window?: unknown; callback?: () => void }) => { capturedPopupArg = arg }),
+    append: vi.fn((item: MenuItemOptions) => {
+      capturedItems.push(item)
+    }),
+    popup: vi.fn((arg?: { window?: unknown; callback?: () => void }) => {
+      capturedPopupArg = arg
+    }),
   }
 }
 
@@ -68,32 +72,35 @@ import { Menu, MenuItem, clipboard, BrowserWindow } from 'electron'
 // Handler factories — mirror main.ts logic exactly
 // ---------------------------------------------------------------------------
 
-function buildContextMenu(
-  sender: unknown,
-  items: MenuItemSpec[],
-): Promise<string | null> {
-  return new Promise<string | null>(resolve => {
+function buildContextMenu(sender: unknown, items: MenuItemSpec[]): Promise<string | null> {
+  return new Promise<string | null>((resolve) => {
     let chosen: string | null = null
     const menu = new Menu()
     for (const spec of items) {
       if (spec.kind === 'separator') {
         menu.append(new MenuItem({ type: 'separator' }))
       } else {
-        menu.append(new MenuItem({
-          label: spec.label,
-          accelerator: spec.accelerator,
-          enabled: spec.enabled ?? true,
-          click: () => { chosen = spec.id },
-        }))
+        menu.append(
+          new MenuItem({
+            label: spec.label,
+            accelerator: spec.accelerator,
+            enabled: spec.enabled ?? true,
+            click: () => {
+              chosen = spec.id
+            },
+          })
+        )
       }
     }
-    const win = BrowserWindow.fromWebContents(sender as Parameters<typeof BrowserWindow.fromWebContents>[0])
+    const win = BrowserWindow.fromWebContents(
+      sender as Parameters<typeof BrowserWindow.fromWebContents>[0]
+    )
     menu.popup({ window: win ?? undefined, callback: () => resolve(chosen) })
   })
 }
 
 function canPaste(): boolean {
-  return clipboard.availableFormats().some(f => f.startsWith('text/') || f === 'text')
+  return clipboard.availableFormats().some((f) => f.startsWith('text/') || f === 'text')
 }
 
 // ---------------------------------------------------------------------------
@@ -101,15 +108,15 @@ function canPaste(): boolean {
 // ---------------------------------------------------------------------------
 
 function labeledItems() {
-  return capturedItems.filter(i => i.label)
+  return capturedItems.filter((i) => i.label)
 }
 
 function separatorItems() {
-  return capturedItems.filter(i => i.type === 'separator')
+  return capturedItems.filter((i) => i.type === 'separator')
 }
 
 function itemByLabel(label: string): MenuItemOptions | undefined {
-  return capturedItems.find(i => i.label === label)
+  return capturedItems.find((i) => i.label === label)
 }
 
 // ---------------------------------------------------------------------------
@@ -119,11 +126,16 @@ function itemByLabel(label: string): MenuItemOptions | undefined {
 beforeEach(() => {
   menuInstance = makeMenuMock()
   vi.clearAllMocks()
-  ;(Menu as unknown as ReturnType<typeof vi.fn>).mockImplementation(function (this: Record<string, unknown>) {
+  ;(Menu as unknown as ReturnType<typeof vi.fn>).mockImplementation(function (
+    this: Record<string, unknown>
+  ) {
     this.append = menuInstance.append
     this.popup = menuInstance.popup
   })
-  ;(MenuItem as unknown as ReturnType<typeof vi.fn>).mockImplementation(function (this: MenuItemOptions, opts: MenuItemOptions) {
+  ;(MenuItem as unknown as ReturnType<typeof vi.fn>).mockImplementation(function (
+    this: MenuItemOptions,
+    opts: MenuItemOptions
+  ) {
     Object.assign(this, opts)
   })
   ;(clipboard.availableFormats as ReturnType<typeof vi.fn>).mockReturnValue([])
@@ -141,7 +153,7 @@ describe('app:show-context-menu — items built in order', () => {
       { kind: 'item', id: 'b', label: 'Beta' },
     ]
     buildContextMenu(null, items)
-    const labels = capturedItems.map(i => i.label ?? '(separator)')
+    const labels = capturedItems.map((i) => i.label ?? '(separator)')
     expect(labels).toEqual(['Alpha', '(separator)', 'Beta'])
   })
 
@@ -285,7 +297,10 @@ describe('app:can-paste', () => {
   })
 
   it('returns false when clipboard has only non-text formats', () => {
-    ;(clipboard.availableFormats as ReturnType<typeof vi.fn>).mockReturnValue(['image/png', 'image/jpeg'])
+    ;(clipboard.availableFormats as ReturnType<typeof vi.fn>).mockReturnValue([
+      'image/png',
+      'image/jpeg',
+    ])
     expect(canPaste()).toBe(false)
   })
 
@@ -310,7 +325,10 @@ describe('app:can-paste', () => {
   })
 
   it('returns true when text format is mixed with non-text formats', () => {
-    ;(clipboard.availableFormats as ReturnType<typeof vi.fn>).mockReturnValue(['image/png', 'text/plain'])
+    ;(clipboard.availableFormats as ReturnType<typeof vi.fn>).mockReturnValue([
+      'image/png',
+      'text/plain',
+    ])
     expect(canPaste()).toBe(true)
   })
 

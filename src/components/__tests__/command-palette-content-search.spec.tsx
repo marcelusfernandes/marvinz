@@ -73,8 +73,12 @@ const ITEMS: PaletteItem[] = [
 const noop = () => {}
 
 type ContentHit = {
-  path: string; rel: string; name: string; line: number
-  lineText: string; matchRanges: Array<{ start: number; end: number }>
+  path: string
+  rel: string
+  name: string
+  line: number
+  lineText: string
+  matchRanges: Array<{ start: number; end: number }>
 }
 
 function makeHit(name: string, line: number, lineText = ''): ContentHit {
@@ -96,9 +100,7 @@ describe('CommandPalette — content search: "Content matches" section', () => {
   it('renders "Content matches" section header after debounce when IPC returns hits', async () => {
     mockSearchContent.mockResolvedValue([makeHit('meeting-notes.md', 42)])
 
-    const { queryByText } = render(
-      <CommandPalette items={ITEMS} onPick={noop} onClose={noop} />,
-    )
+    const { queryByText } = render(<CommandPalette items={ITEMS} onPick={noop} onClose={noop} />)
 
     const input = document.querySelector('.palette-input') as HTMLInputElement
     fireEvent.change(input, { target: { value: 'docker' } })
@@ -112,16 +114,12 @@ describe('CommandPalette — content search: "Content matches" section', () => {
   })
 
   it('does NOT render "Content matches" section when query is empty', () => {
-    const { queryByText } = render(
-      <CommandPalette items={ITEMS} onPick={noop} onClose={noop} />,
-    )
+    const { queryByText } = render(<CommandPalette items={ITEMS} onPick={noop} onClose={noop} />)
     expect(queryByText(/Content matches/)).toBeNull()
   })
 
   it('does NOT render "Content matches" section when query length is 1', async () => {
-    const { queryByText } = render(
-      <CommandPalette items={ITEMS} onPick={noop} onClose={noop} />,
-    )
+    const { queryByText } = render(<CommandPalette items={ITEMS} onPick={noop} onClose={noop} />)
     const input = document.querySelector('.palette-input') as HTMLInputElement
     fireEvent.change(input, { target: { value: 'd' } })
 
@@ -140,9 +138,7 @@ describe('CommandPalette — content search: hit item rendering', () => {
   it('renders content hit with filename and line number', async () => {
     mockSearchContent.mockResolvedValue([makeHit('meeting-notes.md', 42)])
 
-    const { queryByText } = render(
-      <CommandPalette items={ITEMS} onPick={noop} onClose={noop} />,
-    )
+    const { queryByText } = render(<CommandPalette items={ITEMS} onPick={noop} onClose={noop} />)
     const input = document.querySelector('.palette-input') as HTMLInputElement
     fireEvent.change(input, { target: { value: 'docker' } })
 
@@ -153,14 +149,9 @@ describe('CommandPalette — content search: hit item rendering', () => {
   })
 
   it('renders multiple content hits', async () => {
-    mockSearchContent.mockResolvedValue([
-      makeHit('note-a.md', 3),
-      makeHit('note-b.md', 7),
-    ])
+    mockSearchContent.mockResolvedValue([makeHit('note-a.md', 3), makeHit('note-b.md', 7)])
 
-    const { queryByText } = render(
-      <CommandPalette items={ITEMS} onPick={noop} onClose={noop} />,
-    )
+    const { queryByText } = render(<CommandPalette items={ITEMS} onPick={noop} onClose={noop} />)
     const input = document.querySelector('.palette-input') as HTMLInputElement
     fireEvent.change(input, { target: { value: 'query' } })
 
@@ -175,9 +166,7 @@ describe('CommandPalette — content search: hit item rendering', () => {
   it('omits "Content matches" section when IPC returns empty array', async () => {
     mockSearchContent.mockResolvedValue([])
 
-    const { queryByText } = render(
-      <CommandPalette items={ITEMS} onPick={noop} onClose={noop} />,
-    )
+    const { queryByText } = render(<CommandPalette items={ITEMS} onPick={noop} onClose={noop} />)
     const input = document.querySelector('.palette-input') as HTMLInputElement
     fireEvent.change(input, { target: { value: 'nomatch' } })
 
@@ -198,9 +187,7 @@ describe('CommandPalette — content search: lineText rendering', () => {
       makeHit('meeting-notes.md', 42, 'docker compose up to start services'),
     ])
 
-    const { queryByText } = render(
-      <CommandPalette items={ITEMS} onPick={noop} onClose={noop} />,
-    )
+    const { queryByText } = render(<CommandPalette items={ITEMS} onPick={noop} onClose={noop} />)
     const input = document.querySelector('.palette-input') as HTMLInputElement
     fireEvent.change(input, { target: { value: 'docker' } })
 
@@ -215,9 +202,7 @@ describe('CommandPalette — content search: lineText rendering', () => {
       makeHit('note-b.md', 7, 'const x = 1'),
     ])
 
-    const { queryByText } = render(
-      <CommandPalette items={ITEMS} onPick={noop} onClose={noop} />,
-    )
+    const { queryByText } = render(<CommandPalette items={ITEMS} onPick={noop} onClose={noop} />)
     const input = document.querySelector('.palette-input') as HTMLInputElement
     fireEvent.change(input, { target: { value: 'hello' } })
 
@@ -241,7 +226,7 @@ describe('CommandPalette — content search: matchRanges passed to snippet rende
     ])
 
     const { queryByText, container } = render(
-      <CommandPalette items={ITEMS} onPick={noop} onClose={noop} />,
+      <CommandPalette items={ITEMS} onPick={noop} onClose={noop} />
     )
     const input = container.querySelector('.palette-input') as HTMLInputElement
     fireEvent.change(input, { target: { value: 'hello' } })
@@ -254,7 +239,10 @@ describe('CommandPalette — content search: matchRanges passed to snippet rende
 
   it('passes indices for multiple ranges to HighlightedMatch', async () => {
     // lineText = "hello world hello again", two ranges → 10 highlighted chars
-    const ranges = [{ start: 0, end: 5 }, { start: 12, end: 17 }]
+    const ranges = [
+      { start: 0, end: 5 },
+      { start: 12, end: 17 },
+    ]
     mockSearchContent.mockResolvedValue([
       {
         ...makeHit('multi.md', 3, 'hello world hello again'),
@@ -263,7 +251,7 @@ describe('CommandPalette — content search: matchRanges passed to snippet rende
     ])
 
     const { queryByText, container } = render(
-      <CommandPalette items={ITEMS} onPick={noop} onClose={noop} />,
+      <CommandPalette items={ITEMS} onPick={noop} onClose={noop} />
     )
     const input = container.querySelector('.palette-input') as HTMLInputElement
     fireEvent.change(input, { target: { value: 'hello' } })
@@ -285,12 +273,10 @@ describe('CommandPalette — content search: loading indicator', () => {
     mockSearchContent.mockReturnValue(
       new Promise<ContentHit[]>((res) => {
         resolveSearch = res
-      }),
+      })
     )
 
-    const { queryByTestId } = render(
-      <CommandPalette items={ITEMS} onPick={noop} onClose={noop} />,
-    )
+    const { queryByTestId } = render(<CommandPalette items={ITEMS} onPick={noop} onClose={noop} />)
     const input = document.querySelector('.palette-input') as HTMLInputElement
     fireEvent.change(input, { target: { value: 'docker' } })
 
@@ -338,9 +324,7 @@ describe('CommandPalette — content search: filename search regression guard', 
   it('filename results still render instantly (before debounce)', () => {
     mockSearchContent.mockResolvedValue([])
 
-    const { queryByText } = render(
-      <CommandPalette items={ITEMS} onPick={noop} onClose={noop} />,
-    )
+    const { queryByText } = render(<CommandPalette items={ITEMS} onPick={noop} onClose={noop} />)
     const input = document.querySelector('.palette-input') as HTMLInputElement
     fireEvent.change(input, { target: { value: 'alpha' } })
 
@@ -351,9 +335,7 @@ describe('CommandPalette — content search: filename search regression guard', 
   it('filename section header "Notes" appears before content section', async () => {
     mockSearchContent.mockResolvedValue([makeHit('alpha.md', 1)])
 
-    const { queryByText } = render(
-      <CommandPalette items={ITEMS} onPick={noop} onClose={noop} />,
-    )
+    const { queryByText } = render(<CommandPalette items={ITEMS} onPick={noop} onClose={noop} />)
     const input = document.querySelector('.palette-input') as HTMLInputElement
     fireEvent.change(input, { target: { value: 'alpha' } })
 
@@ -385,18 +367,20 @@ describe('CommandPalette — content search: generation counter (stale response 
       .mockReturnValueOnce(firstSearch)
       .mockResolvedValue([makeHit('second-result.md', 1)])
 
-    const { queryByText } = render(
-      <CommandPalette items={ITEMS} onPick={noop} onClose={noop} />,
-    )
+    const { queryByText } = render(<CommandPalette items={ITEMS} onPick={noop} onClose={noop} />)
     const input = document.querySelector('.palette-input') as HTMLInputElement
 
     // First query — triggers search but don't resolve yet
     fireEvent.change(input, { target: { value: 'first' } })
-    await act(async () => { await vi.advanceTimersByTimeAsync(250) })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(250)
+    })
 
     // Second query — supersedes first; debounce restarts
     fireEvent.change(input, { target: { value: 'second' } })
-    await act(async () => { await vi.advanceTimersByTimeAsync(250) })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(250)
+    })
 
     // Second resolved — result should be visible
     expect(queryByText('second-result.md')).toBeTruthy()

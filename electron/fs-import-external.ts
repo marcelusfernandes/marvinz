@@ -73,25 +73,25 @@ async function getResolvedHome(): Promise<string> {
 export function isDenied(real: string, home: string): boolean {
   // POSIX separators only — Marvinz targets macOS (Linux best-effort, Windows unsupported)
   const isBlockedAbsolute = BLOCKED_PATH_PREFIXES.some(
-    p => real.startsWith(p) || real + '/' === p,
+    (p) => real.startsWith(p) || real + '/' === p
   )
-  const isBlockedInHome = BLOCKED_HOME_SUBPATHS.some(p => {
+  const isBlockedInHome = BLOCKED_HOME_SUBPATHS.some((p) => {
     const base = home + '/' + p.replace(/\/$/, '')
     return real === base || real.startsWith(base + '/')
   })
-  const isBlockedFile = BLOCKED_HOME_FILES.some(name => real === home + '/' + name)
+  const isBlockedFile = BLOCKED_HOME_FILES.some((name) => real === home + '/' + name)
   return isBlockedAbsolute || isBlockedInHome || isBlockedFile
 }
 
 export async function importExternal(
   activeVaultPath: string,
   sources: string[],
-  destDir: string,
+  destDir: string
 ): Promise<ImportResult> {
   const safeDestDir = await assertCwdInsideVaultAsync(activeVaultPath, destDir)
 
   const entries = await readdir(safeDestDir)
-  const namesSet = new Set(entries.map(n => n.normalize('NFC')))
+  const namesSet = new Set(entries.map((n) => n.normalize('NFC')))
 
   const imported: string[] = []
   const skipped: ImportResult['skipped'] = []

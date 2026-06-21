@@ -6,7 +6,10 @@ const path = require('node:path')
 const SRC = path.join(__dirname, '..', 'src', 'icons')
 const OUT = path.join(__dirname, 'icons.html')
 
-const files = fs.readdirSync(SRC).filter((f) => f.endsWith('.svg')).sort()
+const files = fs
+  .readdirSync(SRC)
+  .filter((f) => f.endsWith('.svg'))
+  .sort()
 const inUse = new Set([
   'add',
   'close',

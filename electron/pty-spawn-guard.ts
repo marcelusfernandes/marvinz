@@ -12,10 +12,16 @@ export type PtySpawnOpts = {
 }
 
 const GENERIC_SHELLS = new Set([
-  '/bin/sh', '/bin/bash', '/bin/zsh',
-  '/usr/bin/sh', '/usr/bin/bash', '/usr/bin/zsh',
-  '/usr/local/bin/bash', '/usr/local/bin/zsh',
-  '/opt/homebrew/bin/bash', '/opt/homebrew/bin/zsh',
+  '/bin/sh',
+  '/bin/bash',
+  '/bin/zsh',
+  '/usr/bin/sh',
+  '/usr/bin/bash',
+  '/usr/bin/zsh',
+  '/usr/local/bin/bash',
+  '/usr/local/bin/zsh',
+  '/opt/homebrew/bin/bash',
+  '/opt/homebrew/bin/zsh',
 ])
 
 // Agent binaries registered at runtime via registerDynamicShell (called after agent:detect)
@@ -31,7 +37,7 @@ export function registerDynamicShell(shell: string): void {
 
 export async function assertPtySpawnAllowed(
   vaultPath: string,
-  opts: PtySpawnOpts,
+  opts: PtySpawnOpts
 ): Promise<{ shell: string; cwd: string }> {
   // HIGH-2: resolve symlinks on the shell path before allowlist check to close
   // the symlink-swap vector (/usr/local/bin/zsh → /tmp/malicious)

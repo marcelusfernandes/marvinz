@@ -18,9 +18,7 @@ export const smallTree: FileNode[] = [
     path: '/vault/assets',
     name: 'assets',
     isDir: true,
-    children: [
-      { path: '/vault/assets/logo.png', name: 'logo.png', isDir: false, children: [] },
-    ],
+    children: [{ path: '/vault/assets/logo.png', name: 'logo.png', isDir: false, children: [] }],
   },
   { path: '/vault/readme.md', name: 'readme.md', isDir: false, children: [] },
 ]
@@ -32,7 +30,7 @@ export const smallTree: FileNode[] = [
 export function generateLargeTree(
   folderCount: number,
   depth: number,
-  filesPerFolder: number,
+  filesPerFolder: number
 ): FileNode[] {
   function buildFolder(basePath: string, name: string, currentDepth: number): FileNode {
     const folderPath = `${basePath}/${name}`
@@ -45,7 +43,7 @@ export function generateLargeTree(
     const subfolders: FileNode[] =
       currentDepth < depth
         ? Array.from({ length: 2 }, (_, si) =>
-            buildFolder(folderPath, `sub-${si}`, currentDepth + 1),
+            buildFolder(folderPath, `sub-${si}`, currentDepth + 1)
           )
         : []
     return {
@@ -56,7 +54,5 @@ export function generateLargeTree(
     }
   }
 
-  return Array.from({ length: folderCount }, (_, i) =>
-    buildFolder('/vault', `folder-${i}`, 1),
-  )
+  return Array.from({ length: folderCount }, (_, i) => buildFolder('/vault', `folder-${i}`, 1))
 }

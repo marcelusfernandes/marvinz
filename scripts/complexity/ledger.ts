@@ -37,7 +37,7 @@ function append(path: string, record: unknown): void {
 
 export function appendPrediction(
   prediction: PredictionVectorType,
-  repoRoot: string = REPO_ROOT,
+  repoRoot: string = REPO_ROOT
 ): string {
   // Revalida na fronteira: nunca confie que o caller já validou.
   const valid = PredictionVector.parse(prediction)

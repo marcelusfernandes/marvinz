@@ -36,12 +36,10 @@ export const taskListBracketInputRule = $inputRule((ctx) => {
       const node = $start.node(depth)
       if (node.type === listItem) {
         if (node.attrs.checked == null) return null
-        return state.tr
-          .deleteRange(start, end)
-          .setNodeMarkup($start.before(depth), undefined, {
-            ...node.attrs,
-            checked,
-          })
+        return state.tr.deleteRange(start, end).setNodeMarkup($start.before(depth), undefined, {
+          ...node.attrs,
+          checked,
+        })
       }
     }
 
@@ -49,10 +47,7 @@ export const taskListBracketInputRule = $inputRule((ctx) => {
     const range = $start.blockRange()
     if (!range) return null
 
-    const wrappers = [
-      { type: bulletList },
-      { type: listItem, attrs: { checked } },
-    ]
+    const wrappers = [{ type: bulletList }, { type: listItem, attrs: { checked } }]
     // Validate the wrapping is allowed at this range before mutating.
     if (!findWrapping(range, bulletList)) return null
 

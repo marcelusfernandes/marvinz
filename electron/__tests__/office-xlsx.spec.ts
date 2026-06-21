@@ -29,7 +29,13 @@ import { assertInsideVaultAsync } from '../vault-boundary.js'
 // ---------------------------------------------------------------------------
 
 vi.mock('xlsx', () => {
-  const fakeSheet = { A1: { v: 'Name' }, B1: { v: 'Score' }, A2: { v: 'Alice' }, B2: { v: 42 }, '!ref': 'A1:B2' }
+  const fakeSheet = {
+    A1: { v: 'Name' },
+    B1: { v: 'Score' },
+    A2: { v: 'Alice' },
+    B2: { v: 42 },
+    '!ref': 'A1:B2',
+  }
   const fakeWorkbook = {
     SheetNames: ['Sheet1'],
     Sheets: { Sheet1: fakeSheet },
@@ -39,7 +45,10 @@ vi.mock('xlsx', () => {
       read: vi.fn().mockReturnValue(fakeWorkbook),
       write: vi.fn().mockReturnValue(Buffer.from('xlsx-bytes')),
       utils: {
-        sheet_to_json: vi.fn().mockReturnValue([['Name', 'Score'], ['Alice', '42']]),
+        sheet_to_json: vi.fn().mockReturnValue([
+          ['Name', 'Score'],
+          ['Alice', '42'],
+        ]),
         aoa_to_sheet: vi.fn().mockReturnValue(fakeSheet),
         book_new: vi.fn().mockReturnValue({ SheetNames: [], Sheets: {} }),
         book_append_sheet: vi.fn(),
@@ -54,7 +63,7 @@ vi.mock('xlsx', () => {
 
 async function readXlsx(
   vaultPath: string,
-  filePath: string,
+  filePath: string
 ): Promise<{ rows: string[][]; sheetNames: string[] }> {
   const XLSX = (await import('xlsx')).default
   const safe = await assertInsideVaultAsync(vaultPath, filePath)
@@ -76,7 +85,7 @@ async function writeXlsx(
   vaultPath: string,
   filePath: string,
   rows: string[][],
-  sheetName: string,
+  sheetName: string
 ): Promise<void> {
   if (JSON.stringify(rows).length > 10 * 1024 * 1024) throw new Error('MARVIN_TOO_LARGE')
   const XLSX = (await import('xlsx')).default
@@ -190,7 +199,10 @@ describe('office:writeXlsx — happy path', () => {
 
   it('writes the buffer returned by XLSX.write to the safe path', async () => {
     const filePath = path.join(vault, 'output.xlsx')
-    const rows = [['Name', 'Score'], ['Alice', '42']]
+    const rows = [
+      ['Name', 'Score'],
+      ['Alice', '42'],
+    ]
 
     await writeXlsx(vault, filePath, rows, 'Sheet1')
 
@@ -208,7 +220,7 @@ describe('office:writeXlsx — happy path', () => {
     expect(XLSX.utils.book_append_sheet).toHaveBeenCalledWith(
       expect.anything(),
       expect.anything(),
-      'MySheet',
+      'MySheet'
     )
   })
 })

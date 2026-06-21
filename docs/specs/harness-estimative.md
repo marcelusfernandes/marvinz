@@ -33,23 +33,27 @@ um instrumento de legibilidade e accountability do roteamento.
 Estes são os pontos onde a ideia ingênua falha. Não pule nenhum.
 
 ### 1.1 O harness é o AGENTE, não código com chamadas de API
+
 Os campos são preenchidos por agentes como **subproduto da deliberação que já
 fazem** — não por um pipeline determinístico. Consequência direta no item seguinte.
 
 ### 1.2 Dois eixos de honestidade, não um
+
 - **`ScoreSource`** (`heuristic` | `calibrated`): quão confiável é o peso agregado.
 - **`Provenance`** (`measured` | `estimated`): **como o sinal numérico veio.**
   Um agente que devolve um float (ex.: centralidade de grafo) está emitindo
   OPINIÃO, não medida — a menos que tenha **rodado uma tool de verdade** (grep,
   script, query). Todo sinal numérico carrega `provenance` + `evidence` (o
-  comando rodado). *Float sem proveniência é mentira neste harness.*
+  comando rodado). _Float sem proveniência é mentira neste harness._
 
 ### 1.3 Não estime o que não dá pra medir confiavelmente
+
 Centralidade de nó (betweenness/pagerank) **não é estimável por LLM**. Deixe o
 campo `null` a menos que tenha computado de verdade. Melhor um buraco honesto que
 um número inventado que polui a calibração.
 
 ### 1.4 Outcomes vêm de git/gh, não de julgamento
+
 O time de medição **consulta** `git`/`gh` para o factual (arquivos tocados,
 ciclos de review, reopen, retrabalho) e só **julga** o resíduo genuinamente não
 mensurável (ex.: "quantas vezes um humano teve que decidir algo"), marcando-o
@@ -57,32 +61,38 @@ mensurável (ex.: "quantas vezes um humano teve que decidir algo"), marcando-o
 coletar o primeiro registro** — senão o label drifta e o corpus apodrece.
 
 ### 1.5 `harness_version` controla drift — e é traiçoeiro num harness agêntico
+
 A "versão" não é um SHA de código de app: é a composição que muda o comportamento
 dos agentes → `f"{model}+{hash(prompts dos agentes + specs dos comandos)}"`.
 Toda edição nesses prompts muda a distribuição dos sinais. **Tendências só são
 comparáveis dentro de uma mesma `harness_version`.** Use **content hash** (não
 commit hash): edições locais não commitadas já mudam a distribuição.
+
 > ⚠️ Risco real: se você muda os prompts toda semana, talvez nunca acumule
-> exemplos suficientes por versão. Mitigação: congele a *lógica de extração de
-> sinais* mesmo evoluindo o resto.
+> exemplos suficientes por versão. Mitigação: congele a _lógica de extração de
+> sinais_ mesmo evoluindo o resto.
 
 ### 1.6 Independência dos três papéis
+
 Quem **prediz** ≠ quem **implementa** ≠ quem **mede/calibra**. Se o mesmo contexto
 prediz e mede, os erros se correlacionam e o sistema se auto-justifica. Times/
 comandos separados.
 
 ### 1.7 Confound do oversight
+
 A decisão de oversight é tomada A PARTIR da predição e depois AFETA o outcome
 (mandar review denso reduz bugs). A calibração deve tratar `assigned_oversight`
 como **variável de tratamento** (auditoria de roteamento), não como label limpo.
 
 ### 1.8 Calibração-por-agente é caça-ruído, não regressão
+
 Com N pequeno (dezenas) e ~12 sinais, ajustar pesos = overfit; e um agente
 "calibrando" sobre 20 exemplos **confabula** padrão confiante onde só há ruído.
 A Camada 3 emite **direção + nº de exemplos + confiança honesta**, não um float
 em que se confia. `score_source` fica `heuristic` por muito tempo, de propósito.
 
 ### 1.9 Nunca gateie o workflow
+
 A emissão é **append-only e não-fatal**. Se falhar (CLI erra, sinal faltando),
 registre o que deu ou pule — emitir JAMAIS pode travar a missão de discovery.
 
@@ -92,15 +102,15 @@ registre o que deu ou pule — emitir JAMAIS pode travar a missão de discovery.
 
 Antes de codar, mapeie:
 
-| Variável | No projeto-fonte | No seu projeto |
-|---|---|---|
-| Onde nascem as "issues/tasks" | comando `/discovery` (agent team) que cria issues no GitHub | ? (qualquer fluxo que produza unidades de trabalho) |
-| Chave de pareamento | nº da issue no GitHub | ? (id estável: nº de issue, ticket, etc.) |
-| `domains_touched` possíveis | módulos do monólito (auth, commerce, ...) | ? (liste os domínios reais) |
-| Onde mora o código tocável | `src/` | ? |
-| Diretórios que definem o agente | `.claude/agents` + `.claude/commands` | ? (onde estão os prompts/specs) |
-| Model id | `claude-opus-4-8` | ? |
-| Onde mora o harness (tooling) | `scripts/complexity/` (pacote Python) | ? (fora do runtime do app) |
+| Variável                        | No projeto-fonte                                            | No seu projeto                                      |
+| ------------------------------- | ----------------------------------------------------------- | --------------------------------------------------- |
+| Onde nascem as "issues/tasks"   | comando `/discovery` (agent team) que cria issues no GitHub | ? (qualquer fluxo que produza unidades de trabalho) |
+| Chave de pareamento             | nº da issue no GitHub                                       | ? (id estável: nº de issue, ticket, etc.)           |
+| `domains_touched` possíveis     | módulos do monólito (auth, commerce, ...)                   | ? (liste os domínios reais)                         |
+| Onde mora o código tocável      | `src/`                                                      | ?                                                   |
+| Diretórios que definem o agente | `.claude/agents` + `.claude/commands`                       | ? (onde estão os prompts/specs)                     |
+| Model id                        | `claude-opus-4-8`                                           | ?                                                   |
+| Onde mora o harness (tooling)   | `scripts/complexity/` (pacote Python)                       | ? (fora do runtime do app)                          |
 
 ---
 
@@ -479,6 +489,7 @@ passo (não-fatal) que instrui o agente a:
 ### 4.6 Testes (mínimos)
 
 Cubra com `tmp_path` (nunca escreva no ledger real em teste):
+
 - `harness_version`: formato, determinismo, muda quando o conteúdo muda.
 - ledger: round-trip append/read; ledger vazio → `[]`.
 - `calibration_pairs`: join por `issue_id`; exclui `harness_version` divergente;

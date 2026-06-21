@@ -3,9 +3,7 @@ import { relPathIsNoisy, NOISY_DIRS, isNoisy } from '../noisyPaths'
 
 describe('relPathIsNoisy', () => {
   it('flags internal snapshot bookkeeping deep under .marvin/', () => {
-    expect(
-      relPathIsNoisy('.marvin/snapshots/20260526T023148Z-361d4e/_manifest.json'),
-    ).toBe(true)
+    expect(relPathIsNoisy('.marvin/snapshots/20260526T023148Z-361d4e/_manifest.json')).toBe(true)
   })
 
   it('flags Obsidian workspace state under .obsidian/', () => {

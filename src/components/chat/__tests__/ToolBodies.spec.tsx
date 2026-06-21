@@ -11,27 +11,29 @@ import { readPath, readString, basename } from '../tool-bodies/types'
 describe('BashCard — structure', () => {
   it('renders chat-tool-card-bash wrapper', () => {
     const { container } = render(
-      <BashCard toolUseId="tu1" tool="Bash" input={{ command: 'ls' }} status="running" />,
+      <BashCard toolUseId="tu1" tool="Bash" input={{ command: 'ls' }} status="running" />
     )
     expect(container.querySelector('.chat-tool-card-bash')).toBeInTheDocument()
   })
 
   it('sets data-tool attribute to the tool name', () => {
     const { container } = render(
-      <BashCard toolUseId="tu1" tool="Bash" input={{ command: 'ls' }} status="running" />,
+      <BashCard toolUseId="tu1" tool="Bash" input={{ command: 'ls' }} status="running" />
     )
     expect(container.querySelector('[data-tool="Bash"]')).toBeInTheDocument()
   })
 
   it('renders the command in the IN block', () => {
-    render(<BashCard toolUseId="tu1" tool="Bash" input={{ command: 'echo hello' }} status="running" />)
+    render(
+      <BashCard toolUseId="tu1" tool="Bash" input={{ command: 'echo hello' }} status="running" />
+    )
     const inBlock = document.querySelector('[data-channel="in"]')
     expect(inBlock?.textContent).toContain('echo hello')
   })
 
   it('renders $ prompt label', () => {
     const { container } = render(
-      <BashCard toolUseId="tu1" tool="Bash" input={{ command: 'ls' }} status="running" />,
+      <BashCard toolUseId="tu1" tool="Bash" input={{ command: 'ls' }} status="running" />
     )
     expect(container.querySelector('.chat-tool-io-label')?.textContent).toBe('$')
   })
@@ -50,42 +52,60 @@ describe('BashCard — structure', () => {
 describe('BashCard — output block visibility', () => {
   it('does not render OUT block while status is running', () => {
     const { container } = render(
-      <BashCard toolUseId="tu1" tool="Bash" input={{ command: 'ls' }} status="running" />,
+      <BashCard toolUseId="tu1" tool="Bash" input={{ command: 'ls' }} status="running" />
     )
     expect(container.querySelector('[data-channel="out"]')).not.toBeInTheDocument()
   })
 
   it('does not render OUT block while status is pending_approval', () => {
     const { container } = render(
-      <BashCard toolUseId="tu1" tool="Bash" input={{ command: 'ls' }} status="pending_approval" />,
+      <BashCard toolUseId="tu1" tool="Bash" input={{ command: 'ls' }} status="pending_approval" />
     )
     expect(container.querySelector('[data-channel="out"]')).not.toBeInTheDocument()
   })
 
   it('renders OUT block when status is ok', () => {
     const { container } = render(
-      <BashCard toolUseId="tu1" tool="Bash" input={{ command: 'ls' }} status="ok" result="file.txt" />,
+      <BashCard
+        toolUseId="tu1"
+        tool="Bash"
+        input={{ command: 'ls' }}
+        status="ok"
+        result="file.txt"
+      />
     )
     expect(container.querySelector('[data-channel="out"]')).toBeInTheDocument()
   })
 
   it('renders OUT block when status is error', () => {
     const { container } = render(
-      <BashCard toolUseId="tu1" tool="Bash" input={{ command: 'rm' }} status="error" errorMessage="Permission denied" />,
+      <BashCard
+        toolUseId="tu1"
+        tool="Bash"
+        input={{ command: 'rm' }}
+        status="error"
+        errorMessage="Permission denied"
+      />
     )
     expect(container.querySelector('[data-channel="out"]')).toBeInTheDocument()
   })
 
   it('OUT block has data-error="true" when status is error', () => {
     const { container } = render(
-      <BashCard toolUseId="tu1" tool="Bash" input={{ command: 'rm' }} status="error" errorMessage="fail" />,
+      <BashCard
+        toolUseId="tu1"
+        tool="Bash"
+        input={{ command: 'rm' }}
+        status="error"
+        errorMessage="fail"
+      />
     )
     expect(container.querySelector('[data-channel="out"][data-error="true"]')).toBeInTheDocument()
   })
 
   it('OUT block does not have data-error when status is ok', () => {
     const { container } = render(
-      <BashCard toolUseId="tu1" tool="Bash" input={{ command: 'ls' }} status="ok" result="file" />,
+      <BashCard toolUseId="tu1" tool="Bash" input={{ command: 'ls' }} status="ok" result="file" />
     )
     const out = container.querySelector('[data-channel="out"]')
     expect(out?.getAttribute('data-error')).toBeNull()
@@ -95,28 +115,48 @@ describe('BashCard — output block visibility', () => {
 describe('BashCard — output content', () => {
   it('renders string result in OUT block', () => {
     render(
-      <BashCard toolUseId="tu1" tool="Bash" input={{ command: 'ls' }} status="ok" result="notes.md" />,
+      <BashCard
+        toolUseId="tu1"
+        tool="Bash"
+        input={{ command: 'ls' }}
+        status="ok"
+        result="notes.md"
+      />
     )
     expect(document.querySelector('[data-channel="out"]')?.textContent).toContain('notes.md')
   })
 
   it('renders errorMessage in OUT block', () => {
     render(
-      <BashCard toolUseId="tu1" tool="Bash" input={{ command: 'rm' }} status="error" errorMessage="Permission denied" />,
+      <BashCard
+        toolUseId="tu1"
+        tool="Bash"
+        input={{ command: 'rm' }}
+        status="error"
+        errorMessage="Permission denied"
+      />
     )
-    expect(document.querySelector('[data-channel="out"]')?.textContent).toContain('Permission denied')
+    expect(document.querySelector('[data-channel="out"]')?.textContent).toContain(
+      'Permission denied'
+    )
   })
 
   it('renders "(no output)" when result is null and status is ok', () => {
     render(
-      <BashCard toolUseId="tu1" tool="Bash" input={{ command: 'ls' }} status="ok" result={null} />,
+      <BashCard toolUseId="tu1" tool="Bash" input={{ command: 'ls' }} status="ok" result={null} />
     )
     expect(document.querySelector('[data-channel="out"]')?.textContent).toContain('(no output)')
   })
 
   it('renders stdout from object result if present', () => {
     render(
-      <BashCard toolUseId="tu1" tool="Bash" input={{ command: 'ls' }} status="ok" result={{ stdout: 'out.txt' }} />,
+      <BashCard
+        toolUseId="tu1"
+        tool="Bash"
+        input={{ command: 'ls' }}
+        status="ok"
+        result={{ stdout: 'out.txt' }}
+      />
     )
     expect(document.querySelector('[data-channel="out"]')?.textContent).toContain('out.txt')
   })
@@ -127,7 +167,13 @@ describe('BashCard — output clipping', () => {
 
   it('clips long output (>600 chars) with ellipsis by default', () => {
     render(
-      <BashCard toolUseId="tu1" tool="Bash" input={{ command: 'cat' }} status="ok" result={longOutput} />,
+      <BashCard
+        toolUseId="tu1"
+        tool="Bash"
+        input={{ command: 'cat' }}
+        status="ok"
+        result={longOutput}
+      />
     )
     const out = document.querySelector('[data-channel="out"]')
     expect(out?.textContent).toMatch(/…$/)
@@ -135,21 +181,33 @@ describe('BashCard — output clipping', () => {
 
   it('shows "Show full output" button when output is long', () => {
     render(
-      <BashCard toolUseId="tu1" tool="Bash" input={{ command: 'cat' }} status="ok" result={longOutput} />,
+      <BashCard
+        toolUseId="tu1"
+        tool="Bash"
+        input={{ command: 'cat' }}
+        status="ok"
+        result={longOutput}
+      />
     )
     expect(screen.getByRole('button', { name: /show full output/i })).toBeInTheDocument()
   })
 
   it('does not show expand button when output is short (≤600 chars)', () => {
     render(
-      <BashCard toolUseId="tu1" tool="Bash" input={{ command: 'ls' }} status="ok" result="short" />,
+      <BashCard toolUseId="tu1" tool="Bash" input={{ command: 'ls' }} status="ok" result="short" />
     )
     expect(screen.queryByRole('button', { name: /show full output/i })).not.toBeInTheDocument()
   })
 
   it('expands output on "Show full output" click', () => {
     render(
-      <BashCard toolUseId="tu1" tool="Bash" input={{ command: 'cat' }} status="ok" result={longOutput} />,
+      <BashCard
+        toolUseId="tu1"
+        tool="Bash"
+        input={{ command: 'cat' }}
+        status="ok"
+        result={longOutput}
+      />
     )
     fireEvent.click(screen.getByRole('button', { name: /show full output/i }))
     const out = document.querySelector('[data-channel="out"]')
@@ -158,7 +216,13 @@ describe('BashCard — output clipping', () => {
 
   it('shows "Collapse output" after expanding', () => {
     render(
-      <BashCard toolUseId="tu1" tool="Bash" input={{ command: 'cat' }} status="ok" result={longOutput} />,
+      <BashCard
+        toolUseId="tu1"
+        tool="Bash"
+        input={{ command: 'cat' }}
+        status="ok"
+        result={longOutput}
+      />
     )
     fireEvent.click(screen.getByRole('button', { name: /show full output/i }))
     expect(screen.getByRole('button', { name: /collapse output/i })).toBeInTheDocument()
@@ -166,7 +230,13 @@ describe('BashCard — output clipping', () => {
 
   it('collapses again on "Collapse output" click', () => {
     render(
-      <BashCard toolUseId="tu1" tool="Bash" input={{ command: 'cat' }} status="ok" result={longOutput} />,
+      <BashCard
+        toolUseId="tu1"
+        tool="Bash"
+        input={{ command: 'cat' }}
+        status="ok"
+        result={longOutput}
+      />
     )
     fireEvent.click(screen.getByRole('button', { name: /show full output/i }))
     fireEvent.click(screen.getByRole('button', { name: /collapse output/i }))
@@ -182,21 +252,36 @@ describe('BashCard — output clipping', () => {
 describe('ReadCard — structure', () => {
   it('renders chat-tool-card-read wrapper', () => {
     const { container } = render(
-      <ReadCard toolUseId="tu1" tool="Read" input={{ file_path: '/vault/note.md' }} status="running" />,
+      <ReadCard
+        toolUseId="tu1"
+        tool="Read"
+        input={{ file_path: '/vault/note.md' }}
+        status="running"
+      />
     )
     expect(container.querySelector('.chat-tool-card-read')).toBeInTheDocument()
   })
 
   it('sets data-tool attribute', () => {
     const { container } = render(
-      <ReadCard toolUseId="tu1" tool="Read" input={{ file_path: '/vault/note.md' }} status="running" />,
+      <ReadCard
+        toolUseId="tu1"
+        tool="Read"
+        input={{ file_path: '/vault/note.md' }}
+        status="running"
+      />
     )
     expect(container.querySelector('[data-tool="Read"]')).toBeInTheDocument()
   })
 
   it('renders filename pill for file_path input', () => {
     const { container } = render(
-      <ReadCard toolUseId="tu1" tool="Read" input={{ file_path: '/vault/note.md' }} status="running" />,
+      <ReadCard
+        toolUseId="tu1"
+        tool="Read"
+        input={{ file_path: '/vault/note.md' }}
+        status="running"
+      />
     )
     const pill = container.querySelector('.chat-tool-pill')
     expect(pill?.textContent).toBe('note.md')
@@ -204,7 +289,12 @@ describe('ReadCard — structure', () => {
 
   it('shows full path in title attribute of pill', () => {
     const { container } = render(
-      <ReadCard toolUseId="tu1" tool="Read" input={{ file_path: '/vault/note.md' }} status="running" />,
+      <ReadCard
+        toolUseId="tu1"
+        tool="Read"
+        input={{ file_path: '/vault/note.md' }}
+        status="running"
+      />
     )
     const pill = container.querySelector('.chat-tool-pill')
     expect(pill?.getAttribute('title')).toBe('/vault/note.md')
@@ -212,35 +302,45 @@ describe('ReadCard — structure', () => {
 
   it('reads path from "path" key when file_path absent', () => {
     const { container } = render(
-      <ReadCard toolUseId="tu1" tool="Read" input={{ path: '/vault/readme.md' }} status="running" />,
+      <ReadCard toolUseId="tu1" tool="Read" input={{ path: '/vault/readme.md' }} status="running" />
     )
     expect(container.querySelector('.chat-tool-pill')?.textContent).toBe('readme.md')
   })
 
   it('falls back to "(no path)" when input has no recognizable path key', () => {
     const { container } = render(
-      <ReadCard toolUseId="tu1" tool="Read" input={{}} status="running" />,
+      <ReadCard toolUseId="tu1" tool="Read" input={{}} status="running" />
     )
     expect(container.querySelector('.chat-tool-pill')?.textContent).toBe('(no path)')
   })
 
   it('does not render error label when status is ok', () => {
     const { container } = render(
-      <ReadCard toolUseId="tu1" tool="Read" input={{ file_path: '/vault/note.md' }} status="ok" />,
+      <ReadCard toolUseId="tu1" tool="Read" input={{ file_path: '/vault/note.md' }} status="ok" />
     )
     expect(container.querySelector('.chat-tool-error-label')).not.toBeInTheDocument()
   })
 
   it('renders error label when status is error', () => {
     const { container } = render(
-      <ReadCard toolUseId="tu1" tool="Read" input={{ file_path: '/vault/note.md' }} status="error" />,
+      <ReadCard
+        toolUseId="tu1"
+        tool="Read"
+        input={{ file_path: '/vault/note.md' }}
+        status="error"
+      />
     )
     expect(container.querySelector('.chat-tool-error-label')).toBeInTheDocument()
   })
 
   it('does not render error label during running status', () => {
     const { container } = render(
-      <ReadCard toolUseId="tu1" tool="Read" input={{ file_path: '/vault/note.md' }} status="running" />,
+      <ReadCard
+        toolUseId="tu1"
+        tool="Read"
+        input={{ file_path: '/vault/note.md' }}
+        status="running"
+      />
     )
     expect(container.querySelector('.chat-tool-error-label')).not.toBeInTheDocument()
   })

@@ -1,21 +1,10 @@
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  type DragEvent,
-  type KeyboardEvent,
-} from 'react'
+import { useCallback, useEffect, useRef, useState, type DragEvent, type KeyboardEvent } from 'react'
 import { Icon } from '../Icon'
 import { useChatStore } from '../../lib/chat/store'
 import type { PermissionMode, SessionId } from '../../lib/chat/types'
 import { ModePill, MODE_OPTIONS } from './ModePill'
 import { ModesPicker } from './ModesPicker'
-import {
-  MARVIN_PATH_MIME,
-  MARVIN_PATHS_MIME,
-  readDraggedPaths,
-} from '../../lib/dropAttachments'
+import { MARVIN_PATH_MIME, MARVIN_PATHS_MIME, readDraggedPaths } from '../../lib/dropAttachments'
 import { formatPathsForAgent } from '../../lib/agent-drop-format'
 
 type Props = {
@@ -44,9 +33,7 @@ export function Composer({
   disabled = false,
 }: Props) {
   const draft = useChatStore((s) => s.sessions[sessionId]?.composer.draft ?? '')
-  const permissionMode = useChatStore(
-    (s) => s.sessions[sessionId]?.permissionMode ?? 'default',
-  )
+  const permissionMode = useChatStore((s) => s.sessions[sessionId]?.permissionMode ?? 'default')
   const setDraft = useChatStore((s) => s.setComposerDraft)
   const setPermissionMode = useChatStore((s) => s.setPermissionMode)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -91,12 +78,12 @@ export function Composer({
         submit()
       }
     },
-    [composing, cyclePermissionMode, submit],
+    [composing, cyclePermissionMode, submit]
   )
 
   const handleSelectMode = useCallback(
     (mode: PermissionMode) => setPermissionMode(sessionId, mode),
-    [sessionId, setPermissionMode],
+    [sessionId, setPermissionMode]
   )
 
   const handleDragOver = useCallback((e: DragEvent<HTMLDivElement>) => {
@@ -140,7 +127,7 @@ export function Composer({
         el.setSelectionRange(caret, caret)
       })
     },
-    [draft, sessionId, setDraft, vaultPath],
+    [draft, sessionId, setDraft, vaultPath]
   )
 
   const empty = draft.trim().length === 0

@@ -62,7 +62,14 @@ const mockParseSlice = vi.fn((_dom: unknown, _opts: unknown) => ({
 
 const mockClipboardParser = { parseSlice: mockParseSlice }
 
-function makePMState(overrides: Partial<{ hasSelection: boolean; docText: string; selectionFrom: number; selectionTo: number }> = {}): FakePMState {
+function makePMState(
+  overrides: Partial<{
+    hasSelection: boolean
+    docText: string
+    selectionFrom: number
+    selectionTo: number
+  }> = {}
+): FakePMState {
   const docText = overrides.docText ?? 'hello world'
   const from = overrides.selectionFrom ?? 0
   const to = overrides.selectionTo ?? (overrides.hasSelection ? 5 : 0)
@@ -85,7 +92,10 @@ function makePMState(overrides: Partial<{ hasSelection: boolean; docText: string
   }
 }
 
-function makePMView(stateOverrides?: Parameters<typeof makePMState>[0], opts: { hasSerializer?: boolean; hasParser?: boolean } = {}): FakePMView {
+function makePMView(
+  stateOverrides?: Parameters<typeof makePMState>[0],
+  opts: { hasSerializer?: boolean; hasParser?: boolean } = {}
+): FakePMView {
   const dom = document.createElement('div')
   dom.setAttribute('data-pm-content', 'true')
   const hasSerializer = opts.hasSerializer ?? true
@@ -260,7 +270,12 @@ afterEach(() => {
 
 describe('LiveMarkdown rich clipboard — copy', () => {
   it('serializes selection through clipboardSerializer and calls writeClipboardRich with html + text', async () => {
-    currentPMView = makePMView({ hasSelection: true, docText: 'hello world', selectionFrom: 0, selectionTo: 5 })
+    currentPMView = makePMView({
+      hasSelection: true,
+      docText: 'hello world',
+      selectionFrom: 0,
+      selectionTo: 5,
+    })
     showContextMenuMock.mockResolvedValue('copy')
     const { container } = render(<LiveMarkdown {...defaultProps()} />)
     await act(async () => {
@@ -278,7 +293,7 @@ describe('LiveMarkdown rich clipboard — copy', () => {
   it('writeClipboardRich payload has empty html when clipboardSerializer is unavailable', async () => {
     currentPMView = makePMView(
       { hasSelection: true, docText: 'hello world', selectionFrom: 0, selectionTo: 5 },
-      { hasSerializer: false },
+      { hasSerializer: false }
     )
     showContextMenuMock.mockResolvedValue('copy')
     const { container } = render(<LiveMarkdown {...defaultProps()} />)
@@ -305,7 +320,12 @@ describe('LiveMarkdown rich clipboard — copy', () => {
 
 describe('LiveMarkdown rich clipboard — cut', () => {
   it('writes rich payload then dispatches deleteSelection', async () => {
-    currentPMView = makePMView({ hasSelection: true, docText: 'hello world', selectionFrom: 0, selectionTo: 5 })
+    currentPMView = makePMView({
+      hasSelection: true,
+      docText: 'hello world',
+      selectionFrom: 0,
+      selectionTo: 5,
+    })
     showContextMenuMock.mockResolvedValue('cut')
     const { container } = render(<LiveMarkdown {...defaultProps()} />)
     await act(async () => {
@@ -342,7 +362,10 @@ describe('LiveMarkdown rich clipboard — paste', () => {
     expect(readClipboardRichMock).toHaveBeenCalledTimes(1)
     expect(mockParseSlice).toHaveBeenCalledTimes(1)
     // parseSlice receives the parsed <body> element and preserveWhitespace opts.
-    const [domArg, optsArg] = mockParseSlice.mock.calls[0] as [Element, { preserveWhitespace: string }]
+    const [domArg, optsArg] = mockParseSlice.mock.calls[0] as [
+      Element,
+      { preserveWhitespace: string },
+    ]
     expect(domArg).toBeInstanceOf(Element)
     expect(domArg.tagName.toLowerCase()).toBe('body')
     expect(optsArg.preserveWhitespace).toBe('full')

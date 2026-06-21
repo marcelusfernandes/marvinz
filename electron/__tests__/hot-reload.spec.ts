@@ -25,11 +25,7 @@ vi.mock('electron', () => ({
   },
 }))
 
-import {
-  writeSnapshot,
-  listTurns,
-  newTurnId,
-} from '../snapshot.js'
+import { writeSnapshot, listTurns, newTurnId } from '../snapshot.js'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -201,7 +197,13 @@ describe('saveBuffer: relPath path traversal rejection', () => {
   })
 
   it('rejects relPath with embedded traversal (foo/../../etc/passwd)', async () => {
-    const ok = await writeSnapshot(tmpDir, newTurnId(), 'foo/../../etc/passwd', 'bad', 'buffer-save')
+    const ok = await writeSnapshot(
+      tmpDir,
+      newTurnId(),
+      'foo/../../etc/passwd',
+      'bad',
+      'buffer-save'
+    )
     expect(ok).toBe(false)
 
     // Confirm nothing was written outside the vault
@@ -242,12 +244,24 @@ describe('saveBuffer: relPath path traversal rejection', () => {
   })
 
   it('accepts a legitimate relPath (control: no traversal)', async () => {
-    const ok = await writeSnapshot(tmpDir, newTurnId(), 'notes/daily.md', 'buffer content', 'buffer-save')
+    const ok = await writeSnapshot(
+      tmpDir,
+      newTurnId(),
+      'notes/daily.md',
+      'buffer content',
+      'buffer-save'
+    )
     expect(ok).toBe(true)
   })
 
   it('accepts a relPath inside nested subdirectory (control)', async () => {
-    const ok = await writeSnapshot(tmpDir, newTurnId(), 'deep/path/to/file.md', 'content', 'buffer-save')
+    const ok = await writeSnapshot(
+      tmpDir,
+      newTurnId(),
+      'deep/path/to/file.md',
+      'content',
+      'buffer-save'
+    )
     expect(ok).toBe(true)
   })
 })
@@ -354,7 +368,7 @@ type SaveBufferEnvelope =
 async function saveBufferHandler(
   vault: string | null,
   relPath: unknown,
-  content: unknown,
+  content: unknown
 ): Promise<SaveBufferEnvelope> {
   try {
     if (typeof content !== 'string') throw new Error('SNAPSHOT_INVALID_CONTENT')
@@ -412,7 +426,13 @@ describe('snapshot:saveBuffer IPC contract — happy path', () => {
     const result = await saveBufferHandler(tmpDir, 'deep/nested/file.md', 'nested content')
     expect(result.ok).toBe(true)
     if (!result.ok) return
-    const snapPath = path.join(tmpDir, '.marvin', 'snapshots', result.data.turnId, 'deep/nested/file.md')
+    const snapPath = path.join(
+      tmpDir,
+      '.marvin',
+      'snapshots',
+      result.data.turnId,
+      'deep/nested/file.md'
+    )
     const stored = await fs.readFile(snapPath, 'utf8')
     expect(stored).toBe('nested content')
   })

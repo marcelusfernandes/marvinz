@@ -20,7 +20,7 @@ export type FindShortcutContext = {
 
 export function resolveAppFindShortcut(
   event: Pick<KeyboardEvent, 'key' | 'metaKey' | 'ctrlKey' | 'altKey' | 'shiftKey' | 'target'>,
-  ctx: FindShortcutContext,
+  ctx: FindShortcutContext
 ): 'find' | 'replace' | null {
   const isCmd = event.metaKey || event.ctrlKey
   if (!isCmd) return null

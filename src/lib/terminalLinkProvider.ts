@@ -53,7 +53,7 @@ export function makePathRegex(): RegExp {
 
 export function createTerminalLinkProvider(
   term: Terminal,
-  { vaultPath, onOpenFile }: Options,
+  { vaultPath, onOpenFile }: Options
 ): ILinkProvider {
   const activate = (event: MouseEvent, text: string) => {
     // Cmd (macOS) / Ctrl (Win/Linux) is required — a plain click keeps the
@@ -99,9 +99,7 @@ export function createTerminalLinkProvider(
  * instead of xterm's default confirm() dialog. `allowNonHttpProtocols` must be
  * set on the Terminal so file:// URIs reach this handler.
  */
-export function createOsc8LinkHandler(
-  { vaultPath, onOpenFile }: Options,
-): ILinkHandler {
+export function createOsc8LinkHandler({ vaultPath, onOpenFile }: Options): ILinkHandler {
   return {
     allowNonHttpProtocols: true,
     activate(event, uri) {

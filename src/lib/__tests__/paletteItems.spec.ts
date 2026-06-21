@@ -24,9 +24,7 @@ describe('flattenTree', () => {
   it('returns vault files and skips .claude/ files', () => {
     const nodes: FileNode[] = [
       file(`${VAULT}/note.md`),
-      dir(`${VAULT}/.claude`, [
-        file(`${VAULT}/.claude/agents/bot.md`),
-      ]),
+      dir(`${VAULT}/.claude`, [file(`${VAULT}/.claude/agents/bot.md`)]),
     ]
     const result = flattenTree(nodes, VAULT)
     expect(result.map((i) => i.rel)).toEqual(['note.md'])
@@ -39,9 +37,7 @@ describe('flattenTree', () => {
           file(`${VAULT}/.claude/agents/react.md`),
           file(`${VAULT}/.claude/agents/electron-pro.md`),
         ]),
-        dir(`${VAULT}/.claude/commands`, [
-          file(`${VAULT}/.claude/commands/import.md`),
-        ]),
+        dir(`${VAULT}/.claude/commands`, [file(`${VAULT}/.claude/commands/import.md`)]),
       ]),
       file(`${VAULT}/my-note.md`),
     ]
@@ -70,10 +66,7 @@ describe('flattenTree', () => {
   })
 
   it('marks .md files as isMarkdown, other extensions as false', () => {
-    const nodes: FileNode[] = [
-      file(`${VAULT}/note.md`),
-      file(`${VAULT}/image.png`),
-    ]
+    const nodes: FileNode[] = [file(`${VAULT}/note.md`), file(`${VAULT}/image.png`)]
     const result = flattenTree(nodes, VAULT)
     expect(result.find((i) => i.name === 'note.md')?.isMarkdown).toBe(true)
     expect(result.find((i) => i.name === 'image.png')?.isMarkdown).toBe(false)
@@ -81,9 +74,7 @@ describe('flattenTree', () => {
 
   it('returns empty array when all files are under .claude/', () => {
     const nodes: FileNode[] = [
-      dir(`${VAULT}/.claude`, [
-        file(`${VAULT}/.claude/rules/git-workflow.md`),
-      ]),
+      dir(`${VAULT}/.claude`, [file(`${VAULT}/.claude/rules/git-workflow.md`)]),
     ]
     const result = flattenTree(nodes, VAULT)
     expect(result).toHaveLength(0)
@@ -98,9 +89,7 @@ describe('flattenTree — includeClaudeDir: true', () => {
   it('includes .claude/ files when opted in', () => {
     const nodes: FileNode[] = [
       file(`${VAULT}/note.md`),
-      dir(`${VAULT}/.claude`, [
-        file(`${VAULT}/.claude/agents/bot.md`),
-      ]),
+      dir(`${VAULT}/.claude`, [file(`${VAULT}/.claude/agents/bot.md`)]),
     ]
     const result = flattenTree(nodes, VAULT, { includeClaudeDir: true })
     const rels = result.map((i) => i.rel)
@@ -111,12 +100,8 @@ describe('flattenTree — includeClaudeDir: true', () => {
   it('returns all files including nested .claude/ subdirs', () => {
     const nodes: FileNode[] = [
       dir(`${VAULT}/.claude`, [
-        dir(`${VAULT}/.claude/agents`, [
-          file(`${VAULT}/.claude/agents/react.md`),
-        ]),
-        dir(`${VAULT}/.claude/commands`, [
-          file(`${VAULT}/.claude/commands/import.md`),
-        ]),
+        dir(`${VAULT}/.claude/agents`, [file(`${VAULT}/.claude/agents/react.md`)]),
+        dir(`${VAULT}/.claude/commands`, [file(`${VAULT}/.claude/commands/import.md`)]),
       ]),
       file(`${VAULT}/journal.md`),
     ]

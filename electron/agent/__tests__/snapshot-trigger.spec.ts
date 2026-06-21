@@ -30,7 +30,9 @@ async function roundtrip(socketPath: string, message: Record<string, unknown>): 
     const sock = net.createConnection(socketPath)
     let buf = ''
     sock.setEncoding('utf8')
-    sock.on('connect', () => { sock.write(JSON.stringify(message) + '\n') })
+    sock.on('connect', () => {
+      sock.write(JSON.stringify(message) + '\n')
+    })
     sock.on('data', (chunk: string) => {
       buf += chunk
       if (buf.includes('\n')) {
@@ -39,7 +41,9 @@ async function roundtrip(socketPath: string, message: Record<string, unknown>): 
       }
     })
     sock.on('error', reject)
-    sock.on('close', () => { if (buf) resolve(buf.trim()) })
+    sock.on('close', () => {
+      if (buf) resolve(buf.trim())
+    })
   })
 }
 
@@ -112,7 +116,7 @@ describe('approval-socket — snapshotSaved on permission-request', () => {
       { sessionId: SESSION, permissionMode: 'default', vaultRoot: VAULT },
       new Set(),
       new Map(),
-      emit,
+      emit
     )
 
     const pending = roundtrip(handle.socketPath, {
@@ -139,7 +143,7 @@ describe('approval-socket — snapshotSaved on permission-request', () => {
       { sessionId: SESSION, permissionMode: 'default', vaultRoot: VAULT },
       new Set(),
       new Map(),
-      emit,
+      emit
     )
 
     const pending = roundtrip(handle.socketPath, {
@@ -166,7 +170,7 @@ describe('approval-socket — snapshotSaved on permission-request', () => {
       { sessionId: SESSION, permissionMode: 'default', vaultRoot: VAULT },
       new Set(),
       new Map(),
-      emit,
+      emit
     )
 
     const pending = roundtrip(handle.socketPath, {
@@ -193,7 +197,7 @@ describe('approval-socket — snapshotSaved on permission-request', () => {
       { sessionId: SESSION, permissionMode: 'default', vaultRoot: VAULT },
       new Set(),
       new Map(),
-      emit,
+      emit
     )
 
     const pending = roundtrip(handle.socketPath, {
@@ -217,7 +221,7 @@ describe('approval-socket — snapshotSaved on permission-request', () => {
       { sessionId: SESSION, permissionMode: 'default', vaultRoot: VAULT },
       new Set(),
       new Map(),
-      emit,
+      emit
     )
 
     const pending = roundtrip(handle.socketPath, {
@@ -242,7 +246,7 @@ describe('approval-socket — snapshotSaved on permission-request', () => {
       { sessionId: SESSION, permissionMode: 'default', vaultRoot: VAULT },
       new Set(),
       new Map(),
-      emit,
+      emit
     )
 
     const pending = roundtrip(handle.socketPath, {
@@ -269,7 +273,7 @@ describe('approval-socket — snapshotSaved on permission-request', () => {
       { sessionId: SESSION, permissionMode: 'default', vaultRoot: VAULT },
       new Set(),
       new Map(),
-      emit,
+      emit
     )
 
     const pending = roundtrip(handle.socketPath, {
@@ -294,7 +298,7 @@ describe('approval-socket — snapshotSaved on permission-request', () => {
       { sessionId: SESSION, permissionMode: 'default', vaultRoot: VAULT },
       new Set(),
       new Map(),
-      emit,
+      emit
     )
 
     const pending = roundtrip(handle.socketPath, {

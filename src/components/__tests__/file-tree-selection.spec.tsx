@@ -101,7 +101,7 @@ describe('FileTree — folder row .selected class', () => {
 
   it('no .folder-selected class exists anywhere (old class removed)', () => {
     const { container } = render(
-      <FileTree {...baseProps({ selectedPaths: new Set(['/vault/docs']) })} />,
+      <FileTree {...baseProps({ selectedPaths: new Set(['/vault/docs']) })} />
     )
     expect(container.querySelector('.folder-selected')).toBeNull()
   })
@@ -120,7 +120,7 @@ describe('FileTree — folder click uses unified onSelect', () => {
     expect(onSelect).toHaveBeenCalledTimes(1)
     expect(onSelect).toHaveBeenCalledWith(
       expect.objectContaining({ path: '/vault/docs', isDir: true }),
-      { cmdOrCtrl: false, shift: false },
+      { cmdOrCtrl: false, shift: false }
     )
   })
 
@@ -132,7 +132,7 @@ describe('FileTree — folder click uses unified onSelect', () => {
     expect(onToggleOpen).toHaveBeenCalledWith('/vault/docs')
     expect(onSelect).toHaveBeenCalledWith(
       expect.objectContaining({ path: '/vault/docs', isDir: true }),
-      { cmdOrCtrl: false, shift: false },
+      { cmdOrCtrl: false, shift: false }
     )
   })
 
@@ -152,7 +152,7 @@ describe('FileTree — folder click uses unified onSelect', () => {
 describe('FileTree — .selected disappears when selectedPaths becomes empty', () => {
   it('removes .selected from folder button when selectedPaths resets to empty Set', () => {
     const { rerender } = render(
-      <FileTree {...baseProps({ selectedPaths: new Set(['/vault/docs']) })} />,
+      <FileTree {...baseProps({ selectedPaths: new Set(['/vault/docs']) })} />
     )
     expect(screen.getByText('docs').closest('button')!.classList.contains('selected')).toBe(true)
 
@@ -162,7 +162,7 @@ describe('FileTree — .selected disappears when selectedPaths becomes empty', (
 
   it('removes .selected from file button when selectedPaths resets to empty Set', () => {
     const { rerender } = render(
-      <FileTree {...baseProps({ selectedPaths: new Set(['/vault/readme.md']) })} />,
+      <FileTree {...baseProps({ selectedPaths: new Set(['/vault/readme.md']) })} />
     )
     expect(screen.getByText('readme').closest('button')!.classList.contains('selected')).toBe(true)
 
@@ -183,9 +183,11 @@ describe('FileTree — .active-file class', () => {
           selectedPaths: new Set(['/vault/readme.md']),
           activeFilePath: '/vault/readme.md',
         })}
-      />,
+      />
     )
-    expect(screen.getByText('readme').closest('button')!.classList.contains('active-file')).toBe(true)
+    expect(screen.getByText('readme').closest('button')!.classList.contains('active-file')).toBe(
+      true
+    )
   })
 
   it('does NOT apply .active-file when activeFilePath is null', () => {
@@ -195,9 +197,11 @@ describe('FileTree — .active-file class', () => {
           selectedPaths: new Set(['/vault/readme.md']),
           activeFilePath: null,
         })}
-      />,
+      />
     )
-    expect(screen.getByText('readme').closest('button')!.classList.contains('active-file')).toBe(false)
+    expect(screen.getByText('readme').closest('button')!.classList.contains('active-file')).toBe(
+      false
+    )
   })
 
   it('.selected and .active-file coexist on the same file row', () => {
@@ -207,7 +211,7 @@ describe('FileTree — .active-file class', () => {
           selectedPaths: new Set(['/vault/readme.md']),
           activeFilePath: '/vault/readme.md',
         })}
-      />,
+      />
     )
     const btn = screen.getByText('readme').closest('button')!
     expect(btn.classList.contains('selected')).toBe(true)
@@ -217,7 +221,7 @@ describe('FileTree — .active-file class', () => {
   it('.active-file is absent when activeFilePath matches a non-visible node', () => {
     // docs is closed so intro.md is not rendered
     const { container } = render(
-      <FileTree {...baseProps({ activeFilePath: '/vault/docs/intro.md' })} />,
+      <FileTree {...baseProps({ activeFilePath: '/vault/docs/intro.md' })} />
     )
     container.querySelectorAll('button.file-tree-row').forEach((btn) => {
       expect(btn.classList.contains('active-file')).toBe(false)
@@ -308,8 +312,7 @@ function MultiSelectWrapper({
       const anchorIdx = flat.findIndex((it) => it.node.path === anchorPath)
       const currentIdx = flat.findIndex((it) => it.node.path === path)
       if (anchorIdx >= 0) {
-        const [lo, hi] =
-          anchorIdx < currentIdx ? [anchorIdx, currentIdx] : [currentIdx, anchorIdx]
+        const [lo, hi] = anchorIdx < currentIdx ? [anchorIdx, currentIdx] : [currentIdx, anchorIdx]
         const range = flat.slice(lo, hi + 1).map((it) => it.node.path)
         setSelectedPaths(new Set(range))
       } else {
@@ -344,9 +347,7 @@ function MultiSelectWrapper({
 describe('multi-select — plain click resets', () => {
   it('plain click on a file sets selectedPaths to { clicked.path }', () => {
     render(
-      <MultiSelectWrapper
-        initialSelectedPaths={new Set(['/vault/docs', '/vault/readme.md'])}
-      />,
+      <MultiSelectWrapper initialSelectedPaths={new Set(['/vault/docs', '/vault/readme.md'])} />
     )
     fireEvent.click(screen.getByText('assets').closest('button')!)
     expect(screen.getByText('assets').closest('button')!.classList.contains('selected')).toBe(true)
@@ -357,9 +358,7 @@ describe('multi-select — plain click resets', () => {
 
 describe('multi-select — Cmd-click', () => {
   it('Cmd-click on unselected item adds it to the set', () => {
-    render(
-      <MultiSelectWrapper initialSelectedPaths={new Set(['/vault/readme.md'])} />,
-    )
+    render(<MultiSelectWrapper initialSelectedPaths={new Set(['/vault/readme.md'])} />)
     fireEvent.click(screen.getByText('docs').closest('button')!, { metaKey: true })
     expect(screen.getByText('readme').closest('button')!.classList.contains('selected')).toBe(true)
     expect(screen.getByText('docs').closest('button')!.classList.contains('selected')).toBe(true)
@@ -367,9 +366,7 @@ describe('multi-select — Cmd-click', () => {
 
   it('Cmd-click on selected item removes it from the set', () => {
     render(
-      <MultiSelectWrapper
-        initialSelectedPaths={new Set(['/vault/readme.md', '/vault/docs'])}
-      />,
+      <MultiSelectWrapper initialSelectedPaths={new Set(['/vault/readme.md', '/vault/docs'])} />
     )
     fireEvent.click(screen.getByText('docs').closest('button')!, { metaKey: true })
     expect(screen.getByText('docs').closest('button')!.classList.contains('selected')).toBe(false)
@@ -377,9 +374,7 @@ describe('multi-select — Cmd-click', () => {
   })
 
   it('repeated Cmd-click toggles back on (add → remove → add)', () => {
-    render(
-      <MultiSelectWrapper initialSelectedPaths={new Set(['/vault/readme.md'])} />,
-    )
+    render(<MultiSelectWrapper initialSelectedPaths={new Set(['/vault/readme.md'])} />)
     const docsBtn = screen.getByText('docs').closest('button')!
     fireEvent.click(docsBtn, { metaKey: true })
     expect(docsBtn.classList.contains('selected')).toBe(true)
@@ -398,7 +393,7 @@ describe('multi-select — Shift-click range', () => {
       <MultiSelectWrapper
         initialSelectedPaths={new Set(['/vault/docs'])}
         initialAnchorPath="/vault/docs"
-      />,
+      />
     )
     fireEvent.click(screen.getByText('readme').closest('button')!, { shiftKey: true })
     expect(screen.getByText('docs').closest('button')!.classList.contains('selected')).toBe(true)
@@ -412,7 +407,7 @@ describe('multi-select — Shift-click range', () => {
       <MultiSelectWrapper
         initialSelectedPaths={new Set(['/vault/readme.md'])}
         initialAnchorPath="/vault/readme.md"
-      />,
+      />
     )
     fireEvent.click(screen.getByText('docs').closest('button')!, { shiftKey: true })
     expect(screen.getByText('docs').closest('button')!.classList.contains('selected')).toBe(true)
@@ -435,7 +430,7 @@ describe('multi-select — Shift-click range', () => {
       <MultiSelectWrapper
         initialSelectedPaths={new Set(['/vault/docs'])}
         initialAnchorPath="/vault/docs"
-      />,
+      />
     )
     fireEvent.click(screen.getByText('readme').closest('button')!, { shiftKey: true })
     fireEvent.click(screen.getByText('assets').closest('button')!, { shiftKey: true })
@@ -452,7 +447,7 @@ describe('multi-select — Shift-click range', () => {
         initialSelectedPaths={new Set(['/vault/docs'])}
         initialAnchorPath="/vault/docs"
         openPaths={new Set()}
-      />,
+      />
     )
     fireEvent.click(screen.getByText('readme').closest('button')!, { shiftKey: true })
     const allSelected = document.querySelectorAll('button.file-tree-row.selected')
@@ -473,7 +468,7 @@ describe('multi-select — empty-area click clears selection', () => {
           selectedPaths: new Set(['/vault/readme.md', '/vault/docs']),
           onClearSelection,
         })}
-      />,
+      />
     )
     // Click the tree container itself (not a row) — handleEmptyAreaClick guards .file-tree-row children
     const treeEl = container.querySelector('[role="tree"]')!
@@ -489,7 +484,7 @@ describe('multi-select — empty-area click clears selection', () => {
           selectedPaths: new Set(['/vault/readme.md']),
           onClearSelection,
         })}
-      />,
+      />
     )
     fireEvent.click(screen.getByText('readme').closest('button')!)
     expect(onClearSelection).not.toHaveBeenCalled()

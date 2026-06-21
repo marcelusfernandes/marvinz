@@ -42,11 +42,7 @@ export function SnapshotToast({
         </span>
       </div>
       <div className="snapshot-toast-actions">
-        <button
-          type="button"
-          className="snapshot-toast-btn primary"
-          onClick={onOpenVersions}
-        >
+        <button type="button" className="snapshot-toast-btn primary" onClick={onOpenVersions}>
           View versions
         </button>
         <button

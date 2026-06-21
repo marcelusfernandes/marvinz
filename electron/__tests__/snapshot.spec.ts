@@ -53,7 +53,11 @@ function snapshotDir(vaultRoot: string, turnId: string): string {
   return path.join(vaultRoot, '.marvin', 'snapshots', turnId)
 }
 
-async function snapshotExists(vaultRoot: string, turnId: string, relPath: string): Promise<boolean> {
+async function snapshotExists(
+  vaultRoot: string,
+  turnId: string,
+  relPath: string
+): Promise<boolean> {
   try {
     await fs.access(path.join(snapshotDir(vaultRoot, turnId), relPath))
     return true
@@ -212,13 +216,17 @@ describe('readSnapshot', () => {
 
   it('rejects path traversal in relPath', async () => {
     const turnId = newTurnId()
-    await expect(readSnapshot(tmpDir, turnId, '../../etc/passwd')).rejects.toThrow('MARVIN_INVALID_PATH')
+    await expect(readSnapshot(tmpDir, turnId, '../../etc/passwd')).rejects.toThrow(
+      'MARVIN_INVALID_PATH'
+    )
   })
 
   it('rejects path traversal in normalized relPath', async () => {
     const turnId = newTurnId()
     await writeSnapshot(tmpDir, turnId, 'safe.md', 'content', 'file:write')
-    await expect(readSnapshot(tmpDir, turnId, '../../../etc/passwd')).rejects.toThrow('MARVIN_INVALID_PATH')
+    await expect(readSnapshot(tmpDir, turnId, '../../../etc/passwd')).rejects.toThrow(
+      'MARVIN_INVALID_PATH'
+    )
   })
 })
 
@@ -416,7 +424,9 @@ describe('path traversal security', () => {
   })
 
   it('readSnapshot throws on traversal relPath', async () => {
-    await expect(readSnapshot(tmpDir, newTurnId(), '../../etc/passwd')).rejects.toThrow('MARVIN_INVALID_PATH')
+    await expect(readSnapshot(tmpDir, newTurnId(), '../../etc/passwd')).rejects.toThrow(
+      'MARVIN_INVALID_PATH'
+    )
   })
 
   it('restoreSnapshot throws when snapshot relPath contains traversal', async () => {
@@ -441,7 +451,13 @@ describe('edge cases', () => {
 
   it('writeSnapshot is best-effort: returns false on I/O failure without throwing', async () => {
     // Point vaultRoot at a non-writable path
-    const ok = await writeSnapshot('/nonexistent/vault', newTurnId(), 'file.md', 'content', 'file:write')
+    const ok = await writeSnapshot(
+      '/nonexistent/vault',
+      newTurnId(),
+      'file.md',
+      'content',
+      'file:write'
+    )
     expect(ok).toBe(false)
   })
 
@@ -569,45 +585,33 @@ describe('security: expanded relPath validation', () => {
   })
 
   it('readSnapshot throws on embedded traversal relPath', async () => {
-    await expect(
-      readSnapshot(tmpDir, newTurnId(), 'sub/../../etc/passwd'),
-    ).rejects.toThrow()
+    await expect(readSnapshot(tmpDir, newTurnId(), 'sub/../../etc/passwd')).rejects.toThrow()
   })
 
   it('readSnapshot throws on absolute relPath', async () => {
-    await expect(
-      readSnapshot(tmpDir, newTurnId(), '/etc/passwd'),
-    ).rejects.toThrow()
+    await expect(readSnapshot(tmpDir, newTurnId(), '/etc/passwd')).rejects.toThrow()
   })
 
   it('readSnapshot throws on null-byte relPath', async () => {
-    await expect(
-      readSnapshot(tmpDir, newTurnId(), 'foo\0bar.md'),
-    ).rejects.toThrow()
+    await expect(readSnapshot(tmpDir, newTurnId(), 'foo\0bar.md')).rejects.toThrow()
   })
 
   it('restoreSnapshot throws on embedded traversal relPath', async () => {
     const turnId = newTurnId()
     await writeSnapshot(tmpDir, turnId, 'safe.md', 'content', 'file:write')
-    await expect(
-      restoreSnapshot(tmpDir, turnId, 'sub/../../etc/passwd'),
-    ).rejects.toThrow()
+    await expect(restoreSnapshot(tmpDir, turnId, 'sub/../../etc/passwd')).rejects.toThrow()
   })
 
   it('restoreSnapshot throws on absolute relPath', async () => {
     const turnId = newTurnId()
     await writeSnapshot(tmpDir, turnId, 'safe.md', 'content', 'file:write')
-    await expect(
-      restoreSnapshot(tmpDir, turnId, '/etc/passwd'),
-    ).rejects.toThrow()
+    await expect(restoreSnapshot(tmpDir, turnId, '/etc/passwd')).rejects.toThrow()
   })
 
   it('restoreSnapshot throws on null-byte relPath', async () => {
     const turnId = newTurnId()
     await writeSnapshot(tmpDir, turnId, 'safe.md', 'content', 'file:write')
-    await expect(
-      restoreSnapshot(tmpDir, turnId, 'foo\0bar.md'),
-    ).rejects.toThrow()
+    await expect(restoreSnapshot(tmpDir, turnId, 'foo\0bar.md')).rejects.toThrow()
   })
 })
 
@@ -620,15 +624,13 @@ describe('security: turnId validation', () => {
     const goodId = newTurnId()
     await writeSnapshot(tmpDir, goodId, 'a.md', 'content', 'file:write')
 
-    await expect(
-      readSnapshot(tmpDir, '../../../tmp/evil', 'a.md'),
-    ).rejects.toThrow(/MARVIN_INVALID_TURN_ID|Invalid turnId|invalid/i)
+    await expect(readSnapshot(tmpDir, '../../../tmp/evil', 'a.md')).rejects.toThrow(
+      /MARVIN_INVALID_TURN_ID|Invalid turnId|invalid/i
+    )
   })
 
   it('readSnapshot throws on turnId with null byte', async () => {
-    await expect(
-      readSnapshot(tmpDir, 'valid\0evil', 'a.md'),
-    ).rejects.toThrow()
+    await expect(readSnapshot(tmpDir, 'valid\0evil', 'a.md')).rejects.toThrow()
   })
 
   it('readSnapshot accepts a valid turnId (ISO-compact format)', async () => {
@@ -639,9 +641,9 @@ describe('security: turnId validation', () => {
   })
 
   it('restoreSnapshot throws MARVIN_INVALID_TURN_ID on traversal turnId', async () => {
-    await expect(
-      restoreSnapshot(tmpDir, '../../../tmp/evil', 'a.md'),
-    ).rejects.toThrow(/MARVIN_INVALID_TURN_ID|Invalid turnId|invalid/i)
+    await expect(restoreSnapshot(tmpDir, '../../../tmp/evil', 'a.md')).rejects.toThrow(
+      /MARVIN_INVALID_TURN_ID|Invalid turnId|invalid/i
+    )
   })
 
   it('gc skips snapshot dirs whose names do not match the expected turnId format', async () => {
@@ -689,9 +691,9 @@ describe('security: symlink escape', () => {
 
     try {
       // restoreSnapshot should reject the restore because realpath of link.md escapes vault
-      await expect(
-        restoreSnapshot(tmpDir, turnId, 'link.md'),
-      ).rejects.toThrow(/MARVIN_INVALID_PATH|outside vault|symlink|invalid/i)
+      await expect(restoreSnapshot(tmpDir, turnId, 'link.md')).rejects.toThrow(
+        /MARVIN_INVALID_PATH|outside vault|symlink|invalid/i
+      )
 
       // outside file must not have been modified
       const outsideContent = await fs.readFile(outsideFile, 'utf8')
@@ -712,8 +714,12 @@ describe('security: manifest schema validation', () => {
     await fs.mkdir(badDir, { recursive: true })
     await fs.writeFile(
       path.join(badDir, '_manifest.json'),
-      JSON.stringify({ turnId: badTurnId, files: 'not-an-array', createdAt: new Date().toISOString() }),
-      'utf8',
+      JSON.stringify({
+        turnId: badTurnId,
+        files: 'not-an-array',
+        createdAt: new Date().toISOString(),
+      }),
+      'utf8'
     )
 
     // Should not throw — corrupt manifests are skipped
@@ -732,7 +738,7 @@ describe('security: manifest schema validation', () => {
     await fs.writeFile(
       path.join(badDir, '_manifest.json'),
       JSON.stringify({ someRandomField: true }),
-      'utf8',
+      'utf8'
     )
 
     const turns = await listTurns(tmpDir)
@@ -747,7 +753,7 @@ describe('security: manifest schema validation', () => {
     await fs.writeFile(
       path.join(badDir, '_manifest.json'),
       JSON.stringify({ turnId: badTurnId, files: [], createdAt: 12345, trigger: 'file:write' }),
-      'utf8',
+      'utf8'
     )
 
     const turns = await listTurns(tmpDir)
@@ -765,9 +771,9 @@ describe('security: additional branch coverage for new validation code', () => {
   it('restoreSnapshot throws MARVIN_INVALID_PATH on absolute relPath', async () => {
     const turnId = newTurnId()
     await writeSnapshot(tmpDir, turnId, 'safe.md', 'content', 'file:write')
-    await expect(
-      restoreSnapshot(tmpDir, turnId, '/etc/hosts'),
-    ).rejects.toThrow('MARVIN_INVALID_PATH')
+    await expect(restoreSnapshot(tmpDir, turnId, '/etc/hosts')).rejects.toThrow(
+      'MARVIN_INVALID_PATH'
+    )
   })
 
   // Lines 321-324: symlink parent dir resolves outside vault (H2 directory check)
@@ -797,9 +803,9 @@ describe('security: additional branch coverage for new validation code', () => {
     await fs.writeFile(path.join(snapDir, '_manifest.json'), JSON.stringify(manifest), 'utf8')
 
     try {
-      await expect(
-        restoreSnapshot(tmpDir, turnId, 'evil-dir/target.md'),
-      ).rejects.toThrow('MARVIN_INVALID_PATH')
+      await expect(restoreSnapshot(tmpDir, turnId, 'evil-dir/target.md')).rejects.toThrow(
+        'MARVIN_INVALID_PATH'
+      )
       // Outside dir must not have been written to
       const outsideFiles = await fs.readdir(realOutsideDir)
       expect(outsideFiles).toHaveLength(0)
@@ -864,7 +870,7 @@ describe('security: additional branch coverage for new validation code', () => {
         trigger: 'unknown-trigger',
         status: 'active',
       }),
-      'utf8',
+      'utf8'
     )
     const turns = await listTurns(tmpDir)
     expect(turns.find((m) => m.turnId === badId)).toBeUndefined()
@@ -885,7 +891,7 @@ describe('security: additional branch coverage for new validation code', () => {
         trigger: 'file:write',
         status: 'invalid-status',
       }),
-      'utf8',
+      'utf8'
     )
     const turns = await listTurns(tmpDir)
     expect(turns.find((m) => m.turnId === badId)).toBeUndefined()
@@ -906,7 +912,7 @@ describe('security: additional branch coverage for new validation code', () => {
         status: 'active',
         // timestamp missing
       }),
-      'utf8',
+      'utf8'
     )
     const turns = await listTurns(tmpDir)
     expect(turns.find((m) => m.turnId === badId)).toBeUndefined()
@@ -994,16 +1000,22 @@ describe('security: H4 — validation at every public API boundary', () => {
   })
 
   it('readSnapshot throws MARVIN_INVALID_PATH on traversal relPath', async () => {
-    await expect(readSnapshot(tmpDir, newTurnId(), '../escape')).rejects.toThrow('MARVIN_INVALID_PATH')
+    await expect(readSnapshot(tmpDir, newTurnId(), '../escape')).rejects.toThrow(
+      'MARVIN_INVALID_PATH'
+    )
   })
 
   // restoreSnapshot: all three assertions enforced
   it('restoreSnapshot throws MARVIN_INVALID_TURN_ID on invalid turnId', async () => {
-    await expect(restoreSnapshot(tmpDir, 'invalid-id', 'file.md')).rejects.toThrow('MARVIN_INVALID_TURN_ID')
+    await expect(restoreSnapshot(tmpDir, 'invalid-id', 'file.md')).rejects.toThrow(
+      'MARVIN_INVALID_TURN_ID'
+    )
   })
 
   it('restoreSnapshot throws MARVIN_INVALID_PATH on traversal relPath', async () => {
-    await expect(restoreSnapshot(tmpDir, newTurnId(), '../escape.md')).rejects.toThrow('MARVIN_INVALID_PATH')
+    await expect(restoreSnapshot(tmpDir, newTurnId(), '../escape.md')).rejects.toThrow(
+      'MARVIN_INVALID_PATH'
+    )
   })
 })
 
@@ -1026,16 +1038,19 @@ describe('security: H2 — file-level symlink in restoreSnapshot', () => {
     await fs.mkdir(snapDir, { recursive: true })
     await fs.writeFile(path.join(snapDir, 'leak.md'), 'restore content', 'utf8')
     const manifest = {
-      turnId, files: [{ relPath: 'leak.md', sizeBefore: 14, hashBefore: 'abc' }],
-      createdAt: new Date().toISOString(), timestamp: Date.now(),
-      trigger: 'file:write', status: 'active',
+      turnId,
+      files: [{ relPath: 'leak.md', sizeBefore: 14, hashBefore: 'abc' }],
+      createdAt: new Date().toISOString(),
+      timestamp: Date.now(),
+      trigger: 'file:write',
+      status: 'active',
     }
     await fs.writeFile(path.join(snapDir, '_manifest.json'), JSON.stringify(manifest), 'utf8')
 
     try {
-      await expect(
-        restoreSnapshot(tmpDir, turnId, 'leak.md'),
-      ).rejects.toThrow('MARVIN_INVALID_PATH')
+      await expect(restoreSnapshot(tmpDir, turnId, 'leak.md')).rejects.toThrow(
+        'MARVIN_INVALID_PATH'
+      )
 
       // Outside file must be untouched
       const content = await fs.readFile(realOutside, 'utf8')
@@ -1244,7 +1259,13 @@ describe('FU-6 (#72): external-rejected trigger', () => {
   it('writeSnapshot accepts external-rejected trigger and stores it in manifest', async () => {
     const turnId = newTurnId()
     const externalContent = '# Written by Vim externally'
-    const ok = await writeSnapshot(tmpDir, turnId, 'rejected.md', externalContent, 'external-rejected')
+    const ok = await writeSnapshot(
+      tmpDir,
+      turnId,
+      'rejected.md',
+      externalContent,
+      'external-rejected'
+    )
     expect(ok).toBe(true)
 
     const turns = await listTurns(tmpDir)

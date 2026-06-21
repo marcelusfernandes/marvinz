@@ -8,7 +8,7 @@ import path from 'node:path'
 export async function resolveConflict(
   destDir: string,
   baseName: string,
-  mode: 'copy' | 'move',
+  mode: 'copy' | 'move'
 ): Promise<string> {
   const ext = path.extname(baseName)
   const stem = ext ? baseName.slice(0, -ext.length) : baseName

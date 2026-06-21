@@ -58,25 +58,19 @@ export function useToolApproval(sessionId: SessionId): UseToolApprovalResult {
         // a subsequent tool-result/error event will reconcile state.
       }
     },
-    [approveTool, sessionId],
+    [approveTool, sessionId]
   )
 
   const allow = useCallback(
     (toolUseId: ToolCallId) => decide(toolUseId, { kind: 'allow' }),
-    [decide],
+    [decide]
   )
   const allowAlways = useCallback(
     (toolUseId: ToolCallId) =>
       decide(toolUseId, { kind: 'allow', remember: 'session' satisfies ApprovalRemember }),
-    [decide],
+    [decide]
   )
-  const deny = useCallback(
-    (toolUseId: ToolCallId) => decide(toolUseId, { kind: 'deny' }),
-    [decide],
-  )
+  const deny = useCallback((toolUseId: ToolCallId) => decide(toolUseId, { kind: 'deny' }), [decide])
 
-  return useMemo(
-    () => ({ allow, allowAlways, deny, decide }),
-    [allow, allowAlways, deny, decide],
-  )
+  return useMemo(() => ({ allow, allowAlways, deny, decide }), [allow, allowAlways, deny, decide])
 }

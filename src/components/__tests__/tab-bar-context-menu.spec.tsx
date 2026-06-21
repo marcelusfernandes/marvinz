@@ -80,7 +80,7 @@ function renderTabs(tabs = [tabA, tabB, tabC], activeId = 'b') {
       onActivate={onActivate}
       onClose={onClose}
       onNewTab={onNewTab}
-    />,
+    />
   )
   return { ...utils, onClose, onActivate, onNewTab }
 }
@@ -212,7 +212,7 @@ describe('TabBar — Close Others enabled state', () => {
     const [items] = showContextMenuMock.mock.calls[0] as [MenuItemSpec[]]
     const item = items.find(
       (i): i is Extract<MenuItemSpec, { kind: 'item' }> =>
-        i.kind === 'item' && i.id === 'closeOthers',
+        i.kind === 'item' && i.id === 'closeOthers'
     )
     expect(item?.enabled).toBe(false)
   })
@@ -226,7 +226,7 @@ describe('TabBar — Close Others enabled state', () => {
     const [items] = showContextMenuMock.mock.calls[0] as [MenuItemSpec[]]
     const item = items.find(
       (i): i is Extract<MenuItemSpec, { kind: 'item' }> =>
-        i.kind === 'item' && i.id === 'closeOthers',
+        i.kind === 'item' && i.id === 'closeOthers'
     )
     expect(item?.enabled).toBe(true)
   })
@@ -246,7 +246,7 @@ describe('TabBar — Close to the Right enabled state', () => {
     const [items] = showContextMenuMock.mock.calls[0] as [MenuItemSpec[]]
     const item = items.find(
       (i): i is Extract<MenuItemSpec, { kind: 'item' }> =>
-        i.kind === 'item' && i.id === 'closeRight',
+        i.kind === 'item' && i.id === 'closeRight'
     )
     expect(item?.enabled).toBe(false)
   })
@@ -260,7 +260,7 @@ describe('TabBar — Close to the Right enabled state', () => {
     const [items] = showContextMenuMock.mock.calls[0] as [MenuItemSpec[]]
     const item = items.find(
       (i): i is Extract<MenuItemSpec, { kind: 'item' }> =>
-        i.kind === 'item' && i.id === 'closeRight',
+        i.kind === 'item' && i.id === 'closeRight'
     )
     expect(item?.enabled).toBe(true)
   })

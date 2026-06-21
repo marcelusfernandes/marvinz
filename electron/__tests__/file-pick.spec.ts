@@ -24,7 +24,7 @@ import os from 'node:os'
 
 async function filePick(
   activeVaultPath: string | null,
-  dialogResult: { canceled: boolean; filePaths: string[] },
+  dialogResult: { canceled: boolean; filePaths: string[] }
 ): Promise<string | null> {
   if (!activeVaultPath) return null
   if (dialogResult.canceled || dialogResult.filePaths.length === 0) return null
@@ -35,7 +35,10 @@ async function filePick(
   } catch {
     return null
   }
-  if (!resolvedChosen.startsWith(activeVaultPath + path.sep) && resolvedChosen !== activeVaultPath) {
+  if (
+    !resolvedChosen.startsWith(activeVaultPath + path.sep) &&
+    resolvedChosen !== activeVaultPath
+  ) {
     return null
   }
   return resolvedChosen
@@ -65,7 +68,9 @@ async function teardown(): Promise<void> {
 
 describe('file:pick — no active vault', () => {
   it('returns null when activeVaultPath is null', async () => {
-    await expect(filePick(null, { canceled: false, filePaths: ['/some/file.md'] })).resolves.toBeNull()
+    await expect(
+      filePick(null, { canceled: false, filePaths: ['/some/file.md'] })
+    ).resolves.toBeNull()
   })
 })
 

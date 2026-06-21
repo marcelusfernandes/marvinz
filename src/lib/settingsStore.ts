@@ -27,27 +27,19 @@ function readFromLocalStorage(): Settings {
     if (themeFlavor === 'default' || themeFlavor === 'pastel') {
       out.themeFlavor = themeFlavor
     }
-    const terminalModeEnabled = window.localStorage.getItem(
-      `${LS_PREFIX}terminalModeEnabled`,
-    )
+    const terminalModeEnabled = window.localStorage.getItem(`${LS_PREFIX}terminalModeEnabled`)
     if (terminalModeEnabled === 'true' || terminalModeEnabled === 'false') {
       out.terminalModeEnabled = terminalModeEnabled === 'true'
     }
-    const agentsPaneTransparent = window.localStorage.getItem(
-      `${LS_PREFIX}agentsPaneTransparent`,
-    )
+    const agentsPaneTransparent = window.localStorage.getItem(`${LS_PREFIX}agentsPaneTransparent`)
     if (agentsPaneTransparent === 'true' || agentsPaneTransparent === 'false') {
       out.agentsPaneTransparent = agentsPaneTransparent === 'true'
     }
-    const editorEffectsMaster = window.localStorage.getItem(
-      `${LS_PREFIX}editorEffectsMaster`,
-    )
+    const editorEffectsMaster = window.localStorage.getItem(`${LS_PREFIX}editorEffectsMaster`)
     if (editorEffectsMaster === 'true' || editorEffectsMaster === 'false') {
       out.editorEffectsMaster = editorEffectsMaster === 'true'
     }
-    const editorEffectCaretSlide = window.localStorage.getItem(
-      `${LS_PREFIX}editorEffectCaretSlide`,
-    )
+    const editorEffectCaretSlide = window.localStorage.getItem(`${LS_PREFIX}editorEffectCaretSlide`)
     if (editorEffectCaretSlide === 'true' || editorEffectCaretSlide === 'false') {
       out.editorEffectCaretSlide = editorEffectCaretSlide === 'true'
     }
@@ -90,7 +82,7 @@ export function seedFromMain(next: Settings): void {
  */
 export async function setSetting<K extends keyof Settings>(
   key: K,
-  value: Settings[K],
+  value: Settings[K]
 ): Promise<void> {
   state = { ...state, [key]: value }
   notify()
@@ -106,6 +98,6 @@ export function useSetting<K extends keyof Settings>(key: K): Settings[K] {
   return useSyncExternalStore(
     subscribe,
     () => state[key],
-    () => state[key],
+    () => state[key]
   )
 }

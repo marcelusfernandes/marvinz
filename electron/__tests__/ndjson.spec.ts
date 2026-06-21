@@ -169,7 +169,10 @@ describe('NdjsonStream — 16MB line cap', () => {
     expect(onMalformed).toHaveBeenCalledOnce()
     expect(onMalformed.mock.calls[0][1].message).not.toBe('LINE_TOO_LONG')
     expect(onLine).toHaveBeenCalledTimes(2)
-    expect(onMalformed).not.toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ message: 'LINE_TOO_LONG' }))
+    expect(onMalformed).not.toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ message: 'LINE_TOO_LONG' })
+    )
   })
 })
 

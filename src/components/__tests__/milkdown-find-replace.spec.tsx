@@ -45,18 +45,10 @@ const {
 } = vi.hoisted(() => {
   const capturedProsePlugins: { value: unknown[] } = { value: [] }
 
-  const mockFindNext = vi.fn(
-    (_state: unknown, _dispatch: unknown, _view: unknown) => true,
-  )
-  const mockFindPrev = vi.fn(
-    (_state: unknown, _dispatch: unknown, _view: unknown) => true,
-  )
-  const mockReplaceNext = vi.fn(
-    (_state: unknown, _dispatch: unknown, _view: unknown) => true,
-  )
-  const mockReplaceAll = vi.fn(
-    (_state: unknown, _dispatch: unknown, _view: unknown) => true,
-  )
+  const mockFindNext = vi.fn((_state: unknown, _dispatch: unknown, _view: unknown) => true)
+  const mockFindPrev = vi.fn((_state: unknown, _dispatch: unknown, _view: unknown) => true)
+  const mockReplaceNext = vi.fn((_state: unknown, _dispatch: unknown, _view: unknown) => true)
+  const mockReplaceAll = vi.fn((_state: unknown, _dispatch: unknown, _view: unknown) => true)
   const mockSetSearchState = vi.fn((tr: unknown, _query: unknown) => tr)
   const mockGetSearchState = vi.fn((): unknown => undefined)
   const mockSearchPlugin = vi.fn(() => ({ _plugin: 'prosemirror-search' }))
@@ -347,55 +339,39 @@ afterEach(() => {
 describe('FindReplaceOverlay — find mode', () => {
   it('renders the search panel with data-testid pm-search-panel', () => {
     const view = makeFakeView()
-    const { container } = render(
-      <FindReplaceOverlay view={view as never} onClose={vi.fn()} />,
-    )
+    const { container } = render(<FindReplaceOverlay view={view as never} onClose={vi.fn()} />)
     expect(container.querySelector('[data-testid="pm-search-panel"]')).not.toBeNull()
   })
 
   it('renders the find input with data-testid pm-search-input', () => {
     const view = makeFakeView()
-    const { container } = render(
-      <FindReplaceOverlay view={view as never} onClose={vi.fn()} />,
-    )
-    expect(
-      container.querySelector('input[data-testid="pm-search-input"]'),
-    ).not.toBeNull()
+    const { container } = render(<FindReplaceOverlay view={view as never} onClose={vi.fn()} />)
+    expect(container.querySelector('input[data-testid="pm-search-input"]')).not.toBeNull()
   })
 
   it('renders the next button with data-testid pm-search-next', () => {
     const view = makeFakeView()
-    const { container } = render(
-      <FindReplaceOverlay view={view as never} onClose={vi.fn()} />,
-    )
+    const { container } = render(<FindReplaceOverlay view={view as never} onClose={vi.fn()} />)
     expect(container.querySelector('[data-testid="pm-search-next"]')).not.toBeNull()
   })
 
   it('renders the prev button with data-testid pm-search-prev', () => {
     const view = makeFakeView()
-    const { container } = render(
-      <FindReplaceOverlay view={view as never} onClose={vi.fn()} />,
-    )
+    const { container } = render(<FindReplaceOverlay view={view as never} onClose={vi.fn()} />)
     expect(container.querySelector('[data-testid="pm-search-prev"]')).not.toBeNull()
   })
 
   it('does NOT render replace input in find mode', () => {
     const view = makeFakeView()
-    const { container } = render(
-      <FindReplaceOverlay view={view as never} onClose={vi.fn()} />,
-    )
-    expect(
-      container.querySelector('input[data-testid="pm-replace-input"]'),
-    ).toBeNull()
+    const { container } = render(<FindReplaceOverlay view={view as never} onClose={vi.fn()} />)
+    expect(container.querySelector('input[data-testid="pm-replace-input"]')).toBeNull()
   })
 })
 
 describe('FindReplaceOverlay — search query dispatch', () => {
   it('calls setSearchState on mount with an empty query', () => {
     const view = makeFakeView()
-    render(
-      <FindReplaceOverlay view={view as never} onClose={vi.fn()} />,
-    )
+    render(<FindReplaceOverlay view={view as never} onClose={vi.fn()} />)
     // useEffect fires on mount — initial empty query dispatched
     expect(mockSetSearchState).toHaveBeenCalled()
     expect(view.dispatch).toHaveBeenCalled()
@@ -403,11 +379,9 @@ describe('FindReplaceOverlay — search query dispatch', () => {
 
   it('calls setSearchState with the typed query when input changes', async () => {
     const view = makeFakeView()
-    const { container } = render(
-      <FindReplaceOverlay view={view as never} onClose={vi.fn()} />,
-    )
+    const { container } = render(<FindReplaceOverlay view={view as never} onClose={vi.fn()} />)
     const input = container.querySelector(
-      'input[data-testid="pm-search-input"]',
+      'input[data-testid="pm-search-input"]'
     ) as HTMLInputElement
     mockSetSearchState.mockClear()
     view.dispatch.mockClear()
@@ -424,9 +398,7 @@ describe('FindReplaceOverlay — search query dispatch', () => {
     const view = makeFakeView()
     // Return a defined value so getSearchState check passes
     mockGetSearchState.mockReturnValue({ query: { search: 'hi' }, range: null })
-    const { unmount } = render(
-      <FindReplaceOverlay view={view as never} onClose={vi.fn()} />,
-    )
+    const { unmount } = render(<FindReplaceOverlay view={view as never} onClose={vi.fn()} />)
     mockSetSearchState.mockClear()
     view.dispatch.mockClear()
     await act(async () => {
@@ -441,9 +413,7 @@ describe('FindReplaceOverlay — search query dispatch', () => {
 describe('FindReplaceOverlay — navigation buttons', () => {
   it('clicking next button calls findNext', async () => {
     const view = makeFakeView()
-    const { container } = render(
-      <FindReplaceOverlay view={view as never} onClose={vi.fn()} />,
-    )
+    const { container } = render(<FindReplaceOverlay view={view as never} onClose={vi.fn()} />)
     const btn = container.querySelector('[data-testid="pm-search-next"]') as HTMLElement
     await act(async () => {
       fireEvent.click(btn)
@@ -453,9 +423,7 @@ describe('FindReplaceOverlay — navigation buttons', () => {
 
   it('clicking prev button calls findPrev', async () => {
     const view = makeFakeView()
-    const { container } = render(
-      <FindReplaceOverlay view={view as never} onClose={vi.fn()} />,
-    )
+    const { container } = render(<FindReplaceOverlay view={view as never} onClose={vi.fn()} />)
     const btn = container.querySelector('[data-testid="pm-search-prev"]') as HTMLElement
     await act(async () => {
       fireEvent.click(btn)
@@ -467,9 +435,7 @@ describe('FindReplaceOverlay — navigation buttons', () => {
 describe('FindReplaceOverlay — keyboard navigation', () => {
   it('pressing Enter calls findNext', async () => {
     const view = makeFakeView()
-    const { container } = render(
-      <FindReplaceOverlay view={view as never} onClose={vi.fn()} />,
-    )
+    const { container } = render(<FindReplaceOverlay view={view as never} onClose={vi.fn()} />)
     const panel = container.querySelector('[data-testid="pm-search-panel"]') as HTMLElement
     await act(async () => {
       fireEvent.keyDown(panel, { key: 'Enter' })
@@ -479,9 +445,7 @@ describe('FindReplaceOverlay — keyboard navigation', () => {
 
   it('pressing Shift+Enter calls findPrev', async () => {
     const view = makeFakeView()
-    const { container } = render(
-      <FindReplaceOverlay view={view as never} onClose={vi.fn()} />,
-    )
+    const { container } = render(<FindReplaceOverlay view={view as never} onClose={vi.fn()} />)
     const panel = container.querySelector('[data-testid="pm-search-panel"]') as HTMLElement
     await act(async () => {
       fireEvent.keyDown(panel, { key: 'Enter', shiftKey: true })
@@ -492,9 +456,7 @@ describe('FindReplaceOverlay — keyboard navigation', () => {
   it('pressing Escape calls onClose and view.focus()', async () => {
     const view = makeFakeView()
     const onClose = vi.fn()
-    const { container } = render(
-      <FindReplaceOverlay view={view as never} onClose={onClose} />,
-    )
+    const { container } = render(<FindReplaceOverlay view={view as never} onClose={onClose} />)
     const panel = container.querySelector('[data-testid="pm-search-panel"]') as HTMLElement
     await act(async () => {
       fireEvent.keyDown(panel, { key: 'Escape' })
@@ -508,17 +470,15 @@ describe('FindReplaceOverlay — replace mode', () => {
   it('renders the replace input in replace mode', () => {
     const view = makeFakeView()
     const { container } = render(
-      <FindReplaceOverlay view={view as never} onClose={vi.fn()} initialReplaceExpanded />,
+      <FindReplaceOverlay view={view as never} onClose={vi.fn()} initialReplaceExpanded />
     )
-    expect(
-      container.querySelector('input[data-testid="pm-replace-input"]'),
-    ).not.toBeNull()
+    expect(container.querySelector('input[data-testid="pm-replace-input"]')).not.toBeNull()
   })
 
   it('renders the replace-next button in replace mode', () => {
     const view = makeFakeView()
     const { container } = render(
-      <FindReplaceOverlay view={view as never} onClose={vi.fn()} initialReplaceExpanded />,
+      <FindReplaceOverlay view={view as never} onClose={vi.fn()} initialReplaceExpanded />
     )
     expect(container.querySelector('[data-testid="pm-replace-next"]')).not.toBeNull()
   })
@@ -526,7 +486,7 @@ describe('FindReplaceOverlay — replace mode', () => {
   it('renders the replace-all button in replace mode', () => {
     const view = makeFakeView()
     const { container } = render(
-      <FindReplaceOverlay view={view as never} onClose={vi.fn()} initialReplaceExpanded />,
+      <FindReplaceOverlay view={view as never} onClose={vi.fn()} initialReplaceExpanded />
     )
     expect(container.querySelector('[data-testid="pm-replace-all"]')).not.toBeNull()
   })
@@ -534,7 +494,7 @@ describe('FindReplaceOverlay — replace mode', () => {
   it('clicking replace-next button calls replaceNext', async () => {
     const view = makeFakeView()
     const { container } = render(
-      <FindReplaceOverlay view={view as never} onClose={vi.fn()} initialReplaceExpanded />,
+      <FindReplaceOverlay view={view as never} onClose={vi.fn()} initialReplaceExpanded />
     )
     const btn = container.querySelector('[data-testid="pm-replace-next"]') as HTMLElement
     await act(async () => {
@@ -546,7 +506,7 @@ describe('FindReplaceOverlay — replace mode', () => {
   it('clicking replace-all button calls replaceAll', async () => {
     const view = makeFakeView()
     const { container } = render(
-      <FindReplaceOverlay view={view as never} onClose={vi.fn()} initialReplaceExpanded />,
+      <FindReplaceOverlay view={view as never} onClose={vi.fn()} initialReplaceExpanded />
     )
     const btn = container.querySelector('[data-testid="pm-replace-all"]') as HTMLElement
     await act(async () => {
@@ -558,10 +518,10 @@ describe('FindReplaceOverlay — replace mode', () => {
   it('typing in replace input dispatches setSearchState with replace text', async () => {
     const view = makeFakeView()
     const { container } = render(
-      <FindReplaceOverlay view={view as never} onClose={vi.fn()} initialReplaceExpanded />,
+      <FindReplaceOverlay view={view as never} onClose={vi.fn()} initialReplaceExpanded />
     )
     const replaceInput = container.querySelector(
-      'input[data-testid="pm-replace-input"]',
+      'input[data-testid="pm-replace-input"]'
     ) as HTMLInputElement
     mockSetSearchState.mockClear()
     await act(async () => {

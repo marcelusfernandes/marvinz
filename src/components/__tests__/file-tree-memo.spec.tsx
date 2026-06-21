@@ -71,9 +71,7 @@ beforeEach(() => {
     marvin: {
       fs: {
         getPathForFile: vi.fn((f: File) => `/resolved/${f.name}`),
-        importExternal: vi
-          .fn()
-          .mockResolvedValue({ imported: [], skipped: [] }),
+        importExternal: vi.fn().mockResolvedValue({ imported: [], skipped: [] }),
       },
     },
   })
@@ -105,9 +103,7 @@ const docsNode: FileNode = {
   path: '/vault/docs',
   name: 'docs',
   isDir: true,
-  children: [
-    { path: '/vault/docs/intro.md', name: 'intro.md', isDir: false, children: [] },
-  ],
+  children: [{ path: '/vault/docs/intro.md', name: 'intro.md', isDir: false, children: [] }],
 }
 
 const assetsNode: FileNode = {
@@ -167,16 +163,12 @@ describe('Memoization — render counts', () => {
   // the re-render of the assets FileTreeNode's DOM).
   // -------------------------------------------------------------------------
   it('toggling folder A open does not change sibling folder B DOM output', () => {
-    const { rerender } = render(
-      <FileTree {...baseProps({ openPaths: new Set() })} />,
-    )
+    const { rerender } = render(<FileTree {...baseProps({ openPaths: new Set() })} />)
 
     const assetsBtn = screen.getByText('assets').closest('button')!
     const assetsBtnHtmlBefore = assetsBtn.outerHTML
 
-    rerender(
-      <FileTree {...baseProps({ openPaths: new Set(['/vault/docs']) })} />,
-    )
+    rerender(<FileTree {...baseProps({ openPaths: new Set(['/vault/docs']) })} />)
 
     // docs should now show children
     expect(screen.getByText('intro')).toBeTruthy()
@@ -193,16 +185,12 @@ describe('Memoization — render counts', () => {
   // button. The docs and assets buttons must remain unchanged.
   // -------------------------------------------------------------------------
   it('selecting a file applies selected class only to that file row', () => {
-    const { rerender } = render(
-      <FileTree {...baseProps({ selectedPaths: new Set<string>() })} />,
-    )
+    const { rerender } = render(<FileTree {...baseProps({ selectedPaths: new Set<string>() })} />)
 
     const docsBtn = screen.getByText('docs').closest('button')!
     const docsBtnHtmlBefore = docsBtn.outerHTML
 
-    rerender(
-      <FileTree {...baseProps({ selectedPaths: new Set<string>(['/vault/readme.md']) })} />,
-    )
+    rerender(<FileTree {...baseProps({ selectedPaths: new Set<string>(['/vault/readme.md']) })} />)
 
     const readmeBtn = screen.getByText('readme').closest('button')!
     expect(readmeBtn.classList.contains('selected')).toBe(true)
@@ -239,7 +227,9 @@ describe('Memoization — render counts', () => {
 
     expect(docsBtn.classList.contains('drop-target')).toBe(true)
     expect(assetsBtn.classList.contains('drop-target')).toBe(false)
-    expect(screen.getByText('readme').closest('button')!.classList.contains('drop-target')).toBe(false)
+    expect(screen.getByText('readme').closest('button')!.classList.contains('drop-target')).toBe(
+      false
+    )
   })
 
   // -------------------------------------------------------------------------
@@ -301,7 +291,7 @@ describe('Memoization — render counts', () => {
   // -------------------------------------------------------------------------
   it('deselecting a file removes selected class only from that node', () => {
     const { rerender } = render(
-      <FileTree {...baseProps({ selectedPaths: new Set<string>(['/vault/readme.md']) })} />,
+      <FileTree {...baseProps({ selectedPaths: new Set<string>(['/vault/readme.md']) })} />
     )
 
     const readmeBtn = screen.getByText('readme').closest('button')!

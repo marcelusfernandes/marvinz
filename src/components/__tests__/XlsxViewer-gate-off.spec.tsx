@@ -20,7 +20,8 @@ vi.mock('../Icon', () => ({
 
 import { XlsxViewer } from '../XlsxViewer'
 
-const renderLoaded = () => renderViewerLoaded(XlsxViewer, '.xlsx-viewer-content', '/vault/data.xlsx')
+const renderLoaded = () =>
+  renderViewerLoaded(XlsxViewer, '.xlsx-viewer-content', '/vault/data.xlsx')
 
 describe('XlsxViewer — OFFICE_EDIT_ENABLED=false (read-only)', () => {
   beforeEach(() => {

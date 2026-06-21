@@ -66,18 +66,32 @@ async function smokeSimpleText() {
   assert(init !== null, 'session-init event received')
   if (init) {
     assert(init.sessionId === sessionId, `session-init.sessionId matches (${init.sessionId})`)
-    assert(typeof init.cliSessionId === 'string' && init.cliSessionId.length > 0, 'session-init.cliSessionId non-empty')
-    assert(typeof init.model === 'string' && init.model.length > 0, `session-init.model present (${init.model})`)
+    assert(
+      typeof init.cliSessionId === 'string' && init.cliSessionId.length > 0,
+      'session-init.cliSessionId non-empty'
+    )
+    assert(
+      typeof init.model === 'string' && init.model.length > 0,
+      `session-init.model present (${init.model})`
+    )
   }
 
   const msgStart = await waitForEvent(events, (e) => e.type === 'message-start').catch(() => null)
   assert(msgStart !== null, 'message-start event received')
 
-  const turnResult = await waitForEvent(events, (e) => e.type === 'turn-result', 45_000).catch(() => null)
+  const turnResult = await waitForEvent(events, (e) => e.type === 'turn-result', 45_000).catch(
+    () => null
+  )
   assert(turnResult !== null, 'turn-result event received')
   if (turnResult) {
-    assert(typeof turnResult.costUSD === 'number', `turn-result.costUSD is a number (${turnResult.costUSD})`)
-    assert(typeof turnResult.usage?.inputTokens === 'number', 'turn-result.usage.inputTokens present')
+    assert(
+      typeof turnResult.costUSD === 'number',
+      `turn-result.costUSD is a number (${turnResult.costUSD})`
+    )
+    assert(
+      typeof turnResult.usage?.inputTokens === 'number',
+      'turn-result.usage.inputTokens present'
+    )
   }
 
   const deltas = events.filter((e) => e.type === 'text-delta')
@@ -96,7 +110,7 @@ async function smokeSimpleText() {
   if (msgEnd) {
     assert(
       ['end_turn', 'tool_use', 'max_tokens', 'cancelled'].includes(msgEnd.stopReason),
-      `message-end.stopReason valid (${msgEnd.stopReason})`,
+      `message-end.stopReason valid (${msgEnd.stopReason})`
     )
   }
 
@@ -126,17 +140,24 @@ async function smokeToolUse() {
 
   assert(res.ok === true, `agent:request returned ok=true`)
 
-  const init = await waitForEvent(events, (e) => e.type === 'session-init', 15_000).catch(() => null)
+  const init = await waitForEvent(events, (e) => e.type === 'session-init', 15_000).catch(
+    () => null
+  )
   assert(init !== null, 'session-init event received')
 
-  const turnResult = await waitForEvent(events, (e) => e.type === 'turn-result', 60_000).catch(() => null)
+  const turnResult = await waitForEvent(events, (e) => e.type === 'turn-result', 60_000).catch(
+    () => null
+  )
   assert(turnResult !== null, 'turn-result event received (tool use completes)')
 
   const toolUseEvents = events.filter((e) => e.type === 'tool-use')
   console.log(`  tool-use events: ${toolUseEvents.length}`)
   if (toolUseEvents.length > 0) {
     const tu = toolUseEvents[0]
-    assert(typeof tu.toolUseId === 'string' && tu.toolUseId.length > 0, `tool-use.toolUseId present (${tu.toolUseId})`)
+    assert(
+      typeof tu.toolUseId === 'string' && tu.toolUseId.length > 0,
+      `tool-use.toolUseId present (${tu.toolUseId})`
+    )
     assert(typeof tu.name === 'string', `tool-use.name present (${tu.name})`)
     console.log(`  tool-use: name=${tu.name} input=${JSON.stringify(tu.input)}`)
   }
@@ -145,7 +166,7 @@ async function smokeToolUse() {
   if (toolUseEvents.length > 0 && toolResultEvents.length > 0) {
     assert(
       toolResultEvents.some((r) => r.toolUseId === toolUseEvents[0].toolUseId),
-      'tool-result.toolUseId matches tool-use.toolUseId',
+      'tool-result.toolUseId matches tool-use.toolUseId'
     )
   }
 

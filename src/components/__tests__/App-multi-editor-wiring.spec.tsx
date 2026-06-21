@@ -91,11 +91,7 @@ vi.mock('../TabBar', () => ({
     return (
       <div data-testid="tab-bar">
         {props.tabs.map((t) => (
-          <button
-            key={t.id}
-            data-testid={`close-tab-${t.id}`}
-            onClick={() => props.onClose(t.id)}
-          >
+          <button key={t.id} data-testid={`close-tab-${t.id}`} onClick={() => props.onClose(t.id)}>
             close {t.id}
           </button>
         ))}
@@ -168,8 +164,7 @@ vi.mock('../MaterialIcon', () => ({ MaterialIcon: () => null }))
 vi.mock('../../lib/fileIcons', () => ({ fileIconFor: () => 'file' }))
 vi.mock('../../lib/settingsStore', () => ({
   seedFromMain: vi.fn(),
-  useSetting: (key: string) =>
-    key === 'saveMode' ? saveModeOverride.value : undefined,
+  useSetting: (key: string) => (key === 'saveMode' ? saveModeOverride.value : undefined),
 }))
 vi.mock('../../lib/colorTheme', () => ({
   useColorTheme: vi.fn(),
@@ -352,9 +347,7 @@ describe('multi-editor — onSave path isolation', () => {
     expect(fileWriteMock).toHaveBeenCalledWith('/vault/note-a.md', 'content from A')
 
     // It must NOT have been called with B's path.
-    const callsToB = fileWriteMock.mock.calls.filter(
-      ([path]) => path === '/vault/note-b.md',
-    )
+    const callsToB = fileWriteMock.mock.calls.filter(([path]) => path === '/vault/note-b.md')
     expect(callsToB).toHaveLength(0)
   })
 })

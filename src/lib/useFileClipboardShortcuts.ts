@@ -33,7 +33,7 @@ function findNodeByPath(nodes: FileNode[], path: string): FileNode | null {
 export function resolvePasteTarget(
   selectedPaths: Set<string>,
   tree: FileNode[],
-  vaultPath: string,
+  vaultPath: string
 ): PasteTarget {
   if (selectedPaths.size === 0) return { target: vaultPath }
   if (selectedPaths.size > 1) return { ambiguous: true }

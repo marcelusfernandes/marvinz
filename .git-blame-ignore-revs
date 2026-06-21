@@ -1,0 +1,6 @@
+# Revisions ignored by `git blame` (semantics-preserving, bulk changes).
+# Enable locally with:  git config blame.ignoreRevsFile .git-blame-ignore-revs
+# (GitHub applies it automatically.)
+
+# chore: reformat repo to prettier 3.8.4 + add .prettierignore (#500)
+ac6df77816372ea4f58bc135edaed58bb7f059da

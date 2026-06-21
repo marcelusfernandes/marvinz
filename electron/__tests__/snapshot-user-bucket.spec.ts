@@ -98,7 +98,10 @@ describe('captureUserSnapshot: basic capture contract', () => {
 
     await captureUserSnapshot(tmpDir, ['journal.md'], 'user-trash')
 
-    const manifestExists = await fs.access(userManifestPath(tmpDir)).then(() => true).catch(() => false)
+    const manifestExists = await fs
+      .access(userManifestPath(tmpDir))
+      .then(() => true)
+      .catch(() => false)
     expect(manifestExists).toBe(true)
   })
 
@@ -110,11 +113,17 @@ describe('captureUserSnapshot: basic capture contract', () => {
 
     // The file must exist somewhere under _user/ but NOT under a turnId directory
     const bucketDir = userBucketDir(tmpDir)
-    const bucketExists = await fs.access(bucketDir).then(() => true).catch(() => false)
+    const bucketExists = await fs
+      .access(bucketDir)
+      .then(() => true)
+      .catch(() => false)
     expect(bucketExists).toBe(true)
 
     // _manifest.json must exist in _user/
-    const manifestExists = await fs.access(userManifestPath(tmpDir)).then(() => true).catch(() => false)
+    const manifestExists = await fs
+      .access(userManifestPath(tmpDir))
+      .then(() => true)
+      .catch(() => false)
     expect(manifestExists).toBe(true)
   })
 
@@ -130,7 +139,7 @@ describe('captureUserSnapshot: basic capture contract', () => {
 
     const manifest = JSON.parse(await fs.readFile(userManifestPath(tmpDir), 'utf8'))
     const entry = (manifest.entries as Array<{ snapshotId: string }>).find(
-      (e) => e.snapshotId === snapshotId,
+      (e) => e.snapshotId === snapshotId
     )
     expect(entry).toBeDefined()
   })
@@ -142,7 +151,7 @@ describe('captureUserSnapshot: basic capture contract', () => {
 
     const manifest = JSON.parse(await fs.readFile(userManifestPath(tmpDir), 'utf8'))
     const entry = (manifest.entries as Array<{ snapshotId: string; trigger: string }>).find(
-      (e) => e.snapshotId === snapshotId,
+      (e) => e.snapshotId === snapshotId
     )
     expect(entry?.trigger).toBe('user-trash')
   })
@@ -154,9 +163,9 @@ describe('captureUserSnapshot: basic capture contract', () => {
     const snapshotId = await captureUserSnapshot(tmpDir, ['a.md', 'b.md'], 'user-trash')
 
     const manifest = JSON.parse(await fs.readFile(userManifestPath(tmpDir), 'utf8'))
-    const entry = (
-      manifest.entries as Array<{ snapshotId: string; paths: string[] }>
-    ).find((e) => e.snapshotId === snapshotId)
+    const entry = (manifest.entries as Array<{ snapshotId: string; paths: string[] }>).find(
+      (e) => e.snapshotId === snapshotId
+    )
     expect(entry?.paths).toContain('a.md')
     expect(entry?.paths).toContain('b.md')
   })
@@ -178,7 +187,7 @@ describe('captureUserSnapshot: basic capture contract', () => {
     await writeVaultFile('x.md', 'content')
 
     const ids = await Promise.all(
-      Array.from({ length: 10 }, () => captureUserSnapshot(tmpDir, ['x.md'], 'user-trash')),
+      Array.from({ length: 10 }, () => captureUserSnapshot(tmpDir, ['x.md'], 'user-trash'))
     )
 
     expect(new Set(ids).size).toBe(10)
@@ -191,9 +200,7 @@ describe('captureUserSnapshot: basic capture contract', () => {
 
     const snapshotsRoot = path.join(tmpDir, '.marvin', 'snapshots')
     const entries = await fs.readdir(snapshotsRoot, { withFileTypes: true })
-    const turnIdDirs = entries.filter(
-      (e) => e.isDirectory() && e.name !== USER_BUCKET_ID,
-    )
+    const turnIdDirs = entries.filter((e) => e.isDirectory() && e.name !== USER_BUCKET_ID)
     // No turnId directory should exist — capture must only touch _user/
     expect(turnIdDirs).toHaveLength(0)
   })
@@ -208,41 +215,39 @@ describe('captureUserSnapshot: validation', () => {
   afterEach(teardown)
 
   it('rejects an empty paths array', async () => {
-    await expect(
-      captureUserSnapshot(tmpDir, [], 'user-trash'),
-    ).rejects.toThrow()
+    await expect(captureUserSnapshot(tmpDir, [], 'user-trash')).rejects.toThrow()
   })
 
   it('rejects a path with traversal (..)', async () => {
-    await expect(
-      captureUserSnapshot(tmpDir, ['../outside.md'], 'user-trash'),
-    ).rejects.toThrow(/MARVIN_INVALID_PATH|invalid|traversal/i)
+    await expect(captureUserSnapshot(tmpDir, ['../outside.md'], 'user-trash')).rejects.toThrow(
+      /MARVIN_INVALID_PATH|invalid|traversal/i
+    )
   })
 
   it('rejects an absolute path', async () => {
-    await expect(
-      captureUserSnapshot(tmpDir, ['/etc/passwd'], 'user-trash'),
-    ).rejects.toThrow(/MARVIN_INVALID_PATH|MARVIN_OUTSIDE_VAULT|invalid/i)
+    await expect(captureUserSnapshot(tmpDir, ['/etc/passwd'], 'user-trash')).rejects.toThrow(
+      /MARVIN_INVALID_PATH|MARVIN_OUTSIDE_VAULT|invalid/i
+    )
   })
 
   it('rejects a path with embedded traversal', async () => {
     await expect(
-      captureUserSnapshot(tmpDir, ['sub/../../etc/passwd'], 'user-trash'),
+      captureUserSnapshot(tmpDir, ['sub/../../etc/passwd'], 'user-trash')
     ).rejects.toThrow(/MARVIN_INVALID_PATH|MARVIN_OUTSIDE_VAULT|invalid/i)
   })
 
   it('rejects a path with a null byte', async () => {
-    await expect(
-      captureUserSnapshot(tmpDir, ['foo\0bar.md'], 'user-trash'),
-    ).rejects.toThrow(/MARVIN_INVALID_PATH|MARVIN_OUTSIDE_VAULT|invalid/i)
+    await expect(captureUserSnapshot(tmpDir, ['foo\0bar.md'], 'user-trash')).rejects.toThrow(
+      /MARVIN_INVALID_PATH|MARVIN_OUTSIDE_VAULT|invalid/i
+    )
   })
 
   it('rejects paths that escape the vault root via absolute resolution', async () => {
     // Even if it passes the string check, the resolved path must still be inside vault
     const outsideAbsPath = path.join(os.tmpdir(), 'outside.md')
-    await expect(
-      captureUserSnapshot(tmpDir, [outsideAbsPath], 'user-trash'),
-    ).rejects.toThrow(/MARVIN_INVALID_PATH|MARVIN_OUTSIDE_VAULT|invalid/i)
+    await expect(captureUserSnapshot(tmpDir, [outsideAbsPath], 'user-trash')).rejects.toThrow(
+      /MARVIN_INVALID_PATH|MARVIN_OUTSIDE_VAULT|invalid/i
+    )
   })
 })
 
@@ -297,9 +302,7 @@ describe('restoreUserSnapshot: basic restore contract', () => {
   })
 
   it('throws on unknown snapshotId', async () => {
-    await expect(
-      restoreUserSnapshot(tmpDir, 'nonexistent-snapshot-id'),
-    ).rejects.toThrow()
+    await expect(restoreUserSnapshot(tmpDir, 'nonexistent-snapshot-id')).rejects.toThrow()
   })
 
   it('restores exact content including unicode characters', async () => {
@@ -338,15 +341,11 @@ describe('restoreUserSnapshot: path safety', () => {
         },
       ],
     }
-    await fs.writeFile(
-      path.join(bucketDir, '_manifest.json'),
-      JSON.stringify(manifest),
-      'utf8',
-    )
+    await fs.writeFile(path.join(bucketDir, '_manifest.json'), JSON.stringify(manifest), 'utf8')
 
-    await expect(
-      restoreUserSnapshot(tmpDir, maliciousId),
-    ).rejects.toThrow(/MARVIN_INVALID_PATH|invalid|traversal/i)
+    await expect(restoreUserSnapshot(tmpDir, maliciousId)).rejects.toThrow(
+      /MARVIN_INVALID_PATH|invalid|traversal/i
+    )
   })
 
   it('rejects capture and restore when symlink inside vault points outside', async () => {
@@ -360,9 +359,9 @@ describe('restoreUserSnapshot: path safety', () => {
 
     try {
       // Capture must be rejected — symlink target is outside the vault
-      await expect(
-        captureUserSnapshot(tmpDir, ['link.md'], 'user-trash'),
-      ).rejects.toThrow(/MARVIN_INVALID_PATH|MARVIN_OUTSIDE_VAULT|invalid/i)
+      await expect(captureUserSnapshot(tmpDir, ['link.md'], 'user-trash')).rejects.toThrow(
+        /MARVIN_INVALID_PATH|MARVIN_OUTSIDE_VAULT|invalid/i
+      )
 
       // Also verify restoreUserSnapshot rejects a manually planted manifest entry
       // that references a path whose symlink target escapes the vault
@@ -370,22 +369,24 @@ describe('restoreUserSnapshot: path safety', () => {
       await fs.mkdir(bucketDir, { recursive: true })
       const plantedId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
       const manifest = {
-        entries: [{
-          snapshotId: plantedId,
-          trigger: 'user-trash',
-          createdAt: new Date().toISOString(),
-          timestamp: Date.now(),
-          paths: ['link.md'],
-        }],
+        entries: [
+          {
+            snapshotId: plantedId,
+            trigger: 'user-trash',
+            createdAt: new Date().toISOString(),
+            timestamp: Date.now(),
+            paths: ['link.md'],
+          },
+        ],
       }
       const snapDataDir = path.join(bucketDir, plantedId)
       await fs.mkdir(snapDataDir, { recursive: true })
       await fs.writeFile(path.join(snapDataDir, 'link.md'), 'snap content', 'utf8')
       await fs.writeFile(path.join(bucketDir, '_manifest.json'), JSON.stringify(manifest), 'utf8')
 
-      await expect(
-        restoreUserSnapshot(tmpDir, plantedId),
-      ).rejects.toThrow(/MARVIN_INVALID_PATH|MARVIN_OUTSIDE_VAULT|invalid/i)
+      await expect(restoreUserSnapshot(tmpDir, plantedId)).rejects.toThrow(
+        /MARVIN_INVALID_PATH|MARVIN_OUTSIDE_VAULT|invalid/i
+      )
 
       // Outside file content must be unchanged
       const content = await fs.readFile(outsideFile, 'utf8')
@@ -448,9 +449,7 @@ describe('captureUserSnapshot: FIFO cap at 50 entries', () => {
     }
 
     // Trying to restore the oldest (pruned) snapshot must throw
-    await expect(
-      restoreUserSnapshot(tmpDir, ids[0]),
-    ).rejects.toThrow()
+    await expect(restoreUserSnapshot(tmpDir, ids[0])).rejects.toThrow()
   }, 30_000)
 
   it('cap is independent of AI-turn snapshots (separate budget)', async () => {
@@ -492,7 +491,10 @@ describe('bucket isolation: AI-turn snapshot path is unaffected by U2', () => {
 
     // The snapshot must be under .marvin/snapshots/<turnId>/, not _user/
     const turnDir = path.join(tmpDir, '.marvin', 'snapshots', turnId)
-    const exists = await fs.access(turnDir).then(() => true).catch(() => false)
+    const exists = await fs
+      .access(turnDir)
+      .then(() => true)
+      .catch(() => false)
     expect(exists).toBe(true)
   })
 

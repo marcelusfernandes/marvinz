@@ -42,8 +42,10 @@ function parseHookMessage(raw: string): HookMessage | null {
   try {
     const obj = JSON.parse(raw) as Record<string, unknown>
     if (
-      typeof obj.toolUseId === 'string' && obj.toolUseId &&
-      typeof obj.toolName === 'string' && obj.toolName
+      typeof obj.toolUseId === 'string' &&
+      obj.toolUseId &&
+      typeof obj.toolName === 'string' &&
+      obj.toolName
     ) {
       return { toolUseId: obj.toolUseId, toolName: obj.toolName, input: obj.input }
     }
@@ -81,7 +83,7 @@ async function snapshotBeforeEdit(
   toolName: string,
   input: unknown,
   sessionId: string,
-  _emit: SocketEmitter,
+  _emit: SocketEmitter
 ): Promise<boolean> {
   const rawPath = extractFilePath(input)
   if (!rawPath) return false
@@ -123,7 +125,7 @@ async function handleConnection(
   sessionId: string,
   agentTurnId: { current: string },
   touchedFiles: Set<string>,
-  snapshotResults: Map<string, Promise<{ saved: boolean; turnId: string }>>,
+  snapshotResults: Map<string, Promise<{ saved: boolean; turnId: string }>>
 ): Promise<void> {
   let buf = ''
 
@@ -139,7 +141,9 @@ async function handleConnection(
 
       const msg = parseHookMessage(line)
       if (!msg) {
-        socket.write(JSON.stringify({ decision: 'deny', reason: 'AGENT_INVALID_HOOK_MESSAGE' }) + '\n')
+        socket.write(
+          JSON.stringify({ decision: 'deny', reason: 'AGENT_INVALID_HOOK_MESSAGE' }) + '\n'
+        )
         socket.end()
         resolve()
         return
@@ -157,7 +161,7 @@ async function handleConnection(
             msg.toolName,
             msg.input,
             sessionId,
-            emit,
+            emit
           )
         : Promise.resolve(false)
 
@@ -165,7 +169,7 @@ async function handleConnection(
       if (isFileEditTool) {
         snapshotResults.set(
           msg.toolUseId,
-          snapshotPromise.then((saved) => ({ saved, turnId: snapshotTurnId })),
+          snapshotPromise.then((saved) => ({ saved, turnId: snapshotTurnId }))
         )
       }
 
@@ -207,46 +211,53 @@ async function handleConnection(
       const risk = classifyToolRisk(msg.toolName)
 
       // snapshotBeforeEdit always resolves (never rejects — errors are caught internally).
-      snapshotPromise.then((snapshotSaved) => {
-        const permReq: AgentEvent = {
-          type: 'permission-request',
-          sessionId,
-          toolUseId: msg.toolUseId,
-          toolName: msg.toolName,
-          input: msg.input,
-          risk,
-          suggestion: risk === 'safe' ? 'allow' : 'review',
-          timeoutMs: APPROVAL_TIMEOUT_MS,
-          ...(isFileEditTool ? { snapshotSaved } : {}),
-        }
-        emit(`agent:event:${sessionId}`, permReq)
-
-        // Emit snapshot-warning AFTER permission-request so event ordering is predictable.
-        if (isFileEditTool && !snapshotSaved) {
-          const rawPath = extractFilePath(msg.input)
-          emit(`agent:event:${sessionId}`, {
-            type: 'snapshot-warning',
+      snapshotPromise
+        .then((snapshotSaved) => {
+          const permReq: AgentEvent = {
+            type: 'permission-request',
             sessionId,
             toolUseId: msg.toolUseId,
-            filePath: rawPath ? path.relative(ctx.vaultRoot, path.isAbsolute(rawPath) ? rawPath : path.resolve(ctx.vaultRoot, rawPath)) : '',
-            reason: 'Snapshot failed or skipped',
-          })
-        }
-      }).catch(() => {
-        // snapshotBeforeEdit shouldn't reject, but guard defensively.
-        const permReq: AgentEvent = {
-          type: 'permission-request',
-          sessionId,
-          toolUseId: msg.toolUseId,
-          toolName: msg.toolName,
-          input: msg.input,
-          risk,
-          suggestion: risk === 'safe' ? 'allow' : 'review',
-          timeoutMs: APPROVAL_TIMEOUT_MS,
-          ...(isFileEditTool ? { snapshotSaved: false } : {}),
-        }
-        emit(`agent:event:${sessionId}`, permReq)
-      })
+            toolName: msg.toolName,
+            input: msg.input,
+            risk,
+            suggestion: risk === 'safe' ? 'allow' : 'review',
+            timeoutMs: APPROVAL_TIMEOUT_MS,
+            ...(isFileEditTool ? { snapshotSaved } : {}),
+          }
+          emit(`agent:event:${sessionId}`, permReq)
+
+          // Emit snapshot-warning AFTER permission-request so event ordering is predictable.
+          if (isFileEditTool && !snapshotSaved) {
+            const rawPath = extractFilePath(msg.input)
+            emit(`agent:event:${sessionId}`, {
+              type: 'snapshot-warning',
+              sessionId,
+              toolUseId: msg.toolUseId,
+              filePath: rawPath
+                ? path.relative(
+                    ctx.vaultRoot,
+                    path.isAbsolute(rawPath) ? rawPath : path.resolve(ctx.vaultRoot, rawPath)
+                  )
+                : '',
+              reason: 'Snapshot failed or skipped',
+            })
+          }
+        })
+        .catch(() => {
+          // snapshotBeforeEdit shouldn't reject, but guard defensively.
+          const permReq: AgentEvent = {
+            type: 'permission-request',
+            sessionId,
+            toolUseId: msg.toolUseId,
+            toolName: msg.toolName,
+            input: msg.input,
+            risk,
+            suggestion: risk === 'safe' ? 'allow' : 'review',
+            timeoutMs: APPROVAL_TIMEOUT_MS,
+            ...(isFileEditTool ? { snapshotSaved: false } : {}),
+          }
+          emit(`agent:event:${sessionId}`, permReq)
+        })
 
       // Await the renderer decision (resolveApproval resolves this promise).
       awaitApproval(msg.toolUseId).then(
@@ -257,9 +268,10 @@ async function handleConnection(
 
           if (toolName) recordDecision(sessionId, toolName, decision)
 
-          const resp: HookResponse = decision.kind === 'deny'
-            ? { decision: 'deny', reason: 'User denied execution' }
-            : { decision: 'allow' }
+          const resp: HookResponse =
+            decision.kind === 'deny'
+              ? { decision: 'deny', reason: 'User denied execution' }
+              : { decision: 'allow' }
           socket.write(JSON.stringify(resp) + '\n')
           socket.end()
           resolve()
@@ -281,7 +293,7 @@ async function handleConnection(
             recoverable: false,
           })
           resolve()
-        },
+        }
       )
     })
 
@@ -304,15 +316,29 @@ export async function createApprovalServer(
   emit: SocketEmitter,
   agentTurnId: { current: string } = { current: '' },
   touchedFiles: Set<string> = new Set(),
-  snapshotResults: Map<string, Promise<{ saved: boolean; turnId: string }>> = new Map(),
+  snapshotResults: Map<string, Promise<{ saved: boolean; turnId: string }>> = new Map()
 ): Promise<ApprovalServer> {
   const socketPath = approvalSocketPath(sessionId)
 
   // Remove stale socket from a previous crash, if any.
-  try { await fs.unlink(socketPath) } catch { /* not present — fine */ }
+  try {
+    await fs.unlink(socketPath)
+  } catch {
+    /* not present — fine */
+  }
 
   const server = net.createServer((socket) => {
-    void handleConnection(socket, ctx, pendingApprovalIds, pendingToolNames, emit, sessionId, agentTurnId, touchedFiles, snapshotResults)
+    void handleConnection(
+      socket,
+      ctx,
+      pendingApprovalIds,
+      pendingToolNames,
+      emit,
+      sessionId,
+      agentTurnId,
+      touchedFiles,
+      snapshotResults
+    )
   })
 
   await new Promise<void>((resolve, reject) => {
@@ -326,7 +352,11 @@ export async function createApprovalServer(
 
   const close = async (): Promise<void> => {
     await new Promise<void>((resolve) => server.close(() => resolve()))
-    try { await fs.unlink(socketPath) } catch { /* already gone */ }
+    try {
+      await fs.unlink(socketPath)
+    } catch {
+      /* already gone */
+    }
   }
 
   return { server, socketPath, close }

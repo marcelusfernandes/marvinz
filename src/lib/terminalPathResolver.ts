@@ -28,10 +28,7 @@ function normalizeSegments(segments: string[]): string[] | null {
  * caller at click time. Returns null for absolute paths outside the vault and
  * for relative paths that traverse above the vault root.
  */
-export function resolveTerminalPath(
-  text: string,
-  vaultPath: string,
-): ResolvedTerminalPath | null {
+export function resolveTerminalPath(text: string, vaultPath: string): ResolvedTerminalPath | null {
   const trimmed = text.trim()
   if (!trimmed || !vaultPath) return null
 

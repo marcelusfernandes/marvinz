@@ -56,7 +56,11 @@ vi.mock('../../lib/settingsStore', () => ({
   seedFromMain: vi.fn(),
   useSetting: (_key: string, fallback: unknown) => [fallback, vi.fn()],
 }))
-vi.mock('../../lib/colorTheme', () => ({ useColorTheme: () => 'light', useAgentsPaneTransparent: () => false, useEditorEffects: () => {} }))
+vi.mock('../../lib/colorTheme', () => ({
+  useColorTheme: () => 'light',
+  useAgentsPaneTransparent: () => false,
+  useEditorEffects: () => {},
+}))
 vi.mock('../../lib/visualStyle', () => ({ useVisualStyle: () => 'modern' }))
 vi.mock('../../lib/paletteRanker', () => ({}))
 
@@ -197,7 +201,7 @@ describe('Sidebar root — context menu IPC payload', () => {
     const { container } = await renderApp()
     await act(async () => {
       getSidebar(container).dispatchEvent(
-        new MouseEvent('contextmenu', { bubbles: true, cancelable: true }),
+        new MouseEvent('contextmenu', { bubbles: true, cancelable: true })
       )
       await new Promise((r) => setTimeout(r, 10))
     })
@@ -209,14 +213,13 @@ describe('Sidebar root — context menu IPC payload', () => {
     const { container } = await renderApp()
     await act(async () => {
       getSidebar(container).dispatchEvent(
-        new MouseEvent('contextmenu', { bubbles: true, cancelable: true }),
+        new MouseEvent('contextmenu', { bubbles: true, cancelable: true })
       )
       await new Promise((r) => setTimeout(r, 10))
     })
     const [items] = showContextMenuMock.mock.calls[0] as [MenuItemSpec[]]
     const item = items.find(
-      (i): i is Extract<MenuItemSpec, { kind: 'item' }> =>
-        i.kind === 'item' && i.id === 'new-file',
+      (i): i is Extract<MenuItemSpec, { kind: 'item' }> => i.kind === 'item' && i.id === 'new-file'
     )
     expect(item).toBeDefined()
   })
@@ -225,14 +228,14 @@ describe('Sidebar root — context menu IPC payload', () => {
     const { container } = await renderApp()
     await act(async () => {
       getSidebar(container).dispatchEvent(
-        new MouseEvent('contextmenu', { bubbles: true, cancelable: true }),
+        new MouseEvent('contextmenu', { bubbles: true, cancelable: true })
       )
       await new Promise((r) => setTimeout(r, 10))
     })
     const [items] = showContextMenuMock.mock.calls[0] as [MenuItemSpec[]]
     const item = items.find(
       (i): i is Extract<MenuItemSpec, { kind: 'item' }> =>
-        i.kind === 'item' && i.id === 'new-folder',
+        i.kind === 'item' && i.id === 'new-folder'
     )
     expect(item).toBeDefined()
   })
@@ -241,14 +244,13 @@ describe('Sidebar root — context menu IPC payload', () => {
     const { container } = await renderApp()
     await act(async () => {
       getSidebar(container).dispatchEvent(
-        new MouseEvent('contextmenu', { bubbles: true, cancelable: true }),
+        new MouseEvent('contextmenu', { bubbles: true, cancelable: true })
       )
       await new Promise((r) => setTimeout(r, 10))
     })
     const [items] = showContextMenuMock.mock.calls[0] as [MenuItemSpec[]]
     const item = items.find(
-      (i): i is Extract<MenuItemSpec, { kind: 'item' }> =>
-        i.kind === 'item' && i.id === 'refresh',
+      (i): i is Extract<MenuItemSpec, { kind: 'item' }> => i.kind === 'item' && i.id === 'refresh'
     )
     expect(item).toBeDefined()
   })
@@ -280,7 +282,7 @@ describe('Sidebar root — new-file action', () => {
     const { container } = await renderApp()
     await act(async () => {
       getSidebar(container).dispatchEvent(
-        new MouseEvent('contextmenu', { bubbles: true, cancelable: true }),
+        new MouseEvent('contextmenu', { bubbles: true, cancelable: true })
       )
       await new Promise((r) => setTimeout(r, 50))
     })
@@ -298,7 +300,7 @@ describe('Sidebar root — new-folder action', () => {
     const { container } = await renderApp()
     await act(async () => {
       getSidebar(container).dispatchEvent(
-        new MouseEvent('contextmenu', { bubbles: true, cancelable: true }),
+        new MouseEvent('contextmenu', { bubbles: true, cancelable: true })
       )
       await new Promise((r) => setTimeout(r, 50))
     })
@@ -317,7 +319,7 @@ describe('Sidebar root — refresh action', () => {
     const callsBefore = (window.marvin.vault.tree as ReturnType<typeof vi.fn>).mock.calls.length
     await act(async () => {
       getSidebar(container).dispatchEvent(
-        new MouseEvent('contextmenu', { bubbles: true, cancelable: true }),
+        new MouseEvent('contextmenu', { bubbles: true, cancelable: true })
       )
       await new Promise((r) => setTimeout(r, 50))
     })
@@ -336,7 +338,7 @@ describe('Sidebar root — dismissed menu (null action)', () => {
     const { container } = await renderApp()
     await act(async () => {
       getSidebar(container).dispatchEvent(
-        new MouseEvent('contextmenu', { bubbles: true, cancelable: true }),
+        new MouseEvent('contextmenu', { bubbles: true, cancelable: true })
       )
       await new Promise((r) => setTimeout(r, 30))
     })

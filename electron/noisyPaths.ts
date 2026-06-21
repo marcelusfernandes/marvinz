@@ -4,8 +4,21 @@ import path from 'node:path'
 // output, dependency caches, and tool/editor state (.obsidian, .marvin). These
 // are hidden from the file tree and excluded from the snapshot watcher.
 export const NOISY_DIRS = new Set([
-  '.git', 'node_modules', '.DS_Store', '.svn', '.hg', '.idea', '.marvin',
-  '.obsidian', '.next', 'dist', 'build', 'out', 'target', '.turbo', '.cache',
+  '.git',
+  'node_modules',
+  '.DS_Store',
+  '.svn',
+  '.hg',
+  '.idea',
+  '.marvin',
+  '.obsidian',
+  '.next',
+  'dist',
+  'build',
+  'out',
+  'target',
+  '.turbo',
+  '.cache',
 ])
 export const NOISY_FILES = new Set(['.DS_Store', 'Thumbs.db'])
 

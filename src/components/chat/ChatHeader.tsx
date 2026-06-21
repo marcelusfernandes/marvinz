@@ -39,16 +39,10 @@ export function ChatHeader({
         </button>
       </div>
       <div className="chat-header-session-row">
-        <span
-          className="chat-provider-pill"
-          data-provider={provider}
-        >
+        <span className="chat-provider-pill" data-provider={provider}>
           {providerLabel}
         </span>
-        <span
-          className="chat-session-title"
-          title={sessionTitle ?? 'New session'}
-        >
+        <span className="chat-session-title" title={sessionTitle ?? 'New session'}>
           {sessionTitle ?? 'New session'}
         </span>
         <div className="chat-header-actions">

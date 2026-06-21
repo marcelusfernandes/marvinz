@@ -130,7 +130,7 @@ describe('UserBubble — rewind', () => {
         onRewind={(turnId) => {
           receivedTurn = turnId
         }}
-      />,
+      />
     )
     fireEvent.click(screen.getByRole('button', { name: /rewind to this message/i }))
     expect(receivedTurn).toBe('turn-123')

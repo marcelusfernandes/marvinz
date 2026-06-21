@@ -11,11 +11,17 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 const { getStateSpy, MockReplaceStep } = vi.hoisted(() => {
   class MockReplaceStep {
     from: number
-    slice: { size: number; content: { textBetween: (a: number, b: number, br: string, leaf: string) => string } }
+    slice: {
+      size: number
+      content: { textBetween: (a: number, b: number, br: string, leaf: string) => string }
+    }
     constructor(
       from: number,
       _to: number,
-      slice: { size: number; content: { textBetween: (a: number, b: number, br: string, leaf: string) => string } },
+      slice: {
+        size: number
+        content: { textBetween: (a: number, b: number, br: string, leaf: string) => string }
+      }
     ) {
       this.from = from
       this.slice = slice
@@ -55,7 +61,10 @@ type FakeMapping = {
 }
 type FakeStep = {
   from: number
-  slice: { size: number; content: { textBetween: (a: number, b: number, br: string, leaf: string) => string } }
+  slice: {
+    size: number
+    content: { textBetween: (a: number, b: number, br: string, leaf: string) => string }
+  }
 }
 type FakeTr = {
   docChanged: boolean
@@ -108,13 +117,9 @@ function makeState(
     parentOffset?: number
     parentTypeName?: string
     inlineCodeActive?: boolean
-  } = {},
+  } = {}
 ): FakeState {
-  const {
-    parentOffset = head,
-    parentTypeName = 'paragraph',
-    inlineCodeActive = false,
-  } = opts
+  const { parentOffset = head, parentTypeName = 'paragraph', inlineCodeActive = false } = opts
 
   const inlineCodeMark: FakeMarkType = {
     name: 'inlineCode',
@@ -214,7 +219,7 @@ import { mentionTrigger } from '../../lib/pmMentionTrigger'
 function applyInsertAt(
   atPos: number,
   newState: FakeState,
-  prev: TriggerState = INACTIVE,
+  prev: TriggerState = INACTIVE
 ): TriggerState {
   return capturedSpec!.state.apply(insertTr(atPos, '@'), prev, newState, newState)
 }
@@ -366,7 +371,7 @@ describe('pmMentionTrigger — state.apply (pure transitions)', () => {
       selectionTr(),
       prevActive,
       stateMovedLeft,
-      stateMovedLeft,
+      stateMovedLeft
     )
     expect(next).toEqual(INACTIVE)
   })

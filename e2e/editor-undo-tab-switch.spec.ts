@@ -50,7 +50,7 @@ async function createUserDataDir(vaultPath: string): Promise<string> {
   await fs.writeFile(
     path.join(userDataDir, 'settings.json'),
     JSON.stringify({ vaultPath, saveMode: 'manual' }),
-    'utf8',
+    'utf8'
   )
   return userDataDir
 }
@@ -67,9 +67,7 @@ async function openFileInSidebar(page: Page, namePart: string): Promise<void> {
   })
   await expect(fileRow).toBeVisible({ timeout: 15_000 })
   await fileRow.click()
-  await expect(
-    page.locator('.note-tab-container:not([hidden])'),
-  ).toBeVisible({ timeout: 8_000 })
+  await expect(page.locator('.note-tab-container:not([hidden])')).toBeVisible({ timeout: 8_000 })
 }
 
 async function switchToSourceMode(page: Page): Promise<void> {
@@ -117,7 +115,7 @@ async function ensureSourceMode(page: Page): Promise<void> {
 async function getScrollTop(page: Page): Promise<number> {
   return page.evaluate(() => {
     const container = document.querySelector(
-      '.note-tab-container:not([hidden])',
+      '.note-tab-container:not([hidden])'
     ) as HTMLElement | null
     const scroller = container?.querySelector('.cm-scroller') as HTMLElement | null
     return scroller?.scrollTop ?? 0
@@ -339,7 +337,7 @@ test.describe('editor scroll — tab round-trip (issue #440)', () => {
     vaultRoot = await fs.realpath(rawVault)
     const longContent =
       Array.from({ length: 80 }, (_, i) => `Line ${i + 1}: content for scroll testing.`).join(
-        '\n',
+        '\n'
       ) + '\n'
     await seedNote(vaultRoot, 'scroll-a', longContent)
     await seedNote(vaultRoot, 'scroll-b', '# Scroll B\n\nShort file.\n')

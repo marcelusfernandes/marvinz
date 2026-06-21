@@ -26,7 +26,7 @@ type IterChangesCb = (
   toA: number,
   fromB: number,
   toB: number,
-  inserted: { toString: () => string },
+  inserted: { toString: () => string }
 ) => void
 
 type FakeNode = { name: string; parent: FakeNode | null }

@@ -48,9 +48,7 @@ describe('flattenVisibleTree — closed folder', () => {
     const child = file('/vault/docs/readme.md')
     const folder = dir('/vault/docs', [child])
     const result = flattenVisibleTree([folder], new Set())
-    expect(result).toEqual([
-      { node: folder, depth: 0, posinset: 1, setsize: 1 },
-    ])
+    expect(result).toEqual([{ node: folder, depth: 0, posinset: 1, setsize: 1 }])
     expect(result).toHaveLength(1)
   })
 })
@@ -132,17 +130,13 @@ describe('flattenVisibleTree — open folder with no children', () => {
   it('emits only the folder when children is undefined', () => {
     const folder = dir('/vault/empty')
     const result = flattenVisibleTree([folder], new Set(['/vault/empty']))
-    expect(result).toEqual([
-      { node: folder, depth: 0, posinset: 1, setsize: 1 },
-    ])
+    expect(result).toEqual([{ node: folder, depth: 0, posinset: 1, setsize: 1 }])
   })
 
   it('emits only the folder when children is []', () => {
     const folder = dir('/vault/empty', [])
     const result = flattenVisibleTree([folder], new Set(['/vault/empty']))
-    expect(result).toEqual([
-      { node: folder, depth: 0, posinset: 1, setsize: 1 },
-    ])
+    expect(result).toEqual([{ node: folder, depth: 0, posinset: 1, setsize: 1 }])
   })
 })
 

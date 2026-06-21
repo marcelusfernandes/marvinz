@@ -1,10 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import {
-  type PaletteItem,
-  rankPaletteItems,
-  stripBasename,
-} from '../lib/paletteRanker'
+import { type PaletteItem, rankPaletteItems, stripBasename } from '../lib/paletteRanker'
 import { HighlightedMatch } from './HighlightedMatch'
 import { Icon } from './Icon'
 import { fileIconFor } from '../lib/fileIcons'
@@ -48,10 +44,7 @@ export function PathSuggest({ value, items, onCommit, placeholder }: Props) {
     setOpen(false)
   }, [value])
 
-  const results = useMemo(
-    () => rankPaletteItems(items, draft, DROPDOWN_LIMIT),
-    [items, draft],
-  )
+  const results = useMemo(() => rankPaletteItems(items, draft, DROPDOWN_LIMIT), [items, draft])
 
   useEffect(() => {
     setActiveIdx(0)
@@ -95,7 +88,7 @@ export function PathSuggest({ value, items, onCommit, placeholder }: Props) {
         committingRef.current = false
       }, 0)
     },
-    [onCommit],
+    [onCommit]
   )
 
   const tryCommit = useCallback(
@@ -108,9 +101,7 @@ export function PathSuggest({ value, items, onCommit, placeholder }: Props) {
       // No suggestion highlighted — try exact match against the typed string.
       const trimmed = draft.trim()
       if (trimmed) {
-        const exact = items.find(
-          (it) => it.rel.toLowerCase() === trimmed.toLowerCase(),
-        )
+        const exact = items.find((it) => it.rel.toLowerCase() === trimmed.toLowerCase())
         if (exact) {
           commit(exact.path, replaceCurrent)
           return
@@ -118,7 +109,7 @@ export function PathSuggest({ value, items, onCommit, placeholder }: Props) {
       }
       flashError()
     },
-    [results, activeIdx, draft, items, commit, flashError],
+    [results, activeIdx, draft, items, commit, flashError]
   )
 
   const handleKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -172,7 +163,9 @@ export function PathSuggest({ value, items, onCommit, placeholder }: Props) {
         placeholder={placeholder}
         aria-label="File path"
       />
-      {open && anchor && results.length > 0 &&
+      {open &&
+        anchor &&
+        results.length > 0 &&
         createPortal(
           <div
             className="path-suggest-dropdown"
@@ -211,7 +204,7 @@ export function PathSuggest({ value, items, onCommit, placeholder }: Props) {
               </button>
             ))}
           </div>,
-          document.body,
+          document.body
         )}
     </>
   )

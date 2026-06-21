@@ -37,7 +37,7 @@ export async function ensureSessionsDir(vaultRoot: string): Promise<void> {
 export async function appendLine(
   vaultRoot: string,
   sessionId: string,
-  record: AgentEvent | AgentRequest,
+  record: AgentEvent | AgentRequest
 ): Promise<void> {
   const line = JSON.stringify(record) + '\n'
   await fs.appendFile(sessionFile(vaultRoot, sessionId), line, 'utf8')
@@ -46,7 +46,7 @@ export async function appendLine(
 // Read all lines from a session JSONL and parse them.
 export async function readSession(
   vaultRoot: string,
-  sessionId: string,
+  sessionId: string
 ): Promise<Array<AgentEvent | AgentRequest>> {
   let raw: string
   try {
@@ -71,10 +71,7 @@ export async function writeMeta(vaultRoot: string, meta: SessionMeta): Promise<v
   await fs.writeFile(metaFile(vaultRoot, meta.id), JSON.stringify(meta, null, 2), 'utf8')
 }
 
-export async function readMeta(
-  vaultRoot: string,
-  sessionId: string,
-): Promise<SessionMeta | null> {
+export async function readMeta(vaultRoot: string, sessionId: string): Promise<SessionMeta | null> {
   try {
     const raw = await fs.readFile(metaFile(vaultRoot, sessionId), 'utf8')
     return JSON.parse(raw) as SessionMeta
@@ -117,7 +114,6 @@ export async function removeFromIndex(vaultRoot: string, sessionId: string): Pro
   const updated = index.filter((s) => s.id !== sessionId)
   await fs.writeFile(indexFile(vaultRoot), JSON.stringify(updated, null, 2), 'utf8')
 }
-
 
 // Sprint 6: GC — trim sessions beyond MAX_SESSIONS or MAX_BYTES_PER_SESSION.
 // Exported for future use; body is a no-op stub in v1.

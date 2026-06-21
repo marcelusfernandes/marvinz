@@ -25,9 +25,7 @@ export type MentionTriggerCallbacks = {
   onClose: () => void
 }
 
-type TriggerState =
-  | { active: false }
-  | { active: true; from: number; query: string }
+type TriggerState = { active: false } | { active: true; from: number; query: string }
 
 const INACTIVE: TriggerState = { active: false }
 
@@ -53,7 +51,7 @@ function isValidTriggerPosition(state: EditorState, pos: number): boolean {
   const lastWs = Math.max(
     lookBack.lastIndexOf(' '),
     lookBack.lastIndexOf('\t'),
-    lookBack.lastIndexOf('\n'),
+    lookBack.lastIndexOf('\n')
   )
   const run = lastWs >= 0 ? lookBack.slice(lastWs + 1) : lookBack
   if (run.includes('://')) return false
@@ -182,10 +180,7 @@ export function mentionTrigger(callbacks: MentionTriggerCallbacks): Plugin<Trigg
         if (tr.docChanged) {
           const atPos = findInsertedAt(tr)
           if (atPos !== null) {
-            if (
-              isValidTriggerPosition(newState, atPos) &&
-              !isInsideCode(newState, atPos)
-            ) {
+            if (isValidTriggerPosition(newState, atPos) && !isInsideCode(newState, atPos)) {
               const head = newState.selection.from
               if (head >= atPos + 1) {
                 const tail = newState.doc.textBetween(atPos + 1, head, '\n', '\n')

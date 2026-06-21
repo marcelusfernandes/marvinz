@@ -15,13 +15,7 @@ beforeEach(() => {
 
 async function renderModal() {
   const { SettingsModal } = await import('../SettingsModal')
-  render(
-    <SettingsModal
-      onClose={() => {}}
-      layoutMode="editor-center"
-      onLayoutChange={() => {}}
-    />,
-  )
+  render(<SettingsModal onClose={() => {}} layoutMode="editor-center" onLayoutChange={() => {}} />)
 }
 
 function rowFor(labelText: string): HTMLElement {
@@ -32,9 +26,7 @@ function rowFor(labelText: string): HTMLElement {
 describe('SettingsModal — editor effects toggles', () => {
   it('master defaults on and flips to off via setSetting', async () => {
     await renderModal()
-    const toggle = rowFor('Smooth editor').querySelector(
-      '[role="switch"]',
-    ) as HTMLElement
+    const toggle = rowFor('Smooth editor').querySelector('[role="switch"]') as HTMLElement
     expect(toggle).toHaveAttribute('aria-checked', 'true')
 
     fireEvent.click(toggle)
@@ -46,9 +38,7 @@ describe('SettingsModal — editor effects toggles', () => {
 
   it('caret slide defaults on and flips to off via setSetting', async () => {
     await renderModal()
-    const toggle = rowFor('Caret slide').querySelector(
-      '[role="switch"]',
-    ) as HTMLElement
+    const toggle = rowFor('Caret slide').querySelector('[role="switch"]') as HTMLElement
     expect(toggle).toHaveAttribute('aria-checked', 'true')
 
     fireEvent.click(toggle)

@@ -36,15 +36,24 @@ type FakePMState = {
   }
   _undoDepth: number
   _redoDepth: number
-  doc: { textBetween: (from: number, to: number) => string; slice: () => { content: { _fragment: true } } }
+  doc: {
+    textBetween: (from: number, to: number) => string
+    slice: () => { content: { _fragment: true } }
+  }
   tr: {
     deleteSelection: () => { _kind: 'delete' }
-    insertText: (text: string, from?: number, to?: number) => { _kind: 'insertText'; _text: string; _from?: number; _to?: number }
+    insertText: (
+      text: string,
+      from?: number,
+      to?: number
+    ) => { _kind: 'insertText'; _text: string; _from?: number; _to?: number }
     replaceSelection: (slice: unknown) => { _kind: 'replaceSelection'; _slice: unknown }
   }
 }
 
-function makePMState(overrides: Partial<{ blockText: string; caret: number; blockStart: number }> = {}): FakePMState {
+function makePMState(
+  overrides: Partial<{ blockText: string; caret: number; blockStart: number }> = {}
+): FakePMState {
   const blockText = overrides.blockText ?? 'this is teh word'
   const blockStart = overrides.blockStart ?? 1
   const caret = overrides.caret ?? blockStart + blockText.indexOf('teh')
@@ -67,7 +76,12 @@ function makePMState(overrides: Partial<{ blockText: string; caret: number; bloc
     },
     tr: {
       deleteSelection: () => ({ _kind: 'delete' }),
-      insertText: (text: string, from?: number, to?: number) => ({ _kind: 'insertText', _text: text, _from: from, _to: to }),
+      insertText: (text: string, from?: number, to?: number) => ({
+        _kind: 'insertText',
+        _text: text,
+        _from: from,
+        _to: to,
+      }),
       replaceSelection: (slice: unknown) => ({ _kind: 'replaceSelection', _slice: slice }),
     },
   }
@@ -303,7 +317,10 @@ describe('LiveMarkdown spellcheck — menu items', () => {
 
   it('dispatches insertText over the resolved word range when a suggestion is clicked', async () => {
     currentPMView = makePMView({ blockText: 'this is teh word', blockStart: 1 })
-    getSpellcheckContextMock.mockResolvedValue({ misspelledWord: 'teh', suggestions: ['the', 'tech'] })
+    getSpellcheckContextMock.mockResolvedValue({
+      misspelledWord: 'teh',
+      suggestions: ['the', 'tech'],
+    })
     showContextMenuMock.mockResolvedValue('spell:0')
     const { container } = render(<LiveMarkdown {...defaultProps()} />)
     await act(async () => {

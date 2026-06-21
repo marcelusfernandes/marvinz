@@ -1,10 +1,6 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type { SearchResult } from './search-content.js'
-import type {
-  ApprovalDecision,
-  AgentRequest,
-  AgentEvent,
-} from '../src/shared/agent-protocol.js'
+import type { ApprovalDecision, AgentRequest, AgentEvent } from '../src/shared/agent-protocol.js'
 import type { MoveResult } from '../src/types.js'
 
 type FileNode = {
@@ -44,8 +40,7 @@ const api = {
   vault: {
     pick: () => ipcRenderer.invoke('vault:pick') as Promise<string | null>,
     current: () => ipcRenderer.invoke('vault:current') as Promise<string | null>,
-    tree: (vaultPath: string) =>
-      ipcRenderer.invoke('vault:tree', vaultPath) as Promise<FileNode[]>,
+    tree: (vaultPath: string) => ipcRenderer.invoke('vault:tree', vaultPath) as Promise<FileNode[]>,
     watch: (vaultPath: string) => ipcRenderer.invoke('vault:watch', vaultPath),
     onChanged: (cb: () => void) => {
       const listener = () => cb()
@@ -62,25 +57,36 @@ const api = {
       ipcRenderer.invoke('file:exportPdf', filePath) as Promise<void>,
     create: (parentDir: string, name: string) =>
       ipcRenderer.invoke('file:create', parentDir, name) as Promise<string>,
-    writeBinary: (payload: { vaultPath: string; relPath: string; base64Bytes: string; maxBytes?: number }) =>
-      ipcRenderer.invoke('file:writeBinary', payload) as Promise<string>,
+    writeBinary: (payload: {
+      vaultPath: string
+      relPath: string
+      base64Bytes: string
+      maxBytes?: number
+    }) => ipcRenderer.invoke('file:writeBinary', payload) as Promise<string>,
     copy: (srcPath: string, destDir: string) =>
       ipcRenderer.invoke('file:copy', srcPath, destDir) as Promise<string>,
     moveBatch: (srcs: string[], destDir: string) =>
       ipcRenderer.invoke('file:move-batch', srcs, destDir) as Promise<MoveResult[]>,
     onChanged: (cb: (filePath: string, source: FileChangeSource) => void) => {
-      const listener = (_: unknown, filePath: string, source: FileChangeSource) => cb(filePath, source)
+      const listener = (_: unknown, filePath: string, source: FileChangeSource) =>
+        cb(filePath, source)
       ipcRenderer.on('file:changed', listener)
       return () => ipcRenderer.removeListener('file:changed', listener)
     },
   },
   office: {
     readDocx: (filePath: string) =>
-      ipcRenderer.invoke('office:readDocx', filePath) as Promise<{ html: string; messages: unknown[] }>,
+      ipcRenderer.invoke('office:readDocx', filePath) as Promise<{
+        html: string
+        messages: unknown[]
+      }>,
     writeDocx: (filePath: string, plainText: string) =>
       ipcRenderer.invoke('office:writeDocx', filePath, plainText) as Promise<void>,
     readXlsx: (filePath: string, sheetName?: string) =>
-      ipcRenderer.invoke('office:readXlsx', filePath, sheetName) as Promise<{ rows: string[][]; sheetNames: string[] }>,
+      ipcRenderer.invoke('office:readXlsx', filePath, sheetName) as Promise<{
+        rows: string[][]
+        sheetNames: string[]
+      }>,
     writeXlsx: (filePath: string, rows: string[][], sheetName: string) =>
       ipcRenderer.invoke('office:writeXlsx', filePath, rows, sheetName) as Promise<void>,
   },
@@ -99,7 +105,9 @@ const api = {
   agent: {
     detect: (name: string) => ipcRenderer.invoke('agent:detect', name) as Promise<string | null>,
     request: (req: AgentRequest) =>
-      ipcRenderer.invoke('agent:request', req) as Promise<{ ok: true } | { ok: false; error: string }>,
+      ipcRenderer.invoke('agent:request', req) as Promise<
+        { ok: true } | { ok: false; error: string }
+      >,
     approve: (sessionId: string, toolUseId: string, decision: ApprovalDecision) =>
       ipcRenderer.invoke('agent:request', {
         type: 'approval',
@@ -136,10 +144,9 @@ const api = {
       ipcRenderer.invoke('browser:setBounds', id, bounds) as Promise<void>,
     setGeometry: (
       id: string,
-      geometry: { leftInset: number; topInset: number; rightInset: number; bottomInset: number },
+      geometry: { leftInset: number; topInset: number; rightInset: number; bottomInset: number }
     ) => ipcRenderer.invoke('browser:setGeometry', id, geometry) as Promise<void>,
-    setActive: (id: string | null) =>
-      ipcRenderer.invoke('browser:setActive', id) as Promise<void>,
+    setActive: (id: string | null) => ipcRenderer.invoke('browser:setActive', id) as Promise<void>,
     setAllHidden: (hidden: boolean) =>
       ipcRenderer.invoke('browser:setAllHidden', hidden) as Promise<void>,
     close: (id: string) => ipcRenderer.invoke('browser:close', id) as Promise<void>,
@@ -162,7 +169,10 @@ const api = {
     readClipboardRich: () =>
       ipcRenderer.invoke('editor:clipboard-read-rich') as Promise<{ html: string; text: string }>,
     getSpellcheckContext: () =>
-      ipcRenderer.invoke('editor:spellcheck-context') as Promise<{ misspelledWord: string; suggestions: string[] }>,
+      ipcRenderer.invoke('editor:spellcheck-context') as Promise<{
+        misspelledWord: string
+        suggestions: string[]
+      }>,
   },
   app: {
     showContextMenu: (items: MenuItemSpec[]) =>
@@ -182,15 +192,17 @@ const api = {
     importExternal: (sources: string[], destDir: string) =>
       ipcRenderer.invoke('fs:importExternal', sources, destDir) as Promise<{
         imported: string[]
-        skipped: { source: string; reason: 'not-found' | 'denied' | 'broken-symlink' | 'fs-error' }[]
+        skipped: {
+          source: string
+          reason: 'not-found' | 'denied' | 'broken-symlink' | 'fs-error'
+        }[]
       }>,
     getPathForFile: (file: File) => webUtils.getPathForFile(file),
   },
   snapshot: {
     listTurns: () => ipcRenderer.invoke('snapshot:listTurns'),
     listForFile: (relPath: string) => ipcRenderer.invoke('snapshot:listForFile', relPath),
-    read: (turnId: string, relPath: string) =>
-      ipcRenderer.invoke('snapshot:read', turnId, relPath),
+    read: (turnId: string, relPath: string) => ipcRenderer.invoke('snapshot:read', turnId, relPath),
     restore: (turnId: string, relPath: string) =>
       ipcRenderer.invoke('snapshot:restore', turnId, relPath),
     saveBuffer: (relPath: string, content: string) =>
@@ -199,10 +211,14 @@ const api = {
       ipcRenderer.invoke('snapshot:saveExternalChange', relPath, content),
     capture: (paths: string[], trigger: string) =>
       ipcRenderer.invoke('snapshot:capture', { paths, trigger }),
-    restoreOne: (snapshotId: string) =>
-      ipcRenderer.invoke('snapshot:restoreOne', { snapshotId }),
-    onTurnCompleted: (cb: (event: { turnId: string; timestamp: number; files: string[] }) => void) => {
-      const listener = (_: unknown, event: { turnId: string; timestamp: number; files: string[] }) => cb(event)
+    restoreOne: (snapshotId: string) => ipcRenderer.invoke('snapshot:restoreOne', { snapshotId }),
+    onTurnCompleted: (
+      cb: (event: { turnId: string; timestamp: number; files: string[] }) => void
+    ) => {
+      const listener = (
+        _: unknown,
+        event: { turnId: string; timestamp: number; files: string[] }
+      ) => cb(event)
       ipcRenderer.on('snapshot:turn-completed', listener)
       return () => ipcRenderer.removeListener('snapshot:turn-completed', listener)
     },

@@ -13,13 +13,7 @@ beforeEach(() => {
 
 async function renderModal() {
   const { SettingsModal } = await import('../SettingsModal')
-  render(
-    <SettingsModal
-      onClose={() => {}}
-      layoutMode="editor-center"
-      onLayoutChange={() => {}}
-    />,
-  )
+  render(<SettingsModal onClose={() => {}} layoutMode="editor-center" onLayoutChange={() => {}} />)
 }
 
 describe('SettingsModal — transparent agents pane toggle', () => {

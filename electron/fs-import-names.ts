@@ -1,6 +1,6 @@
 export function resolveImportName(
   basename: string,
-  existingNames: ReadonlySet<string> | readonly string[],
+  existingNames: ReadonlySet<string> | readonly string[]
 ): string {
   const lookup = existingNames instanceof Set ? existingNames : new Set(existingNames)
 

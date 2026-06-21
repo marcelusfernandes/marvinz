@@ -70,7 +70,9 @@ function buildImageNodeView({
     // diff the previous set so the class is also removed when the
     // decoration clears.
     const applied = new Set<string>()
-    const applyDecorations = (decorations: readonly { type?: { attrs?: { class?: string } }; spec?: { class?: string } }[]) => {
+    const applyDecorations = (
+      decorations: readonly { type?: { attrs?: { class?: string } }; spec?: { class?: string } }[]
+    ) => {
       const wanted = new Set<string>()
       for (const d of decorations) {
         const className =

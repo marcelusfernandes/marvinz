@@ -33,7 +33,9 @@ if (!socketPath) {
 // Read all of stdin synchronously before connecting.
 let rawInput = ''
 process.stdin.setEncoding('utf8')
-process.stdin.on('data', (chunk) => { rawInput += chunk })
+process.stdin.on('data', (chunk) => {
+  rawInput += chunk
+})
 process.stdin.on('end', () => {
   let hookInput
   try {
@@ -61,7 +63,9 @@ process.stdin.on('end', () => {
     if (done) return
     timedOut = true
     socket.destroy()
-    process.stderr.write(`marvin: connect timeout after ${CONNECT_TIMEOUT_MS}ms — denying tool call\n`)
+    process.stderr.write(
+      `marvin: connect timeout after ${CONNECT_TIMEOUT_MS}ms — denying tool call\n`
+    )
     process.exit(2)
   }, CONNECT_TIMEOUT_MS)
 
@@ -74,7 +78,9 @@ process.stdin.on('end', () => {
 
   let response = ''
   socket.setEncoding('utf8')
-  socket.on('data', (chunk) => { response += chunk })
+  socket.on('data', (chunk) => {
+    response += chunk
+  })
 
   socket.on('end', () => {
     if (timedOut || done) return
@@ -90,13 +96,15 @@ process.stdin.on('end', () => {
 
     if (parsed.decision === 'allow') {
       const reason = typeof parsed.reason === 'string' ? parsed.reason : 'approved by marvin'
-      process.stdout.write(JSON.stringify({
-        hookSpecificOutput: {
-          hookEventName: 'PreToolUse',
-          permissionDecision: 'allow',
-          permissionDecisionReason: reason,
-        },
-      }) + '\n')
+      process.stdout.write(
+        JSON.stringify({
+          hookSpecificOutput: {
+            hookEventName: 'PreToolUse',
+            permissionDecision: 'allow',
+            permissionDecisionReason: reason,
+          },
+        }) + '\n'
+      )
       process.exit(0)
     } else {
       const reason = typeof parsed.reason === 'string' ? parsed.reason : 'denied by marvin'

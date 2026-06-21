@@ -19,10 +19,7 @@
 // Override defaults when a test needs a different viewport/row height:
 //   restoreVirtualizer = setupVirtualizerMocks(800, 32)
 
-type ResizeObserverCallback = (
-  entries: ResizeObserverEntry[],
-  observer: ResizeObserver,
-) => void
+type ResizeObserverCallback = (entries: ResizeObserverEntry[], observer: ResizeObserver) => void
 
 class MockResizeObserver implements ResizeObserver {
   // Constructor accepts the callback to match the spec, even though we never
@@ -34,22 +31,17 @@ class MockResizeObserver implements ResizeObserver {
   disconnect(): void {}
 }
 
-export function setupVirtualizerMocks(
-  viewportHeight = 600,
-  rowHeight = 28,
-): () => void {
-  const originalGetBoundingClientRect =
-    HTMLElement.prototype.getBoundingClientRect
+export function setupVirtualizerMocks(viewportHeight = 600, rowHeight = 28): () => void {
+  const originalGetBoundingClientRect = HTMLElement.prototype.getBoundingClientRect
   const originalClientHeight = Object.getOwnPropertyDescriptor(
     HTMLElement.prototype,
-    'clientHeight',
+    'clientHeight'
   )
   const originalOffsetHeight = Object.getOwnPropertyDescriptor(
     HTMLElement.prototype,
-    'offsetHeight',
+    'offsetHeight'
   )
-  const originalResizeObserver = (globalThis as { ResizeObserver?: unknown })
-    .ResizeObserver
+  const originalResizeObserver = (globalThis as { ResizeObserver?: unknown }).ResizeObserver
 
   HTMLElement.prototype.getBoundingClientRect = function (): DOMRect {
     const isRow = this.classList?.contains('file-tree-row')
@@ -80,9 +72,7 @@ export function setupVirtualizerMocks(
       return this.classList?.contains('file-tree-row') ? rowHeight : viewportHeight
     },
   })
-
-  ;(globalThis as { ResizeObserver?: unknown }).ResizeObserver =
-    MockResizeObserver
+  ;(globalThis as { ResizeObserver?: unknown }).ResizeObserver = MockResizeObserver
 
   return function restore(): void {
     HTMLElement.prototype.getBoundingClientRect = originalGetBoundingClientRect
@@ -99,8 +89,7 @@ export function setupVirtualizerMocks(
     if (originalResizeObserver === undefined) {
       delete (globalThis as { ResizeObserver?: unknown }).ResizeObserver
     } else {
-      ;(globalThis as { ResizeObserver?: unknown }).ResizeObserver =
-        originalResizeObserver
+      ;(globalThis as { ResizeObserver?: unknown }).ResizeObserver = originalResizeObserver
     }
   }
 }

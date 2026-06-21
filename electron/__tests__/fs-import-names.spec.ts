@@ -32,7 +32,9 @@ describe('resolveImportName — folder (no extension)', () => {
 
 describe('resolveImportName — multi-dot extension', () => {
   it('splits on last dot only, leaving compound extension intact except final segment', () => {
-    expect(resolveImportName('archive.tar.gz', new Set(['archive.tar.gz']))).toBe('archive.tar (1).gz')
+    expect(resolveImportName('archive.tar.gz', new Set(['archive.tar.gz']))).toBe(
+      'archive.tar (1).gz'
+    )
   })
 })
 
