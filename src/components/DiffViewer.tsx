@@ -119,27 +119,20 @@ export function DiffViewer({
           No differences between versions.
         </div>
       ) : activeMode === 'unified' ? (
-        <UnifiedView
-          lines={visibleLines}
-          beforeLabel={beforeLabel}
-          afterLabel={afterLabel}
-        />
+        <UnifiedView lines={visibleLines} beforeLabel={beforeLabel} afterLabel={afterLabel} />
       ) : (
-        <SplitView
-          lines={visibleLines}
-          beforeLabel={beforeLabel}
-          afterLabel={afterLabel}
-        />
+        <SplitView lines={visibleLines} beforeLabel={beforeLabel} afterLabel={afterLabel} />
       )}
     </div>
   )
 }
 
-type CollapsedRun =
-  | { kind: 'gap'; count: number }
-  | { kind: 'line'; line: DiffLine }
+type CollapsedRun = { kind: 'gap'; count: number } | { kind: 'line'; line: DiffLine }
 
-function collapseToHunks(diff: DiffLine[], hunks: Array<{ start: number; end: number }>): CollapsedRun[] {
+function collapseToHunks(
+  diff: DiffLine[],
+  hunks: Array<{ start: number; end: number }>
+): CollapsedRun[] {
   if (hunks.length === 0) {
     return diff.map((line) => ({ kind: 'line', line }))
   }
@@ -192,7 +185,9 @@ function UnifiedView({
             <div key={`gap-${i}`} className="diff-row diff-row-gap" role="row" aria-hidden>
               <div className="diff-gutter" />
               <div className="diff-gutter" />
-              <div className="diff-gap-text">{run.count} unchanged {run.count === 1 ? 'line' : 'lines'}…</div>
+              <div className="diff-gap-text">
+                {run.count} unchanged {run.count === 1 ? 'line' : 'lines'}…
+              </div>
             </div>
           )
         }
@@ -215,7 +210,9 @@ function UnifiedView({
               role="cell"
               aria-label={ariaForLine(line, beforeLabel, afterLabel)}
             >
-              <span className="diff-sign" aria-hidden>{signFor(line.op)}</span>
+              <span className="diff-sign" aria-hidden>
+                {signFor(line.op)}
+              </span>
               <span className="diff-text">{line.text === '' ? EMPTY_LINE : line.text}</span>
             </div>
           </div>
@@ -247,10 +244,18 @@ function SplitView({
       aria-label={`Side-by-side diff between ${beforeLabel} and ${afterLabel}`}
     >
       <div className="diff-headrow" role="row">
-        <div className="diff-gutter" role="columnheader" aria-hidden>#</div>
-        <div className="diff-text-header" role="columnheader">{beforeLabel}</div>
-        <div className="diff-gutter" role="columnheader" aria-hidden>#</div>
-        <div className="diff-text-header" role="columnheader">{afterLabel}</div>
+        <div className="diff-gutter" role="columnheader" aria-hidden>
+          #
+        </div>
+        <div className="diff-text-header" role="columnheader">
+          {beforeLabel}
+        </div>
+        <div className="diff-gutter" role="columnheader" aria-hidden>
+          #
+        </div>
+        <div className="diff-text-header" role="columnheader">
+          {afterLabel}
+        </div>
       </div>
       {pairs.map((pair, i) => (
         <div key={`s-${i}`} className="diff-row diff-row-split" role="row">
@@ -260,7 +265,11 @@ function SplitView({
           <div
             className={`diff-line diff-side ${classForSide(pair.before)}`}
             role="cell"
-            aria-label={pair.before ? ariaForLine(pair.before, beforeLabel, afterLabel) : `${beforeLabel}: empty line`}
+            aria-label={
+              pair.before
+                ? ariaForLine(pair.before, beforeLabel, afterLabel)
+                : `${beforeLabel}: empty line`
+            }
           >
             <span className="diff-text">
               {pair.before ? (pair.before.text === '' ? EMPTY_LINE : pair.before.text) : ''}
@@ -272,7 +281,11 @@ function SplitView({
           <div
             className={`diff-line diff-side ${classForSide(pair.after)}`}
             role="cell"
-            aria-label={pair.after ? ariaForLine(pair.after, beforeLabel, afterLabel) : `${afterLabel}: empty line`}
+            aria-label={
+              pair.after
+                ? ariaForLine(pair.after, beforeLabel, afterLabel)
+                : `${afterLabel}: empty line`
+            }
           >
             <span className="diff-text">
               {pair.after ? (pair.after.text === '' ? EMPTY_LINE : pair.after.text) : ''}

@@ -1,11 +1,6 @@
 import type { ReactNode } from 'react'
 
-export type TimelineDotState =
-  | 'outline'
-  | 'green'
-  | 'amber'
-  | 'red'
-  | 'running'
+export type TimelineDotState = 'outline' | 'green' | 'amber' | 'red' | 'running'
 
 export type TimelineKind = 'thinking' | 'text' | 'tool'
 
@@ -34,13 +29,7 @@ const DOT_DEFAULT_LABEL: Record<TimelineDotState, string> = {
   running: 'Running',
 }
 
-export function TimelineItem({
-  kind,
-  dotState = 'outline',
-  header,
-  dotLabel,
-  children,
-}: Props) {
+export function TimelineItem({ kind, dotState = 'outline', header, dotLabel, children }: Props) {
   // Tools encode their state semantically via the dot color (amber pending,
   // green ok, red error, etc.) — expose it to assistive tech. Thinking/text
   // items use the dot as pure decoration; the body text already announces
@@ -54,15 +43,9 @@ export function TimelineItem({
     : { 'aria-hidden': true as const }
   return (
     <li className="chat-timeline-item" data-kind={kind}>
-      <span
-        className="chat-timeline-dot"
-        data-state={dotState}
-        {...dotProps}
-      />
+      <span className="chat-timeline-dot" data-state={dotState} {...dotProps} />
       <div className="chat-timeline-body">
-        {header !== undefined && (
-          <div className="chat-timeline-header">{header}</div>
-        )}
+        {header !== undefined && <div className="chat-timeline-header">{header}</div>}
         {children}
       </div>
     </li>

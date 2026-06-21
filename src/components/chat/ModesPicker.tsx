@@ -1,10 +1,4 @@
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  type KeyboardEvent,
-  type RefObject,
-} from 'react'
+import { useCallback, useEffect, useRef, type KeyboardEvent, type RefObject } from 'react'
 import { Icon } from '../Icon'
 import { MODE_OPTIONS } from './ModePill'
 import type { PermissionMode } from '../../lib/chat/types'
@@ -68,9 +62,7 @@ export function ModesPicker({ mode, anchorRef, onSelect, onClose }: Props) {
     (e: KeyboardEvent<HTMLUListElement>) => {
       const ul = popoverRef.current
       if (!ul) return
-      const items = Array.from(
-        ul.querySelectorAll<HTMLLIElement>('[role="option"]'),
-      )
+      const items = Array.from(ul.querySelectorAll<HTMLLIElement>('[role="option"]'))
       const currentIx = items.findIndex((el) => el === document.activeElement)
       if (e.key === 'ArrowDown') {
         e.preventDefault()
@@ -93,7 +85,7 @@ export function ModesPicker({ mode, anchorRef, onSelect, onClose }: Props) {
         }
       }
     },
-    [onSelect, onClose],
+    [onSelect, onClose]
   )
 
   return (

@@ -2,10 +2,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
 import type { FileNode } from '../../types'
-import {
-  useFileClipboardShortcuts,
-  resolvePasteTarget,
-} from '../../lib/useFileClipboardShortcuts'
+import { useFileClipboardShortcuts, resolvePasteTarget } from '../../lib/useFileClipboardShortcuts'
 import { useClipboardStore } from '../../lib/clipboardStore'
 
 const VAULT = '/vault'
@@ -61,7 +58,7 @@ describe('useFileClipboardShortcuts', () => {
         tree,
         onClearSelection: vi.fn(),
         onPaste: vi.fn(),
-      }),
+      })
     )
     act(() => {
       dispatchKey({ key: 'c', meta: true })
@@ -79,7 +76,7 @@ describe('useFileClipboardShortcuts', () => {
         tree,
         onClearSelection: vi.fn(),
         onPaste: vi.fn(),
-      }),
+      })
     )
     act(() => {
       dispatchKey({ key: 'x', meta: true })
@@ -99,7 +96,7 @@ describe('useFileClipboardShortcuts', () => {
         tree,
         onClearSelection: vi.fn(),
         onPaste,
-      }),
+      })
     )
     act(() => {
       dispatchKey({ key: 'v', meta: true })
@@ -117,7 +114,7 @@ describe('useFileClipboardShortcuts', () => {
         tree,
         onClearSelection: vi.fn(),
         onPaste,
-      }),
+      })
     )
     act(() => {
       dispatchKey({ key: 'v', meta: true })
@@ -134,7 +131,7 @@ describe('useFileClipboardShortcuts', () => {
         tree,
         onClearSelection: vi.fn(),
         onPaste,
-      }),
+      })
     )
     act(() => {
       dispatchKey({ key: 'v', meta: true })
@@ -154,7 +151,7 @@ describe('useFileClipboardShortcuts', () => {
         onClearSelection: vi.fn(),
         onPaste,
         onError,
-      }),
+      })
     )
     let ev: KeyboardEvent
     act(() => {
@@ -175,7 +172,7 @@ describe('useFileClipboardShortcuts', () => {
         tree,
         onClearSelection,
         onPaste: vi.fn(),
-      }),
+      })
     )
     act(() => {
       dispatchKey({ key: 'Escape' })
@@ -195,7 +192,7 @@ describe('useFileClipboardShortcuts', () => {
         tree,
         onClearSelection: vi.fn(),
         onPaste: vi.fn(),
-      }),
+      })
     )
     act(() => {
       dispatchKey({ key: 'c', meta: true })
@@ -213,7 +210,7 @@ describe('useFileClipboardShortcuts', () => {
         tree,
         onClearSelection: vi.fn(),
         onPaste,
-      }),
+      })
     )
     act(() => {
       dispatchKey({ key: 'v', meta: true })
@@ -237,9 +234,9 @@ describe('resolvePasteTarget', () => {
     })
   })
   it('returns ambiguous when multiple selected', () => {
-    expect(
-      resolvePasteTarget(new Set(['/vault/a.md', '/vault/b.md']), tree, VAULT),
-    ).toEqual({ ambiguous: true })
+    expect(resolvePasteTarget(new Set(['/vault/a.md', '/vault/b.md']), tree, VAULT)).toEqual({
+      ambiguous: true,
+    })
   })
   it('falls back to the path itself when single file is at filesystem root', () => {
     const rootTree: FileNode[] = [{ name: 'foo.md', path: '/foo.md', isDir: false }]

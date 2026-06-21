@@ -46,7 +46,16 @@ type FakePMState = {
   }
 }
 
-function makePMState(overrides: Partial<{ hasSelection: boolean; undoDepth: number; redoDepth: number; docText: string; selectionFrom: number; selectionTo: number }> = {}): FakePMState {
+function makePMState(
+  overrides: Partial<{
+    hasSelection: boolean
+    undoDepth: number
+    redoDepth: number
+    docText: string
+    selectionFrom: number
+    selectionTo: number
+  }> = {}
+): FakePMState {
   const docText = overrides.docText ?? 'hello world'
   const from = overrides.selectionFrom ?? 0
   const to = overrides.selectionTo ?? (overrides.hasSelection ? 5 : 0)
@@ -307,7 +316,9 @@ describe('LiveMarkdown — context menu triggers IPC with correct payload', () =
       rightClickLiveMD(container)
     })
     expect(showContextMenuMock).toHaveBeenCalledTimes(1)
-    const [items] = showContextMenuMock.mock.calls[0] as [Array<{ kind: string; id?: string; label?: string; enabled?: boolean }>]
+    const [items] = showContextMenuMock.mock.calls[0] as [
+      Array<{ kind: string; id?: string; label?: string; enabled?: boolean }>,
+    ]
     expect(Array.isArray(items)).toBe(true)
   })
 
@@ -318,8 +329,10 @@ describe('LiveMarkdown — context menu triggers IPC with correct payload', () =
     await act(async () => {
       rightClickLiveMD(container)
     })
-    const [items] = showContextMenuMock.mock.calls[0] as [Array<{ kind: string; id?: string; label?: string; enabled?: boolean }>]
-    const cut = items.find(i => i.id === 'cut')
+    const [items] = showContextMenuMock.mock.calls[0] as [
+      Array<{ kind: string; id?: string; label?: string; enabled?: boolean }>,
+    ]
+    const cut = items.find((i) => i.id === 'cut')
     expect(cut?.enabled).toBe(false)
   })
 
@@ -330,8 +343,10 @@ describe('LiveMarkdown — context menu triggers IPC with correct payload', () =
     await act(async () => {
       rightClickLiveMD(container)
     })
-    const [items] = showContextMenuMock.mock.calls[0] as [Array<{ kind: string; id?: string; label?: string; enabled?: boolean }>]
-    const cut = items.find(i => i.id === 'cut')
+    const [items] = showContextMenuMock.mock.calls[0] as [
+      Array<{ kind: string; id?: string; label?: string; enabled?: boolean }>,
+    ]
+    const cut = items.find((i) => i.id === 'cut')
     expect(cut?.enabled).toBe(true)
   })
 
@@ -342,8 +357,10 @@ describe('LiveMarkdown — context menu triggers IPC with correct payload', () =
     await act(async () => {
       rightClickLiveMD(container)
     })
-    const [items] = showContextMenuMock.mock.calls[0] as [Array<{ kind: string; id?: string; label?: string; enabled?: boolean }>]
-    const copy = items.find(i => i.id === 'copy')
+    const [items] = showContextMenuMock.mock.calls[0] as [
+      Array<{ kind: string; id?: string; label?: string; enabled?: boolean }>,
+    ]
+    const copy = items.find((i) => i.id === 'copy')
     expect(copy?.enabled).toBe(false)
   })
 
@@ -354,8 +371,10 @@ describe('LiveMarkdown — context menu triggers IPC with correct payload', () =
     await act(async () => {
       rightClickLiveMD(container)
     })
-    const [items] = showContextMenuMock.mock.calls[0] as [Array<{ kind: string; id?: string; label?: string; enabled?: boolean }>]
-    const copy = items.find(i => i.id === 'copy')
+    const [items] = showContextMenuMock.mock.calls[0] as [
+      Array<{ kind: string; id?: string; label?: string; enabled?: boolean }>,
+    ]
+    const copy = items.find((i) => i.id === 'copy')
     expect(copy?.enabled).toBe(true)
   })
 
@@ -366,8 +385,10 @@ describe('LiveMarkdown — context menu triggers IPC with correct payload', () =
     await act(async () => {
       rightClickLiveMD(container)
     })
-    const [items] = showContextMenuMock.mock.calls[0] as [Array<{ kind: string; id?: string; label?: string; enabled?: boolean }>]
-    const undo = items.find(i => i.id === 'undo')
+    const [items] = showContextMenuMock.mock.calls[0] as [
+      Array<{ kind: string; id?: string; label?: string; enabled?: boolean }>,
+    ]
+    const undo = items.find((i) => i.id === 'undo')
     expect(undo?.enabled).toBe(false)
   })
 
@@ -378,8 +399,10 @@ describe('LiveMarkdown — context menu triggers IPC with correct payload', () =
     await act(async () => {
       rightClickLiveMD(container)
     })
-    const [items] = showContextMenuMock.mock.calls[0] as [Array<{ kind: string; id?: string; label?: string; enabled?: boolean }>]
-    const undo = items.find(i => i.id === 'undo')
+    const [items] = showContextMenuMock.mock.calls[0] as [
+      Array<{ kind: string; id?: string; label?: string; enabled?: boolean }>,
+    ]
+    const undo = items.find((i) => i.id === 'undo')
     expect(undo?.enabled).toBe(true)
   })
 
@@ -390,8 +413,10 @@ describe('LiveMarkdown — context menu triggers IPC with correct payload', () =
     await act(async () => {
       rightClickLiveMD(container)
     })
-    const [items] = showContextMenuMock.mock.calls[0] as [Array<{ kind: string; id?: string; label?: string; enabled?: boolean }>]
-    const redo = items.find(i => i.id === 'redo')
+    const [items] = showContextMenuMock.mock.calls[0] as [
+      Array<{ kind: string; id?: string; label?: string; enabled?: boolean }>,
+    ]
+    const redo = items.find((i) => i.id === 'redo')
     expect(redo?.enabled).toBe(false)
   })
 
@@ -402,8 +427,10 @@ describe('LiveMarkdown — context menu triggers IPC with correct payload', () =
     await act(async () => {
       rightClickLiveMD(container)
     })
-    const [items] = showContextMenuMock.mock.calls[0] as [Array<{ kind: string; id?: string; label?: string; enabled?: boolean }>]
-    const redo = items.find(i => i.id === 'redo')
+    const [items] = showContextMenuMock.mock.calls[0] as [
+      Array<{ kind: string; id?: string; label?: string; enabled?: boolean }>,
+    ]
+    const redo = items.find((i) => i.id === 'redo')
     expect(redo?.enabled).toBe(true)
   })
 
@@ -415,8 +442,10 @@ describe('LiveMarkdown — context menu triggers IPC with correct payload', () =
     await act(async () => {
       rightClickLiveMD(container)
     })
-    const [items] = showContextMenuMock.mock.calls[0] as [Array<{ kind: string; id?: string; label?: string; enabled?: boolean }>]
-    const paste = items.find(i => i.id === 'paste')
+    const [items] = showContextMenuMock.mock.calls[0] as [
+      Array<{ kind: string; id?: string; label?: string; enabled?: boolean }>,
+    ]
+    const paste = items.find((i) => i.id === 'paste')
     expect(paste?.enabled).toBe(false)
   })
 
@@ -428,8 +457,10 @@ describe('LiveMarkdown — context menu triggers IPC with correct payload', () =
     await act(async () => {
       rightClickLiveMD(container)
     })
-    const [items] = showContextMenuMock.mock.calls[0] as [Array<{ kind: string; id?: string; label?: string; enabled?: boolean }>]
-    const paste = items.find(i => i.id === 'paste')
+    const [items] = showContextMenuMock.mock.calls[0] as [
+      Array<{ kind: string; id?: string; label?: string; enabled?: boolean }>,
+    ]
+    const paste = items.find((i) => i.id === 'paste')
     expect(paste?.enabled).toBe(true)
   })
 })
@@ -449,7 +480,7 @@ describe('LiveMarkdown — context menu action dispatch', () => {
     expect(mockPMSelectAll).toHaveBeenCalledWith(
       currentPMView.state,
       currentPMView.dispatch,
-      currentPMView,
+      currentPMView
     )
   })
 
@@ -474,7 +505,12 @@ describe('LiveMarkdown — context menu action dispatch', () => {
   })
 
   it('writes rich clipboard payload when action is cut, then dispatches deleteSelection', async () => {
-    currentPMView = makePMView({ hasSelection: true, docText: 'hello world', selectionFrom: 0, selectionTo: 5 })
+    currentPMView = makePMView({
+      hasSelection: true,
+      docText: 'hello world',
+      selectionFrom: 0,
+      selectionTo: 5,
+    })
     showContextMenuMock.mockResolvedValue('cut')
     const { container } = render(<LiveMarkdown {...defaultProps()} />)
     await act(async () => {
@@ -486,7 +522,12 @@ describe('LiveMarkdown — context menu action dispatch', () => {
   })
 
   it('writes rich clipboard payload when action is copy, without dispatching', async () => {
-    currentPMView = makePMView({ hasSelection: true, docText: 'hello world', selectionFrom: 0, selectionTo: 5 })
+    currentPMView = makePMView({
+      hasSelection: true,
+      docText: 'hello world',
+      selectionFrom: 0,
+      selectionTo: 5,
+    })
     showContextMenuMock.mockResolvedValue('copy')
     const { container } = render(<LiveMarkdown {...defaultProps()} />)
     await act(async () => {
@@ -506,7 +547,10 @@ describe('LiveMarkdown — context menu action dispatch', () => {
       rightClickLiveMD(container)
     })
     expect(readClipboardRichMock).toHaveBeenCalled()
-    expect(currentPMView.dispatch).toHaveBeenCalledWith({ _kind: 'insertText', _text: 'pasted text' })
+    expect(currentPMView.dispatch).toHaveBeenCalledWith({
+      _kind: 'insertText',
+      _text: 'pasted text',
+    })
   })
 
   it('does not write clipboard when cut/copy has empty selection', async () => {

@@ -24,9 +24,10 @@ export function splitFrontmatter(content: string): SplitResult {
   let data: Frontmatter | null
   try {
     const parsed = parseYAML(yamlText)
-    data = parsed && typeof parsed === 'object' && !Array.isArray(parsed)
-      ? (parsed as Frontmatter)
-      : null
+    data =
+      parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+        ? (parsed as Frontmatter)
+        : null
   } catch {
     // Malformed YAML: fall back to showing the raw block as content
     // (so the user sees the broken YAML instead of silently losing it).

@@ -27,14 +27,20 @@ describe('trend-report CLI', () => {
 
   it('com harness_version e pares → exit 0', () => {
     vi.spyOn(process.stdout, 'write').mockReturnValue(true)
-    appendPrediction(PredictionVector.parse(makePrediction({ issue_id: '1', harness_version: 'v1' })), root)
+    appendPrediction(
+      PredictionVector.parse(makePrediction({ issue_id: '1', harness_version: 'v1' })),
+      root
+    )
     appendOutcome(OutcomeRecord.parse(makeOutcome({ issue_id: '1', harness_version: 'v1' })), root)
     expect(main(['v1'], '2026-01-01T00:00:00Z', root)).toBe(0)
   })
 
   it('sem arg usa a harness_version da predição mais recente', () => {
     vi.spyOn(process.stdout, 'write').mockReturnValue(true)
-    appendPrediction(PredictionVector.parse(makePrediction({ issue_id: '1', harness_version: 'vX' })), root)
+    appendPrediction(
+      PredictionVector.parse(makePrediction({ issue_id: '1', harness_version: 'vX' })),
+      root
+    )
     expect(main([], '2026-01-01T00:00:00Z', root)).toBe(0)
   })
 })

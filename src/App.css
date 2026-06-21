@@ -42,8 +42,8 @@
   /* Status backgrounds */
   --bg-error-strong: #c0392b;
   --bg-error-subtle: rgba(192, 57, 43, 0.08);
-  --bg-warning-subtle: rgba(217, 119, 6, 0.10);
-  --bg-success-subtle: rgba(22, 163, 74, 0.10);
+  --bg-warning-subtle: rgba(217, 119, 6, 0.1);
+  --bg-success-subtle: rgba(22, 163, 74, 0.1);
 
   /* Find-in-page match highlights — classic browser yellow */
   --bg-find-match: rgba(255, 213, 79, 0.55);
@@ -90,12 +90,14 @@
   --radius-pill: 999px;
 
   /* Typography — brand Geist (Sans + Mono) with system fallback, base 14px on html (1rem = 14px) */
-  --font-family-sans: 'Geist Variable', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --font-family-mono: 'Geist Mono Variable', ui-monospace, 'SF Mono', Menlo, Monaco, Consolas, monospace;
+  --font-family-sans:
+    'Geist Variable', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-family-mono:
+    'Geist Mono Variable', ui-monospace, 'SF Mono', Menlo, Monaco, Consolas, monospace;
 
   --font-size-xs: 0.714rem; /* 10px — captions, status badges */
   --font-size-sm: 0.857rem; /* 12px — labels, file tree, tabs */
-  --font-size-md: 1rem;     /* 14px — body, editor */
+  --font-size-md: 1rem; /* 14px — body, editor */
   --font-size-lg: 1.143rem; /* 16px — section headers */
   --font-size-xl: 1.429rem; /* 20px — modal titles */
 
@@ -158,42 +160,47 @@
 
 [data-flavor='pastel'] {
   /* === Surfaces — warm cream canvas (ramp lowered for reading comfort) === */
-  --bg-app:    #f7f2eb;  /* warm cream canvas */
-  --surface-1: #f2ebe0;  /* cream; cards, sidebars */
-  --surface-2: #ebe0d2;  /* warm beige; recessed inputs, search */
-  --surface-3: #e3d5c4;  /* tan; hover fills, inactive tabs */
+  --bg-app: #f7f2eb; /* warm cream canvas */
+  --surface-1: #f2ebe0; /* cream; cards, sidebars */
+  --surface-2: #ebe0d2; /* warm beige; recessed inputs, search */
+  --surface-3: #e3d5c4; /* tan; hover fills, inactive tabs */
 
   /* === Borders — warm, muted === */
-  --border-subtle: rgba(92, 60, 30, 0.06);  /* warm tint replaces cool black/5% */
-  --border:        #e0d0be;                  /* warm divider; replaces #e8e8ea */
-  --border-strong: #8f6e5c;                  /* warm emphasis; ≥3:1 on revised surfaces (AA UI component) */
+  --border-subtle: rgba(92, 60, 30, 0.06); /* warm tint replaces cool black/5% */
+  --border: #e0d0be; /* warm divider; replaces #e8e8ea */
+  --border-strong: #8f6e5c; /* warm emphasis; ≥3:1 on revised surfaces (AA UI component) */
 
   /* === Text — warm-brown scale === */
-  --text-primary:   #2b1f14;  /* dark espresso; 14.78:1 on bg-app */
-  --text-secondary: #6b5344;  /* medium warm brown; 6.57:1 on bg-app */
-  --text-tertiary:  #766050;  /* muted warm brown; 4.5:1 on surface-2 (AA) */
+  --text-primary: #2b1f14; /* dark espresso; 14.78:1 on bg-app */
+  --text-secondary: #6b5344; /* medium warm brown; 6.57:1 on bg-app */
+  --text-tertiary: #766050; /* muted warm brown; 4.5:1 on surface-2 (AA) */
 
   /* === Accent — clay/coral (Claude brand family) === */
-  --accent:       #a84f2b;                   /* clay; replaces raspberry #c95d7f */
-  --accent-bg:    rgba(168, 79, 43, 0.12);   /* warm tint wash */
-  --accent-text:  #a84f2b;                   /* same clay; 5.07:1 on bg-app (AA) */
-  --on-accent:    #ffffff;                   /* white on clay; 5.50:1 (AA) */
+  --accent: #a84f2b; /* clay; replaces raspberry #c95d7f */
+  --accent-bg: rgba(168, 79, 43, 0.12); /* warm tint wash */
+  --accent-text: #a84f2b; /* same clay; 5.07:1 on bg-app (AA) */
+  --on-accent: #ffffff; /* white on clay; 5.50:1 (AA) */
 
   /* === Hover washes — warm tint === */
-  --bg-hover:        rgba(92, 60, 30, 0.07);   /* warm hover; replaces cool black/6% */
-  --bg-hover-strong: rgba(92, 60, 30, 0.12);   /* warm strong hover */
+  --bg-hover: rgba(92, 60, 30, 0.07); /* warm hover; replaces cool black/6% */
+  --bg-hover-strong: rgba(92, 60, 30, 0.12); /* warm strong hover */
 
   /* === Shell wash — deeper than panels so surface-1 reads as elevated === */
-  --shell-wash: rgba(235, 224, 210, 0.85);  /* surface-2 base, 0.85 opacity resists vibrancy lightening */
+  --shell-wash: rgba(
+    235,
+    224,
+    210,
+    0.85
+  ); /* surface-2 base, 0.85 opacity resists vibrancy lightening */
 
   /* === Shadows — warmer tint for clay surfaces === */
   --shadow-sm: 0 1px 2px rgba(60, 35, 10, 0.06);
-  --shadow-md: 0 4px 12px rgba(60, 35, 10, 0.10);
+  --shadow-md: 0 4px 12px rgba(60, 35, 10, 0.1);
   --shadow-lg: 0 12px 30px rgba(60, 35, 10, 0.18);
 
   /* === Focus ring — warm tint === */
-  --focus-ring:       0 0 0 3px rgba(92, 60, 30, 0.35);
-  --focus-ring-inset: inset 0 0 0 2px rgba(92, 60, 30, 0.50);
+  --focus-ring: 0 0 0 3px rgba(92, 60, 30, 0.35);
+  --focus-ring-inset: inset 0 0 0 2px rgba(92, 60, 30, 0.5);
 }
 
 [data-theme='dark'] {
@@ -239,11 +246,11 @@
   /* Status backgrounds (dark) */
   --bg-error-strong: #a93226;
   --bg-error-subtle: rgba(224, 123, 110, 0.08);
-  --bg-warning-subtle: rgba(176, 137, 64, 0.10);
-  --bg-success-subtle: rgba(78, 199, 122, 0.10);
+  --bg-warning-subtle: rgba(176, 137, 64, 0.1);
+  --bg-success-subtle: rgba(78, 199, 122, 0.1);
 
   /* Find-in-page match highlights (dark) */
-  --bg-find-match: rgba(255, 213, 79, 0.30);
+  --bg-find-match: rgba(255, 213, 79, 0.3);
   --bg-find-match-active: #ffd24c;
 
   /* Focus ring (dark) — white tint so the ring stays visible against dark surfaces */
@@ -276,42 +283,42 @@
 
 [data-flavor='pastel'][data-theme='dark'] {
   /* === Surfaces — warm-neutral charcoal; R-B +6/+8 (subtle warmth, not espresso) === */
-  --bg-app:    #1a1614;  /* warm charcoal canvas */
-  --surface-1: #1f1b19;  /* warm charcoal; cards */
-  --surface-2: #24211e;  /* warm dark; inputs */
-  --surface-3: #2b2723;  /* raised; hover tabs */
+  --bg-app: #1a1614; /* warm charcoal canvas */
+  --surface-1: #1f1b19; /* warm charcoal; cards */
+  --surface-2: #24211e; /* warm dark; inputs */
+  --surface-3: #2b2723; /* raised; hover tabs */
 
   /* === Borders — warm dark === */
-  --border-subtle: rgba(255, 200, 150, 0.07);  /* warm white tint */
-  --border:        #3d2b1e;                     /* warm dark divider */
-  --border-strong: #9a7460;                     /* warm dark emphasis; 3.56:1 on surface-3 (AA UI component) */
+  --border-subtle: rgba(255, 200, 150, 0.07); /* warm white tint */
+  --border: #3d2b1e; /* warm dark divider */
+  --border-strong: #9a7460; /* warm dark emphasis; 3.56:1 on surface-3 (AA UI component) */
 
   /* === Text — warm cream scale === */
-  --text-primary:   #f5ede4;  /* warm cream; 15.48:1 on bg-app */
-  --text-secondary: #c9a98f;  /* warm tan; 8.17:1 on bg-app */
-  --text-tertiary:  #b09070;  /* muted warm; 6.04:1 on bg-app */
+  --text-primary: #f5ede4; /* warm cream; 15.48:1 on bg-app */
+  --text-secondary: #c9a98f; /* warm tan; 8.17:1 on bg-app */
+  --text-tertiary: #b09070; /* muted warm; 6.04:1 on bg-app */
 
   /* === Accent — lighter clay for dark surfaces === */
-  --accent:       #d97a45;                   /* lighter clay; bright enough on dark */
-  --accent-bg:    rgba(217, 122, 69, 0.18);  /* warm tint wash */
-  --accent-text:  #d97a45;                   /* 5.83:1 on bg-app (AA) */
-  --on-accent:    #1a1614;                   /* dark text on light clay; 5.84:1 (AA) */
+  --accent: #d97a45; /* lighter clay; bright enough on dark */
+  --accent-bg: rgba(217, 122, 69, 0.18); /* warm tint wash */
+  --accent-text: #d97a45; /* 5.83:1 on bg-app (AA) */
+  --on-accent: #1a1614; /* dark text on light clay; 5.84:1 (AA) */
 
   /* === Hover washes — warm light tint === */
-  --bg-hover:        rgba(255, 200, 150, 0.08);
+  --bg-hover: rgba(255, 200, 150, 0.08);
   --bg-hover-strong: rgba(255, 200, 150, 0.13);
 
   /* === Shell wash — dark espresso vibrancy tint === */
   --shell-wash: rgba(18, 12, 8, 0.78);
 
   /* === Shadows — heavier for dark as per token rules === */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.20);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.35);
   --shadow-lg: 0 12px 30px rgba(0, 0, 0, 0.55);
 
   /* === Focus ring — warm tint on dark === */
-  --focus-ring:       0 0 0 3px rgba(255, 200, 150, 0.35);
-  --focus-ring-inset: inset 0 0 0 2px rgba(255, 200, 150, 0.50);
+  --focus-ring: 0 0 0 3px rgba(255, 200, 150, 0.35);
+  --focus-ring-inset: inset 0 0 0 2px rgba(255, 200, 150, 0.5);
 }
 
 * {
@@ -437,8 +444,9 @@ button {
   opacity: 0;
   /* CLOSE direction: fade out FAST so the sidebar is gone before the .app
      grid columns and editor-pane clip-path finish their animation. */
-  transition: opacity var(--duration-fast) var(--ease-in) 0s,
-              visibility 0s linear var(--duration-fast);
+  transition:
+    opacity var(--duration-fast) var(--ease-in) 0s,
+    visibility 0s linear var(--duration-fast);
 }
 
 .shell.sidebar-hidden .app {
@@ -473,13 +481,17 @@ button {
    same number of segments so the browser can interpolate between states. */
 .shell .app:not([data-layout='claude-center']) .editor-pane,
 .shell .app[data-layout='claude-center'] .claude-pane {
-  clip-path: path('M 0 0 A 0 0 0 0 1 0 0 L 0 0 A 0 0 0 0 0 0 0 L 0 0 A 0 0 0 0 1 0 0 L 9999 0 L 9999 9999 L 0 9999 Z');
+  clip-path: path(
+    'M 0 0 A 0 0 0 0 1 0 0 L 0 0 A 0 0 0 0 0 0 0 L 0 0 A 0 0 0 0 1 0 0 L 9999 0 L 9999 9999 L 0 9999 Z'
+  );
   transition: clip-path var(--duration-normal) var(--ease-in-out);
 }
 
 .shell.sidebar-hidden .app:not([data-layout='claude-center']) .editor-pane,
 .shell.sidebar-hidden .app[data-layout='claude-center'] .claude-pane {
-  clip-path: path('M 0 48 A 12 12 0 0 1 12 36 L 148 36 A 12 12 0 0 0 160 24 L 160 12 A 12 12 0 0 1 172 0 L 9999 0 L 9999 9999 L 0 9999 Z');
+  clip-path: path(
+    'M 0 48 A 12 12 0 0 1 12 36 L 148 36 A 12 12 0 0 0 160 24 L 160 12 A 12 12 0 0 1 172 0 L 9999 0 L 9999 9999 L 0 9999 Z'
+  );
 }
 
 /* Push the leftmost pane's tabs right by the width of the floating icon strip
@@ -505,7 +517,8 @@ button {
   background: transparent;
   border-radius: var(--radius-md);
   color: var(--text-secondary);
-  transition: background var(--duration-fast) var(--ease-out),
+  transition:
+    background var(--duration-fast) var(--ease-out),
     color var(--duration-fast) var(--ease-out);
 }
 
@@ -525,7 +538,10 @@ button {
      widths driven by --sidebar-w / --agents-w state vars. The 2 splitter
      tracks are var(--space-3) wide so they double as visual gap between the
      panel cards; .splitter renders a centered hit zone inside. */
-  grid-template-columns: var(--sidebar-w, 240px) var(--space-2) 1fr var(--space-2) var(--agents-w, 588px);
+  grid-template-columns: var(--sidebar-w, 240px) var(--space-2) 1fr var(--space-2) var(
+      --agents-w,
+      588px
+    );
   grid-template-rows: 1fr;
   grid-template-areas: 'sidebar split-sidebar editor split-agents claude';
   flex: 1;
@@ -536,7 +552,9 @@ button {
 .app[data-layout='claude-center'] {
   /* Same fixed widths swap to 'sidebar | split | claude | split | editor'.
      The agents pane (.claude-pane) is now in the middle column. */
-  grid-template-columns: var(--sidebar-w, 240px) var(--space-2) var(--agents-w, 588px) var(--space-2) 1fr;
+  grid-template-columns:
+    var(--sidebar-w, 240px) var(--space-2) var(--agents-w, 588px) var(--space-2)
+    1fr;
   grid-template-areas: 'sidebar split-sidebar claude split-agents editor';
 }
 
@@ -596,9 +614,9 @@ button {
   /* OPEN direction: wait for the .app grid columns to finish expanding,
      then fade the sidebar in. Avoids seeing the file tree briefly squeezed
      into a narrow strip. */
-  transition: opacity var(--duration-fast) var(--ease-out)
-              calc(var(--duration-normal) - var(--duration-fast)),
-              visibility 0s linear 0s;
+  transition:
+    opacity var(--duration-fast) var(--ease-out) calc(var(--duration-normal) - var(--duration-fast)),
+    visibility 0s linear 0s;
 }
 
 /* During the close animation the grid column shrinks the sidebar's available
@@ -702,7 +720,8 @@ button {
   cursor: pointer;
   white-space: nowrap;
   -webkit-app-region: no-drag;
-  transition: background var(--duration-fast) var(--ease-out),
+  transition:
+    background var(--duration-fast) var(--ease-out),
     color var(--duration-fast) var(--ease-out);
 }
 
@@ -1265,7 +1284,7 @@ button {
   align-items: center;
   gap: var(--space-2);
   height: 28px;
-  padding:  var(--space-2) var(--space-3);
+  padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-md);
   background: var(--surface-2);
   font-size: var(--font-size-sm);
@@ -1428,7 +1447,11 @@ button {
     linear-gradient(45deg, transparent 75%, #232323 75%),
     linear-gradient(-45deg, transparent 75%, #232323 75%);
   background-size: 16px 16px;
-  background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+  background-position:
+    0 0,
+    0 8px,
+    8px -8px,
+    -8px 0;
 }
 
 .image-viewer-host img {
@@ -1555,7 +1578,8 @@ button {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  transition: background var(--duration-fast, 120ms) var(--ease-out, ease-out),
+  transition:
+    background var(--duration-fast, 120ms) var(--ease-out, ease-out),
     color var(--duration-fast, 120ms) var(--ease-out, ease-out);
 }
 
@@ -1626,9 +1650,16 @@ button {
   line-height: var(--line-height-tight);
 }
 
-.docx-viewer-content h1 { font-size: var(--font-size-xl); }
-.docx-viewer-content h2 { font-size: var(--font-size-lg); }
-.docx-viewer-content h3 { font-size: var(--font-size-md); font-weight: var(--font-weight-bold); }
+.docx-viewer-content h1 {
+  font-size: var(--font-size-xl);
+}
+.docx-viewer-content h2 {
+  font-size: var(--font-size-lg);
+}
+.docx-viewer-content h3 {
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-bold);
+}
 
 .docx-viewer-content p {
   margin: 0 0 var(--space-3);
@@ -1747,7 +1778,8 @@ button {
   background: transparent;
   border: 1px solid transparent;
   white-space: nowrap;
-  transition: background var(--duration-fast) var(--ease-out),
+  transition:
+    background var(--duration-fast) var(--ease-out),
     color var(--duration-fast) var(--ease-out);
 }
 
@@ -1936,7 +1968,8 @@ button {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
-  transition: background var(--duration-fast) var(--ease-out),
+  transition:
+    background var(--duration-fast) var(--ease-out),
     color var(--duration-fast) var(--ease-out);
 }
 
@@ -2090,7 +2123,6 @@ button {
   min-height: 0;
   background: #1e1e1e;
 }
-
 
 .tab.active .tab-close:hover {
   background: var(--surface-2);
@@ -2479,11 +2511,11 @@ button {
   gap: 6px;
 }
 
-.cm-host .cm-panel.cm-search input[type="checkbox"] {
+.cm-host .cm-panel.cm-search input[type='checkbox'] {
   margin: 0 4px;
 }
 
-.cm-host .cm-panel.cm-search input[type="text"],
+.cm-host .cm-panel.cm-search input[type='text'],
 .cm-host .cm-textfield {
   background: var(--surface-1);
   color: var(--text-primary);
@@ -2831,7 +2863,6 @@ button {
   color: var(--text-tertiary);
   text-align: center;
 }
-
 
 .agent-install-hints {
   list-style: none;
@@ -3257,7 +3288,6 @@ button {
     transform: translate(-50%, -6px);
   }
 }
-
 
 .md-find-input:focus-visible,
 .md-find-input--bare:focus-visible {
@@ -4169,8 +4199,8 @@ button.prop-bool {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  box-shadow: 0 12px 96px rgba(0, 0, 0, 0.40);
-} 
+  box-shadow: 0 12px 96px rgba(0, 0, 0, 0.4);
+}
 
 .palette-input {
   background: transparent;
@@ -4738,8 +4768,14 @@ button.prop-bool {
 }
 
 @keyframes snapshot-toast-in {
-  from { transform: translateY(8px); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
+  from {
+    transform: translateY(8px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
 }
 
 .snapshot-toast-body {
@@ -5257,8 +5293,15 @@ button.prop-bool {
 }
 
 @keyframes chat-dot-pulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.55; transform: scale(0.85); }
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.55;
+    transform: scale(0.85);
+  }
 }
 
 .chat-timeline-body {
@@ -5863,7 +5906,9 @@ button.prop-bool {
 }
 
 @keyframes chat-cursor-blink {
-  50% { opacity: 0; }
+  50% {
+    opacity: 0;
+  }
 }
 
 /* Composer -------------------------------------------------------- */
@@ -5985,4 +6030,3 @@ button.prop-bool {
 .chat-composer-send:focus-visible {
   box-shadow: var(--focus-ring);
 }
-

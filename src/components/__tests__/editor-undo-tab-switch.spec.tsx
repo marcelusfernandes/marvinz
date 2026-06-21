@@ -58,11 +58,7 @@ vi.mock('../TabBar', () => ({
     return (
       <div data-testid="tab-bar">
         {props.tabs.map((t) => (
-          <button
-            key={t.id}
-            data-testid={`tab-${t.id}`}
-            onClick={() => props.onActivate(t.id)}
-          >
+          <button key={t.id} data-testid={`tab-${t.id}`} onClick={() => props.onActivate(t.id)}>
             activate {t.id}
           </button>
         ))}
@@ -83,12 +79,7 @@ vi.mock('../Editor', () => ({
       }
     }, [filePath])
 
-    return (
-      <div
-        data-testid={`editor-stub`}
-        data-filepath={filePath}
-      />
-    )
+    return <div data-testid={`editor-stub`} data-filepath={filePath} />
   },
 }))
 

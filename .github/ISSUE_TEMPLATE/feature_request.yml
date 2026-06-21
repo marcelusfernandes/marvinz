@@ -1,7 +1,7 @@
 name: Feature request
 description: Propose a new capability or enhancement
-title: "feat: <short imperative description>"
-labels: ["enhancement"]
+title: 'feat: <short imperative description>'
+labels: ['enhancement']
 body:
   - type: markdown
     attributes:
@@ -15,11 +15,11 @@ body:
     id: size
     attributes:
       label: Size
-      description: "Complexity for an AI coding agent, not a human day estimate. L should become a milestone with sub-issues."
+      description: 'Complexity for an AI coding agent, not a human day estimate. L should become a milestone with sub-issues.'
       options:
-        - "S — fits one short session (<30min context)"
-        - "M — fits one medium session (1-2h), simple cross-layer feature"
-        - "L — multi-session / squad with human gates; split into sub-issues"
+        - 'S — fits one short session (<30min context)'
+        - 'M — fits one medium session (1-2h), simple cross-layer feature'
+        - 'L — multi-session / squad with human gates; split into sub-issues'
     validations:
       required: true
 
@@ -28,7 +28,7 @@ body:
     attributes:
       label: Parent / sub-issues
       description: Milestone or related issue references, or "none".
-      placeholder: "none"
+      placeholder: 'none'
     validations:
       required: false
 

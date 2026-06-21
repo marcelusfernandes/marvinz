@@ -41,11 +41,7 @@ export function InputDialog({
 
   return (
     <div className="modal-backdrop" onMouseDown={onCancel}>
-      <form
-        className="modal"
-        onSubmit={handleSubmit}
-        onMouseDown={(e) => e.stopPropagation()}
-      >
+      <form className="modal" onSubmit={handleSubmit} onMouseDown={(e) => e.stopPropagation()}>
         <h3 className="modal-title">{title}</h3>
         <input
           ref={inputRef}
@@ -58,11 +54,7 @@ export function InputDialog({
           <button type="button" className="modal-btn ghost" onClick={onCancel}>
             Cancel
           </button>
-          <button
-            type="submit"
-            className="modal-btn primary"
-            disabled={!value.trim()}
-          >
+          <button type="submit" className="modal-btn primary" disabled={!value.trim()}>
             {submitLabel}
           </button>
         </div>

@@ -16,7 +16,12 @@ import os from 'node:os'
 import { execSync } from 'node:child_process'
 
 const rgAvailable = (() => {
-  try { execSync('rg --version', { stdio: 'ignore' }); return true } catch { return false }
+  try {
+    execSync('rg --version', { stdio: 'ignore' })
+    return true
+  } catch {
+    return false
+  }
 })()
 
 import { searchContent, type ContentHit } from '../search-content.js'
@@ -34,18 +39,14 @@ async function setup(): Promise<void> {
   await fs.writeFile(
     path.join(vault, 'docker-notes.md'),
     '# Docker\n\nUse docker compose up to start services.\nAlso postgres is great.\n',
-    'utf8',
+    'utf8'
   )
   await fs.writeFile(
     path.join(vault, 'meeting-notes-2026-01-15.md'),
     '# Meeting\n\nDiscussed docker compose and kubernetes.\nAction items pending.\n',
-    'utf8',
+    'utf8'
   )
-  await fs.writeFile(
-    path.join(vault, 'random.md'),
-    '# Random\n\nNothing relevant here.\n',
-    'utf8',
-  )
+  await fs.writeFile(path.join(vault, 'random.md'), '# Random\n\nNothing relevant here.\n', 'utf8')
 }
 
 async function teardown(): Promise<void> {
@@ -144,7 +145,7 @@ describe.skipIf(!rgAvailable)('searchContent — result limit: max 50 hits', () 
       await fs.writeFile(
         path.join(vault, `note-${i}.md`),
         `# Note ${i}\n\nkeyword match here\n`,
-        'utf8',
+        'utf8'
       )
     }
   })
@@ -192,20 +193,12 @@ describe.skipIf(!rgAvailable)('searchContent — lineText: trimmed match line co
     await fs.writeFile(
       path.join(vault, 'code.md'),
       '# Code\n\nline 1\nline 2\nfunction foo() { /* hello */ }\nline 6\n',
-      'utf8',
+      'utf8'
     )
-    await fs.writeFile(
-      path.join(vault, 'indented.md'),
-      '# Indented\n\n    const x = 1\n',
-      'utf8',
-    )
+    await fs.writeFile(path.join(vault, 'indented.md'), '# Indented\n\n    const x = 1\n', 'utf8')
     // 201 'a' chars + the query word so the line exceeds 200 chars
     const longLine = 'a'.repeat(201) + ' needle'
-    await fs.writeFile(
-      path.join(vault, 'long.md'),
-      `# Long\n\n${longLine}\n`,
-      'utf8',
-    )
+    await fs.writeFile(path.join(vault, 'long.md'), `# Long\n\n${longLine}\n`, 'utf8')
   })
   afterEach(teardown)
 
@@ -240,82 +233,81 @@ describe.skipIf(!rgAvailable)('searchContent — lineText: trimmed match line co
 // matchRanges — char offsets into lineText for highlight
 // ---------------------------------------------------------------------------
 
-describe.skipIf(!rgAvailable)('searchContent — matchRanges: highlight offsets into lineText', () => {
-  beforeEach(async () => {
-    const raw = await fs.mkdtemp(path.join(os.tmpdir(), 'marvin-search-ranges-'))
-    vault = await fs.realpath(raw)
+describe.skipIf(!rgAvailable)(
+  'searchContent — matchRanges: highlight offsets into lineText',
+  () => {
+    beforeEach(async () => {
+      const raw = await fs.mkdtemp(path.join(os.tmpdir(), 'marvin-search-ranges-'))
+      vault = await fs.realpath(raw)
 
-    // "hello" at char 10–15 in "greetings hello world"
-    await fs.writeFile(
-      path.join(vault, 'single.md'),
-      '# Single\n\ngreetings hello world\n',
-      'utf8',
-    )
-    // "hello" twice: "hello world hello again" — offsets 0–5 and 12–17
-    await fs.writeFile(
-      path.join(vault, 'multi.md'),
-      '# Multi\n\nhello world hello again\n',
-      'utf8',
-    )
-    // 4-space indent: "    hello there" — raw offset of 'h' is 4, trimmed offset is 0
-    await fs.writeFile(
-      path.join(vault, 'indented.md'),
-      '# Indented\n\n    hello there\n',
-      'utf8',
-    )
-    // 210 'x' chars + " needle" — match starts at char 211, past the 200-char truncation
-    await fs.writeFile(
-      path.join(vault, 'long.md'),
-      `# Long\n\n${'x'.repeat(210)} needle\n`,
-      'utf8',
-    )
-  })
-  afterEach(teardown)
+      // "hello" at char 10–15 in "greetings hello world"
+      await fs.writeFile(
+        path.join(vault, 'single.md'),
+        '# Single\n\ngreetings hello world\n',
+        'utf8'
+      )
+      // "hello" twice: "hello world hello again" — offsets 0–5 and 12–17
+      await fs.writeFile(
+        path.join(vault, 'multi.md'),
+        '# Multi\n\nhello world hello again\n',
+        'utf8'
+      )
+      // 4-space indent: "    hello there" — raw offset of 'h' is 4, trimmed offset is 0
+      await fs.writeFile(path.join(vault, 'indented.md'), '# Indented\n\n    hello there\n', 'utf8')
+      // 210 'x' chars + " needle" — match starts at char 211, past the 200-char truncation
+      await fs.writeFile(
+        path.join(vault, 'long.md'),
+        `# Long\n\n${'x'.repeat(210)} needle\n`,
+        'utf8'
+      )
+    })
+    afterEach(teardown)
 
-  it('single match in middle of line → 1 range with correct start/end into lineText', async () => {
-    const result = await searchContent(vault, 'hello')
-    const hits = result as ContentHit[]
-    const hit = hits.find((h) => h.name === 'single.md')
-    expect(hit).toBeTruthy()
-    expect(hit!.matchRanges).toHaveLength(1)
-    const [r] = hit!.matchRanges
-    expect(r.start).toBe(10)
-    expect(r.end).toBe(15)
-    expect(hit!.lineText.slice(r.start, r.end)).toBe('hello')
-  })
+    it('single match in middle of line → 1 range with correct start/end into lineText', async () => {
+      const result = await searchContent(vault, 'hello')
+      const hits = result as ContentHit[]
+      const hit = hits.find((h) => h.name === 'single.md')
+      expect(hit).toBeTruthy()
+      expect(hit!.matchRanges).toHaveLength(1)
+      const [r] = hit!.matchRanges
+      expect(r.start).toBe(10)
+      expect(r.end).toBe(15)
+      expect(hit!.lineText.slice(r.start, r.end)).toBe('hello')
+    })
 
-  it('multiple matches in same line → 2+ ranges, each slices to the matched word', async () => {
-    const result = await searchContent(vault, 'hello')
-    const hits = result as ContentHit[]
-    const hit = hits.find((h) => h.name === 'multi.md')
-    expect(hit).toBeTruthy()
-    expect(hit!.matchRanges.length).toBeGreaterThanOrEqual(2)
-    for (const r of hit!.matchRanges) {
-      expect(hit!.lineText.slice(r.start, r.end).toLowerCase()).toBe('hello')
-    }
-  })
+    it('multiple matches in same line → 2+ ranges, each slices to the matched word', async () => {
+      const result = await searchContent(vault, 'hello')
+      const hits = result as ContentHit[]
+      const hit = hits.find((h) => h.name === 'multi.md')
+      expect(hit).toBeTruthy()
+      expect(hit!.matchRanges.length).toBeGreaterThanOrEqual(2)
+      for (const r of hit!.matchRanges) {
+        expect(hit!.lineText.slice(r.start, r.end).toLowerCase()).toBe('hello')
+      }
+    })
 
-  it('leading whitespace trim → ranges shifted so start aligns with trimmed lineText', async () => {
-    const result = await searchContent(vault, 'hello')
-    const hits = result as ContentHit[]
-    const hit = hits.find((h) => h.name === 'indented.md')
-    expect(hit).toBeTruthy()
-    expect(hit!.lineText).toBe('hello there')
-    expect(hit!.matchRanges).toHaveLength(1)
-    expect(hit!.matchRanges[0].start).toBe(0)
-    expect(hit!.matchRanges[0].end).toBe(5)
-    expect(hit!.lineText.slice(0, 5)).toBe('hello')
-  })
+    it('leading whitespace trim → ranges shifted so start aligns with trimmed lineText', async () => {
+      const result = await searchContent(vault, 'hello')
+      const hits = result as ContentHit[]
+      const hit = hits.find((h) => h.name === 'indented.md')
+      expect(hit).toBeTruthy()
+      expect(hit!.lineText).toBe('hello there')
+      expect(hit!.matchRanges).toHaveLength(1)
+      expect(hit!.matchRanges[0].start).toBe(0)
+      expect(hit!.matchRanges[0].end).toBe(5)
+      expect(hit!.lineText.slice(0, 5)).toBe('hello')
+    })
 
-  it('match starting at char >= 200 on truncated line → range dropped', async () => {
-    const result = await searchContent(vault, 'needle')
-    const hits = result as ContentHit[]
-    const hit = hits.find((h) => h.name === 'long.md')
-    expect(hit).toBeTruthy()
-    expect(hit!.lineText.endsWith('…')).toBe(true)
-    expect(hit!.matchRanges).toHaveLength(0)
-  })
-})
+    it('match starting at char >= 200 on truncated line → range dropped', async () => {
+      const result = await searchContent(vault, 'needle')
+      const hits = result as ContentHit[]
+      const hit = hits.find((h) => h.name === 'long.md')
+      expect(hit).toBeTruthy()
+      expect(hit!.lineText.endsWith('…')).toBe(true)
+      expect(hit!.matchRanges).toHaveLength(0)
+    })
+  }
+)
 
 // ---------------------------------------------------------------------------
 // Unavailable: rg not found

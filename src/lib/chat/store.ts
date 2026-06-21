@@ -43,11 +43,7 @@ type ChatStore = {
   setPermissionMode: (sid: SessionId, mode: PermissionMode) => void
 }
 
-function emptySession(
-  id: SessionId,
-  agentId: Provider,
-  vaultPath: string,
-): Session {
+function emptySession(id: SessionId, agentId: Provider, vaultPath: string): Session {
   return {
     id,
     agentId,
@@ -65,7 +61,7 @@ function emptySession(
 function withSession(
   state: { sessions: Record<SessionId, Session> },
   sid: SessionId,
-  update: (s: Session) => Session,
+  update: (s: Session) => Session
 ): Partial<ChatStore> {
   const current = state.sessions[sid]
   if (!current) return {}
@@ -82,12 +78,10 @@ function appendBlock(msg: Message, block: AssistantBlock): Message {
 function updateToolBlock(
   msg: Message,
   toolUseId: ToolCallId,
-  patch: (b: Extract<AssistantBlock, { kind: 'tool_use' }>) => AssistantBlock,
+  patch: (b: Extract<AssistantBlock, { kind: 'tool_use' }>) => AssistantBlock
 ): Message {
   if (msg.role !== 'assistant') return msg
-  const idx = msg.blocks.findIndex(
-    (b) => b.kind === 'tool_use' && b.id === toolUseId,
-  )
+  const idx = msg.blocks.findIndex((b) => b.kind === 'tool_use' && b.id === toolUseId)
   if (idx === -1) return msg
   const block = msg.blocks[idx]
   if (block.kind !== 'tool_use') return msg
@@ -106,7 +100,7 @@ function updateToolBlock(
 function backfillUserTurnId(
   ordering: MessageId[],
   messages: Record<MessageId, Message>,
-  turnId: string,
+  turnId: string
 ): Record<MessageId, Message> {
   for (let i = ordering.length - 1; i >= 0; i--) {
     const mid = ordering[i]
@@ -139,9 +133,7 @@ export const useChatStore = create<ChatStore>((set) => ({
       const rest = { ...state.sessions }
       delete rest[id]
       const nextActive =
-        state.activeSessionId === id
-          ? (Object.keys(rest)[0] ?? null)
-          : state.activeSessionId
+        state.activeSessionId === id ? (Object.keys(rest)[0] ?? null) : state.activeSessionId
       return { sessions: rest, activeSessionId: nextActive }
     }),
 
@@ -163,7 +155,7 @@ export const useChatStore = create<ChatStore>((set) => ({
         },
         ordering: [...s.ordering, messageId],
         turnState: 'streaming',
-      })),
+      }))
     )
     return messageId
   },
@@ -176,7 +168,7 @@ export const useChatStore = create<ChatStore>((set) => ({
         ev.messageId,
         ev.type === 'text-delta' ? 'text' : 'thinking',
         ev.delta,
-        ev.seq,
+        ev.seq
       )
       return
     }
@@ -196,7 +188,7 @@ export const useChatStore = create<ChatStore>((set) => ({
           const m = messages[mid]
           if (!m || m.role !== 'assistant') continue
           const next = updateToolBlock(m, toolCallId, (b) =>
-            b.status === 'pending_approval' ? { ...b, status: nextStatus } : b,
+            b.status === 'pending_approval' ? { ...b, status: nextStatus } : b
           )
           if (next !== m) {
             messages[mid] = next
@@ -204,25 +196,21 @@ export const useChatStore = create<ChatStore>((set) => ({
           }
         }
         if (!changed) return s
-        const pendingApprovals = s.pendingApprovals.filter(
-          (id) => id !== toolCallId,
-        )
+        const pendingApprovals = s.pendingApprovals.filter((id) => id !== toolCallId)
         return {
           ...s,
           messages,
           pendingApprovals,
           turnState: pendingApprovals.length === 0 ? 'streaming' : s.turnState,
         }
-      }),
+      })
     ),
 
   setComposerDraft: (sid, draft) =>
     set((state) =>
       withSession(state, sid, (s) =>
-        s.composer.draft === draft
-          ? s
-          : { ...s, composer: { ...s.composer, draft } },
-      ),
+        s.composer.draft === draft ? s : { ...s, composer: { ...s.composer, draft } }
+      )
     ),
 
   setComposerMentions: (sid, mentions) =>
@@ -230,14 +218,14 @@ export const useChatStore = create<ChatStore>((set) => ({
       withSession(state, sid, (s) => ({
         ...s,
         composer: { ...s.composer, mentions },
-      })),
+      }))
     ),
 
   setPermissionMode: (sid, mode) =>
     set((state) =>
       withSession(state, sid, (s) =>
-        s.permissionMode === mode ? s : { ...s, permissionMode: mode },
-      ),
+        s.permissionMode === mode ? s : { ...s, permissionMode: mode }
+      )
     ),
 }))
 
@@ -246,9 +234,7 @@ export const useChatStore = create<ChatStore>((set) => ({
 function applyEvent(s: Session, ev: ChatStreamEvent): Session {
   switch (ev.type) {
     case 'session-init':
-      return s.cliSessionId === ev.cliSessionId
-        ? s
-        : { ...s, cliSessionId: ev.cliSessionId }
+      return s.cliSessionId === ev.cliSessionId ? s : { ...s, cliSessionId: ev.cliSessionId }
 
     case 'message-start': {
       if (ev.role !== 'assistant') return s
@@ -306,10 +292,7 @@ function applyEvent(s: Session, ev: ChatStreamEvent): Session {
           status: ev.isError ? 'error' : 'ok',
           result: ev.output,
           durationMs: ev.durationMs,
-          errorMessage:
-            ev.isError && typeof ev.output === 'string'
-              ? ev.output
-              : b.errorMessage,
+          errorMessage: ev.isError && typeof ev.output === 'string' ? ev.output : b.errorMessage,
         }))
         if (next !== m) {
           messages[mid] = next
@@ -325,11 +308,8 @@ function applyEvent(s: Session, ev: ChatStreamEvent): Session {
       const lastId = s.ordering[s.ordering.length - 1]
       const last = lastId ? s.messages[lastId] : undefined
       if (!last || last.role !== 'assistant') return s
-      const deadline =
-        typeof ev.timeoutMs === 'number' ? Date.now() + ev.timeoutMs : undefined
-      const existing = last.blocks.find(
-        (b) => b.kind === 'tool_use' && b.id === ev.toolUseId,
-      )
+      const deadline = typeof ev.timeoutMs === 'number' ? Date.now() + ev.timeoutMs : undefined
+      const existing = last.blocks.find((b) => b.kind === 'tool_use' && b.id === ev.toolUseId)
       const updated = existing
         ? updateToolBlock(last, ev.toolUseId, (b) =>
             b.status === 'pending_approval' &&
@@ -343,7 +323,7 @@ function applyEvent(s: Session, ev: ChatStreamEvent): Session {
                   approvalDeadlineAt: deadline,
                   snapshotSaved: ev.snapshotSaved,
                   snapshotTurnId: ev.snapshotTurnId,
-                },
+                }
           )
         : appendBlock(last, {
             kind: 'tool_use',
@@ -405,12 +385,8 @@ function applyEvent(s: Session, ev: ChatStreamEvent): Session {
         tokenUsage: {
           inputTokens: s.tokenUsage.inputTokens + ev.usage.inputTokens,
           outputTokens: s.tokenUsage.outputTokens + ev.usage.outputTokens,
-          cacheReadTokens:
-            (s.tokenUsage.cacheReadTokens ?? 0) +
-            (ev.usage.cacheReadTokens ?? 0),
-          cacheWriteTokens:
-            (s.tokenUsage.cacheWriteTokens ?? 0) +
-            (ev.usage.cacheWriteTokens ?? 0),
+          cacheReadTokens: (s.tokenUsage.cacheReadTokens ?? 0) + (ev.usage.cacheReadTokens ?? 0),
+          cacheWriteTokens: (s.tokenUsage.cacheWriteTokens ?? 0) + (ev.usage.cacheWriteTokens ?? 0),
         },
         turnState: s.pendingApprovals.length > 0 ? 'awaiting_approval' : 'idle',
       }
@@ -472,11 +448,7 @@ export function resetStreamingBuffers() {
   }
 }
 
-function keyOf(
-  sid: SessionId,
-  mid: MessageId,
-  kind: DeltaKind,
-): DeltaKey {
+function keyOf(sid: SessionId, mid: MessageId, kind: DeltaKind): DeltaKey {
   return `${sid}:${mid}:${kind}` as DeltaKey
 }
 
@@ -485,7 +457,7 @@ function pushStreamDelta(
   mid: MessageId,
   kind: DeltaKind,
   delta: string,
-  seq: number,
+  seq: number
 ) {
   const key = keyOf(sid, mid, kind)
   const lastApplied = appliedSeq.get(key)
@@ -535,9 +507,7 @@ export function flushPendingDeltas() {
       const m = s.messages[d.messageId]
       if (!m || m.role !== 'assistant') continue
       const existingIdx = m.blocks.findIndex(
-        (b) =>
-          (b.kind === 'text' || b.kind === 'thinking') &&
-          b.id === d.blockId,
+        (b) => (b.kind === 'text' || b.kind === 'thinking') && b.id === d.blockId
       )
       let nextMsg: AssistantMessage
       if (existingIdx === -1) {

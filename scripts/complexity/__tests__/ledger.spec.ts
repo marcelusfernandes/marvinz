@@ -54,11 +54,11 @@ describe('calibrationPairs', () => {
   it('exclui pares de harness_version divergente (§1.5)', () => {
     appendPrediction(
       PredictionVector.parse(makePrediction({ issue_id: '101', harness_version: 'model+aaaaaaa' })),
-      root,
+      root
     )
     appendOutcome(
       OutcomeRecord.parse(makeOutcome({ issue_id: '101', harness_version: 'model+bbbbbbb' })),
-      root,
+      root
     )
     expect(calibrationPairs(root)).toEqual([])
   })
@@ -66,11 +66,11 @@ describe('calibrationPairs', () => {
   it('last-write-wins por issue_id', () => {
     appendPrediction(
       PredictionVector.parse(makePrediction({ issue_id: '102', predicted_size: 'low' })),
-      root,
+      root
     )
     appendPrediction(
       PredictionVector.parse(makePrediction({ issue_id: '102', predicted_size: 'high' })),
-      root,
+      root
     )
     appendOutcome(OutcomeRecord.parse(makeOutcome({ issue_id: '102' })), root)
     const pairs = calibrationPairs(root)

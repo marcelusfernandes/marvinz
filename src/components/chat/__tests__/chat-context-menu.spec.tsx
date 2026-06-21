@@ -36,14 +36,13 @@ const getSessionsMock = vi.fn().mockReturnValue({})
 
 vi.mock('../../../lib/chat/store', () => ({
   useChatStore: Object.assign(
-    (selector: (s: { sessions: Record<string, unknown> }) => unknown) =>
-      selector({ sessions: {} }),
+    (selector: (s: { sessions: Record<string, unknown> }) => unknown) => selector({ sessions: {} }),
     {
       getState: () => ({
         sessions: getSessionsMock(),
         setComposerDraft: setComposerDraftMock,
       }),
-    },
+    }
   ),
 }))
 
@@ -116,7 +115,7 @@ afterEach(() => {
 describe('UserBubble — context menu IPC payload', () => {
   it('calls showContextMenu once on right-click', async () => {
     const { container } = render(
-      <UserBubble text="Hello" turnId="t1" onRewind={() => {}} sessionId="s1" />,
+      <UserBubble text="Hello" turnId="t1" onRewind={() => {}} sessionId="s1" />
     )
     await act(async () => {
       fireEvent.contextMenu(container.querySelector('.chat-bubble-user')!)
@@ -127,7 +126,7 @@ describe('UserBubble — context menu IPC payload', () => {
 
   it('first item is copy with id "copy"', async () => {
     const { container } = render(
-      <UserBubble text="Hello" turnId="t1" onRewind={() => {}} sessionId="s1" />,
+      <UserBubble text="Hello" turnId="t1" onRewind={() => {}} sessionId="s1" />
     )
     await act(async () => {
       fireEvent.contextMenu(container.querySelector('.chat-bubble-user')!)
@@ -140,7 +139,7 @@ describe('UserBubble — context menu IPC payload', () => {
 
   it('second item is quote with id "quote"', async () => {
     const { container } = render(
-      <UserBubble text="Hello" turnId="t1" onRewind={() => {}} sessionId="s1" />,
+      <UserBubble text="Hello" turnId="t1" onRewind={() => {}} sessionId="s1" />
     )
     await act(async () => {
       fireEvent.contextMenu(container.querySelector('.chat-bubble-user')!)
@@ -153,7 +152,7 @@ describe('UserBubble — context menu IPC payload', () => {
 
   it('third item is a separator', async () => {
     const { container } = render(
-      <UserBubble text="Hello" turnId="t1" onRewind={() => {}} sessionId="s1" />,
+      <UserBubble text="Hello" turnId="t1" onRewind={() => {}} sessionId="s1" />
     )
     await act(async () => {
       fireEvent.contextMenu(container.querySelector('.chat-bubble-user')!)
@@ -164,7 +163,7 @@ describe('UserBubble — context menu IPC payload', () => {
 
   it('fourth item is rewind with id "rewind"', async () => {
     const { container } = render(
-      <UserBubble text="Hello" turnId="t1" onRewind={() => {}} sessionId="s1" />,
+      <UserBubble text="Hello" turnId="t1" onRewind={() => {}} sessionId="s1" />
     )
     await act(async () => {
       fireEvent.contextMenu(container.querySelector('.chat-bubble-user')!)
@@ -177,7 +176,7 @@ describe('UserBubble — context menu IPC payload', () => {
 
   it('rewind item is enabled when turnId and onRewind are provided', async () => {
     const { container } = render(
-      <UserBubble text="Hello" turnId="t1" onRewind={() => {}} sessionId="s1" />,
+      <UserBubble text="Hello" turnId="t1" onRewind={() => {}} sessionId="s1" />
     )
     await act(async () => {
       fireEvent.contextMenu(container.querySelector('.chat-bubble-user')!)
@@ -265,9 +264,7 @@ describe('UserBubble — quote action', () => {
     vi.spyOn(window, 'getSelection').mockReturnValue({ toString: () => '' } as Selection)
     showContextMenuMock.mockResolvedValue('quote')
     getSessionsMock.mockReturnValue({ s1: { composer: { draft: '' } } })
-    const { container } = render(
-      <UserBubble text="Hello world" sessionId="s1" />,
-    )
+    const { container } = render(<UserBubble text="Hello world" sessionId="s1" />)
     await act(async () => {
       fireEvent.contextMenu(container.querySelector('.chat-bubble-user')!)
       await new Promise((r) => setTimeout(r, 30))
@@ -279,9 +276,7 @@ describe('UserBubble — quote action', () => {
     vi.spyOn(window, 'getSelection').mockReturnValue({ toString: () => '' } as Selection)
     showContextMenuMock.mockResolvedValue('quote')
     getSessionsMock.mockReturnValue({ s1: { composer: { draft: 'existing' } } })
-    const { container } = render(
-      <UserBubble text="Hello" sessionId="s1" />,
-    )
+    const { container } = render(<UserBubble text="Hello" sessionId="s1" />)
     await act(async () => {
       fireEvent.contextMenu(container.querySelector('.chat-bubble-user')!)
       await new Promise((r) => setTimeout(r, 30))
@@ -296,7 +291,7 @@ describe('UserBubble — rewind action', () => {
     showContextMenuMock.mockResolvedValue('rewind')
     const onRewind = vi.fn()
     const { container } = render(
-      <UserBubble text="Hello" turnId="turn-abc" onRewind={onRewind} sessionId="s1" />,
+      <UserBubble text="Hello" turnId="turn-abc" onRewind={onRewind} sessionId="s1" />
     )
     await act(async () => {
       fireEvent.contextMenu(container.querySelector('.chat-bubble-user')!)
@@ -313,7 +308,7 @@ describe('UserBubble — rewind action', () => {
 describe('AssistantMessageCard — context menu IPC payload', () => {
   it('calls showContextMenu once on right-click', async () => {
     const { container } = render(
-      <AssistantMessageCard sessionId="s1" message={fakeAssistantMessage()} />,
+      <AssistantMessageCard sessionId="s1" message={fakeAssistantMessage()} />
     )
     await act(async () => {
       fireEvent.contextMenu(container.querySelector('.chat-timeline')!)
@@ -324,7 +319,7 @@ describe('AssistantMessageCard — context menu IPC payload', () => {
 
   it('sends 4 items (copy, quote, separator, rewind)', async () => {
     const { container } = render(
-      <AssistantMessageCard sessionId="s1" message={fakeAssistantMessage()} />,
+      <AssistantMessageCard sessionId="s1" message={fakeAssistantMessage()} />
     )
     await act(async () => {
       fireEvent.contextMenu(container.querySelector('.chat-timeline')!)
@@ -335,7 +330,7 @@ describe('AssistantMessageCard — context menu IPC payload', () => {
 
   it('rewind item is always disabled for assistant messages', async () => {
     const { container } = render(
-      <AssistantMessageCard sessionId="s1" message={fakeAssistantMessage()} />,
+      <AssistantMessageCard sessionId="s1" message={fakeAssistantMessage()} />
     )
     await act(async () => {
       fireEvent.contextMenu(container.querySelector('.chat-timeline')!)
@@ -355,7 +350,7 @@ describe('AssistantMessageCard — copy label', () => {
   it('label is "Copy Message" when no selection', async () => {
     vi.spyOn(window, 'getSelection').mockReturnValue({ toString: () => '' } as Selection)
     const { container } = render(
-      <AssistantMessageCard sessionId="s1" message={fakeAssistantMessage()} />,
+      <AssistantMessageCard sessionId="s1" message={fakeAssistantMessage()} />
     )
     await act(async () => {
       fireEvent.contextMenu(container.querySelector('.chat-timeline')!)
@@ -370,7 +365,7 @@ describe('AssistantMessageCard — copy label', () => {
       toString: () => 'some text',
     } as Selection)
     const { container } = render(
-      <AssistantMessageCard sessionId="s1" message={fakeAssistantMessage()} />,
+      <AssistantMessageCard sessionId="s1" message={fakeAssistantMessage()} />
     )
     await act(async () => {
       fireEvent.contextMenu(container.querySelector('.chat-timeline')!)
@@ -390,10 +385,7 @@ describe('AssistantMessageCard — copy action', () => {
     vi.spyOn(window, 'getSelection').mockReturnValue({ toString: () => '' } as Selection)
     showContextMenuMock.mockResolvedValue('copy')
     const { container } = render(
-      <AssistantMessageCard
-        sessionId="s1"
-        message={fakeAssistantMessage('assistant text')}
-      />,
+      <AssistantMessageCard sessionId="s1" message={fakeAssistantMessage('assistant text')} />
     )
     await act(async () => {
       fireEvent.contextMenu(container.querySelector('.chat-timeline')!)
@@ -409,7 +401,7 @@ describe('AssistantMessageCard — quote action', () => {
     showContextMenuMock.mockResolvedValue('quote')
     getSessionsMock.mockReturnValue({ s1: { composer: { draft: '' } } })
     const { container } = render(
-      <AssistantMessageCard sessionId="s1" message={fakeAssistantMessage('Hi there')} />,
+      <AssistantMessageCard sessionId="s1" message={fakeAssistantMessage('Hi there')} />
     )
     await act(async () => {
       fireEvent.contextMenu(container.querySelector('.chat-timeline')!)

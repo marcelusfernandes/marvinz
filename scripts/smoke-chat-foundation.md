@@ -43,6 +43,7 @@ Switch to the **Console** tab.
 Paste the entire contents of `scripts/smoke-chat-foundation.js` into the console and press Enter.
 
 You should see:
+
 ```
 Smoke test functions loaded. Run:
   await smokeSimpleText()  — text-only response
@@ -58,6 +59,7 @@ await smokeSimpleText()
 ```
 
 **Expected output:**
+
 ```
 === SMOKE: simple text response ===
 [EVENT] session-init {"type":"session-init","sessionId":"smoke-text-...","cliSessionId":"<uuid>","model":"claude-opus-4-7[1m]","cwd":"/tmp",...}
@@ -85,6 +87,7 @@ Summary: session-init → message-start → text-delta → message-end → turn-
 ```
 
 **Acceptance criteria:**
+
 - `session-init` fires first with a non-empty `cliSessionId` and `model`
 - One or more `text-delta` events with strictly increasing `seq` values
 - `message-end` with `stopReason: "end_turn"`
@@ -97,6 +100,7 @@ await smokeToolUse()
 ```
 
 **Expected output:**
+
 ```
 === SMOKE: tool use (Read) ===
 [EVENT] session-init {...}
@@ -120,6 +124,7 @@ await smokeToolUse()
 ```
 
 **Acceptance criteria:**
+
 - `tool-use` event has non-empty `toolUseId` and `name`
 - `tool-result` event has matching `toolUseId`
 - Full turn completes with `turn-result`
@@ -131,6 +136,7 @@ await smokeCancel()
 ```
 
 **Expected output:**
+
 ```
 === SMOKE: cancel mid-stream ===
 [EVENT] session-init {...}
@@ -144,6 +150,7 @@ await smokeCancel()
 ```
 
 **Acceptance criteria:**
+
 - `cancel` request returns `{ok: true}`
 - Streaming stops within ~2 seconds of cancel (SIGINT sent to child)
 - A second cancel on the same (already stopped) sessionId returns `{ok: true}` without error
@@ -158,13 +165,13 @@ Should print `=== ALL SMOKE TESTS PASSED ===` at the end.
 
 ## Troubleshooting
 
-| Symptom | Likely cause | Fix |
-|---|---|---|
-| `AGENT_NOT_FOUND` error event | `claude` binary not in PATH | Run `which claude` in terminal; ensure `~/.local/bin` is in PATH |
-| No `session-init` after 15s | Spawn failed silently | Check `~/.marvin/logs/agent-<sessionId>.log` for stderr |
-| No `text-delta` events | `--include-partial-messages` flag missing | Verify `index.ts` passes the flag to `buildClaudeArgs` |
-| `AGENT_INVALID_STREAM` error | Malformed NDJSON line | Check log file; 3 consecutive malformed lines → `onFatal` → `crashed` event |
-| text-delta count doubles | Double-emission bug | Verify `streamedMessageIds` is used in adapter; `stream_event` and `assistant` should not both emit content |
+| Symptom                       | Likely cause                              | Fix                                                                                                         |
+| ----------------------------- | ----------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `AGENT_NOT_FOUND` error event | `claude` binary not in PATH               | Run `which claude` in terminal; ensure `~/.local/bin` is in PATH                                            |
+| No `session-init` after 15s   | Spawn failed silently                     | Check `~/.marvin/logs/agent-<sessionId>.log` for stderr                                                     |
+| No `text-delta` events        | `--include-partial-messages` flag missing | Verify `index.ts` passes the flag to `buildClaudeArgs`                                                      |
+| `AGENT_INVALID_STREAM` error  | Malformed NDJSON line                     | Check log file; 3 consecutive malformed lines → `onFatal` → `crashed` event                                 |
+| text-delta count doubles      | Double-emission bug                       | Verify `streamedMessageIds` is used in adapter; `stream_event` and `assistant` should not both emit content |
 
 ## Actual event sequence (captured from real CLI run)
 

@@ -48,10 +48,10 @@ describe('resolveAppFindShortcut', () => {
   })
 
   it('returns "replace" for Cmd+Alt+F', () => {
-    const result = resolveAppFindShortcut(
-      makeEvent({ metaKey: true, altKey: true, key: 'f' }),
-      { modalOpen: false, activeMarkdownPath: '/vault/note.md' },
-    )
+    const result = resolveAppFindShortcut(makeEvent({ metaKey: true, altKey: true, key: 'f' }), {
+      modalOpen: false,
+      activeMarkdownPath: '/vault/note.md',
+    })
     expect(result).toBe('replace')
   })
 
@@ -80,10 +80,10 @@ describe('resolveAppFindShortcut', () => {
   })
 
   it('returns null when Shift is pressed (avoids stealing Cmd+Shift+F bindings)', () => {
-    const result = resolveAppFindShortcut(
-      makeEvent({ metaKey: true, shiftKey: true, key: 'f' }),
-      { modalOpen: false, activeMarkdownPath: '/vault/note.md' },
-    )
+    const result = resolveAppFindShortcut(makeEvent({ metaKey: true, shiftKey: true, key: 'f' }), {
+      modalOpen: false,
+      activeMarkdownPath: '/vault/note.md',
+    })
     expect(result).toBeNull()
   })
 
@@ -110,10 +110,10 @@ describe('resolveAppFindShortcut', () => {
     const inner = document.createElement('div')
     editor.appendChild(inner)
     document.body.appendChild(editor)
-    const result = resolveAppFindShortcut(
-      makeEvent({ metaKey: true, key: 'f', target: inner }),
-      { modalOpen: false, activeMarkdownPath: '/vault/note.md' },
-    )
+    const result = resolveAppFindShortcut(makeEvent({ metaKey: true, key: 'f', target: inner }), {
+      modalOpen: false,
+      activeMarkdownPath: '/vault/note.md',
+    })
     expect(result).toBeNull()
     document.body.removeChild(editor)
   })
@@ -122,10 +122,10 @@ describe('resolveAppFindShortcut', () => {
     const sidebar = document.createElement('div')
     sidebar.className = 'sidebar'
     document.body.appendChild(sidebar)
-    const result = resolveAppFindShortcut(
-      makeEvent({ metaKey: true, key: 'f', target: sidebar }),
-      { modalOpen: false, activeMarkdownPath: '/vault/note.md' },
-    )
+    const result = resolveAppFindShortcut(makeEvent({ metaKey: true, key: 'f', target: sidebar }), {
+      modalOpen: false,
+      activeMarkdownPath: '/vault/note.md',
+    })
     expect(result).toBe('find')
     document.body.removeChild(sidebar)
   })

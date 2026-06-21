@@ -1,0 +1,23 @@
+# Build / generated output
+dist/
+dist-electron/
+release/
+build/
+coverage/
+test-results/
+playwright-report/
+
+# Vendored / generated assets (not ours to format)
+src/icons/
+public/material-icons/
+
+# Data files / lockfiles (not source)
+package-lock.json
+_complexity-ledger/
+
+# Tooling docs — may be plugin-managed, kept out of the format sweep
+.claude/
+
+# Local / generated working docs
+.docs/
+droid-wiki/

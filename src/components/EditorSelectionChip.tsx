@@ -27,6 +27,6 @@ export function EditorSelectionChip({ coords, onClick }: Props) {
         Send to agent
       </span>
     </button>,
-    document.body,
+    document.body
   )
 }

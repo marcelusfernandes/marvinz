@@ -50,9 +50,7 @@ describe('createTerminalLinkProvider — provideLinks', () => {
   })
 
   it('includes a trailing :line in the link text', () => {
-    expect(getLinks(fakeTerm(['at electron/main.ts:552 now']))[0].text).toBe(
-      'electron/main.ts:552',
-    )
+    expect(getLinks(fakeTerm(['at electron/main.ts:552 now']))[0].text).toBe('electron/main.ts:552')
   })
 
   it('detects multiple paths on one line', () => {
@@ -65,12 +63,8 @@ describe('createTerminalLinkProvider — provideLinks', () => {
   })
 
   it('matches a bare root-level file with an alphabetic-led extension', () => {
-    expect(getLinks(fakeTerm(['Created testev3.md at root']))[0].text).toBe(
-      'testev3.md',
-    )
-    expect(getLinks(fakeTerm(['see README.md for details']))[0].text).toBe(
-      'README.md',
-    )
+    expect(getLinks(fakeTerm(['Created testev3.md at root']))[0].text).toBe('testev3.md')
+    expect(getLinks(fakeTerm(['see README.md for details']))[0].text).toBe('README.md')
   })
 
   it('does not match version strings or numeric tokens as bare files', () => {
@@ -128,18 +122,14 @@ describe('createTerminalLinkProvider — activate', () => {
 
 describe('resolveOsc8Uri', () => {
   it('resolves a file:// URI inside the vault', () => {
-    expect(resolveOsc8Uri(`file://${VAULT}/teste.md`, VAULT)).toBe(
-      `${VAULT}/teste.md`,
+    expect(resolveOsc8Uri(`file://${VAULT}/teste.md`, VAULT)).toBe(`${VAULT}/teste.md`)
+    expect(resolveOsc8Uri(`file://${VAULT}/knowledge/journal/2026-05-25.md`, VAULT)).toBe(
+      `${VAULT}/knowledge/journal/2026-05-25.md`
     )
-    expect(
-      resolveOsc8Uri(`file://${VAULT}/knowledge/journal/2026-05-25.md`, VAULT),
-    ).toBe(`${VAULT}/knowledge/journal/2026-05-25.md`)
   })
 
   it('decodes percent-encoded characters in file:// URIs', () => {
-    expect(resolveOsc8Uri(`file://${VAULT}/my%20note.md`, VAULT)).toBe(
-      `${VAULT}/my note.md`,
-    )
+    expect(resolveOsc8Uri(`file://${VAULT}/my%20note.md`, VAULT)).toBe(`${VAULT}/my note.md`)
   })
 
   it('resolves a bare relative path', () => {

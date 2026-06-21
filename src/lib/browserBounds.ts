@@ -40,7 +40,7 @@ export function computeViewBounds(el: HTMLElement | null): ViewBounds | null {
 export function computeViewInsets(
   el: HTMLElement | null,
   winW: number,
-  winH: number,
+  winH: number
 ): BrowserViewInsets | null {
   if (!el) return null
   const r = el.getBoundingClientRect()

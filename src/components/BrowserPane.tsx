@@ -80,11 +80,7 @@ export function BrowserPane({
         if (!cancelled) {
           // Register the geometry descriptor right after create so main can
           // recompute bounds on the very first OS window resize.
-          const insets = computeViewInsets(
-            hostRef.current,
-            window.innerWidth,
-            window.innerHeight,
-          )
+          const insets = computeViewInsets(hostRef.current, window.innerWidth, window.innerHeight)
           if (insets) void window.marvin.browser.setGeometry(tab.id, insets)
           onReady(tab.id)
         }
@@ -143,7 +139,7 @@ export function BrowserPane({
           title="Back"
           aria-label="Back"
         >
-          <Icon name="chevron-left"/>
+          <Icon name="chevron-left" />
         </button>
         <button
           type="button"
@@ -153,7 +149,7 @@ export function BrowserPane({
           title="Forward"
           aria-label="Forward"
         >
-          <Icon name="chevron-right"/>
+          <Icon name="chevron-right" />
         </button>
         <button
           type="button"
@@ -166,7 +162,7 @@ export function BrowserPane({
           title={tab.loading ? 'Stop' : 'Reload'}
           aria-label={tab.loading ? 'Stop' : 'Reload'}
         >
-          <Icon name={tab.loading ? 'close' : 'refresh'}/>
+          <Icon name={tab.loading ? 'close' : 'refresh'} />
         </button>
         <input
           ref={urlInputRef}

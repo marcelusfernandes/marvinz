@@ -1,11 +1,4 @@
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  type KeyboardEvent,
-  type ReactNode,
-} from 'react'
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import type { ToolCallId } from '../../lib/chat/types'
 
 export type ApprovalRemember = 'session' | 'always'
@@ -27,7 +20,7 @@ type Props = {
 
 function useRemainingMs(deadlineAt: number | undefined): number | null {
   const [remaining, setRemaining] = useState<number | null>(() =>
-    deadlineAt ? Math.max(0, deadlineAt - Date.now()) : null,
+    deadlineAt ? Math.max(0, deadlineAt - Date.now()) : null
   )
   useEffect(() => {
     if (!deadlineAt) {
@@ -80,18 +73,12 @@ export function ToolApprovalGate({
     allowRef.current?.focus()
   }, [disabled])
 
-  const allow = useCallback(
-    () => onDecide(toolUseId, { kind: 'allow' }),
-    [onDecide, toolUseId],
-  )
+  const allow = useCallback(() => onDecide(toolUseId, { kind: 'allow' }), [onDecide, toolUseId])
   const allowAlways = useCallback(
     () => onDecide(toolUseId, { kind: 'allow', remember: 'session' }),
-    [onDecide, toolUseId],
+    [onDecide, toolUseId]
   )
-  const deny = useCallback(
-    () => onDecide(toolUseId, { kind: 'deny' }),
-    [onDecide, toolUseId],
-  )
+  const deny = useCallback(() => onDecide(toolUseId, { kind: 'deny' }), [onDecide, toolUseId])
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLDivElement>) => {
@@ -101,7 +88,7 @@ export function ToolApprovalGate({
         deny()
       }
     },
-    [deny, disabled],
+    [deny, disabled]
   )
 
   return (
@@ -142,9 +129,7 @@ export function ToolApprovalGate({
       </button>
       {remainingMs != null && (
         <div className="chat-approval-hint" data-role="countdown">
-          {remainingMs > 0
-            ? `Expires in ${formatRemaining(remainingMs)}`
-            : 'Expired'}
+          {remainingMs > 0 ? `Expires in ${formatRemaining(remainingMs)}` : 'Expired'}
         </div>
       )}
       {hint !== undefined && <div className="chat-approval-hint">{hint}</div>}

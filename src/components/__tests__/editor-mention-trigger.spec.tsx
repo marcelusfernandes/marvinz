@@ -24,11 +24,7 @@ import type { PaletteItem } from '../../lib/paletteRanker'
 // Captured mention callbacks + dispatch spy
 // ---------------------------------------------------------------------------
 
-const {
-  capturedMentionCallbacks,
-  capturedExtensions,
-  dispatchSpy,
-} = vi.hoisted(() => {
+const { capturedMentionCallbacks, capturedExtensions, dispatchSpy } = vi.hoisted(() => {
   type MentionCallbacks = {
     onOpen: (from: number, anchor: { x: number; y: number }) => void
     onUpdate: (query: string, anchor: { x: number; y: number }) => void
@@ -115,7 +111,9 @@ vi.mock('@codemirror/search', () => ({
   searchPanelOpen: () => false,
   setSearchQuery: () => {},
   getSearchQuery: () => ({}),
-  SearchQuery: class { constructor() {} },
+  SearchQuery: class {
+    constructor() {}
+  },
 }))
 
 vi.mock('@codemirror/view', () => ({
@@ -193,14 +191,11 @@ const fakeView = {
 
 vi.mock('@uiw/react-codemirror', () => ({
   default: vi.fn(
-    (props: {
-      extensions?: unknown[]
-      onCreateEditor?: (view: typeof fakeView) => void
-    }) => {
+    (props: { extensions?: unknown[]; onCreateEditor?: (view: typeof fakeView) => void }) => {
       capturedExtensions.value = props.extensions ?? []
       props.onCreateEditor?.(fakeView)
       return <div data-testid="codemirror" />
-    },
+    }
   ),
 }))
 
@@ -309,7 +304,9 @@ describe('Editor mention trigger — MentionPicker lifecycle', () => {
     expect(screen.getByTestId('mention-picker')).toBeTruthy()
 
     // Let the setTimeout(0) in the mock flush so pickerCallbacks are set.
-    await act(async () => { await new Promise((r) => setTimeout(r, 0)) })
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0))
+    })
 
     // Select an item — name carries the `.md` extension on purpose so the
     // assertion below proves the insert strips it.
@@ -334,7 +331,7 @@ describe('Editor mention trigger — MentionPicker lifecycle', () => {
           insert: '[[My Note]]',
         }),
         selection: { from: 17, to: 17 },
-      }),
+      })
     )
 
     // Picker should be gone
@@ -350,7 +347,9 @@ describe('Editor mention trigger — MentionPicker lifecycle', () => {
       capturedMentionCallbacks.value!.onOpen(6, { x: 10, y: 20 })
       capturedMentionCallbacks.value!.onUpdate('dia', { x: 15, y: 20 })
     })
-    await act(async () => { await new Promise((r) => setTimeout(r, 0)) })
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0))
+    })
 
     const item = {
       name: 'diagram.png',
@@ -365,7 +364,7 @@ describe('Editor mention trigger — MentionPicker lifecycle', () => {
     expect(dispatchSpy).toHaveBeenCalledWith(
       expect.objectContaining({
         changes: expect.objectContaining({ from: 6, insert: '![[diagram.png]]' }),
-      }),
+      })
     )
   })
 
@@ -378,7 +377,9 @@ describe('Editor mention trigger — MentionPicker lifecycle', () => {
       capturedMentionCallbacks.value!.onOpen(6, { x: 10, y: 20 })
       capturedMentionCallbacks.value!.onUpdate('rep', { x: 15, y: 20 })
     })
-    await act(async () => { await new Promise((r) => setTimeout(r, 0)) })
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0))
+    })
 
     const item = {
       name: 'report.pdf',
@@ -396,7 +397,7 @@ describe('Editor mention trigger — MentionPicker lifecycle', () => {
           from: 6,
           insert: '[report.pdf](docs/report.pdf)',
         }),
-      }),
+      })
     )
   })
 
@@ -414,10 +415,7 @@ describe('Editor mention trigger — MentionPicker lifecycle', () => {
       capturedMentionCallbacks.value!.onOpen(6, { x: 10, y: 20 })
     })
 
-    expect(pickerItems.value.map((it) => it.name)).toEqual([
-      'My Note.md',
-      'diagram.png',
-    ])
+    expect(pickerItems.value.map((it) => it.name)).toEqual(['My Note.md', 'diagram.png'])
   })
 
   it('unmounts picker without modifying document when dismissed', async () => {
@@ -433,7 +431,9 @@ describe('Editor mention trigger — MentionPicker lifecycle', () => {
     expect(screen.getByTestId('mention-picker')).toBeTruthy()
 
     // Let the setTimeout(0) in the mock flush so pickerCallbacks are set.
-    await act(async () => { await new Promise((r) => setTimeout(r, 0)) })
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0))
+    })
 
     // Dismiss
     await act(async () => {

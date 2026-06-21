@@ -1,7 +1,7 @@
 name: Bug report
 description: Report something that is broken or behaving incorrectly
-title: "fix: <short imperative description>"
-labels: ["bug"]
+title: 'fix: <short imperative description>'
+labels: ['bug']
 body:
   - type: markdown
     attributes:
@@ -13,11 +13,11 @@ body:
     id: size
     attributes:
       label: Size
-      description: "Complexity for an AI coding agent, not human day estimate. S = short session, M = 1-2h, L = multi-session / squad."
+      description: 'Complexity for an AI coding agent, not human day estimate. S = short session, M = 1-2h, L = multi-session / squad.'
       options:
-        - "S — surgical fix in 1-2 files"
-        - "M — cross-layer fix with some design decisions"
-        - "L — complex; split into a milestone with sub-issues"
+        - 'S — surgical fix in 1-2 files'
+        - 'M — cross-layer fix with some design decisions'
+        - 'L — complex; split into a milestone with sub-issues'
     validations:
       required: true
 

@@ -25,18 +25,14 @@ describe('ImportToast — state class', () => {
   it.each<ImportToastState>(['success', 'partial', 'error'])(
     'renders with class "%s" when state is "%s"',
     (state) => {
-      const { container } = render(
-        <ImportToast state={state} message="msg" onDismiss={vi.fn()} />,
-      )
+      const { container } = render(<ImportToast state={state} message="msg" onDismiss={vi.fn()} />)
       const el = container.firstElementChild!
       expect(el.classList.contains(state)).toBe(true)
-    },
+    }
   )
 
   it('always renders the base import-toast class', () => {
-    const { container } = render(
-      <ImportToast state="success" message="msg" onDismiss={vi.fn()} />,
-    )
+    const { container } = render(<ImportToast state="success" message="msg" onDismiss={vi.fn()} />)
     expect(container.firstElementChild?.classList.contains('import-toast')).toBe(true)
   })
 })
@@ -48,7 +44,7 @@ describe('ImportToast — state class', () => {
 describe('ImportToast — message', () => {
   it('renders the provided message text', () => {
     const { getByText } = render(
-      <ImportToast state="success" message="3 files imported" onDismiss={vi.fn()} />,
+      <ImportToast state="success" message="3 files imported" onDismiss={vi.fn()} />
     )
     expect(getByText('3 files imported')).toBeTruthy()
   })
@@ -60,16 +56,12 @@ describe('ImportToast — message', () => {
 
 describe('ImportToast — accessibility', () => {
   it('has role="status"', () => {
-    const { getByRole } = render(
-      <ImportToast state="success" message="ok" onDismiss={vi.fn()} />,
-    )
+    const { getByRole } = render(<ImportToast state="success" message="ok" onDismiss={vi.fn()} />)
     expect(getByRole('status')).toBeTruthy()
   })
 
   it('has aria-live="polite"', () => {
-    const { getByRole } = render(
-      <ImportToast state="success" message="ok" onDismiss={vi.fn()} />,
-    )
+    const { getByRole } = render(<ImportToast state="success" message="ok" onDismiss={vi.fn()} />)
     expect(getByRole('status').getAttribute('aria-live')).toBe('polite')
   })
 })
@@ -81,9 +73,7 @@ describe('ImportToast — accessibility', () => {
 describe('ImportToast — dismiss button', () => {
   it('calls onDismiss when the dismiss button is clicked', () => {
     const onDismiss = vi.fn()
-    const { getByRole } = render(
-      <ImportToast state="success" message="ok" onDismiss={onDismiss} />,
-    )
+    const { getByRole } = render(<ImportToast state="success" message="ok" onDismiss={onDismiss} />)
     fireEvent.click(getByRole('button'))
     expect(onDismiss).toHaveBeenCalledTimes(1)
   })
@@ -124,9 +114,7 @@ describe('ImportToast — auto-dismiss', () => {
 
   it('respects an explicit autoDismissMs override', () => {
     const onDismiss = vi.fn()
-    render(
-      <ImportToast state="success" message="ok" onDismiss={onDismiss} autoDismissMs={1000} />,
-    )
+    render(<ImportToast state="success" message="ok" onDismiss={onDismiss} autoDismissMs={1000} />)
     vi.advanceTimersByTime(999)
     expect(onDismiss).not.toHaveBeenCalled()
     vi.advanceTimersByTime(1)
@@ -135,9 +123,7 @@ describe('ImportToast — auto-dismiss', () => {
 
   it('does not auto-dismiss when autoDismissMs is 0', () => {
     const onDismiss = vi.fn()
-    render(
-      <ImportToast state="success" message="ok" onDismiss={onDismiss} autoDismissMs={0} />,
-    )
+    render(<ImportToast state="success" message="ok" onDismiss={onDismiss} autoDismissMs={0} />)
     vi.advanceTimersByTime(60_000)
     expect(onDismiss).not.toHaveBeenCalled()
   })

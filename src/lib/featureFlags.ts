@@ -33,7 +33,7 @@ export type TabMode = 'chat' | 'terminal'
 export function resolveTabMode(
   chatUiEnabled: boolean,
   terminalModeDefault: boolean,
-  isChatProvider: boolean,
+  isChatProvider: boolean
 ): TabMode {
   if (!chatUiEnabled) return 'terminal'
   return !terminalModeDefault && isChatProvider ? 'chat' : 'terminal'

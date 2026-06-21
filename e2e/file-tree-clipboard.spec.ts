@@ -41,7 +41,11 @@ async function closeApp(app: Awaited<ReturnType<typeof electron.launch>>): Promi
     app.close().catch(() => {}),
     new Promise<void>((resolve) => {
       killTimer = setTimeout(() => {
-        try { app.process().kill() } catch { /* already dead */ }
+        try {
+          app.process().kill()
+        } catch {
+          /* already dead */
+        }
         resolve()
       }, 5_000)
     }),
@@ -101,9 +105,11 @@ test.describe('File tree clipboard — IPC and store contract (issue #147)', () 
 
   // Readiness guard — surfaces broken IPC bridge with an explicit failure rather
   // than an opaque "cannot read properties of undefined" inside scenarios.
-  async function assertIpcReady(page: Awaited<ReturnType<typeof launchApp>>['page']): Promise<void> {
+  async function assertIpcReady(
+    page: Awaited<ReturnType<typeof launchApp>>['page']
+  ): Promise<void> {
     const ready = await page.evaluate(
-      () => typeof (window as unknown as Partial<MarvinWin>).marvin?.file?.copy,
+      () => typeof (window as unknown as Partial<MarvinWin>).marvin?.file?.copy
     )
     expect(ready).toBe('function')
   }
@@ -117,19 +123,21 @@ test.describe('File tree clipboard — IPC and store contract (issue #147)', () 
     try {
       await assertIpcReady(page)
       // Wait for the vault to load — notes dir is visible at the top level
-      await expect(
-        page.locator('.sidebar .file-tree-row.dir', { hasText: /^notes$/ }),
-      ).toBeVisible({ timeout: 15_000 })
+      await expect(page.locator('.sidebar .file-tree-row.dir', { hasText: /^notes$/ })).toBeVisible(
+        { timeout: 15_000 }
+      )
 
       const destPath = await page.evaluate(
         async ({ src, dest }: { src: string; dest: string }) => {
           return await (window as unknown as MarvinWin).marvin.file.copy(src, dest)
         },
-        { src: path.join(vaultRoot, 'notes', 'a.md'), dest: path.join(vaultRoot, 'archive') },
+        { src: path.join(vaultRoot, 'notes', 'a.md'), dest: path.join(vaultRoot, 'archive') }
       )
 
       expect(destPath).toContain('Copy of a.md')
-      await expect(fs.access(path.join(vaultRoot, 'archive', 'Copy of a.md'))).resolves.toBeUndefined()
+      await expect(
+        fs.access(path.join(vaultRoot, 'archive', 'Copy of a.md'))
+      ).resolves.toBeUndefined()
       // Source must be untouched
       await expect(fs.access(path.join(vaultRoot, 'notes', 'a.md'))).resolves.toBeUndefined()
     } finally {
@@ -147,21 +155,18 @@ test.describe('File tree clipboard — IPC and store contract (issue #147)', () 
     const { app, page } = await launchApp(userDataDir)
     try {
       await assertIpcReady(page)
-      await expect(
-        page.locator('.sidebar .file-tree-row.dir', { hasText: /^notes$/ }),
-      ).toBeVisible({ timeout: 15_000 })
+      await expect(page.locator('.sidebar .file-tree-row.dir', { hasText: /^notes$/ })).toBeVisible(
+        { timeout: 15_000 }
+      )
 
       const results = await page.evaluate(
         async ({ srcs, dest }: { srcs: string[]; dest: string }) => {
           return await (window as unknown as MarvinWin).marvin.file.moveBatch(srcs, dest)
         },
         {
-          srcs: [
-            path.join(vaultRoot, 'notes', 'a.md'),
-            path.join(vaultRoot, 'notes', 'b.md'),
-          ],
+          srcs: [path.join(vaultRoot, 'notes', 'a.md'), path.join(vaultRoot, 'notes', 'b.md')],
           dest: path.join(vaultRoot, 'archive'),
-        },
+        }
       )
 
       expect(results).toHaveLength(2)
@@ -191,29 +196,33 @@ test.describe('File tree clipboard — IPC and store contract (issue #147)', () 
     const { app, page } = await launchApp(userDataDir)
     try {
       await assertIpcReady(page)
-      await expect(
-        page.locator('.sidebar .file-tree-row.dir', { hasText: /^notes$/ }),
-      ).toBeVisible({ timeout: 15_000 })
+      await expect(page.locator('.sidebar .file-tree-row.dir', { hasText: /^notes$/ })).toBeVisible(
+        { timeout: 15_000 }
+      )
 
       // First copy: archive/draft.md already exists → resolveConflict yields "Copy of draft.md"
       const first = await page.evaluate(
         async ({ src, dest }: { src: string; dest: string }) => {
           return await (window as unknown as MarvinWin).marvin.file.copy(src, dest)
         },
-        { src: path.join(vaultRoot, 'notes', 'draft.md'), dest: path.join(vaultRoot, 'archive') },
+        { src: path.join(vaultRoot, 'notes', 'draft.md'), dest: path.join(vaultRoot, 'archive') }
       )
       expect(path.basename(first as string)).toBe('Copy of draft.md')
-      await expect(fs.access(path.join(vaultRoot, 'archive', 'Copy of draft.md'))).resolves.toBeUndefined()
+      await expect(
+        fs.access(path.join(vaultRoot, 'archive', 'Copy of draft.md'))
+      ).resolves.toBeUndefined()
 
       // Second copy: "Copy of draft.md" now exists → resolveConflict yields "Copy of draft 2.md"
       const second = await page.evaluate(
         async ({ src, dest }: { src: string; dest: string }) => {
           return await (window as unknown as MarvinWin).marvin.file.copy(src, dest)
         },
-        { src: path.join(vaultRoot, 'notes', 'draft.md'), dest: path.join(vaultRoot, 'archive') },
+        { src: path.join(vaultRoot, 'notes', 'draft.md'), dest: path.join(vaultRoot, 'archive') }
       )
       expect(path.basename(second as string)).toBe('Copy of draft 2.md')
-      await expect(fs.access(path.join(vaultRoot, 'archive', 'Copy of draft 2.md'))).resolves.toBeUndefined()
+      await expect(
+        fs.access(path.join(vaultRoot, 'archive', 'Copy of draft 2.md'))
+      ).resolves.toBeUndefined()
     } finally {
       await closeApp(app)
     }
@@ -231,9 +240,9 @@ test.describe('File tree clipboard — IPC and store contract (issue #147)', () 
 
     const { app, page } = await launchApp(userDataDir)
     try {
-      await expect(
-        page.locator('.sidebar .file-tree-row.file', { hasText: /^a$/ }),
-      ).toBeVisible({ timeout: 15_000 })
+      await expect(page.locator('.sidebar .file-tree-row.file', { hasText: /^a$/ })).toBeVisible({
+        timeout: 15_000,
+      })
 
       const rowA = page.locator('.sidebar .file-tree-row.file', { hasText: /^a$/ })
       const rowB = page.locator('.sidebar .file-tree-row.file', { hasText: /^b$/ })
@@ -252,50 +261,51 @@ test.describe('File tree clipboard — IPC and store contract (issue #147)', () 
   // Scenario 5: Escape clears cut state in clipboard store
   // -------------------------------------------------------------------------
 
-  test.skip(
-    'Scenario 5: Escape clears clipboard store cut state (skipped: store cannot be seeded from outside the renderer bundle)',
-    async () => {
-      // contextBridge.exposeInMainWorld seals window.marvin — showContextMenu cannot
-      // be patched from page.evaluate, so the cut state cannot be triggered via UI.
-      //
-      // Two paths to unlock:
-      //   (a) React fiber walk: FileTreeRow calls useClipboardStore via useSyncExternalStore.
-      //       In React 18, useSyncExternalStore stores {value, getSnapshot} in hook.memoizedState —
-      //       not the store object itself. The store is in the closure of getSnapshot, not directly
-      //       accessible from the fiber. Fiber walk cannot reach it without store identity.
-      //   (b) Test-env hook: add to App.tsx —
-      //       `if (import.meta.env.MODE === 'test') (window as any).__clipboardStore__ = useClipboardStore`
-      //       Then seed via `window.__clipboardStore__.getState().set('cut', [fp])`.
-      //       This is the recommended path — minimal, isolated to test builds.
-      const { app, page } = await launchApp(userDataDir)
-      try {
-        const notesDir = page.locator('.sidebar .file-tree-row.dir', { hasText: /^notes$/ })
-        await expect(notesDir).toBeVisible({ timeout: 15_000 })
-        await notesDir.click()
+  test.skip('Scenario 5: Escape clears clipboard store cut state (skipped: store cannot be seeded from outside the renderer bundle)', async () => {
+    // contextBridge.exposeInMainWorld seals window.marvin — showContextMenu cannot
+    // be patched from page.evaluate, so the cut state cannot be triggered via UI.
+    //
+    // Two paths to unlock:
+    //   (a) React fiber walk: FileTreeRow calls useClipboardStore via useSyncExternalStore.
+    //       In React 18, useSyncExternalStore stores {value, getSnapshot} in hook.memoizedState —
+    //       not the store object itself. The store is in the closure of getSnapshot, not directly
+    //       accessible from the fiber. Fiber walk cannot reach it without store identity.
+    //   (b) Test-env hook: add to App.tsx —
+    //       `if (import.meta.env.MODE === 'test') (window as any).__clipboardStore__ = useClipboardStore`
+    //       Then seed via `window.__clipboardStore__.getState().set('cut', [fp])`.
+    //       This is the recommended path — minimal, isolated to test builds.
+    const { app, page } = await launchApp(userDataDir)
+    try {
+      const notesDir = page.locator('.sidebar .file-tree-row.dir', { hasText: /^notes$/ })
+      await expect(notesDir).toBeVisible({ timeout: 15_000 })
+      await notesDir.click()
 
-        const fileRow = page.locator('.sidebar .file-tree-row.file', { hasText: /^a$/ })
-        await expect(fileRow).toBeVisible({ timeout: 5_000 })
+      const fileRow = page.locator('.sidebar .file-tree-row.file', { hasText: /^a$/ })
+      await expect(fileRow).toBeVisible({ timeout: 5_000 })
 
-        const filePath = path.join(vaultRoot, 'notes', 'a.md')
-        await page.evaluate((fp: string) => {
-          const w = window as unknown as { __clipboardStore__: { getState: () => { set: (m: string, paths: string[]) => void } } }
-          w.__clipboardStore__.getState().set('cut', [fp])
-        }, filePath)
+      const filePath = path.join(vaultRoot, 'notes', 'a.md')
+      await page.evaluate((fp: string) => {
+        const w = window as unknown as {
+          __clipboardStore__: { getState: () => { set: (m: string, paths: string[]) => void } }
+        }
+        w.__clipboardStore__.getState().set('cut', [fp])
+      }, filePath)
 
-        await expect(fileRow).toHaveClass(/cut/)
+      await expect(fileRow).toHaveClass(/cut/)
 
-        await page.evaluate(() => {
-          const el = document.activeElement as HTMLElement | null
-          if (el && el !== document.body) el.blur()
-          window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }))
-        })
+      await page.evaluate(() => {
+        const el = document.activeElement as HTMLElement | null
+        if (el && el !== document.body) el.blur()
+        window.dispatchEvent(
+          new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })
+        )
+      })
 
-        await expect(page.locator('.sidebar .file-tree-row.cut')).toHaveCount(0, { timeout: 1_000 })
-      } finally {
-        await closeApp(app)
-      }
-    },
-  )
+      await expect(page.locator('.sidebar .file-tree-row.cut')).toHaveCount(0, { timeout: 1_000 })
+    } finally {
+      await closeApp(app)
+    }
+  })
 
   // -------------------------------------------------------------------------
   // Scenario 6: Editor focus bails the file-tree clipboard shortcut.

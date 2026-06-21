@@ -46,9 +46,13 @@ async function closeApp(app: Awaited<ReturnType<typeof electron.launch>>): Promi
     app.close().catch(() => {}),
     new Promise<void>((resolve) =>
       setTimeout(() => {
-        try { app.process().kill() } catch { /* already dead */ }
+        try {
+          app.process().kill()
+        } catch {
+          /* already dead */
+        }
         resolve()
-      }, 5_000),
+      }, 5_000)
     ),
   ])
 }
@@ -56,11 +60,7 @@ async function closeApp(app: Awaited<ReturnType<typeof electron.launch>>): Promi
 async function createUserDataDir(vaultPath: string): Promise<string> {
   const raw = await fs.mkdtemp(path.join(os.tmpdir(), 'marvin-e2e-import-'))
   const userDataDir = await fs.realpath(raw)
-  await fs.writeFile(
-    path.join(userDataDir, 'settings.json'),
-    JSON.stringify({ vaultPath }),
-    'utf8',
-  )
+  await fs.writeFile(path.join(userDataDir, 'settings.json'), JSON.stringify({ vaultPath }), 'utf8')
   return userDataDir
 }
 
@@ -88,7 +88,14 @@ async function createSourceFile(name: string, content: string): Promise<string> 
  */
 async function triggerImportResult(
   page: import('playwright').Page,
-  outcome: { ok: true; imported: string[]; skipped: { source: string; reason: string }[]; destDir: string } | { ok: false; error: string },
+  outcome:
+    | {
+        ok: true
+        imported: string[]
+        skipped: { source: string; reason: string }[]
+        destDir: string
+      }
+    | { ok: false; error: string }
 ): Promise<void> {
   await page.evaluate((o) => {
     const tree = document.querySelector('.file-tree')
@@ -104,7 +111,11 @@ async function triggerImportResult(
       const props = current.memoizedProps
       if (props && typeof props['onImportResult'] === 'function') {
         if (o.ok) {
-          props['onImportResult']({ ok: true, result: { imported: o.imported, skipped: o.skipped }, destDir: o.destDir })
+          props['onImportResult']({
+            ok: true,
+            result: { imported: o.imported, skipped: o.skipped },
+            destDir: o.destDir,
+          })
         } else {
           props['onImportResult']({ ok: false, error: o.error })
         }
@@ -157,21 +168,26 @@ test.describe('External file import — IPC contract and toast UI (issue #196)',
     await page.waitForLoadState('domcontentloaded')
 
     try {
-      await expect(
-        page.locator('.sidebar .file-tree-row.file', { hasText: /^seed$/ }),
-      ).toBeVisible({ timeout: 15_000 })
+      await expect(page.locator('.sidebar .file-tree-row.file', { hasText: /^seed$/ })).toBeVisible(
+        { timeout: 15_000 }
+      )
 
       // Call the real importExternal IPC — exercises assertCwdInsideVaultAsync + cp
       const result = await page.evaluate(
         async ({ src, dest }: { src: string; dest: string }) => {
-          return await (window as unknown as {
-            marvin: { fs: { importExternal: (s: string[], d: string) => Promise<unknown> } }
-          }).marvin.fs.importExternal([src], dest)
+          return await (
+            window as unknown as {
+              marvin: { fs: { importExternal: (s: string[], d: string) => Promise<unknown> } }
+            }
+          ).marvin.fs.importExternal([src], dest)
         },
-        { src: srcFile, dest: vaultRoot },
+        { src: srcFile, dest: vaultRoot }
       )
 
-      const { imported, skipped } = result as { imported: string[]; skipped: { source: string; reason: string }[] }
+      const { imported, skipped } = result as {
+        imported: string[]
+        skipped: { source: string; reason: string }[]
+      }
       expect(imported).toHaveLength(1)
       expect(skipped).toHaveLength(0)
 
@@ -211,17 +227,19 @@ test.describe('External file import — IPC contract and toast UI (issue #196)',
     await page.waitForLoadState('domcontentloaded')
 
     try {
-      await expect(
-        page.locator('.sidebar .file-tree-row.dir', { hasText: /^docs$/ }),
-      ).toBeVisible({ timeout: 15_000 })
+      await expect(page.locator('.sidebar .file-tree-row.dir', { hasText: /^docs$/ })).toBeVisible({
+        timeout: 15_000,
+      })
 
       const result = await page.evaluate(
         async ({ src, dest }: { src: string; dest: string }) => {
-          return await (window as unknown as {
-            marvin: { fs: { importExternal: (s: string[], d: string) => Promise<unknown> } }
-          }).marvin.fs.importExternal([src], dest)
+          return await (
+            window as unknown as {
+              marvin: { fs: { importExternal: (s: string[], d: string) => Promise<unknown> } }
+            }
+          ).marvin.fs.importExternal([src], dest)
         },
-        { src: srcFile, dest: destDir },
+        { src: srcFile, dest: destDir }
       )
 
       const { imported, skipped } = result as { imported: string[]; skipped: unknown[] }
@@ -240,7 +258,7 @@ test.describe('External file import — IPC contract and toast UI (issue #196)',
   // Scenario 3: paste into sidebar → file copied to open file's directory
   // -------------------------------------------------------------------------
 
-  test('Scenario 3: paste with open file → file copied to the open file\'s parent dir', async () => {
+  test("Scenario 3: paste with open file → file copied to the open file's parent dir", async () => {
     const srcFile = await createSourceFile('pasted.md', '# Pasted')
     sourceDirsToClean.push(path.dirname(srcFile))
     // Open file is seed.md at vault root — paste should land next to it
@@ -254,17 +272,19 @@ test.describe('External file import — IPC contract and toast UI (issue #196)',
     await page.waitForLoadState('domcontentloaded')
 
     try {
-      await expect(
-        page.locator('.sidebar .file-tree-row.file', { hasText: /^seed$/ }),
-      ).toBeVisible({ timeout: 15_000 })
+      await expect(page.locator('.sidebar .file-tree-row.file', { hasText: /^seed$/ })).toBeVisible(
+        { timeout: 15_000 }
+      )
 
       const result = await page.evaluate(
         async ({ src, dest }: { src: string; dest: string }) => {
-          return await (window as unknown as {
-            marvin: { fs: { importExternal: (s: string[], d: string) => Promise<unknown> } }
-          }).marvin.fs.importExternal([src], dest)
+          return await (
+            window as unknown as {
+              marvin: { fs: { importExternal: (s: string[], d: string) => Promise<unknown> } }
+            }
+          ).marvin.fs.importExternal([src], dest)
         },
-        { src: srcFile, dest: destDir },
+        { src: srcFile, dest: destDir }
       )
 
       const { imported, skipped } = result as { imported: string[]; skipped: unknown[] }
@@ -301,19 +321,18 @@ test.describe('External file import — IPC contract and toast UI (issue #196)',
     await page.waitForLoadState('domcontentloaded')
 
     try {
-      await expect(
-        page.locator('.sidebar .file-tree-row.file', { hasText: /^seed$/ }),
-      ).toBeVisible({ timeout: 15_000 })
+      await expect(page.locator('.sidebar .file-tree-row.file', { hasText: /^seed$/ })).toBeVisible(
+        { timeout: 15_000 }
+      )
 
       // /etc/passwd resolves to /private/etc/passwd on macOS — blocked by BLOCKED_PATH_PREFIXES
-      const result = await page.evaluate(
-        async (dest: string) => {
-          return await (window as unknown as {
+      const result = await page.evaluate(async (dest: string) => {
+        return await (
+          window as unknown as {
             marvin: { fs: { importExternal: (s: string[], d: string) => Promise<unknown> } }
-          }).marvin.fs.importExternal(['/etc/passwd'], dest)
-        },
-        vaultRoot,
-      )
+          }
+        ).marvin.fs.importExternal(['/etc/passwd'], dest)
+      }, vaultRoot)
 
       const { imported, skipped } = result as {
         imported: string[]
@@ -326,7 +345,7 @@ test.describe('External file import — IPC contract and toast UI (issue #196)',
       // No unexpected files created in vault
       const entries = await fs.readdir(vaultRoot)
       expect(
-        entries.filter((e) => e !== '.marvin' && e !== 'seed.md' && e !== 'docs'),
+        entries.filter((e) => e !== '.marvin' && e !== 'seed.md' && e !== 'docs')
       ).toHaveLength(0)
     } finally {
       await closeApp(app)
@@ -349,17 +368,19 @@ test.describe('External file import — IPC contract and toast UI (issue #196)',
     await page.waitForLoadState('domcontentloaded')
 
     try {
-      await expect(
-        page.locator('.sidebar .file-tree-row.file', { hasText: /^seed$/ }),
-      ).toBeVisible({ timeout: 15_000 })
+      await expect(page.locator('.sidebar .file-tree-row.file', { hasText: /^seed$/ })).toBeVisible(
+        { timeout: 15_000 }
+      )
 
       const result = await page.evaluate(
         async ({ src, dest }: { src: string; dest: string }) => {
-          return await (window as unknown as {
-            marvin: { fs: { importExternal: (s: string[], d: string) => Promise<unknown> } }
-          }).marvin.fs.importExternal([src, '/etc/passwd'], dest)
+          return await (
+            window as unknown as {
+              marvin: { fs: { importExternal: (s: string[], d: string) => Promise<unknown> } }
+            }
+          ).marvin.fs.importExternal([src, '/etc/passwd'], dest)
         },
-        { src: srcFile, dest: vaultRoot },
+        { src: srcFile, dest: vaultRoot }
       )
 
       const { imported, skipped } = result as {
@@ -408,23 +429,25 @@ test.describe('External file import — IPC contract and toast UI (issue #196)',
     await page.waitForLoadState('domcontentloaded')
 
     try {
-      await expect(
-        page.locator('.sidebar .file-tree-row.file', { hasText: /^seed$/ }),
-      ).toBeVisible({ timeout: 15_000 })
+      await expect(page.locator('.sidebar .file-tree-row.file', { hasText: /^seed$/ })).toBeVisible(
+        { timeout: 15_000 }
+      )
 
       // IPC must throw when destDir is outside the active vault
       const threw = await page.evaluate(
         async ({ src, dest }: { src: string; dest: string }) => {
           try {
-            await (window as unknown as {
-              marvin: { fs: { importExternal: (s: string[], d: string) => Promise<unknown> } }
-            }).marvin.fs.importExternal([src], dest)
+            await (
+              window as unknown as {
+                marvin: { fs: { importExternal: (s: string[], d: string) => Promise<unknown> } }
+              }
+            ).marvin.fs.importExternal([src], dest)
             return false
           } catch {
             return true
           }
         },
-        { src: srcFile, dest: outsideDir },
+        { src: srcFile, dest: outsideDir }
       )
 
       expect(threw).toBe(true)

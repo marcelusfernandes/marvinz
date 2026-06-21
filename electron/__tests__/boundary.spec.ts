@@ -63,7 +63,9 @@ describe('assertInsideVault — escape vector: (a) absolute path outside vault',
   })
 
   it('file:write — rejects /tmp/evil', () => {
-    expect(() => assertInsideVault(vault, path.join(outside, 'evil.md'))).toThrow('MARVIN_OUTSIDE_VAULT')
+    expect(() => assertInsideVault(vault, path.join(outside, 'evil.md'))).toThrow(
+      'MARVIN_OUTSIDE_VAULT'
+    )
   })
 
   it('file:create — rejects absolute parentDir outside vault', () => {
@@ -71,15 +73,21 @@ describe('assertInsideVault — escape vector: (a) absolute path outside vault',
   })
 
   it('folder:create — rejects absolute parentDir outside vault', () => {
-    expect(() => assertInsideVault(vault, path.join(outside, 'new-folder'))).toThrow('MARVIN_OUTSIDE_VAULT')
+    expect(() => assertInsideVault(vault, path.join(outside, 'new-folder'))).toThrow(
+      'MARVIN_OUTSIDE_VAULT'
+    )
   })
 
   it('path:rename (oldPath) — rejects absolute source outside vault', () => {
-    expect(() => assertInsideVault(vault, path.join(outside, 'source.md'))).toThrow('MARVIN_OUTSIDE_VAULT')
+    expect(() => assertInsideVault(vault, path.join(outside, 'source.md'))).toThrow(
+      'MARVIN_OUTSIDE_VAULT'
+    )
   })
 
   it('path:rename (newPath) — rejects absolute destination outside vault', () => {
-    expect(() => assertInsideVault(vault, path.join(outside, 'dest.md'))).toThrow('MARVIN_OUTSIDE_VAULT')
+    expect(() => assertInsideVault(vault, path.join(outside, 'dest.md'))).toThrow(
+      'MARVIN_OUTSIDE_VAULT'
+    )
   })
 
   it('path:trash — rejects /etc/passwd', () => {
@@ -337,7 +345,9 @@ describe('vault:tree — escape vector: (c) symlink escape', () => {
     const symlinkVault = path.join(vault, 'linked-tree')
     await fs.symlink(outside, symlinkVault)
 
-    await expect(assertInsideVaultAsync(vault, symlinkVault)).rejects.toThrow('MARVIN_OUTSIDE_VAULT')
+    await expect(assertInsideVaultAsync(vault, symlinkVault)).rejects.toThrow(
+      'MARVIN_OUTSIDE_VAULT'
+    )
     // outside dir must not have been listed (it still exists, untouched)
     const entries = await fs.readdir(outside)
     expect(entries).toHaveLength(0)
@@ -449,7 +459,9 @@ describe('vault:watch — MARVIN_VAULT_NOT_ALLOWED allowlist contract', () => {
   afterEach(teardown)
 
   it('rejects a path not in the allowedVaultPaths set', async () => {
-    const { assertAllowedVault } = await import('../vault-allowlist.js').catch(() => ({ assertAllowedVault: null }))
+    const { assertAllowedVault } = await import('../vault-allowlist.js').catch(() => ({
+      assertAllowedVault: null,
+    }))
     if (!assertAllowedVault) {
       // Not yet extracted — document the contract as a known pending test.
       // The vault:watch handler in main.ts must throw MARVIN_VAULT_NOT_ALLOWED
@@ -462,7 +474,9 @@ describe('vault:watch — MARVIN_VAULT_NOT_ALLOWED allowlist contract', () => {
   })
 
   it('accepts a path that is in the allowedVaultPaths set', async () => {
-    const { assertAllowedVault } = await import('../vault-allowlist.js').catch(() => ({ assertAllowedVault: null }))
+    const { assertAllowedVault } = await import('../vault-allowlist.js').catch(() => ({
+      assertAllowedVault: null,
+    }))
     if (!assertAllowedVault) {
       console.warn('[pending] vault-allowlist.ts not yet extracted — skipping allowlist unit test')
       return
@@ -489,7 +503,9 @@ describe('shell:reveal — escape vector: (a) absolute path outside vault', () =
   })
 
   it('rejects path in outside tmpdir', () => {
-    expect(() => assertInsideVault(vault, path.join(outside, 'file.txt'))).toThrow('MARVIN_OUTSIDE_VAULT')
+    expect(() => assertInsideVault(vault, path.join(outside, 'file.txt'))).toThrow(
+      'MARVIN_OUTSIDE_VAULT'
+    )
   })
 })
 

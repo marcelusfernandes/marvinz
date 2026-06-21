@@ -78,7 +78,9 @@ const fakeDispatch = vi.fn()
 const fakeEditorView = {
   state: {
     tr: {
-      setNodeMarkup: vi.fn(function (this: unknown) { return this }),
+      setNodeMarkup: vi.fn(function (this: unknown) {
+        return this
+      }),
     },
   },
   dispatch: fakeDispatch,
@@ -89,15 +91,18 @@ const fakeEditorView = {
 // ---------------------------------------------------------------------------
 
 function buildView(
-  node: ReturnType<typeof makeUncheckedTaskNode> | ReturnType<typeof makeCheckedTaskNode> | ReturnType<typeof makeRegularListItemNode>,
-  getPos: () => number = () => 0,
+  node:
+    | ReturnType<typeof makeUncheckedTaskNode>
+    | ReturnType<typeof makeCheckedTaskNode>
+    | ReturnType<typeof makeRegularListItemNode>,
+  getPos: () => number = () => 0
 ) {
   return buildTaskListItemView()(
     node as never,
     fakeEditorView as never,
     getPos as never,
     null as never,
-    null as never,
+    null as never
   )
 }
 
@@ -182,7 +187,7 @@ describe('taskListItemView — click toggle round-trip', () => {
     expect(fakeEditorView.state.tr.setNodeMarkup).toHaveBeenCalledWith(
       nodePos,
       undefined,
-      expect.objectContaining({ checked: true }),
+      expect.objectContaining({ checked: true })
     )
   })
 
@@ -199,7 +204,7 @@ describe('taskListItemView — click toggle round-trip', () => {
     expect(fakeEditorView.state.tr.setNodeMarkup).toHaveBeenCalledWith(
       nodePos,
       undefined,
-      expect.objectContaining({ checked: false }),
+      expect.objectContaining({ checked: false })
     )
   })
 
@@ -241,7 +246,7 @@ describe('taskListItemView — update()', () => {
     const view = buildView(makeUncheckedTaskNode())
 
     const result = (view as unknown as { update: (n: unknown) => boolean }).update(
-      makeCheckedTaskNode(),
+      makeCheckedTaskNode()
     )
 
     expect(result).toBe(true)

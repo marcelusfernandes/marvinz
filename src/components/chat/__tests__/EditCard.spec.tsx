@@ -62,42 +62,59 @@ describe('EditCard — structure', () => {
         tool="Edit"
         input={{ file_path: '/vault/note.md', old_string: 'old', new_string: 'new' }}
         status="running"
-      />,
+      />
     )
     expect(container.querySelector('.chat-tool-card-edit')).toBeInTheDocument()
   })
 
   it('sets data-tool="Edit"', () => {
     const { container } = render(
-      <EditCard toolUseId="tu1" tool="Edit" input={{ file_path: '/vault/note.md' }} status="running" />,
+      <EditCard
+        toolUseId="tu1"
+        tool="Edit"
+        input={{ file_path: '/vault/note.md' }}
+        status="running"
+      />
     )
     expect(container.querySelector('[data-tool="Edit"]')).toBeInTheDocument()
   })
 
   it('renders filename pill with basename', () => {
     const { container } = render(
-      <EditCard toolUseId="tu1" tool="Edit" input={{ file_path: '/vault/src/utils.ts' }} status="running" />,
+      <EditCard
+        toolUseId="tu1"
+        tool="Edit"
+        input={{ file_path: '/vault/src/utils.ts' }}
+        status="running"
+      />
     )
     expect(container.querySelector('.chat-tool-pill')?.textContent).toBe('utils.ts')
   })
 
   it('shows full path in pill title attribute', () => {
     const { container } = render(
-      <EditCard toolUseId="tu1" tool="Edit" input={{ file_path: '/vault/src/utils.ts' }} status="running" />,
+      <EditCard
+        toolUseId="tu1"
+        tool="Edit"
+        input={{ file_path: '/vault/src/utils.ts' }}
+        status="running"
+      />
     )
-    expect(container.querySelector('.chat-tool-pill')?.getAttribute('title')).toBe('/vault/src/utils.ts')
+    expect(container.querySelector('.chat-tool-pill')?.getAttribute('title')).toBe(
+      '/vault/src/utils.ts'
+    )
   })
 
   it('pill has data-risk="destructive"', () => {
     const { container } = render(
-      <EditCard toolUseId="tu1" tool="Edit" input={{ file_path: '/vault/a.md' }} status="running" />,
+      <EditCard toolUseId="tu1" tool="Edit" input={{ file_path: '/vault/a.md' }} status="running" />
     )
     expect(container.querySelector('[data-risk="destructive"]')).toBeInTheDocument()
   })
 
   it('falls back to "(no path)" when input has no path key', () => {
     const { container } = render(
-      <EditCard toolUseId="tu1" tool="Edit" input={{}} status="running" />,
+      <EditCard toolUseId="tu1" tool="Edit" input={{}} status="running" />
     )
     expect(container.querySelector('.chat-tool-pill')?.textContent).toBe('(no path)')
   })
@@ -109,7 +126,7 @@ describe('EditCard — structure', () => {
         tool="Edit"
         input={{ file_path: '/vault/note.md', old_string: 'old', new_string: 'new' }}
         status="running"
-      />,
+      />
     )
     expect(container.querySelector('.chat-diff-card')).not.toBeInTheDocument()
   })
@@ -121,7 +138,7 @@ describe('EditCard — structure', () => {
         tool="Edit"
         input={{ file_path: '/vault/note.md', old_string: 'old', new_string: 'new' }}
         status="running"
-      />,
+      />
     )
     expect(container.querySelector('[data-action="expand-diff"]')).not.toBeInTheDocument()
   })
@@ -133,15 +150,13 @@ describe('EditCard — structure', () => {
         tool="Edit"
         input={{ file_path: '/vault/note.md', old_string: 'old', new_string: 'new' }}
         status="ok"
-      />,
+      />
     )
     expect(container.querySelector('[data-action="expand-diff"]')).toBeInTheDocument()
   })
 
   it('does NOT show expand-diff button when status is ok but path is absent', () => {
-    const { container } = render(
-      <EditCard toolUseId="tu1" tool="Edit" input={{}} status="ok" />,
-    )
+    const { container } = render(<EditCard toolUseId="tu1" tool="Edit" input={{}} status="ok" />)
     expect(container.querySelector('[data-action="expand-diff"]')).not.toBeInTheDocument()
   })
 })
@@ -159,7 +174,7 @@ describe('EditCard — change-summary subline', () => {
         tool="Edit"
         input={{ file_path: '/vault/a.md', old_string: 'line1', new_string: 'line1\nline2\nline3' }}
         status="running"
-      />,
+      />
     )
     expect(container.querySelector('.chat-tool-subline')?.textContent).toBe('Added 2 lines')
   })
@@ -171,7 +186,7 @@ describe('EditCard — change-summary subline', () => {
         tool="Edit"
         input={{ file_path: '/vault/a.md', old_string: 'line1', new_string: 'line1\nline2' }}
         status="ok"
-      />,
+      />
     )
     expect(container.querySelector('.chat-tool-subline')?.textContent).toBe('Added 1 line')
   })
@@ -183,7 +198,7 @@ describe('EditCard — change-summary subline', () => {
         tool="Edit"
         input={{ file_path: '/vault/a.md', old_string: 'line1\nline2\nline3', new_string: 'line1' }}
         status="running"
-      />,
+      />
     )
     expect(container.querySelector('.chat-tool-subline')?.textContent).toBe('Removed 2 lines')
   })
@@ -195,7 +210,7 @@ describe('EditCard — change-summary subline', () => {
         tool="Edit"
         input={{ file_path: '/vault/a.md', old_string: 'line1\nline2', new_string: 'line1' }}
         status="ok"
-      />,
+      />
     )
     expect(container.querySelector('.chat-tool-subline')?.textContent).toBe('Removed 1 line')
   })
@@ -207,14 +222,14 @@ describe('EditCard — change-summary subline', () => {
         tool="Edit"
         input={{ file_path: '/vault/a.md', old_string: 'line1\nline2', new_string: 'new1\nnew2' }}
         status="ok"
-      />,
+      />
     )
     expect(container.querySelector('.chat-tool-subline')?.textContent).toBe('Modified')
   })
 
   it('shows "Modified" when no string content and no result', () => {
     const { container } = render(
-      <EditCard toolUseId="tu1" tool="Edit" input={{ file_path: '/vault/a.md' }} status="running" />,
+      <EditCard toolUseId="tu1" tool="Edit" input={{ file_path: '/vault/a.md' }} status="running" />
     )
     expect(container.querySelector('.chat-tool-subline')?.textContent).toBe('Modified')
   })
@@ -227,7 +242,7 @@ describe('EditCard — change-summary subline', () => {
         input={{ file_path: '/vault/a.md' }}
         status="ok"
         result="Patched successfully"
-      />,
+      />
     )
     expect(container.querySelector('.chat-tool-subline')?.textContent).toBe('Patched successfully')
   })
@@ -239,7 +254,7 @@ describe('EditCard — change-summary subline', () => {
         tool="Edit"
         input={{ file_path: '/vault/a.md', old_string: 'old', new_string: 'new' }}
         status="pending_approval"
-      />,
+      />
     )
     expect(container.querySelector('.chat-tool-subline')?.textContent).toBe('Pending approval')
   })
@@ -252,21 +267,26 @@ describe('EditCard — change-summary subline', () => {
 describe('EditCard — terminal status sublines', () => {
   it('shows "Failed" on error', () => {
     const { container } = render(
-      <EditCard toolUseId="tu1" tool="Edit" input={{ file_path: '/vault/a.md' }} status="error" />,
+      <EditCard toolUseId="tu1" tool="Edit" input={{ file_path: '/vault/a.md' }} status="error" />
     )
     expect(container.querySelector('.chat-tool-subline')?.textContent).toBe('Failed')
   })
 
   it('shows "Denied" on denied', () => {
     const { container } = render(
-      <EditCard toolUseId="tu1" tool="Edit" input={{ file_path: '/vault/a.md' }} status="denied" />,
+      <EditCard toolUseId="tu1" tool="Edit" input={{ file_path: '/vault/a.md' }} status="denied" />
     )
     expect(container.querySelector('.chat-tool-subline')?.textContent).toBe('Denied')
   })
 
   it('shows "Cancelled" on cancelled', () => {
     const { container } = render(
-      <EditCard toolUseId="tu1" tool="Edit" input={{ file_path: '/vault/a.md' }} status="cancelled" />,
+      <EditCard
+        toolUseId="tu1"
+        tool="Edit"
+        input={{ file_path: '/vault/a.md' }}
+        status="cancelled"
+      />
     )
     expect(container.querySelector('.chat-tool-subline')?.textContent).toBe('Cancelled')
   })
@@ -285,7 +305,7 @@ describe('EditCard — Saved badge', () => {
         input={{ file_path: '/vault/note.md' }}
         status="running"
         snapshotSaved
-      />,
+      />
     )
     expect(container.querySelector('[data-badge="saved"]')).toBeInTheDocument()
   })
@@ -298,7 +318,7 @@ describe('EditCard — Saved badge', () => {
         input={{ file_path: '/vault/note.md' }}
         status="running"
         snapshotSaved
-      />,
+      />
     )
     expect(container.querySelector('[data-badge="saved"]')?.textContent).toBe('Saved')
   })
@@ -311,14 +331,19 @@ describe('EditCard — Saved badge', () => {
         input={{ file_path: '/vault/note.md' }}
         status="running"
         snapshotSaved={false}
-      />,
+      />
     )
     expect(container.querySelector('[data-badge="saved"]')).not.toBeInTheDocument()
   })
 
   it('does NOT render badge when snapshotSaved is undefined', () => {
     const { container } = render(
-      <EditCard toolUseId="tu1" tool="Edit" input={{ file_path: '/vault/note.md' }} status="running" />,
+      <EditCard
+        toolUseId="tu1"
+        tool="Edit"
+        input={{ file_path: '/vault/note.md' }}
+        status="running"
+      />
     )
     expect(container.querySelector('[data-badge="saved"]')).not.toBeInTheDocument()
   })
@@ -331,10 +356,14 @@ describe('EditCard — Saved badge', () => {
         input={{ file_path: '/vault/note.md' }}
         status="running"
         snapshotSaved
-      />,
+      />
     )
     const badge = container.querySelector('[data-badge="saved"]')
-    const label = (badge?.getAttribute('title') ?? badge?.getAttribute('aria-label') ?? '').toLowerCase()
+    const label = (
+      badge?.getAttribute('title') ??
+      badge?.getAttribute('aria-label') ??
+      ''
+    ).toLowerCase()
     expect(label).toContain('snapshot')
   })
 
@@ -346,7 +375,7 @@ describe('EditCard — Saved badge', () => {
         input={{ file_path: '/vault/note.md', old_string: 'old', new_string: 'new' }}
         status="ok"
         snapshotSaved
-      />,
+      />
     )
     expect(container.querySelector('[data-badge="saved"]')).toBeInTheDocument()
   })
@@ -359,7 +388,7 @@ describe('EditCard — Saved badge', () => {
         input={{ file_path: '/vault/note.md' }}
         status="pending_approval"
         snapshotSaved
-      />,
+      />
     )
     expect(container.querySelector('[data-badge="saved"]')).toBeInTheDocument()
   })
@@ -377,7 +406,7 @@ describe('EditCard — Show diff toggle', () => {
         tool="Edit"
         input={{ file_path: '/vault/note.md', old_string: 'old text', new_string: 'new text' }}
         status="ok"
-      />,
+      />
     )
     fireEvent.click(container.querySelector('[data-action="expand-diff"]')!)
     expect(container.querySelector('.chat-diff-card')).toBeInTheDocument()
@@ -390,7 +419,7 @@ describe('EditCard — Show diff toggle', () => {
         tool="Edit"
         input={{ file_path: '/vault/note.md', old_string: 'old', new_string: 'new' }}
         status="ok"
-      />,
+      />
     )
     const btn = container.querySelector('[data-action="expand-diff"]')!
     fireEvent.click(btn)
@@ -404,7 +433,7 @@ describe('EditCard — Show diff toggle', () => {
         tool="Edit"
         input={{ file_path: '/vault/note.md', old_string: 'old', new_string: 'new' }}
         status="ok"
-      />,
+      />
     )
     const btn = container.querySelector('[data-action="expand-diff"]')!
     fireEvent.click(btn)
@@ -420,9 +449,11 @@ describe('EditCard — Show diff toggle', () => {
         tool="Edit"
         input={{ file_path: '/vault/note.md', old_string: 'old', new_string: 'new' }}
         status="ok"
-      />,
+      />
     )
-    expect(container.querySelector('[data-action="expand-diff"]')?.getAttribute('aria-expanded')).toBe('false')
+    expect(
+      container.querySelector('[data-action="expand-diff"]')?.getAttribute('aria-expanded')
+    ).toBe('false')
   })
 
   it('button has aria-expanded=true when expanded', () => {
@@ -432,7 +463,7 @@ describe('EditCard — Show diff toggle', () => {
         tool="Edit"
         input={{ file_path: '/vault/note.md', old_string: 'old', new_string: 'new' }}
         status="ok"
-      />,
+      />
     )
     const btn = container.querySelector('[data-action="expand-diff"]')!
     fireEvent.click(btn)
@@ -448,7 +479,7 @@ describe('EditCard — Show diff toggle', () => {
         input={{ file_path: '/vault/note.md' }}
         status="ok"
         onOpenFile={onOpenFile}
-      />,
+      />
     )
     fireEvent.click(container.querySelector('.chat-tool-pill')!)
     expect(onOpenFile).toHaveBeenCalledWith('/vault/note.md')
@@ -456,7 +487,7 @@ describe('EditCard — Show diff toggle', () => {
 
   it('pill button is disabled when onOpenFile is not provided', () => {
     const { container } = render(
-      <EditCard toolUseId="tu1" tool="Edit" input={{ file_path: '/vault/note.md' }} status="ok" />,
+      <EditCard toolUseId="tu1" tool="Edit" input={{ file_path: '/vault/note.md' }} status="ok" />
     )
     expect(container.querySelector('.chat-tool-pill')?.hasAttribute('disabled')).toBe(true)
   })
@@ -468,29 +499,25 @@ describe('EditCard — Show diff toggle', () => {
 
 describe('DiffCard — lazy mount', () => {
   it('returns null (no DOM) when collapsed=true', () => {
-    const { container } = render(
-      <DiffCard collapsed oldText="old" newText="new" />,
-    )
+    const { container } = render(<DiffCard collapsed oldText="old" newText="new" />)
     expect(container.querySelector('.chat-diff-card')).not.toBeInTheDocument()
   })
 
   it('renders .chat-diff-card when collapsed=false', () => {
-    const { container } = render(
-      <DiffCard collapsed={false} oldText="old" newText="new" />,
-    )
+    const { container } = render(<DiffCard collapsed={false} oldText="old" newText="new" />)
     expect(container.querySelector('.chat-diff-card')).toBeInTheDocument()
   })
 
   it('renders .chat-diff-card when collapsed prop is omitted (defaults false)', () => {
-    const { container } = render(
-      <DiffCard oldText="old" newText="new" />,
-    )
+    const { container } = render(<DiffCard oldText="old" newText="new" />)
     expect(container.querySelector('.chat-diff-card')).toBeInTheDocument()
   })
 
   it('MockMergeView is constructed when expanded', () => {
     const constructSpy = vi.spyOn(MockMergeView.prototype, 'destroy').mockImplementation(vi.fn())
-    const { container } = render(<DiffCard collapsed={false} oldText="before content" newText="after content" />)
+    const { container } = render(
+      <DiffCard collapsed={false} oldText="before content" newText="after content" />
+    )
     expect(container.querySelector('.chat-diff-card')).toBeInTheDocument()
     constructSpy.mockRestore()
   })
@@ -506,7 +533,7 @@ describe('DiffCard — lazy mount', () => {
   it('destroy() is called when collapsed transitions from false to true', () => {
     const destroySpy = vi.spyOn(MockMergeView.prototype, 'destroy')
     const { rerender, container } = render(
-      <DiffCard collapsed={false} oldText="old" newText="new" />,
+      <DiffCard collapsed={false} oldText="old" newText="new" />
     )
     expect(container.querySelector('.chat-diff-card')).toBeInTheDocument()
 
@@ -529,12 +556,16 @@ describe('DiffCard — structure', () => {
 
   it('renders aria region with default label when no fileName', () => {
     const { container } = render(<DiffCard oldText="old" newText="new" />)
-    expect(container.querySelector('[role="region"]')?.getAttribute('aria-label')).toBe('Diff preview')
+    expect(container.querySelector('[role="region"]')?.getAttribute('aria-label')).toBe(
+      'Diff preview'
+    )
   })
 
   it('renders aria region with fileName in label when provided', () => {
     const { container } = render(<DiffCard oldText="old" newText="new" fileName="note.md" />)
-    expect(container.querySelector('[role="region"]')?.getAttribute('aria-label')).toBe('Diff for note.md')
+    expect(container.querySelector('[role="region"]')?.getAttribute('aria-label')).toBe(
+      'Diff for note.md'
+    )
   })
 
   it('renders "Show full diff" button by default (no onOpenInEditor)', () => {
@@ -569,13 +600,17 @@ describe('DiffCard — structure', () => {
 
   it('"Show full diff" has aria-expanded=false initially', () => {
     render(<DiffCard oldText="old" newText="new" />)
-    expect(screen.getByRole('button', { name: /show full diff/i }).getAttribute('aria-expanded')).toBe('false')
+    expect(
+      screen.getByRole('button', { name: /show full diff/i }).getAttribute('aria-expanded')
+    ).toBe('false')
   })
 
   it('"Collapse" has aria-expanded=true after expand', () => {
     render(<DiffCard oldText="old" newText="new" />)
     fireEvent.click(screen.getByRole('button', { name: /show full diff/i }))
-    expect(screen.getByRole('button', { name: /collapse/i }).getAttribute('aria-expanded')).toBe('true')
+    expect(screen.getByRole('button', { name: /collapse/i }).getAttribute('aria-expanded')).toBe(
+      'true'
+    )
   })
 })
 

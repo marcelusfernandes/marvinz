@@ -135,11 +135,7 @@ describe('integration: capture → restoreUserSnapshot round-trip', () => {
   it('round-trip: restoring re-creates parent directories removed alongside the file', async () => {
     await writeVaultFile('projects/alpha/notes.md', 'alpha project notes')
 
-    const snapshotId = await captureUserSnapshot(
-      tmpDir,
-      ['projects/alpha/notes.md'],
-      'user-trash',
-    )
+    const snapshotId = await captureUserSnapshot(tmpDir, ['projects/alpha/notes.md'], 'user-trash')
 
     // Simulate trash of the whole folder
     await fs.rm(path.join(tmpDir, 'projects'), { recursive: true })
@@ -200,45 +196,46 @@ describe('path-safety: captureUserSnapshot rejects paths outside vault', () => {
   afterEach(teardown)
 
   it('rejects traversal path ("../outside.md")', async () => {
-    await expect(
-      captureUserSnapshot(tmpDir, ['../outside.md'], 'user-trash'),
-    ).rejects.toThrow(/MARVIN_INVALID_PATH|MARVIN_OUTSIDE_VAULT|invalid/i)
+    await expect(captureUserSnapshot(tmpDir, ['../outside.md'], 'user-trash')).rejects.toThrow(
+      /MARVIN_INVALID_PATH|MARVIN_OUTSIDE_VAULT|invalid/i
+    )
   })
 
   it('rejects absolute path ("/etc/passwd")', async () => {
-    await expect(
-      captureUserSnapshot(tmpDir, ['/etc/passwd'], 'user-trash'),
-    ).rejects.toThrow(/MARVIN_INVALID_PATH|MARVIN_OUTSIDE_VAULT|invalid/i)
+    await expect(captureUserSnapshot(tmpDir, ['/etc/passwd'], 'user-trash')).rejects.toThrow(
+      /MARVIN_INVALID_PATH|MARVIN_OUTSIDE_VAULT|invalid/i
+    )
   })
 
   it('rejects embedded traversal ("sub/../../etc/passwd")', async () => {
     await expect(
-      captureUserSnapshot(tmpDir, ['sub/../../etc/passwd'], 'user-trash'),
+      captureUserSnapshot(tmpDir, ['sub/../../etc/passwd'], 'user-trash')
     ).rejects.toThrow(/MARVIN_INVALID_PATH|MARVIN_OUTSIDE_VAULT|invalid/i)
   })
 
   it('rejects path with null byte', async () => {
-    await expect(
-      captureUserSnapshot(tmpDir, ['foo\0bar.md'], 'user-trash'),
-    ).rejects.toThrow(/MARVIN_INVALID_PATH|MARVIN_OUTSIDE_VAULT|invalid/i)
+    await expect(captureUserSnapshot(tmpDir, ['foo\0bar.md'], 'user-trash')).rejects.toThrow(
+      /MARVIN_INVALID_PATH|MARVIN_OUTSIDE_VAULT|invalid/i
+    )
   })
 
   it('rejects empty string path', async () => {
-    await expect(
-      captureUserSnapshot(tmpDir, [''], 'user-trash'),
-    ).rejects.toThrow()
+    await expect(captureUserSnapshot(tmpDir, [''], 'user-trash')).rejects.toThrow()
   })
 
   it('rejects empty paths array', async () => {
-    await expect(
-      captureUserSnapshot(tmpDir, [], 'user-trash'),
-    ).rejects.toThrow()
+    await expect(captureUserSnapshot(tmpDir, [], 'user-trash')).rejects.toThrow()
   })
 
   it('does not write any file outside vault on traversal attempt', async () => {
     const outsidePath = path.resolve(tmpDir, '../outside.md')
-    await captureUserSnapshot(tmpDir, ['../outside.md'], 'user-trash').catch(() => {/* expected */})
-    const exists = await fs.access(outsidePath).then(() => true).catch(() => false)
+    await captureUserSnapshot(tmpDir, ['../outside.md'], 'user-trash').catch(() => {
+      /* expected */
+    })
+    const exists = await fs
+      .access(outsidePath)
+      .then(() => true)
+      .catch(() => false)
     expect(exists).toBe(false)
   })
 
@@ -246,7 +243,7 @@ describe('path-safety: captureUserSnapshot rejects paths outside vault', () => {
     await writeVaultFile('note.md', 'content')
     await expect(
       // @ts-expect-error intentionally invalid trigger for test
-      captureUserSnapshot(tmpDir, ['note.md'], 'invalid-trigger'),
+      captureUserSnapshot(tmpDir, ['note.md'], 'invalid-trigger')
     ).rejects.toThrow(/MARVIN_INVALID_TRIGGER|invalid/i)
   })
 })
@@ -256,9 +253,9 @@ describe('path-safety: restoreUserSnapshot rejects paths outside vault', () => {
   afterEach(teardown)
 
   it('throws MARVIN_UNKNOWN_SNAPSHOT for a nonexistent snapshotId', async () => {
-    await expect(
-      restoreUserSnapshot(tmpDir, 'totally-nonexistent-id'),
-    ).rejects.toThrow(/MARVIN_UNKNOWN_SNAPSHOT|unknown|not found/i)
+    await expect(restoreUserSnapshot(tmpDir, 'totally-nonexistent-id')).rejects.toThrow(
+      /MARVIN_UNKNOWN_SNAPSHOT|unknown|not found/i
+    )
   })
 
   it('rejects restore when manifest entry carries a traversal path', async () => {
@@ -279,9 +276,9 @@ describe('path-safety: restoreUserSnapshot rejects paths outside vault', () => {
     }
     await fs.writeFile(userManifestPath(tmpDir), JSON.stringify(manifest), 'utf8')
 
-    await expect(
-      restoreUserSnapshot(tmpDir, maliciousId),
-    ).rejects.toThrow(/MARVIN_INVALID_PATH|MARVIN_OUTSIDE_VAULT|invalid/i)
+    await expect(restoreUserSnapshot(tmpDir, maliciousId)).rejects.toThrow(
+      /MARVIN_INVALID_PATH|MARVIN_OUTSIDE_VAULT|invalid/i
+    )
   })
 
   it('rejects restore when manifest entry carries an absolute path', async () => {
@@ -301,9 +298,9 @@ describe('path-safety: restoreUserSnapshot rejects paths outside vault', () => {
     }
     await fs.writeFile(userManifestPath(tmpDir), JSON.stringify(manifest), 'utf8')
 
-    await expect(
-      restoreUserSnapshot(tmpDir, maliciousId),
-    ).rejects.toThrow(/MARVIN_INVALID_PATH|MARVIN_OUTSIDE_VAULT|invalid/i)
+    await expect(restoreUserSnapshot(tmpDir, maliciousId)).rejects.toThrow(
+      /MARVIN_INVALID_PATH|MARVIN_OUTSIDE_VAULT|invalid/i
+    )
   })
 
   it('rejects capture when symlink inside vault points outside', async () => {
@@ -318,9 +315,9 @@ describe('path-safety: restoreUserSnapshot rejects paths outside vault', () => {
 
     try {
       // Capture must be rejected — symlink target escapes vault
-      await expect(
-        captureUserSnapshot(tmpDir, ['link.md'], 'user-trash'),
-      ).rejects.toThrow(/MARVIN_INVALID_PATH|MARVIN_OUTSIDE_VAULT|invalid/i)
+      await expect(captureUserSnapshot(tmpDir, ['link.md'], 'user-trash')).rejects.toThrow(
+        /MARVIN_INVALID_PATH|MARVIN_OUTSIDE_VAULT|invalid/i
+      )
 
       // The outside file must be untouched
       expect(await fs.readFile(realOutside, 'utf8')).toBe('sensitive')
@@ -361,9 +358,9 @@ describe('path-safety: restoreUserSnapshot rejects paths outside vault', () => {
     await fs.writeFile(userManifestPath(tmpDir), JSON.stringify(manifest), 'utf8')
 
     try {
-      await expect(
-        restoreUserSnapshot(tmpDir, escapingId),
-      ).rejects.toThrow(/MARVIN_INVALID_PATH|MARVIN_OUTSIDE_VAULT|invalid/i)
+      await expect(restoreUserSnapshot(tmpDir, escapingId)).rejects.toThrow(
+        /MARVIN_INVALID_PATH|MARVIN_OUTSIDE_VAULT|invalid/i
+      )
 
       // outsideDir must be empty
       expect(await fs.readdir(realOutsideDir)).toHaveLength(0)
@@ -387,7 +384,12 @@ describe('regression: AI-turn snapshot path is unaffected by U2 additions', () =
 
     expect(ok).toBe(true)
     const turnDir = path.join(tmpDir, '.marvin', 'snapshots', turnId)
-    expect(await fs.access(turnDir).then(() => true).catch(() => false)).toBe(true)
+    expect(
+      await fs
+        .access(turnDir)
+        .then(() => true)
+        .catch(() => false)
+    ).toBe(true)
   })
 
   it('readSnapshot retrieves AI-turn content unaffected by concurrent user captures', async () => {
@@ -457,7 +459,10 @@ describe('regression: AI-turn snapshot path is unaffected by U2 additions', () =
     expect(userBucketTrashed).toBe(false)
 
     // The _user manifest must still exist
-    const manifestExists = await fs.access(userManifestPath(tmpDir)).then(() => true).catch(() => false)
+    const manifestExists = await fs
+      .access(userManifestPath(tmpDir))
+      .then(() => true)
+      .catch(() => false)
     expect(manifestExists).toBe(true)
   })
 
@@ -486,7 +491,14 @@ describe('regression: AI-turn snapshot path is unaffected by U2 additions', () =
   })
 
   it('all original trigger types (file:write, watcher, cascade, etc.) still work', async () => {
-    const triggers = ['file:write', 'watcher', 'restore', 'cascade', 'buffer-save', 'external-rejected'] as const
+    const triggers = [
+      'file:write',
+      'watcher',
+      'restore',
+      'cascade',
+      'buffer-save',
+      'external-rejected',
+    ] as const
     for (const trigger of triggers) {
       const turnId = newTurnId()
       const ok = await writeSnapshot(tmpDir, turnId, 'test.md', 'content', trigger)
@@ -504,15 +516,15 @@ describe('regression: AI-turn snapshot path is unaffected by U2 additions', () =
   })
 
   it('readSnapshot still throws MARVIN_INVALID_TURN_ID on traversal turnId', async () => {
-    await expect(
-      readSnapshot(tmpDir, '../../../etc/evil', 'file.md'),
-    ).rejects.toThrow(/MARVIN_INVALID_TURN_ID/i)
+    await expect(readSnapshot(tmpDir, '../../../etc/evil', 'file.md')).rejects.toThrow(
+      /MARVIN_INVALID_TURN_ID/i
+    )
   })
 
   it('restoreSnapshot still throws MARVIN_INVALID_PATH on traversal relPath', async () => {
     const turnId = newTurnId()
-    await expect(
-      restoreSnapshot(tmpDir, turnId, '../../escape.md'),
-    ).rejects.toThrow(/MARVIN_INVALID_PATH/i)
+    await expect(restoreSnapshot(tmpDir, turnId, '../../escape.md')).rejects.toThrow(
+      /MARVIN_INVALID_PATH/i
+    )
   })
 })

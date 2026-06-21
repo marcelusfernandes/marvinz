@@ -152,7 +152,7 @@ vi.mock('@uiw/react-codemirror', () => ({
       capturedExtensions.value = props.extensions ?? []
       props.onCreateEditor?.(currentCMView)
       return <div data-testid="codemirror" />
-    },
+    }
   ),
 }))
 
@@ -294,7 +294,7 @@ describe('CodeMirror find/replace — searchKeymap registration', () => {
       render(<Editor {...defaultProps()} />)
     })
     const registeredSearchKeymap = mockKeymapOf.mock.calls.some(
-      (args) => args[0] === fakeSearchKeymap,
+      (args) => args[0] === fakeSearchKeymap
     )
     expect(registeredSearchKeymap).toBe(true)
   })
@@ -303,9 +303,7 @@ describe('CodeMirror find/replace — searchKeymap registration', () => {
     await act(async () => {
       render(<Editor {...defaultProps()} />)
     })
-    const idx = mockKeymapOf.mock.calls.findIndex(
-      (args) => args[0] === fakeSearchKeymap,
-    )
+    const idx = mockKeymapOf.mock.calls.findIndex((args) => args[0] === fakeSearchKeymap)
     expect(idx).toBeGreaterThanOrEqual(0)
     const keymapExt = mockKeymapOf.mock.results[idx]?.value
     expect(capturedExtensions.value).toContainEqual(keymapExt)
@@ -373,9 +371,7 @@ describe('CodeMirror find/replace — extensions present for all file types', ()
       render(<Editor {...props} />)
     })
     expect(mockSearchFn).toHaveBeenCalledWith({ top: true })
-    expect(
-      mockKeymapOf.mock.calls.some((args) => args[0] === fakeSearchKeymap),
-    ).toBe(true)
+    expect(mockKeymapOf.mock.calls.some((args) => args[0] === fakeSearchKeymap)).toBe(true)
   })
 
   it('search and searchKeymap are registered for plain text files', async () => {
@@ -384,8 +380,6 @@ describe('CodeMirror find/replace — extensions present for all file types', ()
       render(<Editor {...props} />)
     })
     expect(mockSearchFn).toHaveBeenCalledWith({ top: true })
-    expect(
-      mockKeymapOf.mock.calls.some((args) => args[0] === fakeSearchKeymap),
-    ).toBe(true)
+    expect(mockKeymapOf.mock.calls.some((args) => args[0] === fakeSearchKeymap)).toBe(true)
   })
 })

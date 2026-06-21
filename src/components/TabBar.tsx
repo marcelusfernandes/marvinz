@@ -76,14 +76,7 @@ function basename(p: string): string {
   return p.split('/').pop() ?? p
 }
 
-export function TabBar({
-  tabs,
-  activeId,
-  dirtyTabId,
-  onActivate,
-  onClose,
-  onNewTab,
-}: Props) {
+export function TabBar({ tabs, activeId, dirtyTabId, onActivate, onClose, onNewTab }: Props) {
   const barRef = useRef<HTMLDivElement>(null)
   useHorizontalWheelScroll(barRef)
 
@@ -96,12 +89,16 @@ export function TabBar({
       const target = tabs[idx]
       const others = tabs.filter((t) => t.id !== tabId)
       const toRight = tabs.slice(idx + 1)
-      const revealPath =
-        target.type === 'browser' || target.type === 'empty' ? null : target.path
+      const revealPath = target.type === 'browser' || target.type === 'empty' ? null : target.path
       const items: MenuItemSpec[] = [
         { kind: 'item', id: 'close', label: 'Close' },
         { kind: 'item', id: 'closeOthers', label: 'Close Others', enabled: others.length > 0 },
-        { kind: 'item', id: 'closeRight', label: 'Close to the Right', enabled: toRight.length > 0 },
+        {
+          kind: 'item',
+          id: 'closeRight',
+          label: 'Close to the Right',
+          enabled: toRight.length > 0,
+        },
         { kind: 'item', id: 'closeAll', label: 'Close All' },
         { kind: 'separator' },
         { kind: 'item', id: 'reveal', label: 'Reveal in Finder', enabled: revealPath !== null },
@@ -126,7 +123,7 @@ export function TabBar({
           break
       }
     },
-    [tabs, onClose],
+    [tabs, onClose]
   )
 
   return (
@@ -142,12 +139,7 @@ export function TabBar({
               : t.type === 'empty'
                 ? t.title
                 : basename(t.path)
-        const tooltip =
-          t.type === 'browser'
-            ? t.url
-            : t.type === 'empty'
-              ? undefined
-              : t.path
+        const tooltip = t.type === 'browser' ? t.url : t.type === 'empty' ? undefined : t.path
         // Tabs that wrap a vault file expose their path on dragstart so the
         // agent panes / editor (any drop target that consumes MARVIN_PATH_MIME)
         // can read it as a drag source. Empty + browser tabs have no path to
@@ -183,10 +175,7 @@ export function TabBar({
             onContextMenu={(e) => handleContextMenu(e, t.id)}
             title={tooltip}
           >
-            <TabIcon
-              tab={t}
-              loading={t.type === 'browser' ? t.loading : false}
-            />
+            <TabIcon tab={t} loading={t.type === 'browser' ? t.loading : false} />
             <span className="tab-title">{label}</span>
             {dirtyTabId === t.id && (
               <span className="tab-dirty" aria-label="Unsaved changes" title="Unsaved changes">
@@ -203,7 +192,7 @@ export function TabBar({
                 onClose(t.id)
               }}
             >
-              <Icon name="close" size={14}/>
+              <Icon name="close" size={14} />
             </button>
           </div>
         )
@@ -215,7 +204,7 @@ export function TabBar({
         title="New tab"
         aria-label="New tab"
       >
-        <Icon name="add"/>
+        <Icon name="add" />
       </button>
     </div>
   )

@@ -41,7 +41,7 @@ async function createUserDataDir(vaultPath: string, saveMode: 'auto' | 'manual')
   await fs.writeFile(
     path.join(userDataDir, 'settings.json'),
     JSON.stringify({ vaultPath, saveMode }),
-    'utf8',
+    'utf8'
   )
   return userDataDir
 }
@@ -54,7 +54,10 @@ async function seedNote(vaultRoot: string, name: string, content: string): Promi
 
 // Stub the native unsaved-changes message box in the main process so the test
 // can pick the button. Save=0, Don't Save=1, Cancel=2 (see main.ts handler).
-async function stubUnsavedDialog(app: LaunchedApp, choice: 'save' | 'discard' | 'cancel'): Promise<void> {
+async function stubUnsavedDialog(
+  app: LaunchedApp,
+  choice: 'save' | 'discard' | 'cancel'
+): Promise<void> {
   const response = choice === 'save' ? 0 : choice === 'discard' ? 1 : 2
   await app.evaluate(({ dialog }, r) => {
     Object.assign(dialog, {
@@ -68,9 +71,11 @@ async function stubUnsavedDialog(app: LaunchedApp, choice: 'save' | 'discard' | 
 async function openNoteAndType(
   page: Awaited<ReturnType<LaunchedApp['firstWindow']>>,
   noteName: string,
-  text: string,
+  text: string
 ): Promise<void> {
-  const fileRow = page.locator('.sidebar .file-tree-row.file', { hasText: new RegExp(`^${noteName}$`) })
+  const fileRow = page.locator('.sidebar .file-tree-row.file', {
+    hasText: new RegExp(`^${noteName}$`),
+  })
   await expect(fileRow).toBeVisible({ timeout: 15_000 })
   await fileRow.click()
 
@@ -235,7 +240,7 @@ test.describe('dirty-state close prompt — non-active tab, manual save mode', (
       await expect(tabA).toBeVisible({ timeout: 5_000 })
       await page.evaluate((noteName) => {
         const tab = Array.from(document.querySelectorAll('.tab')).find((el) =>
-          el.textContent?.includes(noteName),
+          el.textContent?.includes(noteName)
         )
         const btn = tab?.querySelector('.tab-close') as HTMLElement | null
         btn?.dispatchEvent(new MouseEvent('click', { bubbles: true }))

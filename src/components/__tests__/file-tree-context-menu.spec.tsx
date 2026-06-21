@@ -62,7 +62,11 @@ vi.mock('../../lib/settingsStore', () => ({
   seedFromMain: vi.fn(),
   useSetting: (_key: string, fallback: unknown) => [fallback, vi.fn()],
 }))
-vi.mock('../../lib/colorTheme', () => ({ useColorTheme: () => 'light', useAgentsPaneTransparent: () => false, useEditorEffects: () => {} }))
+vi.mock('../../lib/colorTheme', () => ({
+  useColorTheme: () => 'light',
+  useAgentsPaneTransparent: () => false,
+  useEditorEffects: () => {},
+}))
 vi.mock('../../lib/visualStyle', () => ({ useVisualStyle: () => 'modern' }))
 vi.mock('../../lib/paletteRanker', () => ({}))
 
@@ -182,7 +186,7 @@ async function renderApp() {
   await act(async () => {
     render(<App />)
     // Allow all async effects (settings.get, agent.detect, vault.watch, vault.tree) to settle
-    await new Promise(r => setTimeout(r, 50))
+    await new Promise((r) => setTimeout(r, 50))
   })
 }
 
@@ -222,45 +226,65 @@ describe('File Tree — file node context menu IPC payload', () => {
   it('includes Rename item with id "rename" for a file', async () => {
     showContextMenuMock.mockResolvedValue(null)
     await renderApp()
-    await act(async () => { await capturedOnContextMenu!(fakeRightClick(), fakeFile) })
+    await act(async () => {
+      await capturedOnContextMenu!(fakeRightClick(), fakeFile)
+    })
     const [items] = showContextMenuMock.mock.calls[0] as [MenuItemSpec[]]
-    const rename = items.find(i => i.kind === 'item' && (i as Extract<MenuItemSpec, { kind: 'item' }>).id === 'rename') as Extract<MenuItemSpec, { kind: 'item' }> | undefined
+    const rename = items.find(
+      (i) => i.kind === 'item' && (i as Extract<MenuItemSpec, { kind: 'item' }>).id === 'rename'
+    ) as Extract<MenuItemSpec, { kind: 'item' }> | undefined
     expect(rename?.label).toBe('Rename')
   })
 
   it('includes Reveal in Finder item with id "reveal" for a file', async () => {
     showContextMenuMock.mockResolvedValue(null)
     await renderApp()
-    await act(async () => { await capturedOnContextMenu!(fakeRightClick(), fakeFile) })
+    await act(async () => {
+      await capturedOnContextMenu!(fakeRightClick(), fakeFile)
+    })
     const [items] = showContextMenuMock.mock.calls[0] as [MenuItemSpec[]]
-    const reveal = items.find(i => i.kind === 'item' && (i as Extract<MenuItemSpec, { kind: 'item' }>).id === 'reveal') as Extract<MenuItemSpec, { kind: 'item' }> | undefined
+    const reveal = items.find(
+      (i) => i.kind === 'item' && (i as Extract<MenuItemSpec, { kind: 'item' }>).id === 'reveal'
+    ) as Extract<MenuItemSpec, { kind: 'item' }> | undefined
     expect(reveal?.label).toBe('Reveal in Finder')
   })
 
   it('includes Move file to Trash item with id "trash" for a file', async () => {
     showContextMenuMock.mockResolvedValue(null)
     await renderApp()
-    await act(async () => { await capturedOnContextMenu!(fakeRightClick(), fakeFile) })
+    await act(async () => {
+      await capturedOnContextMenu!(fakeRightClick(), fakeFile)
+    })
     const [items] = showContextMenuMock.mock.calls[0] as [MenuItemSpec[]]
-    const trash = items.find(i => i.kind === 'item' && (i as Extract<MenuItemSpec, { kind: 'item' }>).id === 'trash') as Extract<MenuItemSpec, { kind: 'item' }> | undefined
+    const trash = items.find(
+      (i) => i.kind === 'item' && (i as Extract<MenuItemSpec, { kind: 'item' }>).id === 'trash'
+    ) as Extract<MenuItemSpec, { kind: 'item' }> | undefined
     expect(trash?.label).toBe('Move file to Trash')
   })
 
   it('includes View versions item with id "versions" for a file', async () => {
     showContextMenuMock.mockResolvedValue(null)
     await renderApp()
-    await act(async () => { await capturedOnContextMenu!(fakeRightClick(), fakeFile) })
+    await act(async () => {
+      await capturedOnContextMenu!(fakeRightClick(), fakeFile)
+    })
     const [items] = showContextMenuMock.mock.calls[0] as [MenuItemSpec[]]
-    const versions = items.find(i => i.kind === 'item' && (i as Extract<MenuItemSpec, { kind: 'item' }>).id === 'versions') as Extract<MenuItemSpec, { kind: 'item' }> | undefined
+    const versions = items.find(
+      (i) => i.kind === 'item' && (i as Extract<MenuItemSpec, { kind: 'item' }>).id === 'versions'
+    ) as Extract<MenuItemSpec, { kind: 'item' }> | undefined
     expect(versions?.label).toBe('View versions…')
   })
 
   it('does NOT include new-note or new-folder items for a file', async () => {
     showContextMenuMock.mockResolvedValue(null)
     await renderApp()
-    await act(async () => { await capturedOnContextMenu!(fakeRightClick(), fakeFile) })
+    await act(async () => {
+      await capturedOnContextMenu!(fakeRightClick(), fakeFile)
+    })
     const [items] = showContextMenuMock.mock.calls[0] as [MenuItemSpec[]]
-    const ids = items.filter(i => i.kind === 'item').map(i => (i as Extract<MenuItemSpec, { kind: 'item' }>).id)
+    const ids = items
+      .filter((i) => i.kind === 'item')
+      .map((i) => (i as Extract<MenuItemSpec, { kind: 'item' }>).id)
     expect(ids).not.toContain('new-note')
     expect(ids).not.toContain('new-folder')
   })
@@ -274,36 +298,52 @@ describe('File Tree — directory node context menu IPC payload', () => {
   it('includes New note here with id "new-note" for a directory', async () => {
     showContextMenuMock.mockResolvedValue(null)
     await renderApp()
-    await act(async () => { await capturedOnContextMenu!(fakeRightClick(), fakeDir) })
+    await act(async () => {
+      await capturedOnContextMenu!(fakeRightClick(), fakeDir)
+    })
     const [items] = showContextMenuMock.mock.calls[0] as [MenuItemSpec[]]
-    const item = items.find(i => i.kind === 'item' && (i as Extract<MenuItemSpec, { kind: 'item' }>).id === 'new-note') as Extract<MenuItemSpec, { kind: 'item' }> | undefined
+    const item = items.find(
+      (i) => i.kind === 'item' && (i as Extract<MenuItemSpec, { kind: 'item' }>).id === 'new-note'
+    ) as Extract<MenuItemSpec, { kind: 'item' }> | undefined
     expect(item?.label).toBe('New note here')
   })
 
   it('includes New folder here with id "new-folder" for a directory', async () => {
     showContextMenuMock.mockResolvedValue(null)
     await renderApp()
-    await act(async () => { await capturedOnContextMenu!(fakeRightClick(), fakeDir) })
+    await act(async () => {
+      await capturedOnContextMenu!(fakeRightClick(), fakeDir)
+    })
     const [items] = showContextMenuMock.mock.calls[0] as [MenuItemSpec[]]
-    const item = items.find(i => i.kind === 'item' && (i as Extract<MenuItemSpec, { kind: 'item' }>).id === 'new-folder') as Extract<MenuItemSpec, { kind: 'item' }> | undefined
+    const item = items.find(
+      (i) => i.kind === 'item' && (i as Extract<MenuItemSpec, { kind: 'item' }>).id === 'new-folder'
+    ) as Extract<MenuItemSpec, { kind: 'item' }> | undefined
     expect(item?.label).toBe('New folder here')
   })
 
   it('labels trash item as "Move folder to Trash" for a directory', async () => {
     showContextMenuMock.mockResolvedValue(null)
     await renderApp()
-    await act(async () => { await capturedOnContextMenu!(fakeRightClick(), fakeDir) })
+    await act(async () => {
+      await capturedOnContextMenu!(fakeRightClick(), fakeDir)
+    })
     const [items] = showContextMenuMock.mock.calls[0] as [MenuItemSpec[]]
-    const trash = items.find(i => i.kind === 'item' && (i as Extract<MenuItemSpec, { kind: 'item' }>).id === 'trash') as Extract<MenuItemSpec, { kind: 'item' }> | undefined
+    const trash = items.find(
+      (i) => i.kind === 'item' && (i as Extract<MenuItemSpec, { kind: 'item' }>).id === 'trash'
+    ) as Extract<MenuItemSpec, { kind: 'item' }> | undefined
     expect(trash?.label).toBe('Move folder to Trash')
   })
 
   it('does NOT include versions item for a directory', async () => {
     showContextMenuMock.mockResolvedValue(null)
     await renderApp()
-    await act(async () => { await capturedOnContextMenu!(fakeRightClick(), fakeDir) })
+    await act(async () => {
+      await capturedOnContextMenu!(fakeRightClick(), fakeDir)
+    })
     const [items] = showContextMenuMock.mock.calls[0] as [MenuItemSpec[]]
-    const ids = items.filter(i => i.kind === 'item').map(i => (i as Extract<MenuItemSpec, { kind: 'item' }>).id)
+    const ids = items
+      .filter((i) => i.kind === 'item')
+      .map((i) => (i as Extract<MenuItemSpec, { kind: 'item' }>).id)
     expect(ids).not.toContain('versions')
   })
 })

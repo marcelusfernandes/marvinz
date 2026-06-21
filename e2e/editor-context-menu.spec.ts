@@ -31,11 +31,7 @@ import os from 'node:os'
 async function createUserDataDir(vaultPath: string): Promise<string> {
   const raw = await fs.mkdtemp(path.join(os.tmpdir(), 'marvin-e2e-ctxmenu-data-'))
   const userDataDir = await fs.realpath(raw)
-  await fs.writeFile(
-    path.join(userDataDir, 'settings.json'),
-    JSON.stringify({ vaultPath }),
-    'utf8',
-  )
+  await fs.writeFile(path.join(userDataDir, 'settings.json'), JSON.stringify({ vaultPath }), 'utf8')
   return userDataDir
 }
 
@@ -43,13 +39,13 @@ async function seedVault(vaultRoot: string): Promise<void> {
   await fs.writeFile(
     path.join(vaultRoot, 'note.md'),
     '# Context menu test\n\nSome content here.\n',
-    'utf8',
+    'utf8'
   )
 }
 
 /** Install a spy that replaces the real editor:show-context-menu handler. */
 async function installContextMenuSpy(
-  app: Awaited<ReturnType<typeof electron.launch>>,
+  app: Awaited<ReturnType<typeof electron.launch>>
 ): Promise<void> {
   await app.evaluate(({ ipcMain }) => {
     // Remove the live handler so we can intercept without opening a real native menu.
@@ -64,17 +60,12 @@ async function installContextMenuSpy(
 }
 
 /** Read back the last payload captured by the spy. */
-async function readSpyPayload(
-  app: Awaited<ReturnType<typeof electron.launch>>,
-): Promise<unknown> {
+async function readSpyPayload(app: Awaited<ReturnType<typeof electron.launch>>): Promise<unknown> {
   return app.evaluate(() => (globalThis as Record<string, unknown>).__ctxMenuSpy)
 }
 
 /** Click a file in the sidebar and wait for the editor to appear. */
-async function openFile(
-  page: import('playwright').Page,
-  labelRe: RegExp,
-): Promise<void> {
+async function openFile(page: import('playwright').Page, labelRe: RegExp): Promise<void> {
   const fileRow = page.locator('.sidebar .file-tree-row.file', { hasText: labelRe })
   await expect(fileRow).toBeVisible({ timeout: 15_000 })
   await fileRow.click()
@@ -165,7 +156,7 @@ test.describe('editor:show-context-menu — IPC wire contract', () => {
       await cmContent.click({ button: 'right' })
       await page.waitForTimeout(500)
 
-      const payload = await readSpyPayload(app) as Record<string, unknown> | null
+      const payload = (await readSpyPayload(app)) as Record<string, unknown> | null
       expect(payload).not.toBeNull()
       expect(payload!.hasSelection).toBe(false)
     } finally {
@@ -195,7 +186,7 @@ test.describe('editor:show-context-menu — IPC wire contract', () => {
       await cmContent.click({ button: 'right' })
       await page.waitForTimeout(500)
 
-      const payload = await readSpyPayload(app) as Record<string, unknown> | null
+      const payload = (await readSpyPayload(app)) as Record<string, unknown> | null
       expect(payload).not.toBeNull()
       expect(payload!.hasSelection).toBe(true)
     } finally {

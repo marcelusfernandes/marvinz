@@ -75,18 +75,14 @@ describe('XlsxViewer', () => {
   it('renders a table when readXlsx resolves', async () => {
     readXlsxMock.mockResolvedValue({ rows: SAMPLE_ROWS, sheetNames: ['Sheet1'] })
     const { container } = render(<XlsxViewer path="/vault/data.xlsx" />)
-    await waitFor(() =>
-      expect(container.querySelector('.xlsx-viewer-content')).not.toBeNull(),
-    )
+    await waitFor(() => expect(container.querySelector('.xlsx-viewer-content')).not.toBeNull())
     expect(container.querySelector('table')).not.toBeNull()
   })
 
   it('renders header row cells from first row of data', async () => {
     readXlsxMock.mockResolvedValue({ rows: SAMPLE_ROWS, sheetNames: ['Sheet1'] })
     const { container } = render(<XlsxViewer path="/vault/data.xlsx" />)
-    await waitFor(() =>
-      expect(container.querySelector('.xlsx-viewer-content')).not.toBeNull(),
-    )
+    await waitFor(() => expect(container.querySelector('.xlsx-viewer-content')).not.toBeNull())
     const headers = container.querySelectorAll('th')
     expect(headers.length).toBeGreaterThan(0)
     const headerTexts = Array.from(headers).map((h) => h.textContent)
@@ -97,9 +93,7 @@ describe('XlsxViewer', () => {
   it('renders data rows', async () => {
     readXlsxMock.mockResolvedValue({ rows: SAMPLE_ROWS, sheetNames: ['Sheet1'] })
     const { container } = render(<XlsxViewer path="/vault/data.xlsx" />)
-    await waitFor(() =>
-      expect(container.querySelector('.xlsx-viewer-content')).not.toBeNull(),
-    )
+    await waitFor(() => expect(container.querySelector('.xlsx-viewer-content')).not.toBeNull())
     const rows = container.querySelectorAll('tbody tr')
     expect(rows.length).toBe(2) // rows minus header
   })
@@ -107,36 +101,28 @@ describe('XlsxViewer', () => {
   it('shows an inline error message when readXlsx rejects', async () => {
     readXlsxMock.mockRejectedValue(new Error('read failed'))
     const { container } = render(<XlsxViewer path="/vault/data.xlsx" />)
-    await waitFor(() =>
-      expect(container.querySelector('.xlsx-viewer-error')).not.toBeNull(),
-    )
+    await waitFor(() => expect(container.querySelector('.xlsx-viewer-error')).not.toBeNull())
     expect(container.querySelector('.xlsx-viewer-error')!.textContent).toContain('read failed')
   })
 
   it('renders the filename in the toolbar', async () => {
     readXlsxMock.mockResolvedValue({ rows: SAMPLE_ROWS, sheetNames: ['Sheet1'] })
     const { container } = render(<XlsxViewer path="/vault/reports/Budget.xlsx" />)
-    await waitFor(() =>
-      expect(container.querySelector('.xlsx-viewer-content')).not.toBeNull(),
-    )
+    await waitFor(() => expect(container.querySelector('.xlsx-viewer-content')).not.toBeNull())
     expect(container.querySelector('.xlsx-viewer-name')!.textContent).toContain('Budget.xlsx')
   })
 
   it('renders sheet names when multiple sheets are present', async () => {
     readXlsxMock.mockResolvedValue({ rows: SAMPLE_ROWS, sheetNames: ['Sheet1', 'Summary'] })
     const { container } = render(<XlsxViewer path="/vault/data.xlsx" />)
-    await waitFor(() =>
-      expect(container.querySelector('.xlsx-viewer-content')).not.toBeNull(),
-    )
+    await waitFor(() => expect(container.querySelector('.xlsx-viewer-content')).not.toBeNull())
     expect(container.textContent).toContain('Sheet1')
   })
 
   it('switches to edit mode when Edit button is clicked', async () => {
     readXlsxMock.mockResolvedValue({ rows: SAMPLE_ROWS, sheetNames: ['Sheet1'] })
     const { container } = render(<XlsxViewer path="/vault/data.xlsx" />)
-    await waitFor(() =>
-      expect(container.querySelector('.xlsx-viewer-content')).not.toBeNull(),
-    )
+    await waitFor(() => expect(container.querySelector('.xlsx-viewer-content')).not.toBeNull())
     expect(btn(container, 'Edit spreadsheet')).not.toBeNull()
     fireEvent.click(btn(container, 'Edit spreadsheet')!)
     expect(container.querySelector('.xlsx-viewer-edit')).not.toBeNull()
@@ -145,12 +131,10 @@ describe('XlsxViewer', () => {
   it('shows dirty indicator after editing a cell', async () => {
     readXlsxMock.mockResolvedValue({ rows: SAMPLE_ROWS, sheetNames: ['Sheet1'] })
     const { container } = render(<XlsxViewer path="/vault/data.xlsx" />)
-    await waitFor(() =>
-      expect(container.querySelector('.xlsx-viewer-content')).not.toBeNull(),
-    )
+    await waitFor(() => expect(container.querySelector('.xlsx-viewer-content')).not.toBeNull())
     fireEvent.click(btn(container, 'Edit spreadsheet')!)
     const cell = container.querySelector<HTMLInputElement | HTMLTextAreaElement>(
-      '.xlsx-viewer-edit input, .xlsx-viewer-edit textarea',
+      '.xlsx-viewer-edit input, .xlsx-viewer-edit textarea'
     )
     if (cell) {
       fireEvent.change(cell, { target: { value: 'modified' } })
@@ -159,14 +143,18 @@ describe('XlsxViewer', () => {
   })
 
   it('calls writeXlsx with path and updated rows when Save is clicked', async () => {
-    readXlsxMock.mockResolvedValue({ rows: [['A', 'B'], ['1', '2']], sheetNames: ['Sheet1'] })
+    readXlsxMock.mockResolvedValue({
+      rows: [
+        ['A', 'B'],
+        ['1', '2'],
+      ],
+      sheetNames: ['Sheet1'],
+    })
     const { container } = render(<XlsxViewer path="/vault/data.xlsx" />)
-    await waitFor(() =>
-      expect(container.querySelector('.xlsx-viewer-content')).not.toBeNull(),
-    )
+    await waitFor(() => expect(container.querySelector('.xlsx-viewer-content')).not.toBeNull())
     fireEvent.click(btn(container, 'Edit spreadsheet')!)
     const cell = container.querySelector<HTMLInputElement | HTMLTextAreaElement>(
-      '.xlsx-viewer-edit input, .xlsx-viewer-edit textarea',
+      '.xlsx-viewer-edit input, .xlsx-viewer-edit textarea'
     )
     if (cell) {
       fireEvent.change(cell, { target: { value: 'changed' } })
@@ -177,19 +165,17 @@ describe('XlsxViewer', () => {
     expect(writeXlsxMock).toHaveBeenCalledWith(
       '/vault/data.xlsx',
       expect.any(Array),
-      expect.any(String),
+      expect.any(String)
     )
   })
 
   it('returns to view mode after a successful save', async () => {
     readXlsxMock.mockResolvedValue({ rows: [['A'], ['1']], sheetNames: ['Sheet1'] })
     const { container } = render(<XlsxViewer path="/vault/data.xlsx" />)
-    await waitFor(() =>
-      expect(container.querySelector('.xlsx-viewer-content')).not.toBeNull(),
-    )
+    await waitFor(() => expect(container.querySelector('.xlsx-viewer-content')).not.toBeNull())
     fireEvent.click(btn(container, 'Edit spreadsheet')!)
     const cell = container.querySelector<HTMLInputElement | HTMLTextAreaElement>(
-      '.xlsx-viewer-edit input, .xlsx-viewer-edit textarea',
+      '.xlsx-viewer-edit input, .xlsx-viewer-edit textarea'
     )
     if (cell) {
       fireEvent.change(cell, { target: { value: 'new value' } })
@@ -197,9 +183,7 @@ describe('XlsxViewer', () => {
     await act(async () => {
       fireEvent.click(btn(container, 'Save changes to .xlsx')!)
     })
-    await waitFor(() =>
-      expect(container.querySelector('.xlsx-viewer-content')).not.toBeNull(),
-    )
+    await waitFor(() => expect(container.querySelector('.xlsx-viewer-content')).not.toBeNull())
     expect(container.querySelector('.xlsx-viewer-dirty')).toBeNull()
     expect(container.querySelector('.xlsx-viewer-edit')).toBeNull()
   })
@@ -208,12 +192,10 @@ describe('XlsxViewer', () => {
     readXlsxMock.mockResolvedValue({ rows: [['A'], ['1']], sheetNames: ['Sheet1'] })
     writeXlsxMock.mockRejectedValue(new Error('disk full'))
     const { container } = render(<XlsxViewer path="/vault/data.xlsx" />)
-    await waitFor(() =>
-      expect(container.querySelector('.xlsx-viewer-content')).not.toBeNull(),
-    )
+    await waitFor(() => expect(container.querySelector('.xlsx-viewer-content')).not.toBeNull())
     fireEvent.click(btn(container, 'Edit spreadsheet')!)
     const cell = container.querySelector<HTMLInputElement | HTMLTextAreaElement>(
-      '.xlsx-viewer-edit input, .xlsx-viewer-edit textarea',
+      '.xlsx-viewer-edit input, .xlsx-viewer-edit textarea'
     )
     if (cell) {
       fireEvent.change(cell, { target: { value: 'x' } })
@@ -221,23 +203,17 @@ describe('XlsxViewer', () => {
     await act(async () => {
       fireEvent.click(btn(container, 'Save changes to .xlsx')!)
     })
-    await waitFor(() =>
-      expect(container.querySelector('.xlsx-viewer-error')).not.toBeNull(),
-    )
+    await waitFor(() => expect(container.querySelector('.xlsx-viewer-error')).not.toBeNull())
     expect(container.querySelector('.xlsx-viewer-error')!.textContent).toContain('disk full')
   })
 
   it('cancels edit and returns to view without saving', async () => {
     readXlsxMock.mockResolvedValue({ rows: SAMPLE_ROWS, sheetNames: ['Sheet1'] })
     const { container } = render(<XlsxViewer path="/vault/data.xlsx" />)
-    await waitFor(() =>
-      expect(container.querySelector('.xlsx-viewer-content')).not.toBeNull(),
-    )
+    await waitFor(() => expect(container.querySelector('.xlsx-viewer-content')).not.toBeNull())
     fireEvent.click(btn(container, 'Edit spreadsheet')!)
     fireEvent.click(btn(container, 'Discard changes')!)
-    await waitFor(() =>
-      expect(container.querySelector('.xlsx-viewer-content')).not.toBeNull(),
-    )
+    await waitFor(() => expect(container.querySelector('.xlsx-viewer-content')).not.toBeNull())
     expect(container.querySelector('.xlsx-viewer-edit')).toBeNull()
     expect(writeXlsxMock).not.toHaveBeenCalled()
   })
@@ -246,11 +222,9 @@ describe('XlsxViewer', () => {
     readXlsxMock.mockResolvedValue({ rows: SAMPLE_ROWS, sheetNames: ['Sheet1'] })
     const onRevealInFinder = vi.fn()
     const { container } = render(
-      <XlsxViewer path="/vault/data.xlsx" onRevealInFinder={onRevealInFinder} />,
+      <XlsxViewer path="/vault/data.xlsx" onRevealInFinder={onRevealInFinder} />
     )
-    await waitFor(() =>
-      expect(container.querySelector('.xlsx-viewer-content')).not.toBeNull(),
-    )
+    await waitFor(() => expect(container.querySelector('.xlsx-viewer-content')).not.toBeNull())
     expect(btn(container, 'Reveal in Finder')).not.toBeNull()
     fireEvent.click(btn(container, 'Reveal in Finder')!)
     expect(onRevealInFinder).toHaveBeenCalledWith('/vault/data.xlsx')
@@ -259,9 +233,7 @@ describe('XlsxViewer', () => {
   it('does not render a Reveal button when onRevealInFinder is omitted', async () => {
     readXlsxMock.mockResolvedValue({ rows: SAMPLE_ROWS, sheetNames: ['Sheet1'] })
     const { container } = render(<XlsxViewer path="/vault/data.xlsx" />)
-    await waitFor(() =>
-      expect(container.querySelector('.xlsx-viewer-content')).not.toBeNull(),
-    )
+    await waitFor(() => expect(container.querySelector('.xlsx-viewer-content')).not.toBeNull())
     expect(btn(container, 'Reveal in Finder')).toBeNull()
   })
 

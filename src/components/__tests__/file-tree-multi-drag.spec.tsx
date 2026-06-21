@@ -167,11 +167,7 @@ describe('handleDragStart — non-selected item', () => {
 describe('handleDragStart — selected item, size === 1', () => {
   it('uses singular MIME (not plural) for a single-item selection', () => {
     const dt = makeDragStartDt()
-    render(
-      <FileTree
-        {...baseProps({ selectedPaths: new Set(['/vault/readme.md']) })}
-      />,
-    )
+    render(<FileTree {...baseProps({ selectedPaths: new Set(['/vault/readme.md']) })} />)
     const btn = screen.getByText('readme').closest('button')!
     fireEvent.dragStart(btn, { dataTransfer: dt })
 
@@ -181,11 +177,7 @@ describe('handleDragStart — selected item, size === 1', () => {
 
   it('text/plain equals the single path', () => {
     const dt = makeDragStartDt()
-    render(
-      <FileTree
-        {...baseProps({ selectedPaths: new Set(['/vault/readme.md']) })}
-      />,
-    )
+    render(<FileTree {...baseProps({ selectedPaths: new Set(['/vault/readme.md']) })} />)
     const btn = screen.getByText('readme').closest('button')!
     fireEvent.dragStart(btn, { dataTransfer: dt })
 

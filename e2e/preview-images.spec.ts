@@ -29,8 +29,8 @@ import os from 'node:os'
 // ---------------------------------------------------------------------------
 const MINIMAL_PNG = Buffer.from(
   '89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c489' +
-  '0000000a49444154789c6260000000020001e221bc330000000049454e44ae426082',
-  'hex',
+    '0000000a49444154789c6260000000020001e221bc330000000049454e44ae426082',
+  'hex'
 )
 
 // ---------------------------------------------------------------------------
@@ -40,11 +40,7 @@ const MINIMAL_PNG = Buffer.from(
 async function createUserDataDir(vaultPath: string): Promise<string> {
   const raw = await fs.mkdtemp(path.join(os.tmpdir(), 'marvin-e2e-imgpreview-data-'))
   const userDataDir = await fs.realpath(raw)
-  await fs.writeFile(
-    path.join(userDataDir, 'settings.json'),
-    JSON.stringify({ vaultPath }),
-    'utf8',
-  )
+  await fs.writeFile(path.join(userDataDir, 'settings.json'), JSON.stringify({ vaultPath }), 'utf8')
   return userDataDir
 }
 
@@ -70,10 +66,7 @@ async function seedVault(vaultRoot: string, noteContent: string): Promise<void> 
 }
 
 /** Click a file in the sidebar and wait for the editor area to appear. */
-async function openFile(
-  page: import('playwright').Page,
-  labelRe: RegExp,
-): Promise<void> {
+async function openFile(page: import('playwright').Page, labelRe: RegExp): Promise<void> {
   const fileRow = page.locator('.sidebar .file-tree-row.file', { hasText: labelRe })
   await expect(fileRow).toBeVisible({ timeout: 15_000 })
   await fileRow.click()
@@ -197,7 +190,9 @@ test.describe('Image preview — rendering (3 forms + broken)', () => {
       await switchToPreview(page)
 
       // No marvin:// rewrites of the external URL.
-      const marvinRewrite = page.locator('img[src^="marvin://"][data-raw-src="https://example.com/img.png"]')
+      const marvinRewrite = page.locator(
+        'img[src^="marvin://"][data-raw-src="https://example.com/img.png"]'
+      )
       await expect(marvinRewrite).toHaveCount(0)
 
       // The external img element (if CSP allows) or placeholder text should be present
@@ -223,7 +218,9 @@ test.describe('Image preview — rendering (3 forms + broken)', () => {
 
       // broken.png does not exist → resolveImageSrc returns kind:marvin (path is inside
       // vault lexically), browser load fails → onerror → replaceWithPlaceholder.
-      const placeholder = page.locator('.md-preview-inner .md-image-broken[aria-label*="broken.png"]')
+      const placeholder = page.locator(
+        '.md-preview-inner .md-image-broken[aria-label*="broken.png"]'
+      )
       await expect(placeholder).toBeVisible({ timeout: 10_000 })
       const label = await placeholder.getAttribute('aria-label')
       expect(label).toContain('broken.png')
@@ -334,9 +331,7 @@ test.describe('Image preview — round-trip: marvin:// must not leak to disk', (
       // Edit the alt text of the wikilink image via the Milkdown editor.
       // Click on the wikilink-image img element to position the cursor there,
       // then type to change the alt attribute through Milkdown's own editing.
-      const wikilinkImg = page.locator(
-        '.md-preview-inner img[data-raw-src^="wikilink-image:"]',
-      )
+      const wikilinkImg = page.locator('.md-preview-inner img[data-raw-src^="wikilink-image:"]')
       await expect(wikilinkImg).toBeVisible({ timeout: 8_000 })
 
       // Position cursor in the editor content area and make a small innocuous

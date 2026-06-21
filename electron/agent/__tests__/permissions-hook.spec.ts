@@ -30,8 +30,8 @@ import type { AgentEvent } from '../protocol'
 // ---------------------------------------------------------------------------
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const BRIDGE_SCRIPT = process.env.MARVIN_HOOK_SCRIPT
-  ?? path.resolve(__dirname, '../hooks/pretooluse-bridge.cjs')
+const BRIDGE_SCRIPT =
+  process.env.MARVIN_HOOK_SCRIPT ?? path.resolve(__dirname, '../hooks/pretooluse-bridge.cjs')
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -49,7 +49,7 @@ function spawnBridge(
   socketPath: string,
   toolUseId: string,
   toolName: string,
-  input: Record<string, unknown> = {},
+  input: Record<string, unknown> = {}
 ): Promise<{ exitCode: number | null; stdout: string; stderr: string }> {
   return new Promise((resolve) => {
     const proc = spawn('node', [BRIDGE_SCRIPT], {
@@ -57,8 +57,12 @@ function spawnBridge(
     })
     let stdout = ''
     let stderr = ''
-    proc.stdout?.on('data', (c: Buffer) => { stdout += c.toString() })
-    proc.stderr?.on('data', (c: Buffer) => { stderr += c.toString() })
+    proc.stdout?.on('data', (c: Buffer) => {
+      stdout += c.toString()
+    })
+    proc.stderr?.on('data', (c: Buffer) => {
+      stderr += c.toString()
+    })
     proc.on('close', (code) => resolve({ exitCode: code, stdout, stderr }))
 
     // Write the claude CLI hook stdin format and close
@@ -90,12 +94,14 @@ describe('bridge script — unit', () => {
     const server = await createApprovalServer(
       SESSION,
       { sessionId: SESSION, permissionMode: 'auto', vaultRoot: VAULT },
-      new Set(), new Map(), emit,
+      new Set(),
+      new Map(),
+      emit
     )
     try {
-      const { exitCode } = await spawnBridge(
-        server.socketPath, 'tu-bridge-allow', 'Read', { file_path: `${VAULT}/file.md` },
-      )
+      const { exitCode } = await spawnBridge(server.socketPath, 'tu-bridge-allow', 'Read', {
+        file_path: `${VAULT}/file.md`,
+      })
       expect(exitCode).toBe(0)
     } finally {
       await server.close()
@@ -107,15 +113,24 @@ describe('bridge script — unit', () => {
     const server = await createApprovalServer(
       SESSION,
       { sessionId: SESSION, permissionMode: 'auto', vaultRoot: VAULT },
-      new Set(), new Map(), emit,
+      new Set(),
+      new Map(),
+      emit
     )
     try {
       const { exitCode, stdout } = await spawnBridge(
-        server.socketPath, 'tu-bridge-output', 'Read', { file_path: `${VAULT}/file.md` },
+        server.socketPath,
+        'tu-bridge-output',
+        'Read',
+        { file_path: `${VAULT}/file.md` }
       )
       expect(exitCode).toBe(0)
       const parsed = JSON.parse(stdout.trim()) as {
-        hookSpecificOutput: { hookEventName: string; permissionDecision: string; permissionDecisionReason: string }
+        hookSpecificOutput: {
+          hookEventName: string
+          permissionDecision: string
+          permissionDecisionReason: string
+        }
       }
       expect(parsed.hookSpecificOutput.hookEventName).toBe('PreToolUse')
       expect(parsed.hookSpecificOutput.permissionDecision).toBe('allow')
@@ -130,12 +145,15 @@ describe('bridge script — unit', () => {
     const server = await createApprovalServer(
       SESSION,
       { sessionId: SESSION, permissionMode: 'plan', vaultRoot: VAULT },
-      new Set(), new Map(), emit,
+      new Set(),
+      new Map(),
+      emit
     )
     try {
-      const { exitCode } = await spawnBridge(
-        server.socketPath, 'tu-bridge-deny', 'Write', { file_path: `${VAULT}/a.md`, content: 'x' },
-      )
+      const { exitCode } = await spawnBridge(server.socketPath, 'tu-bridge-deny', 'Write', {
+        file_path: `${VAULT}/a.md`,
+        content: 'x',
+      })
       expect(exitCode).toBe(2)
     } finally {
       await server.close()
@@ -154,10 +172,17 @@ describe('bridge script — unit', () => {
     })
     let exitCode: number | null = null
     await new Promise<void>((res) => {
-      proc.on('close', (code) => { exitCode = code; res() })
-      proc.stdin?.write(JSON.stringify({
-        tool_use_id: 'tu-no-socket', tool_name: 'Bash', tool_input: {},
-      }))
+      proc.on('close', (code) => {
+        exitCode = code
+        res()
+      })
+      proc.stdin?.write(
+        JSON.stringify({
+          tool_use_id: 'tu-no-socket',
+          tool_name: 'Bash',
+          tool_input: {},
+        })
+      )
       proc.stdin?.end()
     })
     expect(exitCode).toBe(2)
@@ -168,7 +193,9 @@ describe('bridge script — unit', () => {
     const server = await createApprovalServer(
       SESSION,
       { sessionId: SESSION, permissionMode: 'auto', vaultRoot: VAULT },
-      new Set(), new Map(), emit,
+      new Set(),
+      new Map(),
+      emit
     )
     try {
       const proc = spawn('node', [BRIDGE_SCRIPT], {
@@ -176,7 +203,10 @@ describe('bridge script — unit', () => {
       })
       let exitCode: number | null = null
       await new Promise<void>((res) => {
-        proc.on('close', (code) => { exitCode = code; res() })
+        proc.on('close', (code) => {
+          exitCode = code
+          res()
+        })
         proc.stdin?.write('not-valid-json\n')
         proc.stdin?.end()
       })
@@ -191,7 +221,9 @@ describe('bridge script — unit', () => {
     const server = await createApprovalServer(
       SESSION,
       { sessionId: SESSION, permissionMode: 'auto', vaultRoot: VAULT },
-      new Set(), new Map(), emit,
+      new Set(),
+      new Map(),
+      emit
     )
     try {
       const proc = spawn('node', [BRIDGE_SCRIPT], {
@@ -199,7 +231,10 @@ describe('bridge script — unit', () => {
       })
       let exitCode: number | null = null
       await new Promise<void>((res) => {
-        proc.on('close', (code) => { exitCode = code; res() })
+        proc.on('close', (code) => {
+          exitCode = code
+          res()
+        })
         proc.stdin?.write(JSON.stringify({ tool_name: 'Bash', tool_input: {} }))
         proc.stdin?.end()
       })
@@ -220,18 +255,24 @@ describe('bridge script — renderer decision round-trip', () => {
     const server = await createApprovalServer(
       SESSION,
       { sessionId: SESSION, permissionMode: 'default', vaultRoot: VAULT },
-      new Set(), new Map(), emit,
+      new Set(),
+      new Map(),
+      emit
     )
     try {
-      const bridgePromise = spawnBridge(
-        server.socketPath, 'tu-bridge-renderer', 'Bash', { command: 'ls' },
-      )
+      const bridgePromise = spawnBridge(server.socketPath, 'tu-bridge-renderer', 'Bash', {
+        command: 'ls',
+      })
       await vi.waitFor(() => expect(emit).toHaveBeenCalled(), { timeout: 3000 })
       resolveApproval('tu-bridge-renderer', { kind: 'allow' })
       const { exitCode, stdout } = await bridgePromise
       expect(exitCode).toBe(0)
       const parsed = JSON.parse(stdout.trim()) as {
-        hookSpecificOutput: { hookEventName: string; permissionDecision: string; permissionDecisionReason: string }
+        hookSpecificOutput: {
+          hookEventName: string
+          permissionDecision: string
+          permissionDecisionReason: string
+        }
       }
       expect(parsed.hookSpecificOutput.hookEventName).toBe('PreToolUse')
       expect(parsed.hookSpecificOutput.permissionDecision).toBe('allow')
@@ -245,12 +286,14 @@ describe('bridge script — renderer decision round-trip', () => {
     const server = await createApprovalServer(
       SESSION,
       { sessionId: SESSION, permissionMode: 'default', vaultRoot: VAULT },
-      new Set(), new Map(), emit,
+      new Set(),
+      new Map(),
+      emit
     )
     try {
-      const bridgePromise = spawnBridge(
-        server.socketPath, 'tu-bridge-deny-renderer', 'Bash', { command: 'rm -rf /tmp' },
-      )
+      const bridgePromise = spawnBridge(server.socketPath, 'tu-bridge-deny-renderer', 'Bash', {
+        command: 'rm -rf /tmp',
+      })
       await vi.waitFor(() => expect(emit).toHaveBeenCalled(), { timeout: 3000 })
       resolveApproval('tu-bridge-deny-renderer', { kind: 'deny', reason: 'User denied' })
       const { exitCode } = await bridgePromise
@@ -271,21 +314,27 @@ describe('integration — bridge + socket + permission-request', () => {
     const server = await createApprovalServer(
       SESSION,
       { sessionId: SESSION, permissionMode: 'default', vaultRoot: VAULT },
-      new Set(), new Map(), emit,
+      new Set(),
+      new Map(),
+      emit
     )
     try {
-      const bridgePromise = spawnBridge(
-        server.socketPath, 'tu-integration-1', 'Bash', { command: 'echo hi' },
+      const bridgePromise = spawnBridge(server.socketPath, 'tu-integration-1', 'Bash', {
+        command: 'echo hi',
+      })
+      await vi.waitFor(
+        () =>
+          expect(emit).toHaveBeenCalledWith(
+            `agent:event:${SESSION}`,
+            expect.objectContaining({
+              type: 'permission-request',
+              sessionId: SESSION,
+              toolUseId: 'tu-integration-1',
+              toolName: 'Bash',
+            })
+          ),
+        { timeout: 3000 }
       )
-      await vi.waitFor(() => expect(emit).toHaveBeenCalledWith(
-        `agent:event:${SESSION}`,
-        expect.objectContaining({
-          type: 'permission-request',
-          sessionId: SESSION,
-          toolUseId: 'tu-integration-1',
-          toolName: 'Bash',
-        }),
-      ), { timeout: 3000 })
       resolveApproval('tu-integration-1', { kind: 'allow' })
       const { exitCode } = await bridgePromise
       expect(exitCode).toBe(0)
@@ -299,19 +348,21 @@ describe('integration — bridge + socket + permission-request', () => {
     const server = await createApprovalServer(
       SESSION,
       { sessionId: SESSION, permissionMode: 'default', vaultRoot: VAULT },
-      new Set(), new Map(), emit,
+      new Set(),
+      new Map(),
+      emit
     )
     try {
-      const bridgePromise = spawnBridge(
-        server.socketPath, 'tu-integration-deny', 'Bash', { command: 'echo denied' },
-      )
+      const bridgePromise = spawnBridge(server.socketPath, 'tu-integration-deny', 'Bash', {
+        command: 'echo denied',
+      })
       await vi.waitFor(() => expect(emit).toHaveBeenCalled(), { timeout: 3000 })
       resolveApproval('tu-integration-deny', { kind: 'deny' })
       const { exitCode } = await bridgePromise
       expect(exitCode).toBe(2)
       expect(emit).toHaveBeenCalledWith(
         `agent:event:${SESSION}`,
-        expect.objectContaining({ type: 'permission-request' }),
+        expect.objectContaining({ type: 'permission-request' })
       )
     } finally {
       await server.close()
@@ -323,7 +374,9 @@ describe('integration — bridge + socket + permission-request', () => {
     const server = await createApprovalServer(
       SESSION,
       { sessionId: SESSION, permissionMode: 'default', vaultRoot: VAULT },
-      new Set(), new Map(), emit,
+      new Set(),
+      new Map(),
+      emit
     )
     try {
       // First call — renderer approves with remember:session
@@ -348,7 +401,9 @@ describe('integration — bridge + socket + permission-request', () => {
     const server = await createApprovalServer(
       SESSION,
       { sessionId: SESSION, permissionMode: 'default', vaultRoot: VAULT },
-      new Set(), new Map(), emit,
+      new Set(),
+      new Map(),
+      emit
     )
     try {
       const b1 = spawnBridge(server.socketPath, 'tu-conc-1', 'Bash', {})

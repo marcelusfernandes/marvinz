@@ -11,9 +11,7 @@ export type ContentHit = {
   matchRanges: Array<{ start: number; end: number }>
 }
 
-export type SearchResult =
-  | ContentHit[]
-  | { unavailable: true }
+export type SearchResult = ContentHit[] | { unavailable: true }
 
 type RgSubmatch = { match: { text: string }; start: number; end: number }
 type RgMatchEvent = {
@@ -36,7 +34,7 @@ export function searchContent(vaultPath: string, query: string): Promise<SearchR
   // Null bytes in query would throw in spawn; reject early and return empty.
   if (q.length < 2 || q.includes('\0')) return Promise.resolve([])
 
-  return new Promise(resolve => {
+  return new Promise((resolve) => {
     let rg: ReturnType<typeof spawn>
     try {
       rg = spawn('rg', ['--json', '--max-count=1', '-i', '--no-heading', q, vaultPath])
@@ -56,7 +54,11 @@ export function searchContent(vaultPath: string, query: string): Promise<SearchR
       for (const line of lines) {
         if (!line || hits.length >= 50) continue
         let parsed: RgMatchEvent
-        try { parsed = JSON.parse(line) } catch { continue }
+        try {
+          parsed = JSON.parse(line)
+        } catch {
+          continue
+        }
         if (parsed.type !== 'match') continue
 
         const absPath = parsed.data.path.text

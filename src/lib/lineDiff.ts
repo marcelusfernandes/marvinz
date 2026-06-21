@@ -104,7 +104,10 @@ export function diffStats(lines: DiffLine[]): DiffStats {
   return { added, removed, unchanged }
 }
 
-export function hunkBoundaries(lines: DiffLine[], context = 3): Array<{ start: number; end: number }> {
+export function hunkBoundaries(
+  lines: DiffLine[],
+  context = 3
+): Array<{ start: number; end: number }> {
   const changedIdx: number[] = []
   for (let k = 0; k < lines.length; k++) {
     if (lines[k].op !== 'equal') changedIdx.push(k)

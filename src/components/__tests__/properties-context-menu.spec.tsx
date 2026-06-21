@@ -66,13 +66,17 @@ function renderProperties() {
 
 async function openAddRow() {
   const addBtn = screen.getByRole('button', { name: /add property/i })
-  await act(async () => { fireEvent.click(addBtn) })
+  await act(async () => {
+    fireEvent.click(addBtn)
+  })
 }
 
 async function clickTypePicker() {
   // The type picker button has title="Property type"
   const picker = screen.getByTitle('Property type')
-  await act(async () => { fireEvent.click(picker) })
+  await act(async () => {
+    fireEvent.click(picker)
+  })
 }
 
 // ---------------------------------------------------------------------------
@@ -109,7 +113,9 @@ describe('Properties type picker — context menu IPC payload', () => {
     await openAddRow()
     await clickTypePicker()
     const [items] = showContextMenuMock.mock.calls[0] as [MenuItemSpec[]]
-    const labels = items.filter(i => i.kind === 'item').map(i => (i as Extract<MenuItemSpec, { kind: 'item' }>).label)
+    const labels = items
+      .filter((i) => i.kind === 'item')
+      .map((i) => (i as Extract<MenuItemSpec, { kind: 'item' }>).label)
     expect(labels).toContain('Text')
     expect(labels).toContain('Number')
     expect(labels).toContain('Checkbox')
@@ -125,7 +131,9 @@ describe('Properties type picker — context menu IPC payload', () => {
     await clickTypePicker()
     const [items] = showContextMenuMock.mock.calls[0] as [MenuItemSpec[]]
     const byId = Object.fromEntries(
-      items.filter(i => i.kind === 'item').map(i => [(i as Extract<MenuItemSpec, { kind: 'item' }>).id, true])
+      items
+        .filter((i) => i.kind === 'item')
+        .map((i) => [(i as Extract<MenuItemSpec, { kind: 'item' }>).id, true])
     )
     expect(byId['string']).toBe(true)
     expect(byId['number']).toBe(true)
@@ -142,7 +150,9 @@ describe('Properties type picker — context menu IPC payload', () => {
     await clickTypePicker()
     const [items] = showContextMenuMock.mock.calls[0] as [MenuItemSpec[]]
     // Default type is 'string', so 'string' item should have enabled: false
-    const stringItem = items.find(i => i.kind === 'item' && (i as Extract<MenuItemSpec, { kind: 'item' }>).id === 'string') as Extract<MenuItemSpec, { kind: 'item' }> | undefined
+    const stringItem = items.find(
+      (i) => i.kind === 'item' && (i as Extract<MenuItemSpec, { kind: 'item' }>).id === 'string'
+    ) as Extract<MenuItemSpec, { kind: 'item' }> | undefined
     expect(stringItem?.enabled).toBe(false)
   })
 
@@ -152,7 +162,9 @@ describe('Properties type picker — context menu IPC payload', () => {
     await openAddRow()
     await clickTypePicker()
     const [items] = showContextMenuMock.mock.calls[0] as [MenuItemSpec[]]
-    const numberItem = items.find(i => i.kind === 'item' && (i as Extract<MenuItemSpec, { kind: 'item' }>).id === 'number') as Extract<MenuItemSpec, { kind: 'item' }> | undefined
+    const numberItem = items.find(
+      (i) => i.kind === 'item' && (i as Extract<MenuItemSpec, { kind: 'item' }>).id === 'number'
+    ) as Extract<MenuItemSpec, { kind: 'item' }> | undefined
     expect(numberItem?.enabled).toBe(true)
   })
 })
@@ -167,7 +179,9 @@ describe('Properties type picker — action dispatch', () => {
     renderProperties()
     await openAddRow()
     await clickTypePicker()
-    await act(async () => { await new Promise(r => setTimeout(r, 0)) })
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0))
+    })
     const picker = screen.getByTitle('Property type')
     expect(picker.querySelector('[data-icon="symbol-numeric"]')).not.toBeNull()
   })
@@ -177,7 +191,9 @@ describe('Properties type picker — action dispatch', () => {
     renderProperties()
     await openAddRow()
     await clickTypePicker()
-    await act(async () => { await new Promise(r => setTimeout(r, 0)) })
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0))
+    })
     const picker = screen.getByTitle('Property type')
     expect(picker.querySelector('[data-icon="tag"]')).not.toBeNull()
   })
@@ -187,7 +203,9 @@ describe('Properties type picker — action dispatch', () => {
     renderProperties()
     await openAddRow()
     await clickTypePicker()
-    await act(async () => { await new Promise(r => setTimeout(r, 0)) })
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0))
+    })
     const picker = screen.getByTitle('Property type')
     expect(picker.querySelector('[data-icon="calendar"]')).not.toBeNull()
   })
@@ -197,7 +215,9 @@ describe('Properties type picker — action dispatch', () => {
     renderProperties()
     await openAddRow()
     await clickTypePicker()
-    await act(async () => { await new Promise(r => setTimeout(r, 0)) })
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0))
+    })
     const picker = screen.getByTitle('Property type')
     expect(picker.querySelector('[data-icon="symbol-string"]')).not.toBeNull()
   })
@@ -207,7 +227,9 @@ describe('Properties type picker — action dispatch', () => {
     renderProperties()
     await openAddRow()
     await clickTypePicker()
-    await act(async () => { await new Promise(r => setTimeout(r, 0)) })
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0))
+    })
     const picker = screen.getByTitle('Property type')
     expect(picker.querySelector('[data-icon="symbol-boolean"]')).not.toBeNull()
   })

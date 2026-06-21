@@ -100,7 +100,7 @@ export function FindReplaceOverlay({ view, onClose, initialReplaceExpanded, onRe
   // Replace row visibility. Initial value: the prop (when Cmd+Alt+F forced
   // it open) or the persisted preference, falling back to collapsed.
   const [replaceExpanded, setReplaceExpanded] = useState<boolean>(
-    () => initialReplaceExpanded ?? readReplaceExpanded(),
+    () => initialReplaceExpanded ?? readReplaceExpanded()
   )
   // Bumped after every navigation command so the match-count readout
   // recomputes once the new selection has been applied.
@@ -192,7 +192,7 @@ export function FindReplaceOverlay({ view, onClose, initialReplaceExpanded, onRe
         view.state.tr.setMeta(justReplacedPluginKey, {
           type: 'add',
           ranges: [{ from: flashFrom, to: flashTo }],
-        }),
+        })
       )
       scrollPosIntoView(view, flashFrom)
       onReplaced?.(1)
@@ -219,9 +219,7 @@ export function FindReplaceOverlay({ view, onClose, initialReplaceExpanded, onRe
         delta += replaceLen - matchLen
         return { from: newFrom, to: newTo }
       })
-      view.dispatch(
-        view.state.tr.setMeta(justReplacedPluginKey, { type: 'add', ranges: flashes }),
-      )
+      view.dispatch(view.state.tr.setMeta(justReplacedPluginKey, { type: 'add', ranges: flashes }))
       if (flashes[0]) scrollPosIntoView(view, flashes[0].from)
       onReplaced?.(total)
     }
@@ -243,18 +241,11 @@ export function FindReplaceOverlay({ view, onClose, initialReplaceExpanded, onRe
   }
 
   return (
-    <div
-      className="md-find"
-      role="search"
-      data-testid="pm-search-panel"
-      onKeyDown={handleKeyDown}
-    >
+    <div className="md-find" role="search" data-testid="pm-search-panel" onKeyDown={handleKeyDown}>
       <div className="md-find-row">
         <button
           type="button"
-          className={`icon-btn md-find-toggle${
-            replaceExpanded ? ' md-find-toggle--active' : ''
-          }`}
+          className={`icon-btn md-find-toggle${replaceExpanded ? ' md-find-toggle--active' : ''}`}
           onClick={toggleReplace}
           title={replaceExpanded ? 'Hide replace' : 'Show replace'}
           aria-label={replaceExpanded ? 'Hide replace row' : 'Show replace row'}

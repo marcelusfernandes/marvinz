@@ -48,7 +48,7 @@ vi.mock('react-data-grid', () => ({
             <div key={col.key} data-testid={`header-${col.key}`}>
               {col.renderHeaderCell({ column: col } as never)}
             </div>
-          ) : null,
+          ) : null
         )}
       </div>
       <div data-testid="rows">
@@ -59,7 +59,7 @@ vi.mock('react-data-grid', () => ({
                 <div key={col.key} data-testid={`cell-${col.key}-${row.__id}`}>
                   {col.renderCell({ row, rowIdx, column: col } as never)}
                 </div>
-              ) : null,
+              ) : null
             )}
           </div>
         ))}
@@ -113,7 +113,7 @@ const CSV_TWO_ROWS = 'name,age\nAlice,30\nBob,25\n'
 function renderCsv(content = CSV_TWO_ROWS) {
   const onChange = vi.fn()
   const utils = render(
-    <CsvEditor filePath="/vault/data.csv" initialContent={content} onChange={onChange} />,
+    <CsvEditor filePath="/vault/data.csv" initialContent={content} onChange={onChange} />
   )
   return { ...utils, onChange }
 }

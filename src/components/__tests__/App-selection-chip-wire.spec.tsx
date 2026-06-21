@@ -45,7 +45,9 @@ vi.mock('../Editor', () => ({
 }))
 
 vi.mock('../AgentsPane', () => ({
-  AgentsPane: (props: { onFocusChange?: (info: { ptyId: string; agentKind: string } | null) => void }) => {
+  AgentsPane: (props: {
+    onFocusChange?: (info: { ptyId: string; agentKind: string } | null) => void
+  }) => {
     agentsPaneOnFocusChange.fire = props.onFocusChange ?? null
     return <div data-testid="agents-pane-stub" />
   },
@@ -53,7 +55,9 @@ vi.mock('../AgentsPane', () => ({
 
 // FileTree stub renders a button to open a test note via onSelect.
 vi.mock('../FileTree', () => ({
-  FileTree: (props: { onSelect?: (node: { path: string; isDir: boolean }, mods: Record<string, boolean>) => void }) => {
+  FileTree: (props: {
+    onSelect?: (node: { path: string; isDir: boolean }, mods: Record<string, boolean>) => void
+  }) => {
     fileTreeOnSelect.fn = props.onSelect ?? null
     return (
       <button
@@ -94,7 +98,11 @@ vi.mock('../../lib/settingsStore', () => ({
     return undefined
   },
 }))
-vi.mock('../../lib/colorTheme', () => ({ useColorTheme: vi.fn(), useAgentsPaneTransparent: vi.fn(), useEditorEffects: vi.fn() }))
+vi.mock('../../lib/colorTheme', () => ({
+  useColorTheme: vi.fn(),
+  useAgentsPaneTransparent: vi.fn(),
+  useEditorEffects: vi.fn(),
+}))
 vi.mock('../../lib/visualStyle', () => ({ useVisualStyle: () => 'modern' }))
 vi.mock('../../lib/paletteRanker', () => ({}))
 

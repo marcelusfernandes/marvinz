@@ -28,13 +28,7 @@ type Props = {
  * Designed to be embedded by AgentsPane as a tab body (replacing
  * AgentTerminal when the per-tab mode is "chat").
  */
-export function ChatPanel({
-  sessionId,
-  provider,
-  vaultPath,
-  onRewind,
-  onTurnSummary,
-}: Props) {
+export function ChatPanel({ sessionId, provider, vaultPath, onRewind, onTurnSummary }: Props) {
   const exists = useChatStore((s) => !!s.sessions[sessionId])
   const startSession = useChatStore((s) => s.startSession)
 
@@ -55,7 +49,7 @@ export function ChatPanel({
         agent?: {
           onEvent?: (
             sid: string,
-            cb: (ev: { type: string; turnId?: string; fileNames?: string[] }) => void,
+            cb: (ev: { type: string; turnId?: string; fileNames?: string[] }) => void
           ) => () => void
         }
       }

@@ -38,7 +38,7 @@ function walk(base: string): string[] {
 
 export function computeHash(
   repoRoot: string = REPO_ROOT,
-  relDirs: readonly string[] = DEFAULT_DIRS,
+  relDirs: readonly string[] = DEFAULT_DIRS
 ): string {
   const files: string[] = []
   for (const rel of relDirs) {

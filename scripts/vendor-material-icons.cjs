@@ -43,7 +43,9 @@ function download(url, dest) {
     })
     req.on('error', (err) => {
       file.close()
-      try { fs.unlinkSync(dest) } catch {}
+      try {
+        fs.unlinkSync(dest)
+      } catch {}
       reject(err)
     })
   })
@@ -82,7 +84,9 @@ async function main() {
   for (const name of svgs) {
     fs.copyFileSync(path.join(srcIconsDir, name), path.join(OUT_ICONS_DIR, name))
   }
-  console.log(`[vendor-material-icons] Copied ${svgs.length} SVGs → ${path.relative(ROOT, OUT_ICONS_DIR)}`)
+  console.log(
+    `[vendor-material-icons] Copied ${svgs.length} SVGs → ${path.relative(ROOT, OUT_ICONS_DIR)}`
+  )
 
   // Strip iconDefinitions paths down to bare ids — the renderer builds the
   // URL itself with import.meta.env.BASE_URL. Keep the same shape upstream

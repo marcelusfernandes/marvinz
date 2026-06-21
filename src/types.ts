@@ -1,8 +1,4 @@
-import type {
-  AgentRequest,
-  AgentEvent,
-  ApprovalDecision,
-} from './shared/agent-protocol.js'
+import type { AgentRequest, AgentEvent, ApprovalDecision } from './shared/agent-protocol.js'
 
 export type { AgentRequest, AgentEvent, ApprovalDecision }
 
@@ -35,7 +31,13 @@ export type FileChangeSource = 'agent' | 'external'
 
 export type MoveResult = { src: string; dest: string; ok: boolean; error?: string }
 
-export type SnapshotTrigger = 'file:write' | 'watcher' | 'restore' | 'cascade' | 'buffer-save' | 'external-rejected'
+export type SnapshotTrigger =
+  | 'file:write'
+  | 'watcher'
+  | 'restore'
+  | 'cascade'
+  | 'buffer-save'
+  | 'external-rejected'
 
 export type SnapshotStatus = 'active' | 'completed'
 
@@ -55,9 +57,7 @@ export type SnapshotManifest = {
   agentId?: string
 }
 
-export type SnapshotEnvelope<T> =
-  | { ok: true; data: T }
-  | { ok: false; error: string }
+export type SnapshotEnvelope<T> = { ok: true; data: T } | { ok: false; error: string }
 
 // Emitted on 'snapshot:turn-completed' IPC push event
 export type SnapshotTurnCompletedEvent = {
@@ -117,7 +117,12 @@ export type MarvinAPI = {
     write: (filePath: string, content: string) => Promise<void>
     exportPdf: (filePath: string) => Promise<void>
     create: (parentDir: string, name: string) => Promise<string>
-    writeBinary: (payload: { vaultPath: string; relPath: string; base64Bytes: string; maxBytes?: number }) => Promise<string>
+    writeBinary: (payload: {
+      vaultPath: string
+      relPath: string
+      base64Bytes: string
+      maxBytes?: number
+    }) => Promise<string>
     copy: (srcPath: string, destDir: string) => Promise<string>
     moveBatch: (srcs: string[], destDir: string) => Promise<MoveResult[]>
     onChanged: (cb: (filePath: string, source: FileChangeSource) => void) => () => void
@@ -125,7 +130,10 @@ export type MarvinAPI = {
   office: {
     readDocx: (filePath: string) => Promise<{ html: string; messages: unknown[] }>
     writeDocx: (filePath: string, plainText: string) => Promise<void>
-    readXlsx: (filePath: string, sheetName?: string) => Promise<{ rows: string[][]; sheetNames: string[] }>
+    readXlsx: (
+      filePath: string,
+      sheetName?: string
+    ) => Promise<{ rows: string[][]; sheetNames: string[] }>
     writeXlsx: (filePath: string, rows: string[][], sheetName: string) => Promise<void>
   }
   folder: {
@@ -141,7 +149,11 @@ export type MarvinAPI = {
   agent: {
     detect: (name: string) => Promise<string | null>
     request: (req: AgentRequest) => Promise<{ ok: true } | { ok: false; error: string }>
-    approve: (sessionId: string, toolUseId: string, decision: ApprovalDecision) => Promise<{ ok: true } | { ok: false; error: string }>
+    approve: (
+      sessionId: string,
+      toolUseId: string,
+      decision: ApprovalDecision
+    ) => Promise<{ ok: true } | { ok: false; error: string }>
     onEvent: (sessionId: string, cb: (event: AgentEvent) => void) => () => void
   }
   browser: {
@@ -155,7 +167,10 @@ export type MarvinAPI = {
     forward: (id: string) => Promise<void>
     reload: (id: string) => Promise<void>
     stop: (id: string) => Promise<void>
-    setBounds: (id: string, bounds: { x: number; y: number; width: number; height: number }) => Promise<void>
+    setBounds: (
+      id: string,
+      bounds: { x: number; y: number; width: number; height: number }
+    ) => Promise<void>
     setGeometry: (id: string, insets: BrowserViewInsets) => Promise<void>
     setActive: (id: string | null) => Promise<void>
     setAllHidden: (hidden: boolean) => Promise<void>
@@ -186,18 +201,19 @@ export type MarvinAPI = {
     listForFile: (relPath: string) => Promise<SnapshotEnvelope<SnapshotManifest[]>>
     read: (turnId: string, relPath: string) => Promise<SnapshotEnvelope<string>>
     restore: (turnId: string, relPath: string) => Promise<SnapshotEnvelope<{ preTurnId: string }>>
-    saveBuffer: (relPath: string, content: string) => Promise<SnapshotEnvelope<{ turnId: string; saved: boolean }>>
-    saveExternalChange: (relPath: string, content: string) => Promise<SnapshotEnvelope<{ turnId: string; saved: boolean }>>
+    saveBuffer: (
+      relPath: string,
+      content: string
+    ) => Promise<SnapshotEnvelope<{ turnId: string; saved: boolean }>>
+    saveExternalChange: (
+      relPath: string,
+      content: string
+    ) => Promise<SnapshotEnvelope<{ turnId: string; saved: boolean }>>
     onTurnCompleted: (cb: (event: SnapshotTurnCompletedEvent) => void) => () => void
     // User-driven snapshot bucket (U2 / #148) — exposed by preload but the
     // types were omitted in that PR; added here for U3 (#149) consumers.
-    capture: (
-      paths: string[],
-      trigger: string,
-    ) => Promise<SnapshotEnvelope<{ snapshotId: string }>>
-    restoreOne: (
-      snapshotId: string,
-    ) => Promise<SnapshotEnvelope<Record<string, never>>>
+    capture: (paths: string[], trigger: string) => Promise<SnapshotEnvelope<{ snapshotId: string }>>
+    restoreOne: (snapshotId: string) => Promise<SnapshotEnvelope<Record<string, never>>>
   }
   editor: {
     readClipboard: () => Promise<string>
@@ -236,9 +252,7 @@ export type ContentHit = {
   matchRanges: Array<{ start: number; end: number }>
 }
 
-export type SearchResult =
-  | ContentHit[]
-  | { unavailable: true }
+export type SearchResult = ContentHit[] | { unavailable: true }
 
 declare global {
   interface Window {

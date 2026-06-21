@@ -96,9 +96,7 @@ vi.mock('../FileTree', () => ({
         <button
           key={n}
           data-testid={`open-note-${n}`}
-          onClick={() =>
-            props.onSelect?.({ path: `/vault/note-${n}.md`, isDir: false }, {})
-          }
+          onClick={() => props.onSelect?.({ path: `/vault/note-${n}.md`, isDir: false }, {})}
         >
           open {n}
         </button>
@@ -407,7 +405,7 @@ describe('MRU eviction cap — MAX_MOUNTED_EDITORS = 6 (AC#4, issue #440)', () =
 
     // Count currently mounted editors.
     const mountedCount = [1, 2, 3, 4, 5, 6, 7].filter((n) =>
-      isMounted(`/vault/note-${n}.md`),
+      isMounted(`/vault/note-${n}.md`)
     ).length
 
     expect(mountedCount).toBeLessThanOrEqual(6)

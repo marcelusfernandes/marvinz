@@ -114,9 +114,7 @@ describe('StreamingMarkdown — markdown rendering', () => {
   })
 
   it('renders fenced code blocks', () => {
-    const { container } = render(
-      <StreamingMarkdown text={'```js\nconsole.log("hi")\n```'} />,
-    )
+    const { container } = render(<StreamingMarkdown text={'```js\nconsole.log("hi")\n```'} />)
     expect(container.querySelector('pre')).toBeInTheDocument()
   })
 })
@@ -168,9 +166,7 @@ describe('StreamingMarkdown — React.memo stability', () => {
   })
 
   it('rerenders when streaming prop changes', () => {
-    const { rerender, container } = render(
-      <StreamingMarkdown text="hello" streaming={true} />,
-    )
+    const { rerender, container } = render(<StreamingMarkdown text="hello" streaming={true} />)
     rerender(<StreamingMarkdown text="hello" streaming={false} />)
     expect(container.querySelector('.streaming')).not.toBeInTheDocument()
   })

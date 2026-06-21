@@ -210,7 +210,7 @@ export function adaptCodexObj(obj: unknown, state: CodexAdapterState): AgentEven
       }
 
       if (item.type === 'command_execution') {
-        const isError = item.status === 'failed' || item.exit_code !== 0 && item.exit_code != null
+        const isError = item.status === 'failed' || (item.exit_code !== 0 && item.exit_code != null)
         const event: AgentEvent = {
           type: 'tool-result',
           sessionId: state.sessionId,
@@ -255,9 +255,7 @@ export function adaptCodexObj(obj: unknown, state: CodexAdapterState): AgentEven
     case 'error': {
       const rawUnknown = raw as unknown as Record<string, unknown>
       const message =
-        typeof rawUnknown.message === 'string'
-          ? rawUnknown.message
-          : 'Unknown codex error'
+        typeof rawUnknown.message === 'string' ? rawUnknown.message : 'Unknown codex error'
       const event: AgentEvent = {
         type: 'error',
         sessionId: state.sessionId,

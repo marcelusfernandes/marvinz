@@ -111,7 +111,7 @@ describe('FileTree — inline create row render (issue #254)', () => {
         {...baseProps({
           creatingIn: { parentDir: '/vault/docs', kind: 'file' },
         })}
-      />,
+      />
     )
     const input = screen.getByRole('textbox', { name: 'New file name' })
     expect(input).toBeTruthy()
@@ -123,7 +123,7 @@ describe('FileTree — inline create row render (issue #254)', () => {
         {...baseProps({
           creatingIn: { parentDir: '/vault/docs', kind: 'folder' },
         })}
-      />,
+      />
     )
     const input = screen.getByRole('textbox', { name: 'New folder name' })
     expect(input).toBeTruthy()
@@ -140,7 +140,7 @@ describe('FileTree — inline create row render (issue #254)', () => {
         {...baseProps({
           creatingIn: { parentDir: '/vault/docs', kind: 'file' },
         })}
-      />,
+      />
     )
     const inlineRow = container.querySelector('.file-tree-row.inline-edit.file')
     expect(inlineRow).not.toBeNull()
@@ -160,7 +160,7 @@ describe('FileTree — inline create Enter key (issue #254)', () => {
           creatingIn: { parentDir: '/vault/docs', kind: 'file' },
           onCreatingInChange,
         })}
-      />,
+      />
     )
     const input = screen.getByRole('textbox', { name: 'New file name' })
     fireEvent.change(input, { target: { value: 'my-note' } })
@@ -181,7 +181,7 @@ describe('FileTree — inline create Enter key (issue #254)', () => {
           creatingIn: { parentDir: '/vault/docs', kind: 'folder' },
           onCreatingInChange,
         })}
-      />,
+      />
     )
     const input = screen.getByRole('textbox', { name: 'New folder name' })
     fireEvent.change(input, { target: { value: 'new-folder' } })
@@ -201,7 +201,7 @@ describe('FileTree — inline create Enter key (issue #254)', () => {
           creatingIn: { parentDir: '/vault/docs', kind: 'file' },
           onCreatingInChange,
         })}
-      />,
+      />
     )
     const input = screen.getByRole('textbox', { name: 'New file name' })
     fireEvent.change(input, { target: { value: 'my-note' } })
@@ -220,7 +220,7 @@ describe('FileTree — inline create Enter key (issue #254)', () => {
           creatingIn: { parentDir: '/vault/docs', kind: 'file' },
           onCreatingInChange,
         })}
-      />,
+      />
     )
     const input = screen.getByRole('textbox', { name: 'New file name' })
     // No change — value stays ''
@@ -237,7 +237,7 @@ describe('FileTree — inline create Enter key (issue #254)', () => {
           creatingIn: { parentDir: '/vault/docs', kind: 'file' },
           onCreatingInChange: vi.fn(),
         })}
-      />,
+      />
     )
     const input = screen.getByRole('textbox', { name: 'New file name' })
     fireEvent.change(input, { target: { value: 'my-note.md' } })
@@ -264,7 +264,7 @@ describe('FileTree — inline create duplicate name error (issue #254)', () => {
           creatingIn: { parentDir: '/vault/docs', kind: 'file' },
           onCreatingInChange,
         })}
-      />,
+      />
     )
     const input = screen.getByRole('textbox', { name: 'New file name' })
     fireEvent.change(input, { target: { value: 'intro' } })
@@ -296,7 +296,7 @@ describe('FileTree — inline create Escape and blur cancel (issue #254)', () =>
           creatingIn: { parentDir: '/vault/docs', kind: 'file' },
           onCreatingInChange,
         })}
-      />,
+      />
     )
     const input = screen.getByRole('textbox', { name: 'New file name' })
     fireEvent.change(input, { target: { value: 'something' } })
@@ -314,7 +314,7 @@ describe('FileTree — inline create Escape and blur cancel (issue #254)', () =>
           creatingIn: { parentDir: '/vault/docs', kind: 'file' },
           onCreatingInChange,
         })}
-      />,
+      />
     )
     const input = screen.getByRole('textbox', { name: 'New file name' })
     fireEvent.change(input, { target: { value: 'something' } })
@@ -338,7 +338,7 @@ describe('FileTree — inline create at vault root (issue #254)', () => {
           openPaths: new Set<string>(),
           creatingIn: { parentDir: '/vault', kind: 'file' },
         })}
-      />,
+      />
     )
     const input = screen.getByRole('textbox', { name: 'New file name' })
     expect(input).toBeTruthy()
@@ -352,7 +352,7 @@ describe('FileTree — inline create at vault root (issue #254)', () => {
           creatingIn: { parentDir: '/vault', kind: 'file' },
           onCreatingInChange: vi.fn(),
         })}
-      />,
+      />
     )
     const input = screen.getByRole('textbox', { name: 'New file name' })
     fireEvent.change(input, { target: { value: 'root-note' } })
@@ -379,7 +379,7 @@ describe('FileTree — inline create auto-expand closed folder (issue #254)', ()
           onToggleOpen,
           creatingIn: { parentDir: '/vault/docs', kind: 'file' },
         })}
-      />,
+      />
     )
     // useEffect fires on mount — onToggleOpen should have been called to expand the folder
     expect(onToggleOpen).toHaveBeenCalledWith('/vault/docs')
@@ -394,7 +394,7 @@ describe('FileTree — inline create auto-expand closed folder (issue #254)', ()
           onToggleOpen,
           creatingIn: { parentDir: '/vault/docs', kind: 'file' },
         })}
-      />,
+      />
     )
     expect(onToggleOpen).not.toHaveBeenCalled()
   })

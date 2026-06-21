@@ -36,7 +36,9 @@ export function SettingsModal({ onClose, layoutMode, onLayoutChange }: Props) {
         aria-labelledby="settings-title"
         onMouseDown={(e) => e.stopPropagation()}
       >
-        <h2 id="settings-title" className="modal-title">Settings</h2>
+        <h2 id="settings-title" className="modal-title">
+          Settings
+        </h2>
 
         <section className="modal-section">
           <div className="modal-section-header">Appearance</div>
@@ -145,9 +147,7 @@ export function SettingsModal({ onClose, layoutMode, onLayoutChange }: Props) {
               role="switch"
               aria-checked={agentsPaneTransparent}
               className={`segmented-btn${agentsPaneTransparent ? ' active' : ''}`}
-              onClick={() =>
-                void setSetting('agentsPaneTransparent', !agentsPaneTransparent)
-              }
+              onClick={() => void setSetting('agentsPaneTransparent', !agentsPaneTransparent)}
             >
               {agentsPaneTransparent ? 'On' : 'Off'}
             </button>
@@ -191,9 +191,7 @@ export function SettingsModal({ onClose, layoutMode, onLayoutChange }: Props) {
           <div className="modal-section-row">
             <div>
               <div className="modal-section-label">Panel arrangement</div>
-              <div className="modal-section-hint">
-                Choose which panel is centered.
-              </div>
+              <div className="modal-section-hint">Choose which panel is centered.</div>
             </div>
             <div className="segmented" role="radiogroup" aria-label="Panel arrangement">
               <button
@@ -255,18 +253,14 @@ export function SettingsModal({ onClose, layoutMode, onLayoutChange }: Props) {
           <div className="modal-section-row">
             <div>
               <div className="modal-section-label">Smooth editor</div>
-              <div className="modal-section-hint">
-                Master switch for editor micro-animations.
-              </div>
+              <div className="modal-section-hint">Master switch for editor micro-animations.</div>
             </div>
             <button
               type="button"
               role="switch"
               aria-checked={editorEffectsMaster}
               className={`segmented-btn${editorEffectsMaster ? ' active' : ''}`}
-              onClick={() =>
-                void setSetting('editorEffectsMaster', !editorEffectsMaster)
-              }
+              onClick={() => void setSetting('editorEffectsMaster', !editorEffectsMaster)}
             >
               {editorEffectsMaster ? 'On' : 'Off'}
             </button>
@@ -284,9 +278,7 @@ export function SettingsModal({ onClose, layoutMode, onLayoutChange }: Props) {
               aria-checked={editorEffectCaretSlide}
               disabled={!editorEffectsMaster}
               className={`segmented-btn${editorEffectCaretSlide ? ' active' : ''}`}
-              onClick={() =>
-                void setSetting('editorEffectCaretSlide', !editorEffectCaretSlide)
-              }
+              onClick={() => void setSetting('editorEffectCaretSlide', !editorEffectCaretSlide)}
             >
               {editorEffectCaretSlide ? 'On' : 'Off'}
             </button>
@@ -308,9 +300,7 @@ export function SettingsModal({ onClose, layoutMode, onLayoutChange }: Props) {
                 role="switch"
                 aria-checked={terminalModeEnabled}
                 className={`segmented-btn${terminalModeEnabled ? ' active' : ''}`}
-                onClick={() =>
-                  void setSetting('terminalModeEnabled', !terminalModeEnabled)
-                }
+                onClick={() => void setSetting('terminalModeEnabled', !terminalModeEnabled)}
               >
                 {terminalModeEnabled ? 'On' : 'Off'}
               </button>

@@ -52,7 +52,7 @@ const noop = () => {}
 describe('CommandPalette — grouped render — Notes only', () => {
   it('renders a "Notes" section header when results contain only notes', () => {
     const { getAllByText } = render(
-      <CommandPalette items={[NOTE_A, NOTE_B]} onPick={noop} onClose={noop} />,
+      <CommandPalette items={[NOTE_A, NOTE_B]} onPick={noop} onClose={noop} />
     )
     const headers = getAllByText(/^Notes/)
     expect(headers.length).toBeGreaterThanOrEqual(1)
@@ -61,7 +61,7 @@ describe('CommandPalette — grouped render — Notes only', () => {
 
   it('does NOT render Agents, Commands, Rules, or Hooks headers when absent', () => {
     const { queryByText } = render(
-      <CommandPalette items={[NOTE_A, NOTE_B]} onPick={noop} onClose={noop} />,
+      <CommandPalette items={[NOTE_A, NOTE_B]} onPick={noop} onClose={noop} />
     )
     expect(queryByText(/^Agents/)).toBeNull()
     expect(queryByText(/^Commands/)).toBeNull()
@@ -77,7 +77,7 @@ describe('CommandPalette — grouped render — Notes only', () => {
 describe('CommandPalette — grouped render — Notes + Agents', () => {
   it('renders both "Notes" and "Agents" section headers', () => {
     const { getAllByText } = render(
-      <CommandPalette items={[NOTE_A, AGENT_A, AGENT_B]} onPick={noop} onClose={noop} />,
+      <CommandPalette items={[NOTE_A, AGENT_A, AGENT_B]} onPick={noop} onClose={noop} />
     )
     const noteHeaders = getAllByText(/^Notes/)
     const agentHeaders = getAllByText(/^Agents/)
@@ -89,7 +89,7 @@ describe('CommandPalette — grouped render — Notes + Agents', () => {
 
   it('renders note items under Notes section and agent items under Agents section', () => {
     const { getByText } = render(
-      <CommandPalette items={[NOTE_A, AGENT_A]} onPick={noop} onClose={noop} />,
+      <CommandPalette items={[NOTE_A, AGENT_A]} onPick={noop} onClose={noop} />
     )
     expect(getByText('alpha.md')).toBeTruthy()
     expect(getByText('react.md')).toBeTruthy()
@@ -103,23 +103,21 @@ describe('CommandPalette — grouped render — Notes + Agents', () => {
 describe('CommandPalette — grouped render — empty sections omitted', () => {
   it('omits Commands header when no command items exist', () => {
     const { queryByText } = render(
-      <CommandPalette items={[NOTE_A, AGENT_A]} onPick={noop} onClose={noop} />,
+      <CommandPalette items={[NOTE_A, AGENT_A]} onPick={noop} onClose={noop} />
     )
     expect(queryByText(/^Commands/)).toBeNull()
   })
 
   it('omits Rules header when no rule items exist', () => {
     const { queryByText } = render(
-      <CommandPalette items={[NOTE_A, COMMAND_A]} onPick={noop} onClose={noop} />,
+      <CommandPalette items={[NOTE_A, COMMAND_A]} onPick={noop} onClose={noop} />
     )
     expect(queryByText(/^Rules/)).toBeNull()
   })
 
   it('renders all six section headers when all categories present', () => {
     const items = [NOTE_A, OTHER_A, AGENT_A, COMMAND_A, RULE_A, HOOK_A]
-    const { getAllByText } = render(
-      <CommandPalette items={items} onPick={noop} onClose={noop} />,
-    )
+    const { getAllByText } = render(<CommandPalette items={items} onPick={noop} onClose={noop} />)
     expect(getAllByText(/^Notes/).length).toBeGreaterThanOrEqual(1)
     expect(getAllByText(/^Other/).length).toBeGreaterThanOrEqual(1)
     expect(getAllByText(/^Agents/).length).toBeGreaterThanOrEqual(1)
@@ -139,7 +137,7 @@ describe('CommandPalette — keyboard nav skips section headers', () => {
     // activeIdx starts at 0 (NOTE_A), ArrowDown → goes to AGENT_A, not the header
     const onPick = vi.fn()
     const { getByRole } = render(
-      <CommandPalette items={[NOTE_A, AGENT_A]} onPick={onPick} onClose={noop} />,
+      <CommandPalette items={[NOTE_A, AGENT_A]} onPick={onPick} onClose={noop} />
     )
     const input = getByRole('textbox')
     fireEvent.keyDown(input, { key: 'ArrowDown' })
@@ -157,7 +155,7 @@ describe('CommandPalette — keyboard nav skips section headers', () => {
         items={[NOTE_A, NOTE_B, NOTE_C, NOTE_D, NOTE_E]}
         onPick={onPick}
         onClose={noop}
-      />,
+      />
     )
     const input = getByRole('textbox')
     fireEvent.keyDown(input, { key: 'ArrowDown' })
@@ -181,7 +179,7 @@ describe('CommandPalette — section header counter', () => {
         items={[NOTE_A, NOTE_B, NOTE_C, NOTE_D, NOTE_E]}
         onPick={noop}
         onClose={noop}
-      />,
+      />
     )
     const header = getAllByText(/^Notes \(\d+\)/)[0]
     expect(header).toBeTruthy()
@@ -190,7 +188,7 @@ describe('CommandPalette — section header counter', () => {
 
   it('shows no count when section has exactly 1 item', () => {
     const { getAllByText, queryByText } = render(
-      <CommandPalette items={[NOTE_A]} onPick={noop} onClose={noop} />,
+      <CommandPalette items={[NOTE_A]} onPick={noop} onClose={noop} />
     )
     expect(getAllByText('Notes').length).toBeGreaterThanOrEqual(1)
     expect(queryByText(/^Notes \(/)).toBeNull()

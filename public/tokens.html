@@ -1,526 +1,1010 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Marvinz — Design Tokens</title>
-<style>
-  /*
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Marvinz — Design Tokens</title>
+    <style>
+      /*
    * Mirror of src/App.css tokens. Kept in sync manually for now.
    * If the canonical tokens change, update this file too.
    */
-  :root {
-    --bg-app: #ececec;
-    --surface-1: #ffffff;
-    --surface-2: #f7f7f8;
-    --surface-3: #ededee;
-    --border-subtle: rgba(0, 0, 0, 0.05);
-    --border: #e3e3e5;
-    --border-strong: #d1d1d4;
-    --border-focus: var(--accent);
-    --border-error: #dc3545;
-    --border-warning: #d97706;
-    --border-success: #16a34a;
-    --text-primary: #1a1a1a;
-    --text-secondary: #6b6b6f;
-    --text-tertiary: #9a9a9e;
-    --text-error: #dc3545;
-    --text-warning: #d97706;
-    --text-success: #16a34a;
-    --accent: #007aff;
-    --accent-bg: #007aff14;
+      :root {
+        --bg-app: #ececec;
+        --surface-1: #ffffff;
+        --surface-2: #f7f7f8;
+        --surface-3: #ededee;
+        --border-subtle: rgba(0, 0, 0, 0.05);
+        --border: #e3e3e5;
+        --border-strong: #d1d1d4;
+        --border-focus: var(--accent);
+        --border-error: #dc3545;
+        --border-warning: #d97706;
+        --border-success: #16a34a;
+        --text-primary: #1a1a1a;
+        --text-secondary: #6b6b6f;
+        --text-tertiary: #9a9a9e;
+        --text-error: #dc3545;
+        --text-warning: #d97706;
+        --text-success: #16a34a;
+        --accent: #007aff;
+        --accent-bg: #007aff14;
 
-    --bg-overlay: rgba(0, 0, 0, 0.5);
-    --bg-overlay-light: rgba(0, 0, 0, 0.45);
-    --bg-hover: rgba(0, 0, 0, 0.04);
-    --bg-hover-strong: rgba(0, 0, 0, 0.1);
+        --bg-overlay: rgba(0, 0, 0, 0.5);
+        --bg-overlay-light: rgba(0, 0, 0, 0.45);
+        --bg-hover: rgba(0, 0, 0, 0.04);
+        --bg-hover-strong: rgba(0, 0, 0, 0.1);
 
-    --bg-error-strong: #c0392b;
-    --bg-error-subtle: rgba(192, 57, 43, 0.08);
-    --bg-warning-subtle: rgba(217, 119, 6, 0.10);
-    --bg-success-subtle: rgba(22, 163, 74, 0.10);
+        --bg-error-strong: #c0392b;
+        --bg-error-subtle: rgba(192, 57, 43, 0.08);
+        --bg-warning-subtle: rgba(217, 119, 6, 0.1);
+        --bg-success-subtle: rgba(22, 163, 74, 0.1);
 
-    --focus-ring: 0 0 0 3px rgba(0, 0, 0, 0.35);
-    --focus-ring-inset: inset 0 0 0 2px rgba(0, 0, 0, 0.5);
+        --focus-ring: 0 0 0 3px rgba(0, 0, 0, 0.35);
+        --focus-ring-inset: inset 0 0 0 2px rgba(0, 0, 0, 0.5);
 
-    --z-dropdown: 50;
-    --z-popover: 100;
-    --z-modal: 200;
-    --z-toast: 300;
-    --z-tooltip: 400;
+        --z-dropdown: 50;
+        --z-popover: 100;
+        --z-modal: 200;
+        --z-toast: 300;
+        --z-tooltip: 400;
 
-    --code-keyword: #a31515;
-    --code-string: #067d17;
-    --code-number: #1565c0;
-    --code-function: #6f42c1;
-    --code-property: #795e26;
-    --code-comment: #008000;
-    --code-tag: #0451a5;
-    --code-operator: var(--text-primary);
+        --code-keyword: #a31515;
+        --code-string: #067d17;
+        --code-number: #1565c0;
+        --code-function: #6f42c1;
+        --code-property: #795e26;
+        --code-comment: #008000;
+        --code-tag: #0451a5;
+        --code-operator: var(--text-primary);
 
-    --space-1: 4px;
-    --space-2: 8px;
-    --space-3: 12px;
-    --space-4: 16px;
-    --space-5: 24px;
-    --space-6: 32px;
-    --space-7: 48px;
+        --space-1: 4px;
+        --space-2: 8px;
+        --space-3: 12px;
+        --space-4: 16px;
+        --space-5: 24px;
+        --space-6: 32px;
+        --space-7: 48px;
 
-    --radius-sm: 3px;
-    --radius-md: 6px;
-    --radius-lg: 12px;
-    --radius-xl: 16px;
-    --radius-pill: 999px;
+        --radius-sm: 3px;
+        --radius-md: 6px;
+        --radius-lg: 12px;
+        --radius-xl: 16px;
+        --radius-pill: 999px;
 
-    --font-family-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    --font-family-mono: ui-monospace, 'SF Mono', Menlo, Monaco, Consolas, monospace;
+        --font-family-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        --font-family-mono: ui-monospace, 'SF Mono', Menlo, Monaco, Consolas, monospace;
 
-    --font-size-xs: 0.714rem;
-    --font-size-sm: 0.857rem;
-    --font-size-md: 1rem;
-    --font-size-lg: 1.143rem;
-    --font-size-xl: 1.429rem;
+        --font-size-xs: 0.714rem;
+        --font-size-sm: 0.857rem;
+        --font-size-md: 1rem;
+        --font-size-lg: 1.143rem;
+        --font-size-xl: 1.429rem;
 
-    --line-height-tight: 1.2;
-    --line-height-normal: 1.45;
-    --line-height-loose: 1.7;
+        --line-height-tight: 1.2;
+        --line-height-normal: 1.45;
+        --line-height-loose: 1.7;
 
-    --font-weight-regular: 400;
-    --font-weight-medium: 500;
-    --font-weight-semibold: 600;
-    --font-weight-bold: 700;
+        --font-weight-regular: 400;
+        --font-weight-medium: 500;
+        --font-weight-semibold: 600;
+        --font-weight-bold: 700;
 
-    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
-    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
-    --shadow-lg: 0 12px 30px rgba(0, 0, 0, 0.15);
+        --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+        --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+        --shadow-lg: 0 12px 30px rgba(0, 0, 0, 0.15);
 
-    --duration-fast: 120ms;
-    --duration-normal: 200ms;
-    --duration-slow: 300ms;
+        --duration-fast: 120ms;
+        --duration-normal: 200ms;
+        --duration-slow: 300ms;
 
-    --ease-out: cubic-bezier(0, 0, 0.2, 1);
-    --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
-  }
+        --ease-out: cubic-bezier(0, 0, 0.2, 1);
+        --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+      }
 
-  [data-theme='dark'] {
-    --bg-app: #121212;
-    --surface-1: #1e1e1e;
-    --surface-2: #181818;
-    --surface-3: #232323;
-    --border-subtle: rgba(255, 255, 255, 0.06);
-    --border: #2e2e2e;
-    --border-strong: #3a3a3a;
-    --border-focus: var(--accent);
-    --border-error: #e07b6e;
-    --border-warning: #b08940;
-    --border-success: #4ec77a;
-    --text-primary: #e6e6e6;
-    --text-secondary: #a0a0a0;
-    --text-tertiary: #6a6a6a;
-    --text-error: #e07b6e;
-    --text-warning: #b08940;
-    --text-success: #4ec77a;
-    --accent: #0a84ff;
-    --accent-bg: #0a84ff22;
+      [data-theme='dark'] {
+        --bg-app: #121212;
+        --surface-1: #1e1e1e;
+        --surface-2: #181818;
+        --surface-3: #232323;
+        --border-subtle: rgba(255, 255, 255, 0.06);
+        --border: #2e2e2e;
+        --border-strong: #3a3a3a;
+        --border-focus: var(--accent);
+        --border-error: #e07b6e;
+        --border-warning: #b08940;
+        --border-success: #4ec77a;
+        --text-primary: #e6e6e6;
+        --text-secondary: #a0a0a0;
+        --text-tertiary: #6a6a6a;
+        --text-error: #e07b6e;
+        --text-warning: #b08940;
+        --text-success: #4ec77a;
+        --accent: #0a84ff;
+        --accent-bg: #0a84ff22;
 
-    --bg-hover: rgba(255, 255, 255, 0.04);
-    --bg-hover-strong: rgba(255, 255, 255, 0.1);
-    --bg-error-strong: #a93226;
-    --bg-error-subtle: rgba(224, 123, 110, 0.08);
-    --bg-warning-subtle: rgba(176, 137, 64, 0.10);
-    --bg-success-subtle: rgba(78, 199, 122, 0.10);
-    --focus-ring: 0 0 0 3px rgba(255, 255, 255, 0.35);
-    --focus-ring-inset: inset 0 0 0 2px rgba(255, 255, 255, 0.5);
+        --bg-hover: rgba(255, 255, 255, 0.04);
+        --bg-hover-strong: rgba(255, 255, 255, 0.1);
+        --bg-error-strong: #a93226;
+        --bg-error-subtle: rgba(224, 123, 110, 0.08);
+        --bg-warning-subtle: rgba(176, 137, 64, 0.1);
+        --bg-success-subtle: rgba(78, 199, 122, 0.1);
+        --focus-ring: 0 0 0 3px rgba(255, 255, 255, 0.35);
+        --focus-ring-inset: inset 0 0 0 2px rgba(255, 255, 255, 0.5);
 
-    --code-keyword: #569cd6;
-    --code-string: #ce9178;
-    --code-number: #b5cea8;
-    --code-function: #dcdcaa;
-    --code-property: #9cdcfe;
-    --code-comment: #6a9955;
-    --code-tag: #569cd6;
+        --code-keyword: #569cd6;
+        --code-string: #ce9178;
+        --code-number: #b5cea8;
+        --code-function: #dcdcaa;
+        --code-property: #9cdcfe;
+        --code-comment: #6a9955;
+        --code-tag: #569cd6;
 
-    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.15);
-    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.25);
-    --shadow-lg: 0 12px 30px rgba(0, 0, 0, 0.45);
-  }
+        --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.15);
+        --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.25);
+        --shadow-lg: 0 12px 30px rgba(0, 0, 0, 0.45);
+      }
 
-  * { box-sizing: border-box; }
-  html { font-size: 14px; }
-  body {
-    margin: 0;
-    padding: var(--space-6);
-    background: var(--bg-app);
-    color: var(--text-primary);
-    font-family: var(--font-family-sans);
-    transition: background var(--duration-normal) var(--ease-out),
-                color var(--duration-normal) var(--ease-out);
-  }
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        font-size: 14px;
+      }
+      body {
+        margin: 0;
+        padding: var(--space-6);
+        background: var(--bg-app);
+        color: var(--text-primary);
+        font-family: var(--font-family-sans);
+        transition:
+          background var(--duration-normal) var(--ease-out),
+          color var(--duration-normal) var(--ease-out);
+      }
 
-  header {
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-    margin-bottom: var(--space-6);
-    padding-bottom: var(--space-4);
-    border-bottom: 1px solid var(--border);
-  }
-  header h1 {
-    font-size: var(--font-size-xl);
-    font-weight: var(--font-weight-semibold);
-    margin: 0;
-  }
-  header .sub {
-    font-size: var(--font-size-sm);
-    color: var(--text-secondary);
-  }
-  .theme-toggle {
-    display: inline-flex;
-    background: var(--surface-2);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-    padding: var(--space-1);
-    gap: var(--space-1);
-  }
-  .theme-toggle button {
-    background: none;
-    border: none;
-    padding: var(--space-1) var(--space-3);
-    border-radius: var(--radius-sm);
-    color: var(--text-secondary);
-    font: inherit;
-    font-size: var(--font-size-sm);
-    cursor: pointer;
-  }
-  .theme-toggle button.active {
-    background: var(--surface-1);
-    color: var(--text-primary);
-    box-shadow: var(--shadow-sm);
-  }
+      header {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        margin-bottom: var(--space-6);
+        padding-bottom: var(--space-4);
+        border-bottom: 1px solid var(--border);
+      }
+      header h1 {
+        font-size: var(--font-size-xl);
+        font-weight: var(--font-weight-semibold);
+        margin: 0;
+      }
+      header .sub {
+        font-size: var(--font-size-sm);
+        color: var(--text-secondary);
+      }
+      .theme-toggle {
+        display: inline-flex;
+        background: var(--surface-2);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        padding: var(--space-1);
+        gap: var(--space-1);
+      }
+      .theme-toggle button {
+        background: none;
+        border: none;
+        padding: var(--space-1) var(--space-3);
+        border-radius: var(--radius-sm);
+        color: var(--text-secondary);
+        font: inherit;
+        font-size: var(--font-size-sm);
+        cursor: pointer;
+      }
+      .theme-toggle button.active {
+        background: var(--surface-1);
+        color: var(--text-primary);
+        box-shadow: var(--shadow-sm);
+      }
 
-  section {
-    margin-bottom: var(--space-7);
-  }
-  section h2 {
-    font-size: var(--font-size-lg);
-    font-weight: var(--font-weight-semibold);
-    margin: 0 0 var(--space-4);
-    color: var(--text-primary);
-  }
-  section .desc {
-    font-size: var(--font-size-sm);
-    color: var(--text-secondary);
-    margin: 0 0 var(--space-4);
-    max-width: 60ch;
-  }
+      section {
+        margin-bottom: var(--space-7);
+      }
+      section h2 {
+        font-size: var(--font-size-lg);
+        font-weight: var(--font-weight-semibold);
+        margin: 0 0 var(--space-4);
+        color: var(--text-primary);
+      }
+      section .desc {
+        font-size: var(--font-size-sm);
+        color: var(--text-secondary);
+        margin: 0 0 var(--space-4);
+        max-width: 60ch;
+      }
 
-  /* Grid for swatch cards */
-  .grid {
-    display: grid;
-    gap: var(--space-3);
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  }
-  .card {
-    background: var(--surface-1);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-    padding: var(--space-3);
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-2);
-  }
-  .card .name {
-    font-family: var(--font-family-mono);
-    font-size: var(--font-size-sm);
-    color: var(--text-primary);
-  }
-  .card .value {
-    font-family: var(--font-family-mono);
-    font-size: var(--font-size-xs);
-    color: var(--text-tertiary);
-  }
-  .card .preview {
-    flex-shrink: 0;
-  }
+      /* Grid for swatch cards */
+      .grid {
+        display: grid;
+        gap: var(--space-3);
+        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      }
+      .card {
+        background: var(--surface-1);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        padding: var(--space-3);
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-2);
+      }
+      .card .name {
+        font-family: var(--font-family-mono);
+        font-size: var(--font-size-sm);
+        color: var(--text-primary);
+      }
+      .card .value {
+        font-family: var(--font-family-mono);
+        font-size: var(--font-size-xs);
+        color: var(--text-tertiary);
+      }
+      .card .preview {
+        flex-shrink: 0;
+      }
 
-  /* Color swatches */
-  .swatch {
-    width: 100%;
-    height: 48px;
-    border-radius: var(--radius-sm);
-    border: 1px solid var(--border);
-  }
-  /* Surface swatches need internal contrast indicator */
-  .swatch.surface { background: var(--target); }
+      /* Color swatches */
+      .swatch {
+        width: 100%;
+        height: 48px;
+        border-radius: var(--radius-sm);
+        border: 1px solid var(--border);
+      }
+      /* Surface swatches need internal contrast indicator */
+      .swatch.surface {
+        background: var(--target);
+      }
 
-  /* Spacing bars */
-  .space-row { display: flex; flex-direction: column; gap: var(--space-1); padding: var(--space-2) 0; }
-  .space-row .bar {
-    background: var(--accent);
-    border-radius: var(--radius-sm);
-    height: 12px;
-  }
+      /* Spacing bars */
+      .space-row {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-1);
+        padding: var(--space-2) 0;
+      }
+      .space-row .bar {
+        background: var(--accent);
+        border-radius: var(--radius-sm);
+        height: 12px;
+      }
 
-  /* Radius examples */
-  .radius-box {
-    width: 100%;
-    height: 64px;
-    background: var(--accent-bg);
-    border: 1px solid var(--accent);
-  }
+      /* Radius examples */
+      .radius-box {
+        width: 100%;
+        height: 64px;
+        background: var(--accent-bg);
+        border: 1px solid var(--accent);
+      }
 
-  /* Typography examples */
-  .type-row {
-    background: var(--surface-1);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-    padding: var(--space-3) var(--space-4);
-    margin-bottom: var(--space-2);
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-    gap: var(--space-4);
-  }
-  .type-row .label {
-    font-family: var(--font-family-mono);
-    font-size: var(--font-size-xs);
-    color: var(--text-tertiary);
-    flex-shrink: 0;
-    min-width: 200px;
-  }
-  .type-row .sample {
-    color: var(--text-primary);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
+      /* Typography examples */
+      .type-row {
+        background: var(--surface-1);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        padding: var(--space-3) var(--space-4);
+        margin-bottom: var(--space-2);
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: var(--space-4);
+      }
+      .type-row .label {
+        font-family: var(--font-family-mono);
+        font-size: var(--font-size-xs);
+        color: var(--text-tertiary);
+        flex-shrink: 0;
+        min-width: 200px;
+      }
+      .type-row .sample {
+        color: var(--text-primary);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
 
-  /* Shadow boxes */
-  .shadow-box {
-    width: 100%;
-    height: 64px;
-    background: var(--surface-1);
-    border-radius: var(--radius-md);
-  }
+      /* Shadow boxes */
+      .shadow-box {
+        width: 100%;
+        height: 64px;
+        background: var(--surface-1);
+        border-radius: var(--radius-md);
+      }
 
-  /* Motion demo */
-  .motion-demo {
-    width: 48px;
-    height: 48px;
-    background: var(--accent);
-    border-radius: var(--radius-sm);
-    margin: var(--space-2) auto;
-    transform: translateX(0);
-  }
-  .motion-card:hover .motion-demo {
-    transform: translateX(40px);
-  }
-  .motion-card[data-curve='ease-out'] .motion-demo {
-    transition: transform var(--target) var(--ease-out);
-  }
-  .motion-card[data-curve='ease-in-out'] .motion-demo {
-    transition: transform var(--target) var(--ease-in-out);
-  }
+      /* Motion demo */
+      .motion-demo {
+        width: 48px;
+        height: 48px;
+        background: var(--accent);
+        border-radius: var(--radius-sm);
+        margin: var(--space-2) auto;
+        transform: translateX(0);
+      }
+      .motion-card:hover .motion-demo {
+        transform: translateX(40px);
+      }
+      .motion-card[data-curve='ease-out'] .motion-demo {
+        transition: transform var(--target) var(--ease-out);
+      }
+      .motion-card[data-curve='ease-in-out'] .motion-demo {
+        transition: transform var(--target) var(--ease-in-out);
+      }
 
-  footer {
-    margin-top: var(--space-7);
-    padding-top: var(--space-4);
-    border-top: 1px solid var(--border);
-    font-size: var(--font-size-xs);
-    color: var(--text-tertiary);
-    text-align: center;
-  }
-  footer code { color: var(--text-secondary); }
-</style>
-</head>
-<body>
-<header>
-  <div>
-    <h1>Marvinz · Design Tokens</h1>
-    <div class="sub">Visual preview of the design system foundation. Source of truth: <code>src/App.css</code>.</div>
-  </div>
-  <div class="theme-toggle" role="radiogroup" aria-label="Theme">
-    <button data-theme-set="light" class="active">Light</button>
-    <button data-theme-set="dark">Dark</button>
-    <button data-theme-set="system">System</button>
-  </div>
-</header>
+      footer {
+        margin-top: var(--space-7);
+        padding-top: var(--space-4);
+        border-top: 1px solid var(--border);
+        font-size: var(--font-size-xs);
+        color: var(--text-tertiary);
+        text-align: center;
+      }
+      footer code {
+        color: var(--text-secondary);
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div>
+        <h1>Marvinz · Design Tokens</h1>
+        <div class="sub">
+          Visual preview of the design system foundation. Source of truth: <code>src/App.css</code>.
+        </div>
+      </div>
+      <div class="theme-toggle" role="radiogroup" aria-label="Theme">
+        <button data-theme-set="light" class="active">Light</button>
+        <button data-theme-set="dark">Dark</button>
+        <button data-theme-set="system">System</button>
+      </div>
+    </header>
 
-<section>
-  <h2>Surfaces &amp; text</h2>
-  <p class="desc">Background and text colors. Surfaces 1→3 go from highest contrast to lowest contrast against <code>--bg-app</code>.</p>
-  <div class="grid">
-    <div class="card"><div class="swatch surface" style="--target: var(--bg-app); background: var(--bg-app);"></div><div class="name">--bg-app</div><div class="value">outermost background</div></div>
-    <div class="card"><div class="swatch surface" style="background: var(--surface-1);"></div><div class="name">--surface-1</div><div class="value">panel cards</div></div>
-    <div class="card"><div class="swatch surface" style="background: var(--surface-2);"></div><div class="name">--surface-2</div><div class="value">subtle contrast</div></div>
-    <div class="card"><div class="swatch surface" style="background: var(--surface-3);"></div><div class="name">--surface-3</div><div class="value">hover / active</div></div>
-    <div class="card"><div class="swatch surface" style="background: var(--border-subtle);"></div><div class="name">--border-subtle</div><div class="value">hairlines within a panel</div></div>
-    <div class="card"><div class="swatch surface" style="background: var(--border);"></div><div class="name">--border</div><div class="value">dividers, outlines</div></div>
-    <div class="card"><div class="swatch surface" style="background: var(--border-strong);"></div><div class="name">--border-strong</div><div class="value">emphasis outline</div></div>
-    <div class="card"><div class="swatch surface" style="background: var(--border-focus);"></div><div class="name">--border-focus</div><div class="value">focused input ring</div></div>
-    <div class="card"><div class="swatch surface" style="background: var(--border-error);"></div><div class="name">--border-error</div><div class="value">invalid state</div></div>
-    <div class="card"><div class="swatch surface" style="background: var(--border-warning);"></div><div class="name">--border-warning</div><div class="value">caution state</div></div>
-    <div class="card"><div class="swatch surface" style="background: var(--border-success);"></div><div class="name">--border-success</div><div class="value">success state</div></div>
-    <div class="card"><div class="swatch surface" style="background: var(--text-primary);"></div><div class="name">--text-primary</div><div class="value">body, titles</div></div>
-    <div class="card"><div class="swatch surface" style="background: var(--text-secondary);"></div><div class="name">--text-secondary</div><div class="value">labels, captions</div></div>
-    <div class="card"><div class="swatch surface" style="background: var(--text-tertiary);"></div><div class="name">--text-tertiary</div><div class="value">placeholders, icons inativos</div></div>
-    <div class="card"><div class="swatch surface" style="background: var(--text-error);"></div><div class="name">--text-error</div><div class="value">error messages</div></div>
-    <div class="card"><div class="swatch surface" style="background: var(--text-warning);"></div><div class="name">--text-warning</div><div class="value">warnings, caution</div></div>
-    <div class="card"><div class="swatch surface" style="background: var(--text-success);"></div><div class="name">--text-success</div><div class="value">success states</div></div>
-    <div class="card"><div class="swatch surface" style="background: var(--accent);"></div><div class="name">--accent</div><div class="value">brand</div></div>
-    <div class="card"><div class="swatch surface" style="background: var(--accent-bg);"></div><div class="name">--accent-bg</div><div class="value">accent overlay</div></div>
-  </div>
-</section>
+    <section>
+      <h2>Surfaces &amp; text</h2>
+      <p class="desc">
+        Background and text colors. Surfaces 1→3 go from highest contrast to lowest contrast against
+        <code>--bg-app</code>.
+      </p>
+      <div class="grid">
+        <div class="card">
+          <div
+            class="swatch surface"
+            style="--target: var(--bg-app); background: var(--bg-app)"
+          ></div>
+          <div class="name">--bg-app</div>
+          <div class="value">outermost background</div>
+        </div>
+        <div class="card">
+          <div class="swatch surface" style="background: var(--surface-1)"></div>
+          <div class="name">--surface-1</div>
+          <div class="value">panel cards</div>
+        </div>
+        <div class="card">
+          <div class="swatch surface" style="background: var(--surface-2)"></div>
+          <div class="name">--surface-2</div>
+          <div class="value">subtle contrast</div>
+        </div>
+        <div class="card">
+          <div class="swatch surface" style="background: var(--surface-3)"></div>
+          <div class="name">--surface-3</div>
+          <div class="value">hover / active</div>
+        </div>
+        <div class="card">
+          <div class="swatch surface" style="background: var(--border-subtle)"></div>
+          <div class="name">--border-subtle</div>
+          <div class="value">hairlines within a panel</div>
+        </div>
+        <div class="card">
+          <div class="swatch surface" style="background: var(--border)"></div>
+          <div class="name">--border</div>
+          <div class="value">dividers, outlines</div>
+        </div>
+        <div class="card">
+          <div class="swatch surface" style="background: var(--border-strong)"></div>
+          <div class="name">--border-strong</div>
+          <div class="value">emphasis outline</div>
+        </div>
+        <div class="card">
+          <div class="swatch surface" style="background: var(--border-focus)"></div>
+          <div class="name">--border-focus</div>
+          <div class="value">focused input ring</div>
+        </div>
+        <div class="card">
+          <div class="swatch surface" style="background: var(--border-error)"></div>
+          <div class="name">--border-error</div>
+          <div class="value">invalid state</div>
+        </div>
+        <div class="card">
+          <div class="swatch surface" style="background: var(--border-warning)"></div>
+          <div class="name">--border-warning</div>
+          <div class="value">caution state</div>
+        </div>
+        <div class="card">
+          <div class="swatch surface" style="background: var(--border-success)"></div>
+          <div class="name">--border-success</div>
+          <div class="value">success state</div>
+        </div>
+        <div class="card">
+          <div class="swatch surface" style="background: var(--text-primary)"></div>
+          <div class="name">--text-primary</div>
+          <div class="value">body, titles</div>
+        </div>
+        <div class="card">
+          <div class="swatch surface" style="background: var(--text-secondary)"></div>
+          <div class="name">--text-secondary</div>
+          <div class="value">labels, captions</div>
+        </div>
+        <div class="card">
+          <div class="swatch surface" style="background: var(--text-tertiary)"></div>
+          <div class="name">--text-tertiary</div>
+          <div class="value">placeholders, icons inativos</div>
+        </div>
+        <div class="card">
+          <div class="swatch surface" style="background: var(--text-error)"></div>
+          <div class="name">--text-error</div>
+          <div class="value">error messages</div>
+        </div>
+        <div class="card">
+          <div class="swatch surface" style="background: var(--text-warning)"></div>
+          <div class="name">--text-warning</div>
+          <div class="value">warnings, caution</div>
+        </div>
+        <div class="card">
+          <div class="swatch surface" style="background: var(--text-success)"></div>
+          <div class="name">--text-success</div>
+          <div class="value">success states</div>
+        </div>
+        <div class="card">
+          <div class="swatch surface" style="background: var(--accent)"></div>
+          <div class="name">--accent</div>
+          <div class="value">brand</div>
+        </div>
+        <div class="card">
+          <div class="swatch surface" style="background: var(--accent-bg)"></div>
+          <div class="name">--accent-bg</div>
+          <div class="value">accent overlay</div>
+        </div>
+      </div>
+    </section>
 
-<section>
-  <h2>Spacing</h2>
-  <p class="desc">4px base unit. Use for padding, margin, gap. Bars rendered at actual size against the accent color.</p>
-  <div class="grid">
-    <div class="card"><div class="space-row"><div class="bar" style="width: var(--space-1);"></div></div><div class="name">--space-1</div><div class="value">4px · tight gaps</div></div>
-    <div class="card"><div class="space-row"><div class="bar" style="width: var(--space-2);"></div></div><div class="name">--space-2</div><div class="value">8px · base</div></div>
-    <div class="card"><div class="space-row"><div class="bar" style="width: var(--space-3);"></div></div><div class="name">--space-3</div><div class="value">12px · comfortable</div></div>
-    <div class="card"><div class="space-row"><div class="bar" style="width: var(--space-4);"></div></div><div class="name">--space-4</div><div class="value">16px · panels</div></div>
-    <div class="card"><div class="space-row"><div class="bar" style="width: var(--space-5);"></div></div><div class="name">--space-5</div><div class="value">24px · open</div></div>
-    <div class="card"><div class="space-row"><div class="bar" style="width: var(--space-6);"></div></div><div class="name">--space-6</div><div class="value">32px · generous</div></div>
-    <div class="card"><div class="space-row"><div class="bar" style="width: var(--space-7);"></div></div><div class="name">--space-7</div><div class="value">48px · editorial</div></div>
-  </div>
-</section>
+    <section>
+      <h2>Spacing</h2>
+      <p class="desc">
+        4px base unit. Use for padding, margin, gap. Bars rendered at actual size against the accent
+        color.
+      </p>
+      <div class="grid">
+        <div class="card">
+          <div class="space-row"><div class="bar" style="width: var(--space-1)"></div></div>
+          <div class="name">--space-1</div>
+          <div class="value">4px · tight gaps</div>
+        </div>
+        <div class="card">
+          <div class="space-row"><div class="bar" style="width: var(--space-2)"></div></div>
+          <div class="name">--space-2</div>
+          <div class="value">8px · base</div>
+        </div>
+        <div class="card">
+          <div class="space-row"><div class="bar" style="width: var(--space-3)"></div></div>
+          <div class="name">--space-3</div>
+          <div class="value">12px · comfortable</div>
+        </div>
+        <div class="card">
+          <div class="space-row"><div class="bar" style="width: var(--space-4)"></div></div>
+          <div class="name">--space-4</div>
+          <div class="value">16px · panels</div>
+        </div>
+        <div class="card">
+          <div class="space-row"><div class="bar" style="width: var(--space-5)"></div></div>
+          <div class="name">--space-5</div>
+          <div class="value">24px · open</div>
+        </div>
+        <div class="card">
+          <div class="space-row"><div class="bar" style="width: var(--space-6)"></div></div>
+          <div class="name">--space-6</div>
+          <div class="value">32px · generous</div>
+        </div>
+        <div class="card">
+          <div class="space-row"><div class="bar" style="width: var(--space-7)"></div></div>
+          <div class="name">--space-7</div>
+          <div class="value">48px · editorial</div>
+        </div>
+      </div>
+    </section>
 
-<section>
-  <h2>Radius</h2>
-  <p class="desc">From small chrome corners up to pills for badges.</p>
-  <div class="grid">
-    <div class="card"><div class="radius-box" style="border-radius: var(--radius-sm);"></div><div class="name">--radius-sm</div><div class="value">3px · micro chrome</div></div>
-    <div class="card"><div class="radius-box" style="border-radius: var(--radius-md);"></div><div class="name">--radius-md</div><div class="value">6px · inputs, buttons</div></div>
-    <div class="card"><div class="radius-box" style="border-radius: var(--radius-lg);"></div><div class="name">--radius-lg</div><div class="value">12px · modals, popovers</div></div>
-    <div class="card"><div class="radius-box" style="border-radius: var(--radius-xl);"></div><div class="name">--radius-xl</div><div class="value">16px · layout panels (sidebar, editor, claude)</div></div>
-    <div class="card"><div class="radius-box" style="border-radius: var(--radius-pill);"></div><div class="name">--radius-pill</div><div class="value">999px · badges, tags</div></div>
-  </div>
-</section>
+    <section>
+      <h2>Radius</h2>
+      <p class="desc">From small chrome corners up to pills for badges.</p>
+      <div class="grid">
+        <div class="card">
+          <div class="radius-box" style="border-radius: var(--radius-sm)"></div>
+          <div class="name">--radius-sm</div>
+          <div class="value">3px · micro chrome</div>
+        </div>
+        <div class="card">
+          <div class="radius-box" style="border-radius: var(--radius-md)"></div>
+          <div class="name">--radius-md</div>
+          <div class="value">6px · inputs, buttons</div>
+        </div>
+        <div class="card">
+          <div class="radius-box" style="border-radius: var(--radius-lg)"></div>
+          <div class="name">--radius-lg</div>
+          <div class="value">12px · modals, popovers</div>
+        </div>
+        <div class="card">
+          <div class="radius-box" style="border-radius: var(--radius-xl)"></div>
+          <div class="name">--radius-xl</div>
+          <div class="value">16px · layout panels (sidebar, editor, claude)</div>
+        </div>
+        <div class="card">
+          <div class="radius-box" style="border-radius: var(--radius-pill)"></div>
+          <div class="name">--radius-pill</div>
+          <div class="value">999px · badges, tags</div>
+        </div>
+      </div>
+    </section>
 
-<section>
-  <h2>Typography</h2>
-  <p class="desc">Sizes in rem (base = 14px). Apply line-height + weight independently.</p>
-  <div class="type-row"><div class="label">--font-size-xs · 0.714rem (10px)</div><div class="sample" style="font-size: var(--font-size-xs);">Status badge captions</div></div>
-  <div class="type-row"><div class="label">--font-size-sm · 0.857rem (12px)</div><div class="sample" style="font-size: var(--font-size-sm);">File tree row, tab label, modal hint</div></div>
-  <div class="type-row"><div class="label">--font-size-md · 1rem (14px)</div><div class="sample" style="font-size: var(--font-size-md);">Default body text, editor content</div></div>
-  <div class="type-row"><div class="label">--font-size-lg · 1.143rem (16px)</div><div class="sample" style="font-size: var(--font-size-lg);">Section headers, sidebar group titles</div></div>
-  <div class="type-row"><div class="label">--font-size-xl · 1.429rem (20px)</div><div class="sample" style="font-size: var(--font-size-xl); font-weight: var(--font-weight-semibold);">Modal titles, page headings</div></div>
+    <section>
+      <h2>Typography</h2>
+      <p class="desc">Sizes in rem (base = 14px). Apply line-height + weight independently.</p>
+      <div class="type-row">
+        <div class="label">--font-size-xs · 0.714rem (10px)</div>
+        <div class="sample" style="font-size: var(--font-size-xs)">Status badge captions</div>
+      </div>
+      <div class="type-row">
+        <div class="label">--font-size-sm · 0.857rem (12px)</div>
+        <div class="sample" style="font-size: var(--font-size-sm)">
+          File tree row, tab label, modal hint
+        </div>
+      </div>
+      <div class="type-row">
+        <div class="label">--font-size-md · 1rem (14px)</div>
+        <div class="sample" style="font-size: var(--font-size-md)">
+          Default body text, editor content
+        </div>
+      </div>
+      <div class="type-row">
+        <div class="label">--font-size-lg · 1.143rem (16px)</div>
+        <div class="sample" style="font-size: var(--font-size-lg)">
+          Section headers, sidebar group titles
+        </div>
+      </div>
+      <div class="type-row">
+        <div class="label">--font-size-xl · 1.429rem (20px)</div>
+        <div
+          class="sample"
+          style="font-size: var(--font-size-xl); font-weight: var(--font-weight-semibold)"
+        >
+          Modal titles, page headings
+        </div>
+      </div>
 
-  <p class="desc" style="margin-top: var(--space-4);">
-    Families — system font stack (nenhum arquivo de fonte baixado). O browser resolve a primeira opção disponível no SO:
-    <br><strong>macOS:</strong> SF Pro / SF Mono · <strong>Windows:</strong> Segoe UI / Consolas · <strong>Linux:</strong> Roboto ou fallback genérico.
-  </p>
-  <div class="type-row"><div class="label">--font-family-sans</div><div class="sample" style="font-family: var(--font-family-sans);">SF Pro (macOS) · Segoe UI (Win) · Roboto (Linux)</div></div>
-  <div class="type-row"><div class="label">--font-family-mono</div><div class="sample" style="font-family: var(--font-family-mono);">SF Mono (macOS) · Consolas (Win) · Menlo · monospace</div></div>
+      <p class="desc" style="margin-top: var(--space-4)">
+        Families — system font stack (nenhum arquivo de fonte baixado). O browser resolve a primeira
+        opção disponível no SO:
+        <br /><strong>macOS:</strong> SF Pro / SF Mono · <strong>Windows:</strong> Segoe UI /
+        Consolas · <strong>Linux:</strong> Roboto ou fallback genérico.
+      </p>
+      <div class="type-row">
+        <div class="label">--font-family-sans</div>
+        <div class="sample" style="font-family: var(--font-family-sans)">
+          SF Pro (macOS) · Segoe UI (Win) · Roboto (Linux)
+        </div>
+      </div>
+      <div class="type-row">
+        <div class="label">--font-family-mono</div>
+        <div class="sample" style="font-family: var(--font-family-mono)">
+          SF Mono (macOS) · Consolas (Win) · Menlo · monospace
+        </div>
+      </div>
 
-  <p class="desc" style="margin-top: var(--space-4);">Weights:</p>
-  <div class="type-row"><div class="label">--font-weight-regular · 400</div><div class="sample" style="font-weight: var(--font-weight-regular);">The quick brown fox jumps over the lazy dog</div></div>
-  <div class="type-row"><div class="label">--font-weight-medium · 500</div><div class="sample" style="font-weight: var(--font-weight-medium);">The quick brown fox jumps over the lazy dog</div></div>
-  <div class="type-row"><div class="label">--font-weight-semibold · 600</div><div class="sample" style="font-weight: var(--font-weight-semibold);">The quick brown fox jumps over the lazy dog</div></div>
-  <div class="type-row"><div class="label">--font-weight-bold · 700</div><div class="sample" style="font-weight: var(--font-weight-bold);">The quick brown fox jumps over the lazy dog</div></div>
+      <p class="desc" style="margin-top: var(--space-4)">Weights:</p>
+      <div class="type-row">
+        <div class="label">--font-weight-regular · 400</div>
+        <div class="sample" style="font-weight: var(--font-weight-regular)">
+          The quick brown fox jumps over the lazy dog
+        </div>
+      </div>
+      <div class="type-row">
+        <div class="label">--font-weight-medium · 500</div>
+        <div class="sample" style="font-weight: var(--font-weight-medium)">
+          The quick brown fox jumps over the lazy dog
+        </div>
+      </div>
+      <div class="type-row">
+        <div class="label">--font-weight-semibold · 600</div>
+        <div class="sample" style="font-weight: var(--font-weight-semibold)">
+          The quick brown fox jumps over the lazy dog
+        </div>
+      </div>
+      <div class="type-row">
+        <div class="label">--font-weight-bold · 700</div>
+        <div class="sample" style="font-weight: var(--font-weight-bold)">
+          The quick brown fox jumps over the lazy dog
+        </div>
+      </div>
 
-  <p class="desc" style="margin-top: var(--space-4);">Line heights:</p>
-  <div class="type-row"><div class="label">--line-height-tight · 1.2</div><div class="sample" style="line-height: var(--line-height-tight); white-space: normal;">Linha condensada que ocupa pouca altura — bom para títulos e botões compactos.</div></div>
-  <div class="type-row"><div class="label">--line-height-normal · 1.45</div><div class="sample" style="line-height: var(--line-height-normal); white-space: normal;">Altura de linha padrão para corpo de texto em parágrafos.</div></div>
-  <div class="type-row"><div class="label">--line-height-loose · 1.7</div><div class="sample" style="line-height: var(--line-height-loose); white-space: normal;">Espaçamento mais arejado para leitura longa e copy editorial.</div></div>
-</section>
+      <p class="desc" style="margin-top: var(--space-4)">Line heights:</p>
+      <div class="type-row">
+        <div class="label">--line-height-tight · 1.2</div>
+        <div class="sample" style="line-height: var(--line-height-tight); white-space: normal">
+          Linha condensada que ocupa pouca altura — bom para títulos e botões compactos.
+        </div>
+      </div>
+      <div class="type-row">
+        <div class="label">--line-height-normal · 1.45</div>
+        <div class="sample" style="line-height: var(--line-height-normal); white-space: normal">
+          Altura de linha padrão para corpo de texto em parágrafos.
+        </div>
+      </div>
+      <div class="type-row">
+        <div class="label">--line-height-loose · 1.7</div>
+        <div class="sample" style="line-height: var(--line-height-loose); white-space: normal">
+          Espaçamento mais arejado para leitura longa e copy editorial.
+        </div>
+      </div>
+    </section>
 
-<section>
-  <h2>Shadow</h2>
-  <p class="desc">Soft in light theme, deeper alpha in dark. Aplica em cards e overlays.</p>
-  <div class="grid">
-    <div class="card"><div class="shadow-box" style="box-shadow: var(--shadow-sm);"></div><div class="name">--shadow-sm</div><div class="value">hover lift, buttons</div></div>
-    <div class="card"><div class="shadow-box" style="box-shadow: var(--shadow-md);"></div><div class="name">--shadow-md</div><div class="value">panel cards</div></div>
-    <div class="card"><div class="shadow-box" style="box-shadow: var(--shadow-lg);"></div><div class="name">--shadow-lg</div><div class="value">modals, popovers</div></div>
-  </div>
-</section>
+    <section>
+      <h2>Shadow</h2>
+      <p class="desc">Soft in light theme, deeper alpha in dark. Aplica em cards e overlays.</p>
+      <div class="grid">
+        <div class="card">
+          <div class="shadow-box" style="box-shadow: var(--shadow-sm)"></div>
+          <div class="name">--shadow-sm</div>
+          <div class="value">hover lift, buttons</div>
+        </div>
+        <div class="card">
+          <div class="shadow-box" style="box-shadow: var(--shadow-md)"></div>
+          <div class="name">--shadow-md</div>
+          <div class="value">panel cards</div>
+        </div>
+        <div class="card">
+          <div class="shadow-box" style="box-shadow: var(--shadow-lg)"></div>
+          <div class="name">--shadow-lg</div>
+          <div class="value">modals, popovers</div>
+        </div>
+      </div>
+    </section>
 
-<section>
-  <h2>Motion</h2>
-  <p class="desc">Passe o mouse em cima de cada card pra ver a duração e a curva.</p>
-  <div class="grid">
-    <div class="card motion-card" data-curve="ease-out" style="--target: var(--duration-fast);"><div class="motion-demo"></div><div class="name">--duration-fast + --ease-out</div><div class="value">120ms · hovers</div></div>
-    <div class="card motion-card" data-curve="ease-out" style="--target: var(--duration-normal);"><div class="motion-demo"></div><div class="name">--duration-normal + --ease-out</div><div class="value">200ms · clicks</div></div>
-    <div class="card motion-card" data-curve="ease-in-out" style="--target: var(--duration-slow);"><div class="motion-demo"></div><div class="name">--duration-slow + --ease-in-out</div><div class="value">300ms · modals, panels</div></div>
-  </div>
-</section>
+    <section>
+      <h2>Motion</h2>
+      <p class="desc">Passe o mouse em cima de cada card pra ver a duração e a curva.</p>
+      <div class="grid">
+        <div class="card motion-card" data-curve="ease-out" style="--target: var(--duration-fast)">
+          <div class="motion-demo"></div>
+          <div class="name">--duration-fast + --ease-out</div>
+          <div class="value">120ms · hovers</div>
+        </div>
+        <div
+          class="card motion-card"
+          data-curve="ease-out"
+          style="--target: var(--duration-normal)"
+        >
+          <div class="motion-demo"></div>
+          <div class="name">--duration-normal + --ease-out</div>
+          <div class="value">200ms · clicks</div>
+        </div>
+        <div
+          class="card motion-card"
+          data-curve="ease-in-out"
+          style="--target: var(--duration-slow)"
+        >
+          <div class="motion-demo"></div>
+          <div class="name">--duration-slow + --ease-in-out</div>
+          <div class="value">300ms · modals, panels</div>
+        </div>
+      </div>
+    </section>
 
-<section>
-  <h2>Status &amp; overlays</h2>
-  <p class="desc">Backgrounds for badges, toasts, hover washes, and modal backdrops. Light/dark variants differ.</p>
-  <div class="grid">
-    <div class="card"><div class="swatch surface" style="background: var(--bg-error-strong);"></div><div class="name">--bg-error-strong</div><div class="value">solid error toast/badge</div></div>
-    <div class="card"><div class="swatch surface" style="background: var(--bg-error-subtle);"></div><div class="name">--bg-error-subtle</div><div class="value">inline error tint</div></div>
-    <div class="card"><div class="swatch surface" style="background: var(--bg-warning-subtle);"></div><div class="name">--bg-warning-subtle</div><div class="value">warning badge tint</div></div>
-    <div class="card"><div class="swatch surface" style="background: var(--bg-success-subtle);"></div><div class="name">--bg-success-subtle</div><div class="value">success badge tint</div></div>
-    <div class="card"><div class="swatch surface" style="background: var(--bg-overlay);"></div><div class="name">--bg-overlay</div><div class="value">modal backdrop</div></div>
-    <div class="card"><div class="swatch surface" style="background: var(--bg-overlay-light);"></div><div class="name">--bg-overlay-light</div><div class="value">palette backdrop</div></div>
-    <div class="card"><div class="swatch surface" style="background: var(--bg-hover);"></div><div class="name">--bg-hover</div><div class="value">subtle hover wash</div></div>
-    <div class="card"><div class="swatch surface" style="background: var(--bg-hover-strong);"></div><div class="name">--bg-hover-strong</div><div class="value">stronger hover wash</div></div>
-  </div>
-</section>
+    <section>
+      <h2>Status &amp; overlays</h2>
+      <p class="desc">
+        Backgrounds for badges, toasts, hover washes, and modal backdrops. Light/dark variants
+        differ.
+      </p>
+      <div class="grid">
+        <div class="card">
+          <div class="swatch surface" style="background: var(--bg-error-strong)"></div>
+          <div class="name">--bg-error-strong</div>
+          <div class="value">solid error toast/badge</div>
+        </div>
+        <div class="card">
+          <div class="swatch surface" style="background: var(--bg-error-subtle)"></div>
+          <div class="name">--bg-error-subtle</div>
+          <div class="value">inline error tint</div>
+        </div>
+        <div class="card">
+          <div class="swatch surface" style="background: var(--bg-warning-subtle)"></div>
+          <div class="name">--bg-warning-subtle</div>
+          <div class="value">warning badge tint</div>
+        </div>
+        <div class="card">
+          <div class="swatch surface" style="background: var(--bg-success-subtle)"></div>
+          <div class="name">--bg-success-subtle</div>
+          <div class="value">success badge tint</div>
+        </div>
+        <div class="card">
+          <div class="swatch surface" style="background: var(--bg-overlay)"></div>
+          <div class="name">--bg-overlay</div>
+          <div class="value">modal backdrop</div>
+        </div>
+        <div class="card">
+          <div class="swatch surface" style="background: var(--bg-overlay-light)"></div>
+          <div class="name">--bg-overlay-light</div>
+          <div class="value">palette backdrop</div>
+        </div>
+        <div class="card">
+          <div class="swatch surface" style="background: var(--bg-hover)"></div>
+          <div class="name">--bg-hover</div>
+          <div class="value">subtle hover wash</div>
+        </div>
+        <div class="card">
+          <div class="swatch surface" style="background: var(--bg-hover-strong)"></div>
+          <div class="name">--bg-hover-strong</div>
+          <div class="value">stronger hover wash</div>
+        </div>
+      </div>
+    </section>
 
-<section>
-  <h2>Focus</h2>
-  <p class="desc">Apply via <code>box-shadow</code> inside <code>:focus-visible</code> (não <code>outline</code>, pra evitar layout shift).</p>
-  <div class="grid">
-    <div class="card">
-      <button type="button" style="background: var(--surface-1); border: 1px solid var(--border); border-radius: var(--radius-md); padding: var(--space-2) var(--space-4); color: var(--text-primary); cursor: pointer; box-shadow: var(--focus-ring);">Focused button</button>
-      <div class="name">--focus-ring</div>
-      <div class="value">outer 3px ring</div>
-    </div>
-    <div class="card">
-      <input type="text" placeholder="Focused input" style="background: var(--surface-1); border: 1px solid var(--border); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); color: var(--text-primary); font: inherit; box-shadow: var(--focus-ring-inset); outline: none; width: 100%;">
-      <div class="name">--focus-ring-inset</div>
-      <div class="value">inner 2px ring</div>
-    </div>
-  </div>
-</section>
+    <section>
+      <h2>Focus</h2>
+      <p class="desc">
+        Apply via <code>box-shadow</code> inside <code>:focus-visible</code> (não
+        <code>outline</code>, pra evitar layout shift).
+      </p>
+      <div class="grid">
+        <div class="card">
+          <button
+            type="button"
+            style="
+              background: var(--surface-1);
+              border: 1px solid var(--border);
+              border-radius: var(--radius-md);
+              padding: var(--space-2) var(--space-4);
+              color: var(--text-primary);
+              cursor: pointer;
+              box-shadow: var(--focus-ring);
+            "
+          >
+            Focused button
+          </button>
+          <div class="name">--focus-ring</div>
+          <div class="value">outer 3px ring</div>
+        </div>
+        <div class="card">
+          <input
+            type="text"
+            placeholder="Focused input"
+            style="
+              background: var(--surface-1);
+              border: 1px solid var(--border);
+              border-radius: var(--radius-md);
+              padding: var(--space-2) var(--space-3);
+              color: var(--text-primary);
+              font: inherit;
+              box-shadow: var(--focus-ring-inset);
+              outline: none;
+              width: 100%;
+            "
+          />
+          <div class="name">--focus-ring-inset</div>
+          <div class="value">inner 2px ring</div>
+        </div>
+      </div>
+    </section>
 
-<section>
-  <h2>Z-index</h2>
-  <p class="desc">UI layering scale. Nunca usar inteiros nus (exceto <code>z-index: 1</code> pra stacking local).</p>
-  <div class="grid">
-    <div class="card"><div class="name">--z-dropdown</div><div class="value">50 · inline dropdowns</div></div>
-    <div class="card"><div class="name">--z-popover</div><div class="value">100 · path suggest, popovers</div></div>
-    <div class="card"><div class="name">--z-modal</div><div class="value">200 · modals + backdrops</div></div>
-    <div class="card"><div class="name">--z-toast</div><div class="value">300 · toasts, ctx menus acima de modals</div></div>
-    <div class="card"><div class="name">--z-tooltip</div><div class="value">400 · tooltips (topo)</div></div>
-  </div>
-</section>
+    <section>
+      <h2>Z-index</h2>
+      <p class="desc">
+        UI layering scale. Nunca usar inteiros nus (exceto <code>z-index: 1</code> pra stacking
+        local).
+      </p>
+      <div class="grid">
+        <div class="card">
+          <div class="name">--z-dropdown</div>
+          <div class="value">50 · inline dropdowns</div>
+        </div>
+        <div class="card">
+          <div class="name">--z-popover</div>
+          <div class="value">100 · path suggest, popovers</div>
+        </div>
+        <div class="card">
+          <div class="name">--z-modal</div>
+          <div class="value">200 · modals + backdrops</div>
+        </div>
+        <div class="card">
+          <div class="name">--z-toast</div>
+          <div class="value">300 · toasts, ctx menus acima de modals</div>
+        </div>
+        <div class="card">
+          <div class="name">--z-tooltip</div>
+          <div class="value">400 · tooltips (topo)</div>
+        </div>
+      </div>
+    </section>
 
-<section>
-  <h2>Icons</h2>
-  <p class="desc">Marvinz usa <strong>dois</strong> sistemas: <a href="https://github.com/microsoft/vscode-codicons" target="_blank" style="color: var(--accent);">Codicons</a> pra UI chrome, e <a href="https://github.com/PKief/vscode-material-icon-theme" target="_blank" style="color: var(--accent);">Material Icon Theme</a> pra árvore de arquivos. Toggle do file tree em Settings.</p>
+    <section>
+      <h2>Icons</h2>
+      <p class="desc">
+        Marvinz usa <strong>dois</strong> sistemas:
+        <a
+          href="https://github.com/microsoft/vscode-codicons"
+          target="_blank"
+          style="color: var(--accent)"
+          >Codicons</a
+        >
+        pra UI chrome, e
+        <a
+          href="https://github.com/PKief/vscode-material-icon-theme"
+          target="_blank"
+          style="color: var(--accent)"
+          >Material Icon Theme</a
+        >
+        pra árvore de arquivos. Toggle do file tree em Settings.
+      </p>
 
-  <p class="desc" style="margin-top: var(--space-4);">Codicons — UI chrome (botões, toolbar, topbar). 569 ícones disponíveis via <code>&lt;Icon name="..." /&gt;</code>.</p>
-  <div class="grid" style="grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));">
-    <div class="card" style="align-items: center; text-align: center;"><svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor" style="color: var(--text-primary);"><path d="M5 14C4.448 14 4 13.552 4 13V3C4 2.448 4.448 2 5 2H8V4.5C8 5.328 8.672 6 9.5 6H12V6.025C12.344 6.056 12.677 6.121 13 6.213V5.414C13 5.016 12.842 4.635 12.561 4.353L9.647 1.439C9.366 1.158 8.984 1 8.586 1H5C3.895 1 3 1.895 3 3V13C3 14.105 3.895 15 5 15H7.261C7.008 14.693 6.791 14.357 6.607 14H5ZM9 2.207L11.793 5H9.5C9.224 5 9 4.776 9 4.5V2.207ZM11.5 7C9.015 7 7 9.015 7 11.5C7 13.985 9.015 16 11.5 16C13.985 16 16 13.985 16 11.5C16 9.015 13.985 7 11.5 7ZM14 12H12V14C12 14.276 11.776 14.5 11.5 14.5C11.224 14.5 11 14.276 11 14V12H9C8.724 12 8.5 11.776 8.5 11.5C8.5 11.224 8.724 11 9 11H11V9C11 8.724 11.224 8.5 11.5 8.5C11.776 8.5 12 8.724 12 9V11H14C14.276 11 14.5 11.224 14.5 11.5C14.5 11.776 14.276 12 14 12Z"/></svg><div class="name">new-file</div></div>
-    <div class="card" style="align-items: center; text-align: center;"><svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor" style="color: var(--text-primary);"><path d="M2 4.5V6H5.58579C5.71839 6 5.84557 5.94732 5.93934 5.85355L7.29289 4.5L5.93934 3.14645C5.84557 3.05268 5.71839 3 5.58579 3H3.5C2.67157 3 2 3.67157 2 4.5ZM1 4.5C1 3.11929 2.11929 2 3.5 2H5.58579C5.98361 2 6.36514 2.15804 6.64645 2.43934L8.20711 4H12.5C13.8807 4 15 5.11929 15 6.5V7.25716C14.6929 7.00353 14.3578 6.78261 14 6.59971V6.5C14 5.67157 13.3284 5 12.5 5H8.20711L6.64645 6.56066C6.36514 6.84197 5.98361 7 5.58579 7H2V11.5C2 12.3284 2.67157 13 3.5 13H6.20703C6.30564 13.3486 6.43777 13.6832 6.59971 14H3.5C2.11929 14 1 12.8807 1 11.5V4.5ZM16 11.5C16 13.9853 13.9853 16 11.5 16C9.01472 16 7 13.9853 7 11.5C7 9.01472 9.01472 7 11.5 7C13.9853 7 16 9.01472 16 11.5ZM12 9C12 8.72386 11.7761 8.5 11.5 8.5C11.2239 8.5 11 8.72386 11 9V11H9C8.72386 11 8.5 11.2239 8.5 11.5C8.5 11.7761 8.72386 12 9 12H11V14C11 14.2761 11.2239 14.5 11.5 14.5C11.7761 14.5 12 14.2761 12 14V12H14C14.2761 12 14.5 11.7761 14.5 11.5C14.5 11.2239 14.2761 11 14 11H12V9Z"/></svg><div class="name">new-folder</div></div>
-    <div class="card" style="align-items: center; text-align: center;"><svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor" style="color: var(--text-primary);"><path d="M3 8C3 5.23858 5.23858 3 8 3C9.63527 3 11.0878 3.78495 12.0005 5H10C9.72386 5 9.5 5.22386 9.5 5.5C9.5 5.77614 9.72386 6 10 6H12.8904C12.8973 6.00014 12.9041 6.00014 12.911 6H13C13.2761 6 13.5 5.77614 13.5 5.5V2.5C13.5 2.22386 13.2761 2 13 2C12.7239 2 12.5 2.22386 12.5 2.5V4.03138C11.4009 2.78613 9.79253 2 8 2C4.68629 2 2 4.68629 2 8C2 11.3137 4.68629 14 8 14C11.1301 14 13.6999 11.6035 13.9756 8.54488C14.0003 8.26985 13.7975 8.0268 13.5225 8.00202C13.2474 7.97723 13.0044 8.1801 12.9796 8.45512C12.75 11.003 10.6079 13 8 13C5.23858 13 3 10.7614 3 8Z"/></svg><div class="name">refresh</div></div>
-    <div class="card" style="align-items: center; text-align: center;"><svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor" style="color: var(--text-primary);"><path d="M14 4.27051C14.5999 4.62053 15 5.26009 15 6V11C15 13.21 13.21 15 11 15H6C5.26009 15 4.62053 14.5999 4.27051 14H11C12.65 14 14 12.65 14 11V4.27051Z"/><path d="M9.5 7C9.776 7 10 7.224 10 7.5C10 7.776 9.776 8 9.5 8H5.5C5.224 8 5 7.776 5 7.5C5 7.224 5.224 7 5.5 7H9.5Z"/><path fill-rule="evenodd" clip-rule="evenodd" d="M11 2C12.103 2 13 2.897 13 4V11C13 12.103 12.103 13 11 13H4C2.897 13 2 12.103 2 11V4C2 2.897 2.897 2 4 2H11ZM4 3C3.449 3 3 3.449 3 4V11C3 11.552 3.449 12 4 12H11C11.551 12 12 11.552 12 11V4C12 3.449 11.551 3 11 3H4Z"/></svg><div class="name">collapse-all</div></div>
-    <div class="card" style="align-items: center; text-align: center;"><svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor" style="color: var(--text-primary);"><path d="M7.99997 6C6.89497 6 5.99997 6.895 5.99997 8C5.99997 9.105 6.89497 10 7.99997 10C9.10497 10 9.99997 9.105 9.99997 8C9.99997 6.895 9.10497 6 7.99997 6ZM7.99997 9C7.44797 9 6.99997 8.552 6.99997 8C6.99997 7.448 7.44797 7 7.99997 7C8.55197 7 8.99997 7.448 8.99997 8C8.99997 8.552 8.55197 9 7.99997 9ZM14.565 9.715L13.279 8.628C13.245 8.599 13.213 8.567 13.184 8.533C12.888 8.186 12.931 7.667 13.279 7.372L14.565 6.285C14.693 6.177 14.742 6.003 14.691 5.844C14.386 4.903 13.882 4.04 13.219 3.308C13.139 3.22 13.027 3.172 12.912 3.172C12.865 3.172 12.818 3.18 12.773 3.196L11.186 3.761C11.144 3.776 11.1 3.788 11.056 3.796C11.006 3.805 10.956 3.81 10.907 3.81C10.515 3.81 10.167 3.532 10.094 3.134L9.79097 1.482C9.76097 1.318 9.63397 1.188 9.46997 1.153C8.98997 1.051 8.49897 1 8.00097 1C7.50297 1 7.01097 1.052 6.53097 1.153C6.36697 1.188 6.23997 1.318 6.20997 1.482L5.90797 3.134C5.89997 3.178 5.88797 3.221 5.87297 3.263C5.75197 3.6 5.43397 3.81 5.09397 3.81C5.00197 3.81 4.90797 3.794 4.81597 3.762L3.22897 3.197C3.18397 3.181 3.13597 3.173 3.08997 3.173C2.97497 3.173 2.86297 3.221 2.78297 3.309C2.11897 4.041 1.61597 4.904 1.30997 5.845C1.25797 6.004 1.30797 6.178 1.43597 6.286L2.72197 7.373C2.75597 7.402 2.78797 7.434 2.81697 7.468C3.11297 7.815 3.06997 8.334 2.72197 8.629L1.43597 9.716C1.30797 9.824 1.25897 9.998 1.30997 10.157C1.61497 11.098 2.11897 11.961 2.78297 12.693C2.86297 12.781 2.97497 12.829 3.08997 12.829C3.13697 12.829 3.18397 12.821 3.22897 12.805L4.81597 12.24C4.85797 12.225 4.90197 12.213 4.94597 12.205C4.99597 12.196 5.04597 12.192 5.09497 12.192C5.48697 12.192 5.83497 12.47 5.90797 12.868L6.20997 14.52C6.23997 14.684 6.36697 14.814 6.53097 14.849C7.01097 14.951 7.50297 15.002 8.00097 15.002C8.49897 15.002 8.99097 14.95 9.46997 14.849C9.63397 14.814 9.76097 14.684 9.79097 14.52L10.094 12.868C10.102 12.824 10.114 12.781 10.129 12.739C10.25 12.402 10.568 12.192 10.908 12.192C11 12.192 11.094 12.208 11.186 12.24L12.772 12.805C12.818 12.821 12.865 12.829 12.911 12.829C13.026 12.829 13.138 12.781 13.218 12.693C13.882 11.961 14.385 11.098 14.69 10.157C14.742 9.998 14.692 9.824 14.564 9.716L14.565 9.715ZM12.728 11.726L11.521 11.296C11.323 11.226 11.117 11.19 10.908 11.19C10.139 11.19 9.44697 11.676 9.18797 12.399C9.15397 12.492 9.12897 12.588 9.11097 12.686L8.88097 13.937C8.59097 13.979 8.29597 14 8.00097 14C7.70597 14 7.41097 13.979 7.11997 13.936L6.89097 12.685C6.73197 11.818 5.97697 11.189 5.09497 11.189C4.98697 11.189 4.87697 11.199 4.76597 11.219C4.66897 11.237 4.57397 11.262 4.47997 11.295L3.27297 11.725C2.90497 11.264 2.61097 10.759 2.39397 10.214L3.36797 9.391C3.74097 9.076 3.96797 8.634 4.00797 8.148C4.04797 7.662 3.89497 7.19 3.57797 6.818C3.51397 6.743 3.44297 6.672 3.36797 6.608L2.39397 5.785C2.61097 5.24 2.90497 4.734 3.27297 4.274L4.47997 4.704C4.67797 4.774 4.88397 4.81 5.09397 4.81C5.86297 4.81 6.55497 4.324 6.81397 3.601C6.84797 3.507 6.87297 3.411 6.89097 3.314L7.11997 2.063C7.41097 2.021 7.70597 1.999 8.00097 1.999C8.29597 1.999 8.59097 2.02 8.88097 2.062L9.10997 3.313C9.26897 4.18 10.024 4.809 10.906 4.809C11.014 4.809 11.124 4.799 11.234 4.779C11.331 4.761 11.427 4.736 11.521 4.703L12.728 4.273C13.096 4.733 13.39 5.239 13.607 5.784L12.634 6.607C12.261 6.922 12.033 7.364 11.994 7.85C11.954 8.336 12.107 8.809 12.424 9.18C12.489 9.256 12.559 9.326 12.635 9.39L13.609 10.213C13.392 10.758 13.098 11.264 12.73 11.724L12.728 11.726Z"/></svg><div class="name">gear</div></div>
-    <div class="card" style="align-items: center; text-align: center;"><svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor" style="color: var(--text-primary);"><path d="M15.5 2H13.5C13.224 2 13 2.224 13 2.5V3H3V2.5C3 2.224 2.776 2 2.5 2H0.5C0.224 2 0 2.224 0 2.5V4.5C0 4.776 0.224 5 0.5 5H1V11H0.5C0.224 11 0 11.224 0 11.5V13.5C0 13.776 0.224 14 0.5 14H2.5C2.776 14 3 13.776 3 13.5V13H13V13.5C13 13.776 13.224 14 13.5 14H15.5C15.776 14 16 13.776 16 13.5V11.5C16 11.224 15.776 11 15.5 11H15V5H15.5C15.776 5 16 4.776 16 4.5V2.5C16 2.224 15.776 2 15.5 2Z"/></svg><div class="name">layout</div></div>
-  </div>
+      <p class="desc" style="margin-top: var(--space-4)">
+        Codicons — UI chrome (botões, toolbar, topbar). 569 ícones disponíveis via
+        <code>&lt;Icon name="..." /&gt;</code>.
+      </p>
+      <div class="grid" style="grid-template-columns: repeat(auto-fill, minmax(140px, 1fr))">
+        <div class="card" style="align-items: center; text-align: center">
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 16 16"
+            fill="currentColor"
+            style="color: var(--text-primary)"
+          >
+            <path
+              d="M5 14C4.448 14 4 13.552 4 13V3C4 2.448 4.448 2 5 2H8V4.5C8 5.328 8.672 6 9.5 6H12V6.025C12.344 6.056 12.677 6.121 13 6.213V5.414C13 5.016 12.842 4.635 12.561 4.353L9.647 1.439C9.366 1.158 8.984 1 8.586 1H5C3.895 1 3 1.895 3 3V13C3 14.105 3.895 15 5 15H7.261C7.008 14.693 6.791 14.357 6.607 14H5ZM9 2.207L11.793 5H9.5C9.224 5 9 4.776 9 4.5V2.207ZM11.5 7C9.015 7 7 9.015 7 11.5C7 13.985 9.015 16 11.5 16C13.985 16 16 13.985 16 11.5C16 9.015 13.985 7 11.5 7ZM14 12H12V14C12 14.276 11.776 14.5 11.5 14.5C11.224 14.5 11 14.276 11 14V12H9C8.724 12 8.5 11.776 8.5 11.5C8.5 11.224 8.724 11 9 11H11V9C11 8.724 11.224 8.5 11.5 8.5C11.776 8.5 12 8.724 12 9V11H14C14.276 11 14.5 11.224 14.5 11.5C14.5 11.776 14.276 12 14 12Z"
+            />
+          </svg>
+          <div class="name">new-file</div>
+        </div>
+        <div class="card" style="align-items: center; text-align: center">
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 16 16"
+            fill="currentColor"
+            style="color: var(--text-primary)"
+          >
+            <path
+              d="M2 4.5V6H5.58579C5.71839 6 5.84557 5.94732 5.93934 5.85355L7.29289 4.5L5.93934 3.14645C5.84557 3.05268 5.71839 3 5.58579 3H3.5C2.67157 3 2 3.67157 2 4.5ZM1 4.5C1 3.11929 2.11929 2 3.5 2H5.58579C5.98361 2 6.36514 2.15804 6.64645 2.43934L8.20711 4H12.5C13.8807 4 15 5.11929 15 6.5V7.25716C14.6929 7.00353 14.3578 6.78261 14 6.59971V6.5C14 5.67157 13.3284 5 12.5 5H8.20711L6.64645 6.56066C6.36514 6.84197 5.98361 7 5.58579 7H2V11.5C2 12.3284 2.67157 13 3.5 13H6.20703C6.30564 13.3486 6.43777 13.6832 6.59971 14H3.5C2.11929 14 1 12.8807 1 11.5V4.5ZM16 11.5C16 13.9853 13.9853 16 11.5 16C9.01472 16 7 13.9853 7 11.5C7 9.01472 9.01472 7 11.5 7C13.9853 7 16 9.01472 16 11.5ZM12 9C12 8.72386 11.7761 8.5 11.5 8.5C11.2239 8.5 11 8.72386 11 9V11H9C8.72386 11 8.5 11.2239 8.5 11.5C8.5 11.7761 8.72386 12 9 12H11V14C11 14.2761 11.2239 14.5 11.5 14.5C11.7761 14.5 12 14.2761 12 14V12H14C14.2761 12 14.5 11.7761 14.5 11.5C14.5 11.2239 14.2761 11 14 11H12V9Z"
+            />
+          </svg>
+          <div class="name">new-folder</div>
+        </div>
+        <div class="card" style="align-items: center; text-align: center">
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 16 16"
+            fill="currentColor"
+            style="color: var(--text-primary)"
+          >
+            <path
+              d="M3 8C3 5.23858 5.23858 3 8 3C9.63527 3 11.0878 3.78495 12.0005 5H10C9.72386 5 9.5 5.22386 9.5 5.5C9.5 5.77614 9.72386 6 10 6H12.8904C12.8973 6.00014 12.9041 6.00014 12.911 6H13C13.2761 6 13.5 5.77614 13.5 5.5V2.5C13.5 2.22386 13.2761 2 13 2C12.7239 2 12.5 2.22386 12.5 2.5V4.03138C11.4009 2.78613 9.79253 2 8 2C4.68629 2 2 4.68629 2 8C2 11.3137 4.68629 14 8 14C11.1301 14 13.6999 11.6035 13.9756 8.54488C14.0003 8.26985 13.7975 8.0268 13.5225 8.00202C13.2474 7.97723 13.0044 8.1801 12.9796 8.45512C12.75 11.003 10.6079 13 8 13C5.23858 13 3 10.7614 3 8Z"
+            />
+          </svg>
+          <div class="name">refresh</div>
+        </div>
+        <div class="card" style="align-items: center; text-align: center">
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 16 16"
+            fill="currentColor"
+            style="color: var(--text-primary)"
+          >
+            <path
+              d="M14 4.27051C14.5999 4.62053 15 5.26009 15 6V11C15 13.21 13.21 15 11 15H6C5.26009 15 4.62053 14.5999 4.27051 14H11C12.65 14 14 12.65 14 11V4.27051Z"
+            />
+            <path
+              d="M9.5 7C9.776 7 10 7.224 10 7.5C10 7.776 9.776 8 9.5 8H5.5C5.224 8 5 7.776 5 7.5C5 7.224 5.224 7 5.5 7H9.5Z"
+            />
+            <path
+              fill-rule="evenodd"
+              clip-rule="evenodd"
+              d="M11 2C12.103 2 13 2.897 13 4V11C13 12.103 12.103 13 11 13H4C2.897 13 2 12.103 2 11V4C2 2.897 2.897 2 4 2H11ZM4 3C3.449 3 3 3.449 3 4V11C3 11.552 3.449 12 4 12H11C11.551 12 12 11.552 12 11V4C12 3.449 11.551 3 11 3H4Z"
+            />
+          </svg>
+          <div class="name">collapse-all</div>
+        </div>
+        <div class="card" style="align-items: center; text-align: center">
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 16 16"
+            fill="currentColor"
+            style="color: var(--text-primary)"
+          >
+            <path
+              d="M7.99997 6C6.89497 6 5.99997 6.895 5.99997 8C5.99997 9.105 6.89497 10 7.99997 10C9.10497 10 9.99997 9.105 9.99997 8C9.99997 6.895 9.10497 6 7.99997 6ZM7.99997 9C7.44797 9 6.99997 8.552 6.99997 8C6.99997 7.448 7.44797 7 7.99997 7C8.55197 7 8.99997 7.448 8.99997 8C8.99997 8.552 8.55197 9 7.99997 9ZM14.565 9.715L13.279 8.628C13.245 8.599 13.213 8.567 13.184 8.533C12.888 8.186 12.931 7.667 13.279 7.372L14.565 6.285C14.693 6.177 14.742 6.003 14.691 5.844C14.386 4.903 13.882 4.04 13.219 3.308C13.139 3.22 13.027 3.172 12.912 3.172C12.865 3.172 12.818 3.18 12.773 3.196L11.186 3.761C11.144 3.776 11.1 3.788 11.056 3.796C11.006 3.805 10.956 3.81 10.907 3.81C10.515 3.81 10.167 3.532 10.094 3.134L9.79097 1.482C9.76097 1.318 9.63397 1.188 9.46997 1.153C8.98997 1.051 8.49897 1 8.00097 1C7.50297 1 7.01097 1.052 6.53097 1.153C6.36697 1.188 6.23997 1.318 6.20997 1.482L5.90797 3.134C5.89997 3.178 5.88797 3.221 5.87297 3.263C5.75197 3.6 5.43397 3.81 5.09397 3.81C5.00197 3.81 4.90797 3.794 4.81597 3.762L3.22897 3.197C3.18397 3.181 3.13597 3.173 3.08997 3.173C2.97497 3.173 2.86297 3.221 2.78297 3.309C2.11897 4.041 1.61597 4.904 1.30997 5.845C1.25797 6.004 1.30797 6.178 1.43597 6.286L2.72197 7.373C2.75597 7.402 2.78797 7.434 2.81697 7.468C3.11297 7.815 3.06997 8.334 2.72197 8.629L1.43597 9.716C1.30797 9.824 1.25897 9.998 1.30997 10.157C1.61497 11.098 2.11897 11.961 2.78297 12.693C2.86297 12.781 2.97497 12.829 3.08997 12.829C3.13697 12.829 3.18397 12.821 3.22897 12.805L4.81597 12.24C4.85797 12.225 4.90197 12.213 4.94597 12.205C4.99597 12.196 5.04597 12.192 5.09497 12.192C5.48697 12.192 5.83497 12.47 5.90797 12.868L6.20997 14.52C6.23997 14.684 6.36697 14.814 6.53097 14.849C7.01097 14.951 7.50297 15.002 8.00097 15.002C8.49897 15.002 8.99097 14.95 9.46997 14.849C9.63397 14.814 9.76097 14.684 9.79097 14.52L10.094 12.868C10.102 12.824 10.114 12.781 10.129 12.739C10.25 12.402 10.568 12.192 10.908 12.192C11 12.192 11.094 12.208 11.186 12.24L12.772 12.805C12.818 12.821 12.865 12.829 12.911 12.829C13.026 12.829 13.138 12.781 13.218 12.693C13.882 11.961 14.385 11.098 14.69 10.157C14.742 9.998 14.692 9.824 14.564 9.716L14.565 9.715ZM12.728 11.726L11.521 11.296C11.323 11.226 11.117 11.19 10.908 11.19C10.139 11.19 9.44697 11.676 9.18797 12.399C9.15397 12.492 9.12897 12.588 9.11097 12.686L8.88097 13.937C8.59097 13.979 8.29597 14 8.00097 14C7.70597 14 7.41097 13.979 7.11997 13.936L6.89097 12.685C6.73197 11.818 5.97697 11.189 5.09497 11.189C4.98697 11.189 4.87697 11.199 4.76597 11.219C4.66897 11.237 4.57397 11.262 4.47997 11.295L3.27297 11.725C2.90497 11.264 2.61097 10.759 2.39397 10.214L3.36797 9.391C3.74097 9.076 3.96797 8.634 4.00797 8.148C4.04797 7.662 3.89497 7.19 3.57797 6.818C3.51397 6.743 3.44297 6.672 3.36797 6.608L2.39397 5.785C2.61097 5.24 2.90497 4.734 3.27297 4.274L4.47997 4.704C4.67797 4.774 4.88397 4.81 5.09397 4.81C5.86297 4.81 6.55497 4.324 6.81397 3.601C6.84797 3.507 6.87297 3.411 6.89097 3.314L7.11997 2.063C7.41097 2.021 7.70597 1.999 8.00097 1.999C8.29597 1.999 8.59097 2.02 8.88097 2.062L9.10997 3.313C9.26897 4.18 10.024 4.809 10.906 4.809C11.014 4.809 11.124 4.799 11.234 4.779C11.331 4.761 11.427 4.736 11.521 4.703L12.728 4.273C13.096 4.733 13.39 5.239 13.607 5.784L12.634 6.607C12.261 6.922 12.033 7.364 11.994 7.85C11.954 8.336 12.107 8.809 12.424 9.18C12.489 9.256 12.559 9.326 12.635 9.39L13.609 10.213C13.392 10.758 13.098 11.264 12.73 11.724L12.728 11.726Z"
+            />
+          </svg>
+          <div class="name">gear</div>
+        </div>
+        <div class="card" style="align-items: center; text-align: center">
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 16 16"
+            fill="currentColor"
+            style="color: var(--text-primary)"
+          >
+            <path
+              d="M15.5 2H13.5C13.224 2 13 2.224 13 2.5V3H3V2.5C3 2.224 2.776 2 2.5 2H0.5C0.224 2 0 2.224 0 2.5V4.5C0 4.776 0.224 5 0.5 5H1V11H0.5C0.224 11 0 11.224 0 11.5V13.5C0 13.776 0.224 14 0.5 14H2.5C2.776 14 3 13.776 3 13.5V13H13V13.5C13 13.776 13.224 14 13.5 14H15.5C15.776 14 16 13.776 16 13.5V11.5C16 11.224 15.776 11 15.5 11H15V5H15.5C15.776 5 16 4.776 16 4.5V2.5C16 2.224 15.776 2 15.5 2Z"
+            />
+          </svg>
+          <div class="name">layout</div>
+        </div>
+      </div>
 
-  <p class="desc" style="margin-top: var(--space-4);">Material Icon Theme — file tree (modo opcional). Liga em <em>Settings → File tree icons</em>.</p>
-  <div class="grid" style="grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));">
-    <div class="card" style="align-items: center; text-align: center;"><img src="material-icons/folder.svg" width="28" height="28" alt="" /><div class="name">folder</div></div>
-    <div class="card" style="align-items: center; text-align: center;"><img src="material-icons/folder-src-open.svg" width="28" height="28" alt="" /><div class="name">folder-src</div></div>
-    <div class="card" style="align-items: center; text-align: center;"><img src="material-icons/typescript.svg" width="28" height="28" alt="" /><div class="name">.ts</div></div>
-    <div class="card" style="align-items: center; text-align: center;"><img src="material-icons/markdown.svg" width="28" height="28" alt="" /><div class="name">.md</div></div>
-    <div class="card" style="align-items: center; text-align: center;"><img src="material-icons/json.svg" width="28" height="28" alt="" /><div class="name">.json</div></div>
-    <div class="card" style="align-items: center; text-align: center;"><img src="material-icons/css.svg" width="28" height="28" alt="" /><div class="name">.css</div></div>
-    <div class="card" style="align-items: center; text-align: center;"><img src="material-icons/html.svg" width="28" height="28" alt="" /><div class="name">.html</div></div>
-    <div class="card" style="align-items: center; text-align: center;"><img src="material-icons/image.svg" width="28" height="28" alt="" /><div class="name">image</div></div>
-  </div>
-</section>
+      <p class="desc" style="margin-top: var(--space-4)">
+        Material Icon Theme — file tree (modo opcional). Liga em
+        <em>Settings → File tree icons</em>.
+      </p>
+      <div class="grid" style="grid-template-columns: repeat(auto-fill, minmax(140px, 1fr))">
+        <div class="card" style="align-items: center; text-align: center">
+          <img src="material-icons/folder.svg" width="28" height="28" alt="" />
+          <div class="name">folder</div>
+        </div>
+        <div class="card" style="align-items: center; text-align: center">
+          <img src="material-icons/folder-src-open.svg" width="28" height="28" alt="" />
+          <div class="name">folder-src</div>
+        </div>
+        <div class="card" style="align-items: center; text-align: center">
+          <img src="material-icons/typescript.svg" width="28" height="28" alt="" />
+          <div class="name">.ts</div>
+        </div>
+        <div class="card" style="align-items: center; text-align: center">
+          <img src="material-icons/markdown.svg" width="28" height="28" alt="" />
+          <div class="name">.md</div>
+        </div>
+        <div class="card" style="align-items: center; text-align: center">
+          <img src="material-icons/json.svg" width="28" height="28" alt="" />
+          <div class="name">.json</div>
+        </div>
+        <div class="card" style="align-items: center; text-align: center">
+          <img src="material-icons/css.svg" width="28" height="28" alt="" />
+          <div class="name">.css</div>
+        </div>
+        <div class="card" style="align-items: center; text-align: center">
+          <img src="material-icons/html.svg" width="28" height="28" alt="" />
+          <div class="name">.html</div>
+        </div>
+        <div class="card" style="align-items: center; text-align: center">
+          <img src="material-icons/image.svg" width="28" height="28" alt="" />
+          <div class="name">image</div>
+        </div>
+      </div>
+    </section>
 
-<section>
-  <h2>Code highlighting</h2>
-  <p class="desc">Aplicado no CodeMirror editor via <code>HighlightStyle</code>. Palette light = VS Code Light+, dark = VS Code Dark+. Tema segue o data-theme global.</p>
-  <pre style="background: var(--surface-1); border: 1px solid var(--border); border-radius: var(--radius-md); padding: var(--space-4); font-family: var(--font-family-mono); font-size: var(--font-size-sm); line-height: var(--line-height-normal); color: var(--text-primary); overflow-x: auto;">
+    <section>
+      <h2>Code highlighting</h2>
+      <p class="desc">
+        Aplicado no CodeMirror editor via <code>HighlightStyle</code>. Palette light = VS Code
+        Light+, dark = VS Code Dark+. Tema segue o data-theme global.
+      </p>
+      <pre
+        style="
+          background: var(--surface-1);
+          border: 1px solid var(--border);
+          border-radius: var(--radius-md);
+          padding: var(--space-4);
+          font-family: var(--font-family-mono);
+          font-size: var(--font-size-sm);
+          line-height: var(--line-height-normal);
+          color: var(--text-primary);
+          overflow-x: auto;
+        "
+      >
 <span style="color: var(--code-comment); font-style: italic;">// Migration to extend the spacing scale</span>
 <span style="color: var(--code-keyword);">import</span> { <span style="color: var(--code-variable);">defineConfig</span> } <span style="color: var(--code-keyword);">from</span> <span style="color: var(--code-string);">"drizzle-kit"</span>;
 
@@ -530,41 +1014,70 @@
   <span style="color: var(--code-property);">verbose</span>: <span style="color: var(--code-number);">true</span>,
   <span style="color: var(--code-property);">tags</span>: [<span style="color: var(--code-tag);">"server"</span>, <span style="color: var(--code-tag);">"client"</span>],
 });</pre>
-  <div class="grid" style="margin-top: var(--space-4);">
-    <div class="card"><div class="swatch surface" style="background: var(--code-keyword);"></div><div class="name">--code-keyword</div><div class="value">import / export / const</div></div>
-    <div class="card"><div class="swatch surface" style="background: var(--code-string);"></div><div class="name">--code-string</div><div class="value">"literal strings"</div></div>
-    <div class="card"><div class="swatch surface" style="background: var(--code-number);"></div><div class="name">--code-number</div><div class="value">numbers / booleans / null</div></div>
-    <div class="card"><div class="swatch surface" style="background: var(--code-function);"></div><div class="name">--code-function</div><div class="value">function calls</div></div>
-    <div class="card"><div class="swatch surface" style="background: var(--code-property);"></div><div class="name">--code-property</div><div class="value">object keys</div></div>
-    <div class="card"><div class="swatch surface" style="background: var(--code-comment);"></div><div class="name">--code-comment</div><div class="value">// comments (italic)</div></div>
-    <div class="card"><div class="swatch surface" style="background: var(--code-tag);"></div><div class="name">--code-tag</div><div class="value">HTML/JSX tags, JSON keys</div></div>
-  </div>
-</section>
+      <div class="grid" style="margin-top: var(--space-4)">
+        <div class="card">
+          <div class="swatch surface" style="background: var(--code-keyword)"></div>
+          <div class="name">--code-keyword</div>
+          <div class="value">import / export / const</div>
+        </div>
+        <div class="card">
+          <div class="swatch surface" style="background: var(--code-string)"></div>
+          <div class="name">--code-string</div>
+          <div class="value">"literal strings"</div>
+        </div>
+        <div class="card">
+          <div class="swatch surface" style="background: var(--code-number)"></div>
+          <div class="name">--code-number</div>
+          <div class="value">numbers / booleans / null</div>
+        </div>
+        <div class="card">
+          <div class="swatch surface" style="background: var(--code-function)"></div>
+          <div class="name">--code-function</div>
+          <div class="value">function calls</div>
+        </div>
+        <div class="card">
+          <div class="swatch surface" style="background: var(--code-property)"></div>
+          <div class="name">--code-property</div>
+          <div class="value">object keys</div>
+        </div>
+        <div class="card">
+          <div class="swatch surface" style="background: var(--code-comment)"></div>
+          <div class="name">--code-comment</div>
+          <div class="value">// comments (italic)</div>
+        </div>
+        <div class="card">
+          <div class="swatch surface" style="background: var(--code-tag)"></div>
+          <div class="name">--code-tag</div>
+          <div class="value">HTML/JSX tags, JSON keys</div>
+        </div>
+      </div>
+    </section>
 
-<footer>
-  Source: <code>src/App.css</code> · Rules: <code>.claude/rules/design-tokens.md</code> · Toggle theme top right.
-</footer>
+    <footer>
+      Source: <code>src/App.css</code> · Rules: <code>.claude/rules/design-tokens.md</code> · Toggle
+      theme top right.
+    </footer>
 
-<script>
-  const buttons = document.querySelectorAll('.theme-toggle button');
-  const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    <script>
+      const buttons = document.querySelectorAll('.theme-toggle button')
+      const mq = window.matchMedia('(prefers-color-scheme: dark)')
 
-  function applyTheme(mode) {
-    if (mode === 'system') {
-      document.documentElement.dataset.theme = mq.matches ? 'dark' : 'light';
-    } else {
-      document.documentElement.dataset.theme = mode;
-    }
-    buttons.forEach((b) => b.classList.toggle('active', b.dataset.themeSet === mode));
-    localStorage.setItem('tokens-preview-theme', mode);
-  }
+      function applyTheme(mode) {
+        if (mode === 'system') {
+          document.documentElement.dataset.theme = mq.matches ? 'dark' : 'light'
+        } else {
+          document.documentElement.dataset.theme = mode
+        }
+        buttons.forEach((b) => b.classList.toggle('active', b.dataset.themeSet === mode))
+        localStorage.setItem('tokens-preview-theme', mode)
+      }
 
-  buttons.forEach((b) => b.addEventListener('click', () => applyTheme(b.dataset.themeSet)));
-  mq.addEventListener('change', () => {
-    if (localStorage.getItem('tokens-preview-theme') === 'system') applyTheme('system');
-  });
+      buttons.forEach((b) => b.addEventListener('click', () => applyTheme(b.dataset.themeSet)))
+      mq.addEventListener('change', () => {
+        if (localStorage.getItem('tokens-preview-theme') === 'system') applyTheme('system')
+      })
 
-  applyTheme(localStorage.getItem('tokens-preview-theme') || 'light');
-</script>
-</body>
+      applyTheme(localStorage.getItem('tokens-preview-theme') || 'light')
+    </script>
+  </body>
 </html>

@@ -66,9 +66,15 @@ const fakeView = {
           this._replaceWiths.push({ from, to, content })
           return this
         },
-        setSelection: vi.fn(function (this: unknown) { return this }),
-        setStoredMarks: vi.fn(function (this: unknown) { return this }),
-        setMeta: vi.fn(function (this: unknown) { return this }),
+        setSelection: vi.fn(function (this: unknown) {
+          return this
+        }),
+        setStoredMarks: vi.fn(function (this: unknown) {
+          return this
+        }),
+        setMeta: vi.fn(function (this: unknown) {
+          return this
+        }),
       }
     },
   },
@@ -108,40 +114,41 @@ const fakeCtx = {
     }
   }),
   get: vi.fn((key: symbol) => {
-    if (key === PARSER_CTX) return (md: string) => {
-      // Simulate the Milkdown parser: if the markdown contains a wikilink: href,
-      // return a fake PM node whose first text child carries a link mark.
-      const match = md.match(/\[([^\]]+)\]\(wikilink:([^)]+)\)/)
-      if (match) {
-        const linkMark = { type: { name: 'link' }, attrs: { href: `wikilink:${match[2]}` } }
-        return {
-          childCount: 1,
-          firstChild: {
-            isTextblock: true,
+    if (key === PARSER_CTX)
+      return (md: string) => {
+        // Simulate the Milkdown parser: if the markdown contains a wikilink: href,
+        // return a fake PM node whose first text child carries a link mark.
+        const match = md.match(/\[([^\]]+)\]\(wikilink:([^)]+)\)/)
+        if (match) {
+          const linkMark = { type: { name: 'link' }, attrs: { href: `wikilink:${match[2]}` } }
+          return {
             childCount: 1,
             firstChild: {
-              isText: true,
-              text: match[1],
-              marks: [linkMark],
-            },
-            content: {
-              size: match[1].length,
+              isTextblock: true,
+              childCount: 1,
               firstChild: {
                 isText: true,
                 text: match[1],
                 marks: [linkMark],
               },
+              content: {
+                size: match[1].length,
+                firstChild: {
+                  isText: true,
+                  text: match[1],
+                  marks: [linkMark],
+                },
+              },
+              // copy() needed by PM inline-merge path
+              copy: (content: unknown) => ({ content, childCount: 1, firstChild: content }),
             },
-            // copy() needed by PM inline-merge path
-            copy: (content: unknown) => ({ content, childCount: 1, firstChild: content }),
-          },
-          // +2 accounts for the paragraph wrapper's open + close tag tokens
-          // when computing PM positions (size = 1 open + text length + 1 close).
-          content: { size: match[1].length + 2 },
+            // +2 accounts for the paragraph wrapper's open + close tag tokens
+            // when computing PM positions (size = 1 open + text length + 1 close).
+            content: { size: match[1].length + 2 },
+          }
         }
+        return null
       }
-      return null
-    }
     if (key === LISTENER_CTX) return { markdownUpdated: vi.fn() }
     if (key === EDITOR_VIEW_CTX) return fakeView
     return undefined
@@ -233,7 +240,7 @@ vi.mock('../../lib/dropAttachments', async () => {
   // Keep the real path helpers (linkFromNoteDir/mdLinkTarget) so mentionInsertText
   // produces a faithful file-relative target; only stub the drop machinery.
   const actual = await vi.importActual<typeof import('../../lib/dropAttachments')>(
-    '../../lib/dropAttachments',
+    '../../lib/dropAttachments'
   )
   return {
     ...actual,
@@ -247,17 +254,19 @@ vi.mock('../../lib/dropAttachments', async () => {
 
 // Intercept mentionTrigger to capture the callbacks LiveMarkdown passes in.
 vi.mock('../../lib/pmMentionTrigger', () => ({
-  mentionTrigger: vi.fn((cbs: {
-    onOpen: (from: number, anchor: { x: number; y: number }) => void
-    onUpdate: (query: string, anchor: { x: number; y: number }) => void
-    onClose: () => void
-  }) => {
-    capturedMentionCallbacks.onOpen = cbs.onOpen
-    capturedMentionCallbacks.onUpdate = cbs.onUpdate
-    capturedMentionCallbacks.onClose = cbs.onClose
-    // Return a fake plugin that passes the Plugin check
-    return { key: { key: 'marvinz-mention-trigger' }, spec: {} }
-  }),
+  mentionTrigger: vi.fn(
+    (cbs: {
+      onOpen: (from: number, anchor: { x: number; y: number }) => void
+      onUpdate: (query: string, anchor: { x: number; y: number }) => void
+      onClose: () => void
+    }) => {
+      capturedMentionCallbacks.onOpen = cbs.onOpen
+      capturedMentionCallbacks.onUpdate = cbs.onUpdate
+      capturedMentionCallbacks.onClose = cbs.onClose
+      // Return a fake plugin that passes the Plugin check
+      return { key: { key: 'marvinz-mention-trigger' }, spec: {} }
+    }
+  ),
 }))
 
 // ---------------------------------------------------------------------------
@@ -393,8 +402,11 @@ describe('LiveMarkdown — @-mention trigger integration', () => {
     expect(inserted.marks).toBeDefined()
     expect(inserted.marks).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ type: { name: 'link' }, attrs: expect.objectContaining({ href: 'wikilink:My Note' }) }),
-      ]),
+        expect.objectContaining({
+          type: { name: 'link' },
+          attrs: expect.objectContaining({ href: 'wikilink:My Note' }),
+        }),
+      ])
     )
 
     // Picker should be gone after selection
@@ -435,7 +447,7 @@ describe('LiveMarkdown — @-mention trigger integration', () => {
       // Warn must fire so the failure is observable in prod logs.
       expect(warnSpy).toHaveBeenCalledWith(
         expect.stringContaining('parserCtx returned an unexpected shape'),
-        expect.any(Object),
+        expect.any(Object)
       )
       expect(document.body.querySelector('.mention-picker')).toBeFalsy()
     } finally {
@@ -463,7 +475,13 @@ describe('LiveMarkdown — @-mention trigger integration', () => {
   })
 
   it('surfaces non-markdown items in the picker (filter removed)', async () => {
-    const nonMarkdown = { name: 'photo.png', path: '/v/photo.png', rel: 'photo.png', isMarkdown: false, mtime: 0 }
+    const nonMarkdown = {
+      name: 'photo.png',
+      path: '/v/photo.png',
+      rel: 'photo.png',
+      isMarkdown: false,
+      mtime: 0,
+    }
     render(<LiveMarkdown {...defaultProps([nonMarkdown])} />)
 
     await act(async () => {
@@ -476,7 +494,13 @@ describe('LiveMarkdown — @-mention trigger integration', () => {
 
   it('routes an image item through parseWikilinks (embed, not literal text)', async () => {
     const { fireEvent } = await import('@testing-library/react')
-    const image = { name: 'photo.png', path: '/v/photo.png', rel: 'photo.png', isMarkdown: false, mtime: 0 }
+    const image = {
+      name: 'photo.png',
+      path: '/v/photo.png',
+      rel: 'photo.png',
+      isMarkdown: false,
+      mtime: 0,
+    }
     render(<LiveMarkdown {...defaultProps([image])} />)
 
     await act(async () => {
@@ -499,7 +523,13 @@ describe('LiveMarkdown — @-mention trigger integration', () => {
 
   it('inserts a markdown link via literal-text fallback for a pdf item', async () => {
     const { fireEvent } = await import('@testing-library/react')
-    const pdf = { name: 'report.pdf', path: '/vault/docs/report.pdf', rel: 'docs/report.pdf', isMarkdown: false, mtime: 0 }
+    const pdf = {
+      name: 'report.pdf',
+      path: '/vault/docs/report.pdf',
+      rel: 'docs/report.pdf',
+      isMarkdown: false,
+      mtime: 0,
+    }
     render(<LiveMarkdown {...defaultProps([pdf])} />)
 
     await act(async () => {

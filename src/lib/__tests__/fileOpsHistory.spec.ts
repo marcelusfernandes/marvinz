@@ -46,10 +46,7 @@ function setupMarvinMock() {
 
 // The store does not exist yet — this import will cause a compile/runtime
 // error until the implementation is created, keeping the suite in RED.
-import {
-  useFileOpsHistory,
-  type FileOp,
-} from '../fileOpsHistory'
+import { useFileOpsHistory, type FileOp } from '../fileOpsHistory'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -233,9 +230,7 @@ describe('fileOpsHistory — undoLast(): trash', () => {
 
 describe('fileOpsHistory — undoLast() on empty stack', () => {
   it('is a no-op when the stack is empty', async () => {
-    await expect(
-      useFileOpsHistory.getState().undoLast(toastMock),
-    ).resolves.not.toThrow()
+    await expect(useFileOpsHistory.getState().undoLast(toastMock)).resolves.not.toThrow()
     expect(renameMock).not.toHaveBeenCalled()
     expect(restoreOneMock).not.toHaveBeenCalled()
     expect(toastMock).not.toHaveBeenCalled()

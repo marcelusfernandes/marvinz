@@ -45,7 +45,16 @@ type FakeCMState = {
   replaceSelection: (text: string) => { _replacementText: string }
 }
 
-function makeCMState(overrides: Partial<{ hasSelection: boolean; undoDepth: number; redoDepth: number; docText: string; selectionFrom: number; selectionTo: number }> = {}): FakeCMState {
+function makeCMState(
+  overrides: Partial<{
+    hasSelection: boolean
+    undoDepth: number
+    redoDepth: number
+    docText: string
+    selectionFrom: number
+    selectionTo: number
+  }> = {}
+): FakeCMState {
   const docText = overrides.docText ?? 'hello world'
   const from = overrides.selectionFrom ?? 0
   const to = overrides.selectionTo ?? (overrides.hasSelection ? 5 : 0)
@@ -123,22 +132,21 @@ vi.mock('@codemirror/commands', () => ({
 let currentCMView: FakeCMView = makeCMView()
 
 vi.mock('@uiw/react-codemirror', () => ({
-  default: vi.fn((props: {
-    onContextMenu?: (e: React.MouseEvent<HTMLDivElement>) => void
-    onCreateEditor?: (view: FakeCMView) => void
-  }) => {
-    // Call onCreateEditor on render to populate viewRef
-    props.onCreateEditor?.(currentCMView)
-    return (
-      <div
-        data-testid="codemirror"
-        onContextMenu={props.onContextMenu}
-      >
-        {/* Render the fake contentDOM as a child so clicks can target it */}
-        <div data-cm-content="true" data-testid="cm-content" />
-      </div>
-    )
-  }),
+  default: vi.fn(
+    (props: {
+      onContextMenu?: (e: React.MouseEvent<HTMLDivElement>) => void
+      onCreateEditor?: (view: FakeCMView) => void
+    }) => {
+      // Call onCreateEditor on render to populate viewRef
+      props.onCreateEditor?.(currentCMView)
+      return (
+        <div data-testid="codemirror" onContextMenu={props.onContextMenu}>
+          {/* Render the fake contentDOM as a child so clicks can target it */}
+          <div data-cm-content="true" data-testid="cm-content" />
+        </div>
+      )
+    }
+  ),
 }))
 
 // ---------------------------------------------------------------------------
@@ -301,7 +309,9 @@ describe('Editor — context menu triggers IPC with correct payload', () => {
       rightClickCMEditor(container)
     })
     expect(showContextMenuMock).toHaveBeenCalledTimes(1)
-    const [items] = showContextMenuMock.mock.calls[0] as [Array<{ kind: string; id?: string; label?: string; enabled?: boolean }>]
+    const [items] = showContextMenuMock.mock.calls[0] as [
+      Array<{ kind: string; id?: string; label?: string; enabled?: boolean }>,
+    ]
     expect(Array.isArray(items)).toBe(true)
   })
 
@@ -312,8 +322,10 @@ describe('Editor — context menu triggers IPC with correct payload', () => {
     await act(async () => {
       rightClickCMEditor(container)
     })
-    const [items] = showContextMenuMock.mock.calls[0] as [Array<{ kind: string; id?: string; label?: string; enabled?: boolean }>]
-    const cut = items.find(i => i.id === 'cut')
+    const [items] = showContextMenuMock.mock.calls[0] as [
+      Array<{ kind: string; id?: string; label?: string; enabled?: boolean }>,
+    ]
+    const cut = items.find((i) => i.id === 'cut')
     expect(cut?.enabled).toBe(false)
   })
 
@@ -324,8 +336,10 @@ describe('Editor — context menu triggers IPC with correct payload', () => {
     await act(async () => {
       rightClickCMEditor(container)
     })
-    const [items] = showContextMenuMock.mock.calls[0] as [Array<{ kind: string; id?: string; label?: string; enabled?: boolean }>]
-    const cut = items.find(i => i.id === 'cut')
+    const [items] = showContextMenuMock.mock.calls[0] as [
+      Array<{ kind: string; id?: string; label?: string; enabled?: boolean }>,
+    ]
+    const cut = items.find((i) => i.id === 'cut')
     expect(cut?.enabled).toBe(true)
   })
 
@@ -336,8 +350,10 @@ describe('Editor — context menu triggers IPC with correct payload', () => {
     await act(async () => {
       rightClickCMEditor(container)
     })
-    const [items] = showContextMenuMock.mock.calls[0] as [Array<{ kind: string; id?: string; label?: string; enabled?: boolean }>]
-    const copy = items.find(i => i.id === 'copy')
+    const [items] = showContextMenuMock.mock.calls[0] as [
+      Array<{ kind: string; id?: string; label?: string; enabled?: boolean }>,
+    ]
+    const copy = items.find((i) => i.id === 'copy')
     expect(copy?.enabled).toBe(false)
   })
 
@@ -348,8 +364,10 @@ describe('Editor — context menu triggers IPC with correct payload', () => {
     await act(async () => {
       rightClickCMEditor(container)
     })
-    const [items] = showContextMenuMock.mock.calls[0] as [Array<{ kind: string; id?: string; label?: string; enabled?: boolean }>]
-    const copy = items.find(i => i.id === 'copy')
+    const [items] = showContextMenuMock.mock.calls[0] as [
+      Array<{ kind: string; id?: string; label?: string; enabled?: boolean }>,
+    ]
+    const copy = items.find((i) => i.id === 'copy')
     expect(copy?.enabled).toBe(true)
   })
 
@@ -360,8 +378,10 @@ describe('Editor — context menu triggers IPC with correct payload', () => {
     await act(async () => {
       rightClickCMEditor(container)
     })
-    const [items] = showContextMenuMock.mock.calls[0] as [Array<{ kind: string; id?: string; label?: string; enabled?: boolean }>]
-    const undo = items.find(i => i.id === 'undo')
+    const [items] = showContextMenuMock.mock.calls[0] as [
+      Array<{ kind: string; id?: string; label?: string; enabled?: boolean }>,
+    ]
+    const undo = items.find((i) => i.id === 'undo')
     expect(undo?.enabled).toBe(false)
   })
 
@@ -372,8 +392,10 @@ describe('Editor — context menu triggers IPC with correct payload', () => {
     await act(async () => {
       rightClickCMEditor(container)
     })
-    const [items] = showContextMenuMock.mock.calls[0] as [Array<{ kind: string; id?: string; label?: string; enabled?: boolean }>]
-    const undo = items.find(i => i.id === 'undo')
+    const [items] = showContextMenuMock.mock.calls[0] as [
+      Array<{ kind: string; id?: string; label?: string; enabled?: boolean }>,
+    ]
+    const undo = items.find((i) => i.id === 'undo')
     expect(undo?.enabled).toBe(true)
   })
 
@@ -384,8 +406,10 @@ describe('Editor — context menu triggers IPC with correct payload', () => {
     await act(async () => {
       rightClickCMEditor(container)
     })
-    const [items] = showContextMenuMock.mock.calls[0] as [Array<{ kind: string; id?: string; label?: string; enabled?: boolean }>]
-    const redo = items.find(i => i.id === 'redo')
+    const [items] = showContextMenuMock.mock.calls[0] as [
+      Array<{ kind: string; id?: string; label?: string; enabled?: boolean }>,
+    ]
+    const redo = items.find((i) => i.id === 'redo')
     expect(redo?.enabled).toBe(false)
   })
 
@@ -396,8 +420,10 @@ describe('Editor — context menu triggers IPC with correct payload', () => {
     await act(async () => {
       rightClickCMEditor(container)
     })
-    const [items] = showContextMenuMock.mock.calls[0] as [Array<{ kind: string; id?: string; label?: string; enabled?: boolean }>]
-    const redo = items.find(i => i.id === 'redo')
+    const [items] = showContextMenuMock.mock.calls[0] as [
+      Array<{ kind: string; id?: string; label?: string; enabled?: boolean }>,
+    ]
+    const redo = items.find((i) => i.id === 'redo')
     expect(redo?.enabled).toBe(true)
   })
 
@@ -409,8 +435,10 @@ describe('Editor — context menu triggers IPC with correct payload', () => {
     await act(async () => {
       rightClickCMEditor(container)
     })
-    const [items] = showContextMenuMock.mock.calls[0] as [Array<{ kind: string; id?: string; label?: string; enabled?: boolean }>]
-    const paste = items.find(i => i.id === 'paste')
+    const [items] = showContextMenuMock.mock.calls[0] as [
+      Array<{ kind: string; id?: string; label?: string; enabled?: boolean }>,
+    ]
+    const paste = items.find((i) => i.id === 'paste')
     expect(paste?.enabled).toBe(false)
   })
 
@@ -422,8 +450,10 @@ describe('Editor — context menu triggers IPC with correct payload', () => {
     await act(async () => {
       rightClickCMEditor(container)
     })
-    const [items] = showContextMenuMock.mock.calls[0] as [Array<{ kind: string; id?: string; label?: string; enabled?: boolean }>]
-    const paste = items.find(i => i.id === 'paste')
+    const [items] = showContextMenuMock.mock.calls[0] as [
+      Array<{ kind: string; id?: string; label?: string; enabled?: boolean }>,
+    ]
+    const paste = items.find((i) => i.id === 'paste')
     expect(paste?.enabled).toBe(true)
   })
 })
@@ -460,7 +490,12 @@ describe('Editor — context menu action dispatch', () => {
   })
 
   it('writes selected text to clipboard when action is cut, then clears selection via dispatch', async () => {
-    currentCMView = makeCMView({ hasSelection: true, docText: 'hello world', selectionFrom: 0, selectionTo: 5 })
+    currentCMView = makeCMView({
+      hasSelection: true,
+      docText: 'hello world',
+      selectionFrom: 0,
+      selectionTo: 5,
+    })
     showContextMenuMock.mockResolvedValue('cut')
     const { container } = render(<Editor {...defaultProps()} />)
     await act(async () => {
@@ -472,7 +507,12 @@ describe('Editor — context menu action dispatch', () => {
   })
 
   it('writes selected text to clipboard when action is copy, without altering selection', async () => {
-    currentCMView = makeCMView({ hasSelection: true, docText: 'hello world', selectionFrom: 0, selectionTo: 5 })
+    currentCMView = makeCMView({
+      hasSelection: true,
+      docText: 'hello world',
+      selectionFrom: 0,
+      selectionTo: 5,
+    })
     showContextMenuMock.mockResolvedValue('copy')
     const { container } = render(<Editor {...defaultProps()} />)
     await act(async () => {
@@ -591,7 +631,7 @@ describe('Editor — state changes after context menu action', () => {
       rightClickCMEditor(container)
     })
     // After selectAll, all ranges must be non-empty.
-    expect(currentCMView.state.selection.ranges.every(r => !r.empty)).toBe(true)
+    expect(currentCMView.state.selection.ranges.every((r) => !r.empty)).toBe(true)
   })
 
   it('null action leaves undoDepth unchanged', async () => {

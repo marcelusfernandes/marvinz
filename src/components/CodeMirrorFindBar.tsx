@@ -11,10 +11,7 @@ import {
 } from '@codemirror/search'
 import { Icon } from './Icon'
 import { readReplaceExpanded, writeReplaceExpanded } from '../lib/findBarPrefs'
-import {
-  clearReplacedFlashes,
-  flashReplaced,
-} from '../lib/cmJustReplacedHighlight'
+import { clearReplacedFlashes, flashReplaced } from '../lib/cmJustReplacedHighlight'
 
 /** Anchors the current main selection in view with 80px of breathing room
  * below the floating find bar.
@@ -55,7 +52,7 @@ function scrollSelectionIntoView(view: EditorView): void {
  * `{ total: 0, current: null }`. */
 function computeCmMatchCount(
   view: EditorView,
-  query: string,
+  query: string
 ): { total: number; current: number | null } {
   if (!query) return { total: 0, current: null }
   const cursor = new SearchCursor(view.state.doc, query)
@@ -99,7 +96,7 @@ export function CodeMirrorFindBar({ view, onClose, initialReplaceExpanded, onRep
   // Replace row visibility. Initial value: the prop (when Cmd+Alt+F forced
   // it open) or the persisted preference, falling back to collapsed.
   const [replaceExpanded, setReplaceExpanded] = useState<boolean>(
-    () => initialReplaceExpanded ?? readReplaceExpanded(),
+    () => initialReplaceExpanded ?? readReplaceExpanded()
   )
   // Bumped after every navigation command so the match-count readout
   // recomputes once the new selection has been applied.
@@ -238,18 +235,11 @@ export function CodeMirrorFindBar({ view, onClose, initialReplaceExpanded, onRep
   }
 
   return (
-    <div
-      className="md-find"
-      role="search"
-      data-testid="cm-search-panel"
-      onKeyDown={handleKeyDown}
-    >
+    <div className="md-find" role="search" data-testid="cm-search-panel" onKeyDown={handleKeyDown}>
       <div className="md-find-row">
         <button
           type="button"
-          className={`icon-btn md-find-toggle${
-            replaceExpanded ? ' md-find-toggle--active' : ''
-          }`}
+          className={`icon-btn md-find-toggle${replaceExpanded ? ' md-find-toggle--active' : ''}`}
           onClick={toggleReplace}
           title={replaceExpanded ? 'Hide replace' : 'Show replace'}
           aria-label={replaceExpanded ? 'Hide replace row' : 'Show replace row'}

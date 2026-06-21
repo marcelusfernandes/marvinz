@@ -32,7 +32,7 @@ function spawnTreeWithEscapedGrandchild(): Promise<{
     const code =
       "const cp=require('child_process');" +
       "const gc=cp.spawn('sleep',['30'],{detached:true});gc.unref();" +
-      "process.stdout.write(String(gc.pid));setInterval(()=>{},1e9);"
+      'process.stdout.write(String(gc.pid));setInterval(()=>{},1e9);'
     // Child is a group leader (detached) so the contrast test can group-kill it;
     // the grandchild escapes into its own group regardless.
     const child = spawn(process.execPath, ['-e', code], { detached: true })
@@ -44,7 +44,11 @@ function spawnTreeWithEscapedGrandchild(): Promise<{
         grandchildPid,
         cleanup: () => {
           for (const pid of [child.pid!, grandchildPid]) {
-            try { process.kill(pid, 'SIGKILL') } catch { /* ignore */ }
+            try {
+              process.kill(pid, 'SIGKILL')
+            } catch {
+              /* ignore */
+            }
           }
         },
       })
@@ -78,7 +82,11 @@ describe('collectProcessTree / killProcessTree', () => {
     const t = await spawnTreeWithEscapedGrandchild()
     try {
       // Kill only the child's process group; the grandchild is in its own group.
-      try { process.kill(-t.childPid, 'SIGKILL') } catch { /* ignore */ }
+      try {
+        process.kill(-t.childPid, 'SIGKILL')
+      } catch {
+        /* ignore */
+      }
       expect(await waitDead(t.childPid)).toBe(true)
       await new Promise((r) => setTimeout(r, 150))
       expect(isAlive(t.grandchildPid)).toBe(true) // survives a group-only kill

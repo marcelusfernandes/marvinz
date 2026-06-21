@@ -5,15 +5,8 @@ import { WebLinksAddon } from '@xterm/addon-web-links'
 import '@xterm/xterm/css/xterm.css'
 import { Icon } from './Icon'
 import { useColorTheme } from '../lib/colorTheme'
-import {
-  createTerminalLinkProvider,
-  createOsc8LinkHandler,
-} from '../lib/terminalLinkProvider'
-import {
-  MARVIN_PATH_MIME,
-  MARVIN_PATHS_MIME,
-  readDraggedPaths,
-} from '../lib/dropAttachments'
+import { createTerminalLinkProvider, createOsc8LinkHandler } from '../lib/terminalLinkProvider'
+import { MARVIN_PATH_MIME, MARVIN_PATHS_MIME, readDraggedPaths } from '../lib/dropAttachments'
 import { formatPathsForAgent, type AgentKind } from '../lib/agent-drop-format'
 
 function readCssVar(name: string): string {
@@ -125,7 +118,7 @@ export function AgentTerminal({
       createTerminalLinkProvider(term, {
         vaultPath,
         onOpenFile: (p) => onOpenFileRef.current?.(p),
-      }),
+      })
     )
     disposers.push(() => linkProvider.dispose())
 
@@ -142,7 +135,7 @@ export function AgentTerminal({
 
       // Wait two frames so layout settles and FitAddon can read real dims.
       await new Promise<void>((resolve) =>
-        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
       )
       if (killed) return
 
@@ -187,7 +180,10 @@ export function AgentTerminal({
       const onResize = term.onResize(({ cols, rows }) => {
         window.marvin.pty.resize(ptyId, cols, rows)
       })
-      disposers.push(() => onTermData.dispose(), () => onResize.dispose())
+      disposers.push(
+        () => onTermData.dispose(),
+        () => onResize.dispose()
+      )
     }
 
     void start()
@@ -272,7 +268,7 @@ export function AgentTerminal({
       // without an extra click.
       termRef.current?.focus()
     },
-    [agentKind, ptyId, vaultPath],
+    [agentKind, ptyId, vaultPath]
   )
 
   return (

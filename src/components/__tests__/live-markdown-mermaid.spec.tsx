@@ -68,10 +68,18 @@ const fakeView = {
     get tr() {
       return {
         _replaceWiths: [] as unknown[],
-        replaceWith: vi.fn(function (this: unknown) { return this }),
-        setSelection: vi.fn(function (this: unknown) { return this }),
-        setStoredMarks: vi.fn(function (this: unknown) { return this }),
-        setMeta: vi.fn(function (this: unknown) { return this }),
+        replaceWith: vi.fn(function (this: unknown) {
+          return this
+        }),
+        setSelection: vi.fn(function (this: unknown) {
+          return this
+        }),
+        setStoredMarks: vi.fn(function (this: unknown) {
+          return this
+        }),
+        setMeta: vi.fn(function (this: unknown) {
+          return this
+        }),
       }
     },
   },
@@ -96,11 +104,12 @@ const fakeCtx = {
   update: vi.fn(defaultUpdateImpl),
   get: vi.fn((key: symbol) => {
     if (key === PARSER_CTX) return (_md: string) => null
-    if (key === LISTENER_CTX) return {
-      markdownUpdated: (cb: (ctx: unknown, md: string, prev: string) => void) => {
-        capturedMarkdownUpdated = cb
-      },
-    }
+    if (key === LISTENER_CTX)
+      return {
+        markdownUpdated: (cb: (ctx: unknown, md: string, prev: string) => void) => {
+          capturedMarkdownUpdated = cb
+        },
+      }
     if (key === EDITOR_VIEW_CTX) return fakeView
     return undefined
   }),
@@ -143,13 +152,23 @@ vi.mock('@milkdown/react', () => ({
   },
 }))
 
-vi.mock('@milkdown/preset-commonmark', () => ({ commonmark: { _kind: 'commonmark' }, bulletListSchema: { type: () => ({}) }, listItemSchema: { type: () => ({}) } }))
-vi.mock('@milkdown/preset-gfm', () => ({ gfm: { _kind: 'gfm' }, extendListItemSchemaForTask: { node: {} } }))
+vi.mock('@milkdown/preset-commonmark', () => ({
+  commonmark: { _kind: 'commonmark' },
+  bulletListSchema: { type: () => ({}) },
+  listItemSchema: { type: () => ({}) },
+}))
+vi.mock('@milkdown/preset-gfm', () => ({
+  gfm: { _kind: 'gfm' },
+  extendListItemSchemaForTask: { node: {} },
+}))
 vi.mock('@milkdown/plugin-listener', () => ({
   listener: { _kind: 'listener' },
   listenerCtx: LISTENER_CTX,
 }))
-vi.mock('@milkdown/utils', () => ({ $view: (_schema: unknown, _factory: unknown) => ({ _kind: '$view' }), $inputRule: (_factory: unknown) => ({ _kind: '$inputRule' }) }))
+vi.mock('@milkdown/utils', () => ({
+  $view: (_schema: unknown, _factory: unknown) => ({ _kind: '$view' }),
+  $inputRule: (_factory: unknown) => ({ _kind: '$inputRule' }),
+}))
 
 vi.mock('prosemirror-history', () => ({
   history: () => ({}),
@@ -207,7 +226,9 @@ vi.mock('../../lib/mermaidNodeView', () => ({
 vi.mock('mermaid', () => ({
   default: {
     initialize: vi.fn(),
-    render: vi.fn(async (_id: string, _src: string) => ({ svg: '<svg data-testid="mermaid-svg"/>' })),
+    render: vi.fn(async (_id: string, _src: string) => ({
+      svg: '<svg data-testid="mermaid-svg"/>',
+    })),
   },
 }))
 

@@ -13,21 +13,13 @@ export type FlatTreeItem = {
  * `setsize` is the count of siblings at the same level under the same parent.
  * Children of a directory are emitted only when its path is in `openPaths`.
  */
-export function flattenVisibleTree(
-  nodes: FileNode[],
-  openPaths: Set<string>,
-): FlatTreeItem[] {
+export function flattenVisibleTree(nodes: FileNode[], openPaths: Set<string>): FlatTreeItem[] {
   const out: FlatTreeItem[] = []
   const walk = (siblings: FileNode[], depth: number): void => {
     const setsize = siblings.length
     siblings.forEach((node, index) => {
       out.push({ node, depth, posinset: index + 1, setsize })
-      if (
-        node.isDir &&
-        openPaths.has(node.path) &&
-        node.children &&
-        node.children.length > 0
-      ) {
+      if (node.isDir && openPaths.has(node.path) && node.children && node.children.length > 0) {
         walk(node.children, depth + 1)
       }
     })

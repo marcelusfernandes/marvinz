@@ -52,12 +52,12 @@ npm run test:e2e       # playwright test (Electron e2e in e2e/)
 Vitest is split into projects (see `vitest.config.ts`) — match the right
 environment when adding tests:
 
-| Project      | Environment | Location / pattern                                              |
-| ------------ | ----------- | --------------------------------------------------------------- |
-| `electron`   | node        | `electron/__tests__/**`, `src/lib/__tests__/**/*.spec.ts`       |
-| `editor`     | jsdom       | `src/components/__tests__/**`, `src/lib/__tests__/**/*.spec.tsx`|
-| `chat`       | jsdom       | `src/lib/chat/__tests__/**`, `src/components/chat/__tests__/**` |
-| `complexity` | node        | `scripts/complexity/__tests__/**`                               |
+| Project      | Environment | Location / pattern                                               |
+| ------------ | ----------- | ---------------------------------------------------------------- |
+| `electron`   | node        | `electron/__tests__/**`, `src/lib/__tests__/**/*.spec.ts`        |
+| `editor`     | jsdom       | `src/components/__tests__/**`, `src/lib/__tests__/**/*.spec.tsx` |
+| `chat`       | jsdom       | `src/lib/chat/__tests__/**`, `src/components/chat/__tests__/**`  |
+| `complexity` | node        | `scripts/complexity/__tests__/**`                                |
 
 Naming: `.spec.ts` → node (electron), `.spec.tsx` → jsdom (editor). Coverage
 thresholds of 80% (lines/functions/branches) are enforced on the `electron` and

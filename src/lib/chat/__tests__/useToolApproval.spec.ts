@@ -93,7 +93,7 @@ describe('useToolApproval — allow', () => {
         sessionId: 's1',
         toolUseId: 'tu1',
         decision: { kind: 'allow' },
-      }),
+      })
     )
   })
 
@@ -125,7 +125,7 @@ describe('useToolApproval — allowAlways', () => {
     expect(agent.request).toHaveBeenCalledWith(
       expect.objectContaining({
         decision: { kind: 'allow', remember: 'session' },
-      }),
+      })
     )
   })
 
@@ -179,7 +179,7 @@ describe('useToolApproval — deny', () => {
         sessionId: 's1',
         toolUseId: 'tu1',
         decision: { kind: 'deny' },
-      }),
+      })
     )
   })
 
@@ -211,7 +211,7 @@ describe('useToolApproval — decide', () => {
     expect(agent.request).toHaveBeenCalledWith(
       expect.objectContaining({
         decision: { kind: 'allow', remember: 'session' },
-      }),
+      })
     )
   })
 
@@ -227,7 +227,7 @@ describe('useToolApproval — decide', () => {
     await expect(
       act(async () => {
         await result.current.decide('tu1', { kind: 'allow' })
-      }),
+      })
     ).resolves.not.toThrow()
   })
 
@@ -239,7 +239,7 @@ describe('useToolApproval — decide', () => {
     await expect(
       act(async () => {
         await result.current.deny('tu1')
-      }),
+      })
     ).resolves.not.toThrow()
   })
 

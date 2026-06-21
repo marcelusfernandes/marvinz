@@ -13,9 +13,7 @@ function ReadCardImpl({ tool, input, status }: ToolBodyProps) {
       <span className="chat-tool-pill" title={path ?? undefined}>
         {path ? basename(path) : '(no path)'}
       </span>
-      {status === 'error' && (
-        <span className="chat-tool-error-label">read failed</span>
-      )}
+      {status === 'error' && <span className="chat-tool-error-label">read failed</span>}
     </div>
   )
 }

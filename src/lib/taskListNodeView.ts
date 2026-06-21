@@ -88,7 +88,7 @@ export function buildTaskListItemView(): NodeViewConstructor {
         editorView.state.tr.setNodeMarkup(pos, undefined, {
           ...initialNode.attrs,
           checked: toggled,
-        }),
+        })
       )
     })
 

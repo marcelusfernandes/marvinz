@@ -29,7 +29,7 @@ function runFixture(name: string, sessionId = 'test-session'): AgentEvent[] {
 
 function eventsOfType<T extends AgentEvent['type']>(
   events: AgentEvent[],
-  type: T,
+  type: T
 ): Extract<AgentEvent, { type: T }>[] {
   return events.filter((e): e is Extract<AgentEvent, { type: T }> => e.type === type)
 }
@@ -159,7 +159,13 @@ describe('adapter-codex — simple-text fixture', () => {
   it('event order is: session-init, message-start, text-delta, message-end, turn-result', () => {
     const events = runFixture('simple-text.jsonl')
     const types = events.map((e) => e.type)
-    expect(types).toEqual(['session-init', 'message-start', 'text-delta', 'message-end', 'turn-result'])
+    expect(types).toEqual([
+      'session-init',
+      'message-start',
+      'text-delta',
+      'message-end',
+      'turn-result',
+    ])
   })
 })
 
@@ -294,10 +300,20 @@ describe('adaptCodexObj — edge cases', () => {
 
   it('item.started for command_execution emits tool-use with name Bash', () => {
     const state = makeCodexAdapterState('s')
-    const result = adaptCodexObj({
-      type: 'item.started',
-      item: { id: 'item_0', type: 'command_execution', command: 'ls -la', status: 'in_progress', aggregated_output: '', exit_code: null },
-    }, state)
+    const result = adaptCodexObj(
+      {
+        type: 'item.started',
+        item: {
+          id: 'item_0',
+          type: 'command_execution',
+          command: 'ls -la',
+          status: 'in_progress',
+          aggregated_output: '',
+          exit_code: null,
+        },
+      },
+      state
+    )
     const toolUse = eventsOfType(result, 'tool-use')[0]
     expect(toolUse).toBeDefined()
     expect(toolUse.name).toBe('Bash')
@@ -308,7 +324,14 @@ describe('adaptCodexObj — edge cases', () => {
     const state = makeCodexAdapterState('s')
     const itemStarted = {
       type: 'item.started',
-      item: { id: 'item_idem', type: 'command_execution', command: 'echo hi', status: 'in_progress', aggregated_output: '', exit_code: null },
+      item: {
+        id: 'item_idem',
+        type: 'command_execution',
+        command: 'echo hi',
+        status: 'in_progress',
+        aggregated_output: '',
+        exit_code: null,
+      },
     }
     const events1 = adaptCodexObj(itemStarted, state)
     const events2 = adaptCodexObj(itemStarted, state)
@@ -318,10 +341,13 @@ describe('adaptCodexObj — edge cases', () => {
 
   it('item.started for unknown item type returns []', () => {
     const state = makeCodexAdapterState('s')
-    const result = adaptCodexObj({
-      type: 'item.started',
-      item: { id: 'item_x', type: 'unknown_type' },
-    }, state)
+    const result = adaptCodexObj(
+      {
+        type: 'item.started',
+        item: { id: 'item_x', type: 'unknown_type' },
+      },
+      state
+    )
     expect(result).toEqual([])
   })
 
@@ -329,10 +355,13 @@ describe('adaptCodexObj — edge cases', () => {
     const state = makeCodexAdapterState('s')
     // Set up currentMessageId via turn.started
     adaptCodexObj({ type: 'turn.started' }, state)
-    const result = adaptCodexObj({
-      type: 'item.completed',
-      item: { id: 'item_0', type: 'agent_message', text: 'hello there' },
-    }, state)
+    const result = adaptCodexObj(
+      {
+        type: 'item.completed',
+        item: { id: 'item_0', type: 'agent_message', text: 'hello there' },
+      },
+      state
+    )
     const types = result.map((e) => e.type)
     expect(types).toEqual(['text-delta', 'message-end'])
     if (result[0].type === 'text-delta') {
@@ -343,10 +372,13 @@ describe('adaptCodexObj — edge cases', () => {
   it('item.completed for agent_message with empty text emits only message-end', () => {
     const state = makeCodexAdapterState('s')
     adaptCodexObj({ type: 'turn.started' }, state)
-    const result = adaptCodexObj({
-      type: 'item.completed',
-      item: { id: 'item_empty', type: 'agent_message', text: '' },
-    }, state)
+    const result = adaptCodexObj(
+      {
+        type: 'item.completed',
+        item: { id: 'item_empty', type: 'agent_message', text: '' },
+      },
+      state
+    )
     expect(result.map((e) => e.type)).toEqual(['message-end'])
   })
 
@@ -365,10 +397,20 @@ describe('adaptCodexObj — edge cases', () => {
 
   it('item.completed for command_execution with exit_code 0 emits tool-result with isError false', () => {
     const state = makeCodexAdapterState('s')
-    const result = adaptCodexObj({
-      type: 'item.completed',
-      item: { id: 'item_0', type: 'command_execution', command: 'echo hi', aggregated_output: 'hi\n', exit_code: 0, status: 'completed' },
-    }, state)
+    const result = adaptCodexObj(
+      {
+        type: 'item.completed',
+        item: {
+          id: 'item_0',
+          type: 'command_execution',
+          command: 'echo hi',
+          aggregated_output: 'hi\n',
+          exit_code: 0,
+          status: 'completed',
+        },
+      },
+      state
+    )
     const toolResult = eventsOfType(result, 'tool-result')[0]
     expect(toolResult).toBeDefined()
     expect(toolResult.isError).toBe(false)
@@ -377,10 +419,20 @@ describe('adaptCodexObj — edge cases', () => {
 
   it('item.completed for command_execution with non-zero exit_code emits tool-result with isError true', () => {
     const state = makeCodexAdapterState('s')
-    const result = adaptCodexObj({
-      type: 'item.completed',
-      item: { id: 'item_1', type: 'command_execution', command: 'bad-cmd', aggregated_output: 'not found', exit_code: 127, status: 'failed' },
-    }, state)
+    const result = adaptCodexObj(
+      {
+        type: 'item.completed',
+        item: {
+          id: 'item_1',
+          type: 'command_execution',
+          command: 'bad-cmd',
+          aggregated_output: 'not found',
+          exit_code: 127,
+          status: 'failed',
+        },
+      },
+      state
+    )
     const toolResult = eventsOfType(result, 'tool-result')[0]
     expect(toolResult).toBeDefined()
     expect(toolResult.isError).toBe(true)
@@ -388,20 +440,33 @@ describe('adaptCodexObj — edge cases', () => {
 
   it('item.completed for command_execution with failed status emits tool-result with isError true', () => {
     const state = makeCodexAdapterState('s')
-    const result = adaptCodexObj({
-      type: 'item.completed',
-      item: { id: 'item_2', type: 'command_execution', command: 'bad', aggregated_output: null, exit_code: null, status: 'failed' },
-    }, state)
+    const result = adaptCodexObj(
+      {
+        type: 'item.completed',
+        item: {
+          id: 'item_2',
+          type: 'command_execution',
+          command: 'bad',
+          aggregated_output: null,
+          exit_code: null,
+          status: 'failed',
+        },
+      },
+      state
+    )
     const toolResult = eventsOfType(result, 'tool-result')[0]
     expect(toolResult.isError).toBe(true)
   })
 
   it('item.completed for unknown item type returns []', () => {
     const state = makeCodexAdapterState('s')
-    const result = adaptCodexObj({
-      type: 'item.completed',
-      item: { id: 'item_x', type: 'mystery_type' },
-    }, state)
+    const result = adaptCodexObj(
+      {
+        type: 'item.completed',
+        item: { id: 'item_x', type: 'mystery_type' },
+      },
+      state
+    )
     expect(result).toEqual([])
   })
 
@@ -413,10 +478,18 @@ describe('adaptCodexObj — edge cases', () => {
 
   it('turn.completed emits turn-result with usage from the event', () => {
     const state = makeCodexAdapterState('s')
-    const result = adaptCodexObj({
-      type: 'turn.completed',
-      usage: { input_tokens: 100, cached_input_tokens: 20, output_tokens: 50, reasoning_output_tokens: 5 },
-    }, state)
+    const result = adaptCodexObj(
+      {
+        type: 'turn.completed',
+        usage: {
+          input_tokens: 100,
+          cached_input_tokens: 20,
+          output_tokens: 50,
+          reasoning_output_tokens: 5,
+        },
+      },
+      state
+    )
     const turnResult = eventsOfType(result, 'turn-result')[0]
     expect(turnResult).toBeDefined()
     expect(turnResult.usage.inputTokens).toBe(100)
@@ -426,20 +499,26 @@ describe('adaptCodexObj — edge cases', () => {
 
   it('turn.completed costUSD is always 0', () => {
     const state = makeCodexAdapterState('s')
-    const result = adaptCodexObj({
-      type: 'turn.completed',
-      usage: { input_tokens: 10, cached_input_tokens: 0, output_tokens: 5 },
-    }, state)
+    const result = adaptCodexObj(
+      {
+        type: 'turn.completed',
+        usage: { input_tokens: 10, cached_input_tokens: 0, output_tokens: 5 },
+      },
+      state
+    )
     const turnResult = eventsOfType(result, 'turn-result')[0]
     expect(turnResult.costUSD).toBe(0)
   })
 
   it('turn.completed durationMs is 0 (codex exec does not report it)', () => {
     const state = makeCodexAdapterState('s')
-    const result = adaptCodexObj({
-      type: 'turn.completed',
-      usage: { input_tokens: 10, cached_input_tokens: 0, output_tokens: 5 },
-    }, state)
+    const result = adaptCodexObj(
+      {
+        type: 'turn.completed',
+        usage: { input_tokens: 10, cached_input_tokens: 0, output_tokens: 5 },
+      },
+      state
+    )
     const turnResult = eventsOfType(result, 'turn-result')[0]
     expect(turnResult.durationMs).toBe(0)
   })
@@ -452,10 +531,13 @@ describe('adaptCodexObj — edge cases', () => {
 
   it('turn.completed with zero cached tokens omits cacheReadTokens from usage', () => {
     const state = makeCodexAdapterState('s')
-    const result = adaptCodexObj({
-      type: 'turn.completed',
-      usage: { input_tokens: 10, cached_input_tokens: 0, output_tokens: 5 },
-    }, state)
+    const result = adaptCodexObj(
+      {
+        type: 'turn.completed',
+        usage: { input_tokens: 10, cached_input_tokens: 0, output_tokens: 5 },
+      },
+      state
+    )
     const turnResult = eventsOfType(result, 'turn-result')[0]
     // cacheReadTokens should be undefined when 0
     expect(turnResult.usage.cacheReadTokens).toBeUndefined()
@@ -495,16 +577,22 @@ describe('adaptCodexObj — edge cases', () => {
   it('seq counter increments with each text-delta emitted', () => {
     const state = makeCodexAdapterState('s')
     adaptCodexObj({ type: 'turn.started' }, state)
-    adaptCodexObj({
-      type: 'item.completed',
-      item: { id: 'item_a', type: 'agent_message', text: 'first' },
-    }, state)
+    adaptCodexObj(
+      {
+        type: 'item.completed',
+        item: { id: 'item_a', type: 'agent_message', text: 'first' },
+      },
+      state
+    )
     // Reset for second turn
     adaptCodexObj({ type: 'turn.started' }, state)
-    adaptCodexObj({
-      type: 'item.completed',
-      item: { id: 'item_b', type: 'agent_message', text: 'second' },
-    }, state)
+    adaptCodexObj(
+      {
+        type: 'item.completed',
+        item: { id: 'item_b', type: 'agent_message', text: 'second' },
+      },
+      state
+    )
     expect(state.seq).toBe(2)
   })
 

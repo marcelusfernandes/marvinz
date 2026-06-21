@@ -25,14 +25,12 @@ const BASE_ITEMS: PaletteItem[] = [
 
 describe('toMarvinUrl', () => {
   it('encodes a simple absolute path', () => {
-    expect(toMarvinUrl('/vault/notes/img.png')).toBe(
-      'marvin://localhost/vault/notes/img.png',
-    )
+    expect(toMarvinUrl('/vault/notes/img.png')).toBe('marvin://localhost/vault/notes/img.png')
   })
 
   it('encodes path segments with spaces', () => {
     expect(toMarvinUrl('/vault/my notes/my image.png')).toBe(
-      'marvin://localhost/vault/my%20notes/my%20image.png',
+      'marvin://localhost/vault/my%20notes/my%20image.png'
     )
   })
 
@@ -165,12 +163,7 @@ describe('resolveImageSrc — relative src', () => {
 
 describe('resolveImageSrc — wikilink-image sentinel', () => {
   it('resolves wikilink-image:screenshot.png found in palette', () => {
-    const result = resolveImageSrc(
-      'wikilink-image:screenshot.png',
-      CURRENT_FILE,
-      VAULT,
-      BASE_ITEMS,
-    )
+    const result = resolveImageSrc('wikilink-image:screenshot.png', CURRENT_FILE, VAULT, BASE_ITEMS)
     expect(result).toEqual({
       kind: 'marvin',
       url: toMarvinUrl('/vault/screenshot.png'),
@@ -178,23 +171,13 @@ describe('resolveImageSrc — wikilink-image sentinel', () => {
   })
 
   it('returns missing for wikilink-image:ghost.png not in palette', () => {
-    const result = resolveImageSrc(
-      'wikilink-image:ghost.png',
-      CURRENT_FILE,
-      VAULT,
-      BASE_ITEMS,
-    )
+    const result = resolveImageSrc('wikilink-image:ghost.png', CURRENT_FILE, VAULT, BASE_ITEMS)
     expect(result).toEqual({ kind: 'missing' })
   })
 
   it('resolves wikilink-image with encoded spaces in name', () => {
     const items = [item('/vault/my image.png')]
-    const result = resolveImageSrc(
-      'wikilink-image:my%20image.png',
-      CURRENT_FILE,
-      VAULT,
-      items,
-    )
+    const result = resolveImageSrc('wikilink-image:my%20image.png', CURRENT_FILE, VAULT, items)
     expect(result).toEqual({
       kind: 'marvin',
       url: toMarvinUrl('/vault/my image.png'),
@@ -217,12 +200,7 @@ describe('resolveImageSrc — ambiguous wikilink-image (same name, multiple dirs
   const ITEMS_AMBIGUOUS = [IMG_OTHER_DIR, IMG_SAME_DIR]
 
   it('prefers the file in the same directory as currentFile', () => {
-    const result = resolveImageSrc(
-      'wikilink-image:x.png',
-      CURRENT_FILE,
-      VAULT,
-      ITEMS_AMBIGUOUS,
-    )
+    const result = resolveImageSrc('wikilink-image:x.png', CURRENT_FILE, VAULT, ITEMS_AMBIGUOUS)
     expect(result).toEqual({
       kind: 'marvin',
       url: toMarvinUrl('/vault/notes/sub/x.png'),

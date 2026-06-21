@@ -29,7 +29,10 @@ function sha256(content: string): string {
 }
 
 function makeTurnId(): string {
-  const ts = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z')
+  const ts = new Date()
+    .toISOString()
+    .replace(/[-:]/g, '')
+    .replace(/\.\d{3}Z$/, 'Z')
   const salt = crypto.randomBytes(6).toString('hex')
   return `${ts}-${salt}`
 }
@@ -38,7 +41,7 @@ async function seedVault(
   vaultRoot: string,
   relPath: string,
   snapshotContent: string,
-  currentContent: string,
+  currentContent: string
 ): Promise<string> {
   const turnId = makeTurnId()
   const absFilePath = path.join(vaultRoot, relPath)
@@ -69,7 +72,7 @@ async function seedVault(
   await fs.writeFile(
     path.join(snapshotDir, '_manifest.json'),
     JSON.stringify(manifest, null, 2),
-    'utf8',
+    'utf8'
   )
 
   return turnId
@@ -89,11 +92,7 @@ async function countSnapshotTurns(vaultRoot: string): Promise<number> {
 async function createUserDataDir(vaultPath: string): Promise<string> {
   const raw = await fs.mkdtemp(path.join(os.tmpdir(), 'marvin-e2e-userdata-'))
   const userDataDir = await fs.realpath(raw)
-  await fs.writeFile(
-    path.join(userDataDir, 'settings.json'),
-    JSON.stringify({ vaultPath }),
-    'utf8',
-  )
+  await fs.writeFile(path.join(userDataDir, 'settings.json'), JSON.stringify({ vaultPath }), 'utf8')
   return userDataDir
 }
 
@@ -194,7 +193,7 @@ test.describe('Snapshot restore flow — AC4 exactly 3 clicks', () => {
       expect(newTurnDir).toBeTruthy()
 
       const newManifest = JSON.parse(
-        await fs.readFile(path.join(snapshotsDir, newTurnDir, '_manifest.json'), 'utf8'),
+        await fs.readFile(path.join(snapshotsDir, newTurnDir, '_manifest.json'), 'utf8')
       )
       expect(newManifest.trigger).toBe('restore')
     } finally {
@@ -323,12 +322,17 @@ test.describe('M9 — IPC envelope opacity', () => {
     })
     const page = await app.firstWindow()
     await page.waitForLoadState('domcontentloaded')
-    await expect(page.locator('.file-tree-row.file', { hasText: /^note$/ })).toBeVisible({ timeout: 15_000 })
+    await expect(page.locator('.file-tree-row.file', { hasText: /^note$/ })).toBeVisible({
+      timeout: 15_000,
+    })
 
     try {
       const result = await page.evaluate(async () => {
-        const validTurnId = new Date().toISOString()
-          .replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z') + '-aabbccdd1122'
+        const validTurnId =
+          new Date()
+            .toISOString()
+            .replace(/[-:]/g, '')
+            .replace(/\.\d{3}Z$/, 'Z') + '-aabbccdd1122'
         return await (window as any).marvin.snapshot.read(validTurnId, 'note.md')
       })
 
@@ -351,7 +355,9 @@ test.describe('M9 — IPC envelope opacity', () => {
     })
     const page = await app.firstWindow()
     await page.waitForLoadState('domcontentloaded')
-    await expect(page.locator('.file-tree-row.file', { hasText: /^note$/ })).toBeVisible({ timeout: 15_000 })
+    await expect(page.locator('.file-tree-row.file', { hasText: /^note$/ })).toBeVisible({
+      timeout: 15_000,
+    })
 
     try {
       const result = await page.evaluate(async () => {
@@ -373,12 +379,17 @@ test.describe('M9 — IPC envelope opacity', () => {
     })
     const page = await app.firstWindow()
     await page.waitForLoadState('domcontentloaded')
-    await expect(page.locator('.file-tree-row.file', { hasText: /^note$/ })).toBeVisible({ timeout: 15_000 })
+    await expect(page.locator('.file-tree-row.file', { hasText: /^note$/ })).toBeVisible({
+      timeout: 15_000,
+    })
 
     try {
       const result = await page.evaluate(async () => {
-        const validTurnId = new Date().toISOString()
-          .replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z') + '-aabbccdd1122'
+        const validTurnId =
+          new Date()
+            .toISOString()
+            .replace(/[-:]/g, '')
+            .replace(/\.\d{3}Z$/, 'Z') + '-aabbccdd1122'
         return await (window as any).marvin.snapshot.read(validTurnId, '../../etc/passwd')
       })
 

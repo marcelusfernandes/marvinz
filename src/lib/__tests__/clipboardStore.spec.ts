@@ -45,7 +45,7 @@ describe('clipPasteLabel', () => {
   })
   it('pluralizes for multi-path clipboard', () => {
     expect(clipPasteLabel({ mode: 'cut', paths: new Set(['/v/a.md', '/v/b.md']) })).toBe(
-      'Paste 2 items',
+      'Paste 2 items'
     )
   })
 })

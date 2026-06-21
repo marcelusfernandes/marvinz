@@ -5,14 +5,7 @@
 
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useChatStore } from './store'
-import type {
-  Mention,
-  Message,
-  MessageId,
-  PermissionMode,
-  Session,
-  SessionId,
-} from './types'
+import type { Mention, Message, MessageId, PermissionMode, Session, SessionId } from './types'
 
 function getAgentApi() {
   if (typeof window === 'undefined') return null
@@ -83,7 +76,7 @@ export function useChatSession(sessionId: SessionId): UseChatSessionResult {
         permissionMode: opts?.permissionMode ?? current.permissionMode,
       })
     },
-    [sessionId],
+    [sessionId]
   )
 
   const cancel = useCallback<UseChatSessionResult['cancel']>(async () => {
@@ -92,10 +85,7 @@ export function useChatSession(sessionId: SessionId): UseChatSessionResult {
     await api.request({ type: 'cancel', sessionId })
   }, [sessionId])
 
-  return useMemo(
-    () => ({ session, send, cancel }),
-    [session, send, cancel],
-  )
+  return useMemo(() => ({ session, send, cancel }), [session, send, cancel])
 }
 
 // ---------------------------------------------------------------------------
@@ -107,10 +97,7 @@ export function useChatSession(sessionId: SessionId): UseChatSessionResult {
  * THIS message's object reference changes (immutable updates per message
  * keep sibling messages stable).
  */
-export function useChatMessage(
-  sessionId: SessionId,
-  messageId: MessageId,
-): Message | undefined {
+export function useChatMessage(sessionId: SessionId, messageId: MessageId): Message | undefined {
   return useChatStore((s) => s.sessions[sessionId]?.messages[messageId])
 }
 
@@ -130,7 +117,7 @@ const STICK_THRESHOLD_PX = 80
  */
 export function useStickToBottom<T extends HTMLElement>(
   ref: React.RefObject<T | null>,
-  active: boolean,
+  active: boolean
 ): void {
   const stickRef = useRef(true)
 

@@ -49,7 +49,11 @@ vi.mock('../../lib/settingsStore', () => ({
   seedFromMain: vi.fn(),
   useSetting: (_key: string, fallback: unknown) => [fallback, vi.fn()],
 }))
-vi.mock('../../lib/colorTheme', () => ({ useColorTheme: () => 'light', useAgentsPaneTransparent: () => false, useEditorEffects: () => {} }))
+vi.mock('../../lib/colorTheme', () => ({
+  useColorTheme: () => 'light',
+  useAgentsPaneTransparent: () => false,
+  useEditorEffects: () => {},
+}))
 vi.mock('../../lib/visualStyle', () => ({ useVisualStyle: () => 'modern' }))
 vi.mock('../../lib/paletteRanker', () => ({}))
 
@@ -155,9 +159,7 @@ function makeInternalDragTransfer(srcPath: string): DataTransfer {
     files: [] as unknown as FileList,
     dropEffect: 'none' as DataTransfer['dropEffect'],
     effectAllowed: 'all' as DataTransfer['effectAllowed'],
-    getData: vi.fn((mime: string) =>
-      mime === 'application/x-marvin-path' ? srcPath : '',
-    ),
+    getData: vi.fn((mime: string) => (mime === 'application/x-marvin-path' ? srcPath : '')),
     setData: vi.fn(),
     clearData: vi.fn(),
     setDragImage: vi.fn(),
@@ -170,7 +172,7 @@ function makeInternalDragTransfer(srcPath: string): DataTransfer {
 function makeDragEvent(
   type: 'dragover' | 'drop',
   dt: DataTransfer,
-  targetEl: Element,
+  targetEl: Element
 ): Event & { dataTransfer: DataTransfer; preventDefault: ReturnType<typeof vi.fn> } {
   const event = new Event(type, { bubbles: true, cancelable: true })
   const preventDefaultMock = vi.fn()
@@ -279,9 +281,7 @@ describe('FileTree — external drag from Finder (issue #193)', () => {
   it('drop on root: calls importExternal with all files when multiple files dropped', async () => {
     const file1 = new File([''], 'a.md', { type: 'text/markdown' })
     const file2 = new File([''], 'b.md', { type: 'text/markdown' })
-    getPathForFileMock
-      .mockReturnValueOnce('/external/a.md')
-      .mockReturnValueOnce('/external/b.md')
+    getPathForFileMock.mockReturnValueOnce('/external/a.md').mockReturnValueOnce('/external/b.md')
     const dt = makeExternalDragTransfer([file1, file2])
     const { container } = render(<FileTree {...defaultTreeProps} />)
     const ul = container.querySelector('ul.file-tree')!
@@ -293,10 +293,7 @@ describe('FileTree — external drag from Finder (issue #193)', () => {
       await Promise.resolve()
     })
 
-    expect(importExternalMock).toHaveBeenCalledWith(
-      ['/external/a.md', '/external/b.md'],
-      '/vault',
-    )
+    expect(importExternalMock).toHaveBeenCalledWith(['/external/a.md', '/external/b.md'], '/vault')
   })
 
   it('drop on root: calls preventDefault to suppress Electron default file drop', async () => {
@@ -339,9 +336,7 @@ describe('FileTree — external drag from Finder (issue #193)', () => {
     const dt = makeExternalDragTransfer([file])
 
     const openPaths = new Set(['/vault/folder'])
-    const { container } = render(
-      <FileTree {...defaultTreeProps} openPaths={openPaths} />,
-    )
+    const { container } = render(<FileTree {...defaultTreeProps} openPaths={openPaths} />)
 
     // The folder button renders as a .file-tree-row.dir button
     const folderBtn = container.querySelector('button.file-tree-row.dir')!
@@ -369,7 +364,7 @@ async function renderApp() {
   await act(async () => {
     const result = render(<App />)
     container = result.container
-    await new Promise(r => setTimeout(r, 50))
+    await new Promise((r) => setTimeout(r, 50))
   })
   return container!
 }
@@ -379,7 +374,7 @@ function makePasteEvent(files: File[]): ClipboardEvent {
     files: files as unknown as FileList,
     getData: vi.fn(() => ''),
     items: [] as unknown as DataTransferItemList,
-    types: files.length > 0 ? ['Files'] : [] as string[],
+    types: files.length > 0 ? ['Files'] : ([] as string[]),
   }
   const event = new Event('paste', { bubbles: true, cancelable: true }) as ClipboardEvent
   Object.defineProperty(event, 'clipboardData', { value: dt, writable: false })
@@ -419,7 +414,7 @@ describe('Sidebar aside — paste from clipboard (issue #194)', () => {
     })
 
     expect(
-      (pasteEvent.preventDefault as unknown as ReturnType<typeof vi.fn>).mock.calls.length,
+      (pasteEvent.preventDefault as unknown as ReturnType<typeof vi.fn>).mock.calls.length
     ).toBeGreaterThan(0)
   })
 
@@ -447,7 +442,12 @@ describe('Sidebar aside — paste from clipboard (issue #194)', () => {
     aside.appendChild(input)
 
     const event = new Event('paste', { bubbles: true, cancelable: true }) as ClipboardEvent
-    const dt = { files: [file] as unknown as FileList, getData: vi.fn(), items: [] as unknown as DataTransferItemList, types: ['Files'] }
+    const dt = {
+      files: [file] as unknown as FileList,
+      getData: vi.fn(),
+      items: [] as unknown as DataTransferItemList,
+      types: ['Files'],
+    }
     Object.defineProperty(event, 'clipboardData', { value: dt, writable: false })
     Object.defineProperty(event, 'target', { value: input, writable: false })
     Object.defineProperty(event, 'preventDefault', { value: vi.fn(), writable: false })
@@ -469,7 +469,12 @@ describe('Sidebar aside — paste from clipboard (issue #194)', () => {
     aside.appendChild(textarea)
 
     const event = new Event('paste', { bubbles: true, cancelable: true }) as ClipboardEvent
-    const dt = { files: [file] as unknown as FileList, getData: vi.fn(), items: [] as unknown as DataTransferItemList, types: ['Files'] }
+    const dt = {
+      files: [file] as unknown as FileList,
+      getData: vi.fn(),
+      items: [] as unknown as DataTransferItemList,
+      types: ['Files'],
+    }
     Object.defineProperty(event, 'clipboardData', { value: dt, writable: false })
     Object.defineProperty(event, 'target', { value: textarea, writable: false })
     Object.defineProperty(event, 'preventDefault', { value: vi.fn(), writable: false })
@@ -497,7 +502,7 @@ describe('Sidebar aside — paste from clipboard (issue #194)', () => {
     await act(async () => {
       const result = render(<App />)
       container = result.container
-      await new Promise(r => setTimeout(r, 50))
+      await new Promise((r) => setTimeout(r, 50))
     })
 
     // Click the subdir to expand it, then click the note to open a tab.
@@ -505,14 +510,14 @@ describe('Sidebar aside — paste from clipboard (issue #194)', () => {
     if (subdirBtn) {
       await act(async () => {
         subdirBtn.dispatchEvent(new MouseEvent('click', { bubbles: true }))
-        await new Promise(r => setTimeout(r, 20))
+        await new Promise((r) => setTimeout(r, 20))
       })
     }
     const noteBtn = container!.querySelector('button.file-tree-row:not(.dir)')
     if (noteBtn) {
       await act(async () => {
         noteBtn.dispatchEvent(new MouseEvent('click', { bubbles: true }))
-        await new Promise(r => setTimeout(r, 20))
+        await new Promise((r) => setTimeout(r, 20))
       })
     }
 
@@ -541,9 +546,7 @@ describe('FileTree — onImportResult callback after drop', () => {
     importExternalMock.mockResolvedValue(importResult)
     const onImportResult = vi.fn()
 
-    const { container } = render(
-      <FileTree {...defaultTreeProps} onImportResult={onImportResult} />,
-    )
+    const { container } = render(<FileTree {...defaultTreeProps} onImportResult={onImportResult} />)
     const ul = container.querySelector('ul.file-tree')!
     const dropEvent = makeDragEvent('drop', makeExternalDragTransfer([file]), ul)
 
@@ -565,9 +568,7 @@ describe('FileTree — onImportResult callback after drop', () => {
     importExternalMock.mockRejectedValue(new Error('disk full'))
     const onImportResult = vi.fn()
 
-    const { container } = render(
-      <FileTree {...defaultTreeProps} onImportResult={onImportResult} />,
-    )
+    const { container } = render(<FileTree {...defaultTreeProps} onImportResult={onImportResult} />)
     const ul = container.querySelector('ul.file-tree')!
     const dropEvent = makeDragEvent('drop', makeExternalDragTransfer([file]), ul)
 

@@ -41,7 +41,7 @@ export function resolveImageSrc(
   src: string,
   currentFile: string,
   vaultPath: string,
-  items: PaletteItem[],
+  items: PaletteItem[]
 ): ResolvedImageSrc {
   if (!src) return { kind: 'missing' }
 

@@ -5,11 +5,13 @@ Goal: Enable users to switch between Modern (post-redesign) and Legacy (pre-rede
 ## 1. User story
 
 **New users (fresh installs):**
+
 - Launch the app for the first time
 - See the Modern visual style (redesigned shell, sidebar, tabs, editor, properties panel)
 - Can switch to Legacy via Settings if they prefer the familiar pre-redesign look
 
 **Existing users (upgrading from pre-redesign):**
+
 - Launch the upgraded app
 - Default to Modern style (recommended)
 - See a one-time hint in Settings suggesting the Modern design
@@ -38,6 +40,7 @@ The redesign represents a deliberate visual refresh with improved structure (3-c
 **Scenario:** User has been on the app pre-redesign, upgrades, and boots the app.
 
 **Behavior:**
+
 - App reads `visualStyle` from settings storage
 - If setting is absent (upgrade case), app defaults to `'modern'`
 - Settings modal shows a subtle hint: "Modern style is the redesigned look. Switch to Legacy to keep the previous design."
@@ -49,6 +52,7 @@ The redesign represents a deliberate visual refresh with improved structure (3-c
 **Scenario:** The redesign removed the back/forward buttons from the editor toolbar and moved the search into the sidebar. CSS overrides alone cannot restore these.
 
 **Behavior:**
+
 - Identify all structural changes from the redesign that require JSX conditions (not CSS)
 - Use `visualStyle` setting to conditionally render components or skip their rendering
 - Example: `{visualStyle === 'legacy' && <BackForwardButtons />}`
@@ -59,6 +63,7 @@ The redesign represents a deliberate visual refresh with improved structure (3-c
 **Scenario:** User opens Settings, toggles the style, and closes Settings while a note is being rendered.
 
 **Behavior:**
+
 - Setting change triggers a global subscription update to all subscribers (including App.tsx and component tree)
 - Components that read `visualStyle` via hooks re-render
 - CSS tokens update via `data-style` attribute on the document root
@@ -69,6 +74,7 @@ The redesign represents a deliberate visual refresh with improved structure (3-c
 **Scenario:** A hypothetical setting exists only in Modern mode (e.g., "Editor minimap") but not in Legacy.
 
 **Behavior:**
+
 - Settings modal omits the control when in Legacy mode (if the setting is Modern-only)
 - Or: Control is always visible, but toggling it while in Legacy mode is a no-op (setting is ignored by Legacy CSS/JSX)
 - For this project, no such collision is expected in the initial release, but future work should establish the pattern
@@ -87,6 +93,7 @@ The redesign represents a deliberate visual refresh with improved structure (3-c
 Based on the redesign branch (`feat/redesign-shell-sidebar`), the following surfaces must render correctly in both Modern and Legacy styles:
 
 ### 5.1 Shell & layout
+
 - **App wrapper:** Roundedness, padding, shadows (3-card layout in Modern; flat/simple in Legacy)
 - **Sidebar:** Styling, border, background (no avatar in Modern; search moved into header in Modern)
 - **Editor pane:** Styling, border, spacing
@@ -94,33 +101,39 @@ Based on the redesign branch (`feat/redesign-shell-sidebar`), the following surf
 - **Splitter bars:** Visibility, color, hover state
 
 ### 5.2 Sidebar
+
 - **Header section:** Project name display, git branch chip styling, spacing
 - **Search input:** Position (sidebar header in Modern; legacy position in Legacy), styling
 - **File tree:** Icons, hover states, selection highlight, nesting indents, fonts
 - **Footer buttons:** Styling, hover states, icon size
 
 ### 5.3 Tabs & tab bar
+
 - **Tab styling:** Font weight (medium in Modern; legacy in Legacy), active text color (neutral in Modern; legacy in Legacy), borders, background
 - **Tab bar:** Spacing, background, border
 - **New tab button & close button:** Styling, hit target
 
 ### 5.4 Editor
+
 - **Markdown editor:** Font (mono at 13px for code in Modern; legacy in Legacy), heading styles, list styling
 - **Code block syntax highlighting:** Color tokens (may differ between light/dark only; style toggle should not affect)
 - **Edit/Preview toggle:** Position (segmented in Modern; inline in Legacy), styling
 - **Back/forward buttons:** Presence (removed in Modern; present in Legacy)
 
 ### 5.5 Properties panel
+
 - **Type picker (ContextMenu):** Styling, Codicon vs. legacy icon rendering
 - **Spacing inside type picker:** Using `--space-0` in Modern; legacy spacing in Legacy
 
 ### 5.6 Path suggest dropdown
+
 - **Backdrop blur:** Enabled in Modern; disabled in Legacy
 - **Shadow:** `--shadow-lg` in Modern; lighter shadow in Legacy
 - **Width:** Exact-width match to input in Modern; legacy behavior in Legacy
 - **Text rendering:** Highlighted match syntax
 
 ### 5.7 Color theme
+
 - **Dark mode tokens:** Tuned to Apple HIG in Modern; legacy palette in Legacy
 - **Light mode tokens:** Unchanged between Modern and Legacy (same base palette)
 - **System theme detection:** Works the same in both styles
@@ -128,21 +141,25 @@ Based on the redesign branch (`feat/redesign-shell-sidebar`), the following surf
 ## 6. Technical approach
 
 ### 6.1 Settings layer
+
 - Add `visualStyle: 'modern' | 'legacy'` to `Settings` type in `src/types.ts`
 - Extend `src/lib/settingsStore.ts` to read/write `visualStyle` from localStorage and IPC
 - Default to `'modern'` if missing or invalid
 
 ### 6.2 Attribute-driven styling
+
 - Wire `visualStyle` setting to a `data-style="modern"|"legacy"` attribute on the document root (`<html>`)
 - All CSS overrides keyed to `html[data-style='legacy'] .component-class { ... }`
 - Modern styles are the default `:root` and baseline; Legacy styles are the overrides
 
 ### 6.3 JSX conditionals
+
 - Components that need structural changes (e.g., back/forward buttons) read `visualStyle` via a custom hook `useVisualStyle()`
 - Conditionally render or omit JSX based on style
 - Example: `{visualStyle === 'legacy' && <BackForwardButtons />}`
 
 ### 6.4 Settings UI
+
 - Add a new section in `SettingsModal` under Appearance (after Color theme):
   - Label: "Visual style"
   - Hint: "Modern is the redesigned look. Legacy is the previous design."

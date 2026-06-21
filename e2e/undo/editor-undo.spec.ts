@@ -52,7 +52,7 @@ async function createUserDataDir(vaultPath: string): Promise<string> {
   await fs.writeFile(
     path.join(dir, 'settings.json'),
     JSON.stringify({ vaultPath, saveMode: 'manual' }),
-    'utf8',
+    'utf8'
   )
   return dir
 }
