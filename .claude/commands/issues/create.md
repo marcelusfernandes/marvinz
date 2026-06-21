@@ -126,9 +126,22 @@ EOF
 - Retorne a URL da issue.
 - Resuma em 3-5 bullets: título, labels, seções incluídas, qualquer ajuste de auth que tenha sido necessário.
 
-### 7. Harness — predição da Fase 1 (não-fatal, opcional)
+### 7. Harness — emitir a predição na criação (NÃO-FATAL, §1.9)
 
-Esta skill cria **somente a issue** — não emite a predição aqui (não há branch para commitar o ledger). Mas para que a issue entre no complexity harness mesmo fora do `/squad`, **avise no relatório**: quando o trabalho começar (após `gh issue develop`), rodar `/harness:predict <n>` na feature branch emite o `PredictionVector` a priori. Ver `.claude/commands/harness/predict.md`. Pular isto nunca afeta a criação da issue (§1.9).
+A issue **nasce com a predição** (a criação é o gate obrigatório que garante cobertura — §503). Não há branch ainda para commitar o ledger, então a predição é **postada na issue** agora e a row é commitada depois, no work-start, por `/harness:predict` (que reusa este bloco — independência §1.6: prediz na triage, antes de implementar).
+
+Passos (cada um não-fatal; se falhar, registre o que deu e siga — nunca trava a criação):
+
+1. Compute o `PredictionVector` seguindo `.claude/commands/harness/predict.md` (StructuralSignals via grep nos arquivos-alvo prováveis inferidos da issue; size/risks do corpo). Honestidade §1.3: `AgentSignals` são fracos fora do `/squad` (sem deliberação multi-agente) — registre como estão, não infle; `max_node_centrality` fica `null`.
+2. Poste o vetor na issue como comentário, com marcador, para o work-start reusar:
+
+   ````bash
+   gh issue comment <n> --body "$(printf '%s\n```json\n%s\n```' '<!-- harness:prediction -->' '<PredictionVector JSON>')"
+   ````
+
+3. **Não** rode `record-prediction` aqui (sem branch). A row entra no `predictions.jsonl` no work-start.
+
+> Se o size for `L` → milestone + sub-issues (Passo 5 / regra abaixo): emita uma predição por **sub-issue** (o milestone é o acúmulo delas), não uma para o milestone.
 
 ---
 

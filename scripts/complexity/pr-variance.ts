@@ -6,7 +6,8 @@
  *
  * `buildVariance` e `renderComment` são PUROS (testáveis). O CLI lê a predição
  * do ledger + os actuals baratos (env, do diff) e imprime o comentário; o
- * workflow faz upsert dele na PR. Sem predição → imprime nada (no-op).
+ * workflow faz upsert dele na PR. Sem predição → advisory de cobertura (§503),
+ * pedindo `/harness:predict`.
  */
 
 import { resolve } from 'node:path'
@@ -29,7 +30,11 @@ export type Variance = {
 }
 
 // Orçamento grosseiro de arquivos por banda de tamanho (heurística, advisory).
-const SIZE_FILE_BUDGET: Record<string, number> = { low: 5, medium: 20, high: Number.POSITIVE_INFINITY }
+const SIZE_FILE_BUDGET: Record<string, number> = {
+  low: 5,
+  medium: 20,
+  high: Number.POSITIVE_INFINITY,
+}
 
 export function buildVariance(prediction: PredictionVector, actuals: Actuals): Variance {
   const predicted_fanout = prediction.structural.downstream_fanout.value
@@ -37,13 +42,13 @@ export function buildVariance(prediction: PredictionVector, actuals: Actuals): V
   const flags: string[] = []
   if (fanout_underestimate > 0) {
     flags.push(
-      `blast radius maior que o previsto: ${actuals.downstreamFanout} importers reais vs ${predicted_fanout} previstos (+${fanout_underestimate}).`,
+      `blast radius maior que o previsto: ${actuals.downstreamFanout} importers reais vs ${predicted_fanout} previstos (+${fanout_underestimate}).`
     )
   }
   const budget = SIZE_FILE_BUDGET[prediction.predicted_size] ?? Number.POSITIVE_INFINITY
   if (actuals.filesTouched > budget) {
     flags.push(
-      `mais arquivos (${actuals.filesTouched}) que o esperado para size '${prediction.predicted_size}' (~${budget}).`,
+      `mais arquivos (${actuals.filesTouched}) que o esperado para size '${prediction.predicted_size}' (~${budget}).`
     )
   }
   return {
@@ -66,10 +71,24 @@ export function renderComment(v: Variance): string {
   return `${head}\n${summary}\n\n${v.flags.map((f) => `- ⚠️ ${f}`).join('\n')}${foot}`
 }
 
+/**
+ * Advisory de cobertura: a issue não tem predição no ledger (§503). Sem o par
+ * predição×outcome a calibração fica cega para esta issue. Não bloqueia (§1.7).
+ */
+export function renderNoPrediction(issueId: string): string {
+  return (
+    `${VARIANCE_MARKER}\n### 🔭 Harness — sem predição (advisory)\n\n` +
+    `⚠️ A issue #${issueId} não tem **prediction** no ledger — sem ela não há par ` +
+    `predição×outcome para calibrar. Rode \`/harness:predict ${issueId}\` na branch de ` +
+    `trabalho para registrar a predição (issues criadas via \`/issues:create\` já a emitem).` +
+    `\n\n_Advisory — não bloqueia o merge (§1.7)._`
+  )
+}
+
 export function main(
   argv: string[] = process.argv.slice(2),
   env: NodeJS.ProcessEnv = process.env,
-  repoRoot?: string,
+  repoRoot?: string
 ): number {
   const issueId = argv[0]
   if (!issueId) {
@@ -85,7 +104,8 @@ export function main(
   // Última predição da issue (last write wins).
   const prediction = [...readPredictions(repoRoot)].reverse().find((p) => p.issue_id === issueId)
   if (!prediction) {
-    // Sem predição → no-op advisory. Imprime nada; o workflow não comenta.
+    // Sem predição → advisory de cobertura (§503): pede pra rodar /harness:predict.
+    process.stdout.write(renderNoPrediction(issueId) + '\n')
     return 0
   }
   const variance = buildVariance(prediction, { filesTouched: files, downstreamFanout: fanout })
