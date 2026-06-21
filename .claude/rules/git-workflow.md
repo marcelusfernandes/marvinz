@@ -36,6 +36,13 @@ As regras abaixo são **enforced server-side** por GitHub branch rulesets — n�
 - **Tags `v*`**: create/update/delete restrito a admin — só você dispara release (ver [`commands/release.md`](../commands/release.md)).
 - **CODEOWNERS** (`.github/CODEOWNERS`): PRs que tocam `.github/`, `electron/`, `.claude/rules/`, `docs/`, `package.json`, `package-lock.json` exigem review de `@marcelusfernandes`.
 
+## Milestone completeness gate
+
+Um milestone não pode ser promovido pra `main` incompleto (workflow `milestone-gate.yml`, #506). As feature branches saem de `develop` normalmente — **sem** integration branch.
+
+- **PR de release `develop → main`**: **setar o milestone na PR**. O gate (`scripts/ci/milestone-gate.ts`) checa todas as issues desse milestone; se houver alguma aberta, **falha e lista as pendentes**. Sem milestone na PR → no-op.
+- **Feature PRs `→ develop`**: gate roda como **advisory** (não bloqueia) — deriva o milestone da issue linkada (`Closes #N`) e comenta o progresso (`k/n` issues fechadas), pra ninguém esquecer uma sub-issue no board.
+
 ## Branch naming
 
 Slug em kebab-case. Prefixo conforme o tipo:
