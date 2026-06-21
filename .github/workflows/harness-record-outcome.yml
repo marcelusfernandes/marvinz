@@ -1,10 +1,12 @@
 name: Harness — record outcome
 
 # On merge into develop, measure the OutcomeRecord from git/gh and append it to
-# the complexity ledger (Phase 2) — this is automation, the §1.6 separate
-# measurement step. Non-fatal in spirit: if there's no linked issue, it no-ops.
-# NOTE: develop is now protected (branch ruleset requires PRs), so the direct
-# ledger commit is PARKED below (`if: false`) until a bypass token is wired in.
+# the complexity ledger (Phase 2) — the §1.6 separate measurement step.
+# develop is protected (PRs only), so outcomes are NOT committed to develop:
+# they are appended to the orphan `complexity-ledger` data branch using the
+# native GITHUB_TOKEN (contents:write) — no secret/PAT, no branch drift (the
+# orphan branch holds only the ledger). Non-fatal (§1.9): a missing linked
+# issue, a measurement failure, or push contention never fails the workflow.
 
 on:
   pull_request:
@@ -30,14 +32,15 @@ jobs:
 
       - run: npm ci
 
-      - name: Measure outcome and append to ledger
+      - name: Measure outcome
+        id: measure
         env:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.number }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
         run: |
-          set -euo pipefail
+          set -uo pipefail
 
           # Resolve the linked issue from the PR body (Closes/Fixes/Resolves #N).
           # PRs into develop don't populate closingIssuesReferences natively.
@@ -45,18 +48,34 @@ jobs:
           ISSUE=$(printf '%s' "$BODY" | grep -oiE '(close[sd]?|fix(e[sd])?|resolve[sd]?) +#[0-9]+' | grep -oE '[0-9]+' | head -1 || true)
           if [ -z "${ISSUE:-}" ]; then
             echo "No linked issue in PR body — nothing to measure."
+            echo "have_outcome=0" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          echo "Measuring outcome for issue #$ISSUE"
+          echo "Measuring outcome for issue #$ISSUE (PR #$PR)"
+          echo "issue=$ISSUE" >> "$GITHUB_OUTPUT"
 
           export HARNESS_ISSUE="$ISSUE"
           export HARNESS_VERSION=$(npx tsx scripts/complexity/harness-version.ts claude-opus-4-8)
+          export HARNESS_PR_NUMBER="$PR"
+          export HARNESS_MERGE_SHA="$MERGE_SHA"
           export HARNESS_FILES=$(gh pr view "$PR" --json files --jq '.files | length')
           export HARNESS_ITERATIONS=$(gh pr view "$PR" --json commits --jq '.commits | length')
           export HARNESS_REVIEW_CYCLES=$(gh pr view "$PR" --json reviews --jq '[.reviews[] | select(.state=="APPROVED" or .state=="CHANGES_REQUESTED" or .state=="COMMENTED")] | length')
           export HARNESS_CHANGES_REQUESTED=$(gh pr view "$PR" --json reviews --jq '[.reviews[] | select(.state=="CHANGES_REQUESTED")] | length')
           export HARNESS_CREATED_AT=$(gh pr view "$PR" --json createdAt --jq '.createdAt')
           export HARNESS_MERGED_AT=$(gh pr view "$PR" --json mergedAt --jq '.mergedAt')
+
+          # Without `set -e`, a failed gh call leaves the var empty; Number("")=0 is a
+          # valid int to Zod, so we'd record a syntactically-valid all-zero outcome.
+          # Bail instead — never land garbage on the ledger (§1.9: skip, don't fail).
+          for k in HARNESS_VERSION HARNESS_FILES HARNESS_ITERATIONS HARNESS_REVIEW_CYCLES \
+                   HARNESS_CHANGES_REQUESTED HARNESS_CREATED_AT HARNESS_MERGED_AT; do
+            if [ -z "${!k}" ]; then
+              echo "::warning::$k empty (gh call failed?) — skipping outcome (non-fatal §1.9)"
+              echo "have_outcome=0" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          done
 
           # Recompute downstream fanout of the changed src/electron files (best-effort grep).
           CHANGED=$(gh pr view "$PR" --json files --jq '.files[].path' | grep -E '^(src|electron)/.*\.(ts|tsx)$' | grep -v __tests__ || true)
@@ -67,24 +86,44 @@ jobs:
           fi
           export HARNESS_FANOUT="$FANOUT"
 
-          # Build the OutcomeRecord and append it (both CLIs validate; never throw).
-          npx tsx scripts/complexity/measure-outcome.ts | npx tsx scripts/complexity/record-outcome.ts
+          # Build + validate the OutcomeRecord (measure-outcome parses via Zod) into a
+          # single JSON line. Non-fatal: a failure here just skips this run (§1.9).
+          if npx tsx scripts/complexity/measure-outcome.ts > outcome.json; then
+            echo "have_outcome=1" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::measure-outcome failed — skipping (non-fatal §1.9)"
+            echo "have_outcome=0" >> "$GITHUB_OUTPUT"
+          fi
 
-      # PARKED: develop now requires PRs (branch ruleset), so the bot can no
-      # longer push the ledger row directly. Re-enable with a bypass token
-      # (fine-grained PAT / GitHub App in the develop ruleset bypass list)
-      # when revisiting the harness ledger storage.
-      - name: Commit the ledger row
-        if: false
+      - name: Append to orphan complexity-ledger branch
+        if: steps.measure.outputs.have_outcome == '1'
+        env:
+          ISSUE: ${{ steps.measure.outputs.issue }}
         run: |
-          set -euo pipefail
-          if git diff --quiet -- _complexity-ledger/outcomes.jsonl; then
-            echo "No ledger change to commit."
+          set -uo pipefail
+          # outcome.json is one validated OutcomeRecord JSON line. Append it to the
+          # orphan data branch via a worktree, so this checkout stays untouched.
+          # Re-fetch + reset + re-append per attempt → race-safe against concurrent merges.
+          if ! git fetch origin complexity-ledger 2>/dev/null; then
+            echo "::warning::complexity-ledger branch not found — skipping (non-fatal §1.9)"
             exit 0
           fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add _complexity-ledger/outcomes.jsonl
-          git commit -m "chore: record outcome via harness automation [skip ci]"
-          git pull --rebase origin develop
-          git push origin HEAD:develop
+          git worktree add --force /tmp/ledger origin/complexity-ledger
+          for attempt in 1 2 3; do
+            git -C /tmp/ledger fetch origin complexity-ledger
+            git -C /tmp/ledger reset --hard origin/complexity-ledger
+            cat outcome.json >> /tmp/ledger/_complexity-ledger/outcomes.jsonl
+            git -C /tmp/ledger add _complexity-ledger/outcomes.jsonl
+            git -C /tmp/ledger \
+              -c user.name="github-actions[bot]" \
+              -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+              commit -m "chore: record outcome for #$ISSUE [skip ci]"
+            if git -C /tmp/ledger push origin HEAD:complexity-ledger; then
+              echo "Recorded outcome for #$ISSUE on complexity-ledger."
+              exit 0
+            fi
+            echo "push contention — retry $attempt"
+            sleep $((attempt * 3))
+          done
+          echo "::warning::could not push outcome after retries (non-fatal §1.9)"
+          exit 0
