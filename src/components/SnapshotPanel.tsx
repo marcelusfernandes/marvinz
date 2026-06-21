@@ -56,9 +56,7 @@ export function SnapshotPanel({
         return
       }
       setState({ kind: 'ready', versions })
-      const match = initialTurnId
-        ? versions.find((v) => v.turnId === initialTurnId)
-        : undefined
+      const match = initialTurnId ? versions.find((v) => v.turnId === initialTurnId) : undefined
       const preferred = match ?? versions[0]
       setSelected({ turnId: preferred.turnId, content: null, loading: true, error: null })
     } catch (err) {
@@ -83,22 +81,18 @@ export function SnapshotPanel({
           setSelected((prev) =>
             prev && prev.turnId === turnId
               ? { ...prev, loading: false, error: friendlyError(res.error) }
-              : prev,
+              : prev
           )
           return
         }
         setSelected((prev) =>
-          prev && prev.turnId === turnId
-            ? { ...prev, content: res.data, loading: false }
-            : prev,
+          prev && prev.turnId === turnId ? { ...prev, content: res.data, loading: false } : prev
         )
       } catch (err) {
         if (cancelled) return
         const message = err instanceof Error ? err.message : 'Failed to read snapshot'
         setSelected((prev) =>
-          prev && prev.turnId === turnId
-            ? { ...prev, loading: false, error: message }
-            : prev,
+          prev && prev.turnId === turnId ? { ...prev, loading: false, error: message } : prev
         )
       }
     })()
@@ -175,20 +169,15 @@ export function SnapshotPanel({
         <div className="snapshot-body">
           <aside className="snapshot-list" aria-label="Versions list">
             {state.kind === 'loading' && <div className="snapshot-empty">Loading…</div>}
-            {state.kind === 'error' && (
-              <div className="snapshot-error">{state.message}</div>
-            )}
+            {state.kind === 'error' && <div className="snapshot-error">{state.message}</div>}
             {state.kind === 'empty' && (
-              <div className="snapshot-empty">
-                No saved versions for this file yet.
-              </div>
+              <div className="snapshot-empty">No saved versions for this file yet.</div>
             )}
             {state.kind === 'ready' && (
               <ul role="listbox" aria-label="Available versions" className="snapshot-list-ul">
                 {state.versions.map((v) => {
                   const active = selected?.turnId === v.turnId
-                  const size =
-                    v.files.find((f) => f.relPath === relPath)?.sizeBefore ?? 0
+                  const size = v.files.find((f) => f.relPath === relPath)?.sizeBefore ?? 0
                   return (
                     <li key={v.turnId}>
                       <button
@@ -206,7 +195,9 @@ export function SnapshotPanel({
                             {new Date(v.timestamp).toLocaleTimeString()}
                           </span>
                           <span>{formatBytes(size)}</span>
-                          <span className="snapshot-version-trigger">{labelForTrigger(v.trigger)}</span>
+                          <span className="snapshot-version-trigger">
+                            {labelForTrigger(v.trigger)}
+                          </span>
                         </span>
                       </button>
                     </li>
@@ -221,9 +212,7 @@ export function SnapshotPanel({
               <div className="snapshot-placeholder">Select a version to see the diff.</div>
             )}
             {selected?.loading && <div className="snapshot-placeholder">Loading snapshot…</div>}
-            {selected?.error && (
-              <div className="snapshot-error">{selected.error}</div>
-            )}
+            {selected?.error && <div className="snapshot-error">{selected.error}</div>}
             {selected && selected.content !== null && (
               <DiffViewer
                 before={selected.content}
@@ -274,7 +263,7 @@ function labelForTrigger(trigger: SnapshotManifest['trigger']): string {
 }
 
 const ERROR_MESSAGES: Record<string, string> = {
-  SNAPSHOT_NO_VAULT: 'No vault is open.',
+  SNAPSHOT_NO_VAULT: 'No folder is open.',
   SNAPSHOT_INVALID_TURN_ID: 'Invalid version identifier.',
   SNAPSHOT_INVALID_REL_PATH: 'Invalid file path.',
   SNAPSHOT_INTERNAL_ERROR: 'Internal snapshot error. Please try again.',
