@@ -12,6 +12,7 @@ export const metadata: Metadata = {
   title: "Changelog — Marvinz",
   description:
     "What's shipped, what we're building now, and what's next for Marvinz — the visual workspace for Claude Code & Codex.",
+  alternates: { canonical: "/changelog" },
 };
 
 export default function ChangelogPage() {

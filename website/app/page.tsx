@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import "./v2.css";
 import { TopBar } from "@/components/TopBar";
 import { Footer } from "@/components/Footer";
@@ -11,6 +12,10 @@ import { StepsRow } from "@/components/v2/StepsRow";
 import { FeatureShowcase } from "@/components/v2/FeatureShowcase";
 import { MockupSpreadV2 } from "@/components/v2/MockupSpreadV2";
 import { V2ThemeDefault } from "@/components/v2/V2ThemeDefault";
+
+export const metadata: Metadata = {
+  alternates: { canonical: "/" },
+};
 
 export default function Home() {
   return (

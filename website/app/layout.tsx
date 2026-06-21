@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import { GeistSans } from "geist/font/sans";
 import { GeistMono } from "geist/font/mono";
+import { SITE_URL } from "@/lib/site";
 import "./globals.css";
 
 const inter = Inter({
@@ -15,6 +16,7 @@ const SITE_DESCRIPTION =
   "Where AI output becomes knowledge you can navigate. Point Marvinz at your markdown vault and read, navigate, and validate everything the agent produces.";
 
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
   title: SITE_TITLE,
   description: SITE_DESCRIPTION,
   applicationName: "Marvinz",
@@ -23,6 +25,7 @@ export const metadata: Metadata = {
     description: SITE_DESCRIPTION,
     siteName: "Marvinz",
     type: "website",
+    locale: "en_US",
   },
   twitter: {
     card: "summary_large_image",
