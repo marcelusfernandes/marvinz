@@ -27,6 +27,22 @@ A regra é não-negociável. Se o usuário pedir pra pular ("é só uma mudança
 - `develop` → desenvolvimento ativo. Base de toda branch nova.
 - `<type>/<slug>` → feature/fix, criadas a partir de `develop`.
 
+## Branch protection (enforced via rulesets)
+
+As regras abaixo são **enforced server-side** por GitHub branch rulesets — não são só convenção. O bypass é `Repository admin` (você); ninguém mais fura. Push direto em `main`/`develop` é bloqueado — tudo via PR.
+
+- **`main`**: PR obrigatório + **1 approval** · **só merge commit** (squash/rebase bloqueados) · **commits assinados** (signed) · sem force-push/delete. Como você não pode aprovar o próprio PR, o promote `develop → main` é mergeado com `gh pr merge --merge --admin` — o `--admin` usa o bypass de admin pra satisfazer o approval e a assinatura.
+- **`develop`**: PR obrigatório (**0 approvals**) · **squash ou merge commit** (rebase bloqueado) · sem force-push/delete. Collaborators (Write) abrem PR e fazem self-merge aqui; não alcançam `main` nem tags.
+- **Tags `v*`**: create/update/delete restrito a admin — só você dispara release (ver [`commands/release.md`](../commands/release.md)).
+- **CODEOWNERS** (`.github/CODEOWNERS`): PRs que tocam `.github/`, `electron/`, `.claude/rules/`, `docs/`, `package.json`, `package-lock.json` exigem review de `@marcelusfernandes`.
+
+## Milestone completeness gate
+
+Um milestone não pode ser promovido pra `main` incompleto (workflow `milestone-gate.yml`, #506). As feature branches saem de `develop` normalmente — **sem** integration branch.
+
+- **PR de release `develop → main`**: **setar o milestone na PR**. O gate (`scripts/ci/milestone-gate.ts`) checa todas as issues desse milestone; se houver alguma aberta, **falha e lista as pendentes**. Sem milestone na PR → no-op.
+- **Feature PRs `→ develop`**: gate roda como **advisory** (não bloqueia) — deriva o milestone da issue linkada (`Closes #N`) e comenta o progresso (`k/n` issues fechadas), pra ninguém esquecer uma sub-issue no board.
+
 ## Branch naming
 
 Slug em kebab-case. Prefixo conforme o tipo:
@@ -48,10 +64,11 @@ Exemplos: `feat/wikilinks`, `fix/pty-spawn-race`, `refactor/file-tree`, `chore/u
 
 1. `git checkout develop && git pull`
 2. `git checkout -b <type>/<slug>`
-3. Implementar e commitar na branch
-4. **Aguardar usuário confirmar** que funciona
-5. **Após confirmação**: `git push -u origin <type>/<slug>` e `gh pr create --base develop`
-6. Parar. Usuário revisa e decide o merge.
+3. **Garantir a predição do harness (cobertura obrigatória, §503)**: se a issue ainda não tem `PredictionVector` no ledger (`_complexity-ledger/predictions.jsonl`), rode `/harness:predict <n>` **antes de implementar** — emite e commita a row na feature branch. Issues criadas via `/issues:create` já trazem o bloco `<!-- harness:prediction -->`, e o predict o reusa. Não-fatal (§1.9): se a emissão falhar, registre e siga.
+4. Implementar e commitar na branch
+5. **Aguardar usuário confirmar** que funciona
+6. **Após confirmação**: `git push -u origin <type>/<slug>` e `gh pr create --base develop`
+7. Parar. Usuário revisa e decide o merge.
 
 ## Regras invioláveis
 

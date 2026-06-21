@@ -24,6 +24,7 @@
     "vite.config.ts",
     "electron/**/*.ts",
     "src/shared/**/*.ts",
-    "scripts/complexity/**/*.ts"
+    "scripts/complexity/**/*.ts",
+    "scripts/ci/**/*.ts"
   ]
 }

@@ -54,11 +54,14 @@ jobs:
           fi
           export HARNESS_FANOUT="$FANOUT"
 
+          # pr-variance.ts always prints an advisory when the issue resolves: either
+          # the variance card (prediction found) or a "no prediction — run
+          # /harness:predict" coverage advisory (§503). Empty output = error path only.
           npx tsx scripts/complexity/pr-variance.ts "$ISSUE" > variance.md || true
           if [ -s variance.md ]; then
             echo "skip=0" >> "$GITHUB_OUTPUT"
           else
-            echo "No prediction for #$ISSUE — advisory no-op."
+            echo "pr-variance produced no output for #$ISSUE — skipping comment."
             echo "skip=1" >> "$GITHUB_OUTPUT"
           fi
 

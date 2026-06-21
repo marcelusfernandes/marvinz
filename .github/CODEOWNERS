@@ -1,0 +1,9 @@
+# Sensitive paths require @marcelusfernandes review before merge.
+# Order matters: the last matching pattern wins.
+
+/.github/          @marcelusfernandes
+/electron/         @marcelusfernandes
+/.claude/rules/    @marcelusfernandes
+/docs/             @marcelusfernandes
+package.json       @marcelusfernandes
+package-lock.json  @marcelusfernandes

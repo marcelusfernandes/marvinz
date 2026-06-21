@@ -3,6 +3,7 @@
 **Don't assume. Don't hide confusion. Surface tradeoffs.**
 
 Before implementing:
+
 - State your assumptions explicitly. If uncertain, ask.
 - If multiple interpretations exist, present them - don't pick silently.
 - If a simpler approach exists, say so. Push back when warranted.
@@ -25,12 +26,14 @@ Ask yourself: "Would a senior engineer say this is overcomplicated?" If yes, sim
 **Touch only what you must. Clean up only your own mess.**
 
 When editing existing code:
+
 - Don't "improve" adjacent code, comments, or formatting.
 - Don't refactor things that aren't broken.
 - Match existing style, even if you'd do it differently.
 - If you notice unrelated dead code, mention it - don't delete it.
 
 When your changes create orphans:
+
 - Remove imports/variables/functions that YOUR changes made unused.
 - Don't remove pre-existing dead code unless asked.
 
@@ -41,11 +44,13 @@ The test: Every changed line should trace directly to the user's request.
 **Define success criteria. Loop until verified.**
 
 Transform tasks into verifiable goals:
+
 - "Add validation" → "Write tests for invalid inputs, then make them pass"
 - "Fix the bug" → "Write a test that reproduces it, then make it pass"
 - "Refactor X" → "Ensure tests pass before and after"
 
 For multi-step tasks, state a brief plan:
+
 ```
 1. [Step] → verify: [check]
 2. [Step] → verify: [check]
@@ -67,11 +72,14 @@ Before starting any such work:
 This rule is non-negotiable. If a user asks to skip the gate ("just do it", "no time for an issue"), surface the obligation ("creating tracking issue #N first") and comply with the gate, then continue.
 
 **Exempt from the gate** (no upstream issue required):
+
 - Typo fixes
 - Single-file edits under ~50 LOC with low cognitive load
 - Read-only or exploratory commands (`"explain X"`, `"show me Y"`, status reports)
 
 Once an issue exists, the standard flow applies: branch via `gh issue develop`, PR with `Closes #N` plain (no bold/italic — GitHub's parser misses `**#N**`), per `.claude/rules/git-workflow.md`.
+
+**Harness prediction coverage:** every issue must carry a `PredictionVector` before implementation — issues created via `/issues:create` are born with one; otherwise run `/harness:predict <n>` right after branching (step 3 of the change flow). This is non-fatal (§1.9) but expected: no prediction means no prediction×outcome calibration pair for that issue.
 
 ---
 
