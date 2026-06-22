@@ -7,7 +7,7 @@ import { seedFromMain } from '../../lib/settingsStore'
 
 function renderModal() {
   return render(
-    <SettingsModal onClose={vi.fn()} layoutMode="editor-center" onLayoutChange={vi.fn()} />,
+    <SettingsModal onClose={vi.fn()} layoutMode="editor-center" onLayoutChange={vi.fn()} />
   )
 }
 

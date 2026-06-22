@@ -79,7 +79,7 @@ function mimeFor(filePath: string): string {
  */
 async function simulateHandlerFixed(
   activeVaultPath: string,
-  filePath: string,
+  filePath: string
 ): Promise<{ status: number; contentType?: string; body?: Buffer }> {
   try {
     if (!activeVaultPath) return { status: 403 }
@@ -100,7 +100,7 @@ async function simulateHandlerFixed(
  */
 async function simulateHandlerCurrent(
   activeVaultPath: string,
-  filePath: string,
+  filePath: string
 ): Promise<{ status: number }> {
   try {
     if (!activeVaultPath) return { status: 403 }
@@ -142,7 +142,9 @@ describe('marvin:// — scenario 1: absolute path outside vault', () => {
   })
 
   it('assertInsideVaultAsync throws MARVIN_OUTSIDE_VAULT for /etc/passwd', async () => {
-    await expect(assertInsideVaultAsync(vault, '/etc/passwd')).rejects.toThrow('MARVIN_OUTSIDE_VAULT')
+    await expect(assertInsideVaultAsync(vault, '/etc/passwd')).rejects.toThrow(
+      'MARVIN_OUTSIDE_VAULT'
+    )
   })
 })
 
@@ -397,6 +399,8 @@ describe('assertInsideVaultAsync — marvin:// boundary contract', () => {
   })
 
   it('rejects path outside vault via absolute path', async () => {
-    await expect(assertInsideVaultAsync(vault, '/etc/hosts')).rejects.toThrow('MARVIN_OUTSIDE_VAULT')
+    await expect(assertInsideVaultAsync(vault, '/etc/hosts')).rejects.toThrow(
+      'MARVIN_OUTSIDE_VAULT'
+    )
   })
 })

@@ -130,19 +130,13 @@ function AssistantMessageCardImpl({ sessionId, message }: Props) {
     }
   }
   return (
-    <ol
-      className="chat-timeline"
-      role="presentation"
-      onContextMenu={handleContextMenu}
-    >
+    <ol className="chat-timeline" role="presentation" onContextMenu={handleContextMenu}>
       {message.blocks.map((block) => {
         if (block.kind === 'thinking') {
           return (
             <TimelineItem key={block.id} kind="thinking">
               <span className="chat-thinking-label">Thinking</span>
-              {block.text && (
-                <p className="chat-thinking-text">{block.text}</p>
-              )}
+              {block.text && <p className="chat-thinking-text">{block.text}</p>}
             </TimelineItem>
           )
         }
@@ -199,6 +193,5 @@ function AssistantMessageCardImpl({ sessionId, message }: Props) {
 export const AssistantMessageCard = memo(
   AssistantMessageCardImpl,
   // Intentional reference-only check; relies on store's immutable updates per message.
-  (prev, next) =>
-    prev.message === next.message && prev.sessionId === next.sessionId,
+  (prev, next) => prev.message === next.message && prev.sessionId === next.sessionId
 )

@@ -27,9 +27,7 @@ export function justReplacedPlugin(): Plugin<DecorationSet> {
         if (meta.type === 'add') {
           return next.add(
             tr.doc,
-            meta.ranges.map((r) =>
-              Decoration.inline(r.from, r.to, { class: 'pm-just-replaced' }),
-            ),
+            meta.ranges.map((r) => Decoration.inline(r.from, r.to, { class: 'pm-just-replaced' }))
           )
         }
         if (meta.type === 'clear') return DecorationSet.empty

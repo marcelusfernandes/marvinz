@@ -1,31 +1,68 @@
 import type { Extension } from '@codemirror/state'
 
 export type LangId =
-  | 'markdown' | 'json' | 'html' | 'javascript' | 'jsx' | 'typescript' | 'tsx'
-  | 'css' | 'yaml' | 'python' | 'rust' | 'go' | 'java' | 'cpp' | 'sql'
-  | 'xml' | 'php' | 'shell' | 'toml' | 'properties' | 'lua' | 'dockerfile'
+  | 'markdown'
+  | 'json'
+  | 'html'
+  | 'javascript'
+  | 'jsx'
+  | 'typescript'
+  | 'tsx'
+  | 'css'
+  | 'yaml'
+  | 'python'
+  | 'rust'
+  | 'go'
+  | 'java'
+  | 'cpp'
+  | 'sql'
+  | 'xml'
+  | 'php'
+  | 'shell'
+  | 'toml'
+  | 'properties'
+  | 'lua'
+  | 'dockerfile'
 
 const EXT_TO_ID: Record<string, LangId> = {
-  md: 'markdown', markdown: 'markdown',
-  json: 'json', jsonc: 'json',
-  html: 'html', htm: 'html',
-  js: 'javascript', mjs: 'javascript', cjs: 'javascript',
+  md: 'markdown',
+  markdown: 'markdown',
+  json: 'json',
+  jsonc: 'json',
+  html: 'html',
+  htm: 'html',
+  js: 'javascript',
+  mjs: 'javascript',
+  cjs: 'javascript',
   jsx: 'jsx',
   ts: 'typescript',
   tsx: 'tsx',
-  css: 'css', scss: 'css',
-  yml: 'yaml', yaml: 'yaml',
+  css: 'css',
+  scss: 'css',
+  yml: 'yaml',
+  yaml: 'yaml',
   py: 'python',
   rs: 'rust',
   go: 'go',
   java: 'java',
-  c: 'cpp', h: 'cpp', cc: 'cpp', cpp: 'cpp', hpp: 'cpp', cxx: 'cpp', hh: 'cpp',
+  c: 'cpp',
+  h: 'cpp',
+  cc: 'cpp',
+  cpp: 'cpp',
+  hpp: 'cpp',
+  cxx: 'cpp',
+  hh: 'cpp',
   sql: 'sql',
-  xml: 'xml', svg: 'xml',
+  xml: 'xml',
+  svg: 'xml',
   php: 'php',
-  sh: 'shell', bash: 'shell', zsh: 'shell',
+  sh: 'shell',
+  bash: 'shell',
+  zsh: 'shell',
   toml: 'toml',
-  ini: 'properties', cfg: 'properties', conf: 'properties',
+  ini: 'properties',
+  cfg: 'properties',
+  conf: 'properties',
   lua: 'lua',
 }
 

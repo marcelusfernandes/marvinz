@@ -38,9 +38,7 @@ describe('settingsStore — editor effects persistence', () => {
     const { setSetting, getSettings } = await import('../../lib/settingsStore')
     await setSetting('editorEffectCaretSlide', false)
     expect(getSettings().editorEffectCaretSlide).toBe(false)
-    expect(window.localStorage.getItem(`${LS_PREFIX}editorEffectCaretSlide`)).toBe(
-      'false',
-    )
+    expect(window.localStorage.getItem(`${LS_PREFIX}editorEffectCaretSlide`)).toBe('false')
     expect(window.marvin.settings.set).toHaveBeenCalledWith({
       editorEffectCaretSlide: false,
     })

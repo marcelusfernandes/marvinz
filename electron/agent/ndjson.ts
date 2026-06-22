@@ -25,7 +25,7 @@ export class NdjsonStream {
   constructor(
     onLine: (obj: unknown) => void,
     onMalformed: (line: string, err: Error) => void,
-    onFatal: (err: Error) => void,
+    onFatal: (err: Error) => void
   ) {
     this.#onLine = onLine
     this.#onMalformed = onMalformed

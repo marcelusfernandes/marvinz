@@ -12,7 +12,7 @@ function isClaudeMeta(rel: string): boolean {
 export function flattenTree(
   nodes: FileNode[],
   vaultPath: string,
-  opts?: { includeClaudeDir?: boolean },
+  opts?: { includeClaudeDir?: boolean }
 ): PaletteItem[] {
   const includeClaudeDir = opts?.includeClaudeDir ?? false
   const out: PaletteItem[] = []
@@ -21,9 +21,7 @@ export function flattenTree(
       n.children?.forEach(walk)
       return
     }
-    const rel = n.path.startsWith(vaultPath + '/')
-      ? n.path.slice(vaultPath.length + 1)
-      : n.path
+    const rel = n.path.startsWith(vaultPath + '/') ? n.path.slice(vaultPath.length + 1) : n.path
     if (!includeClaudeDir && isClaudeMeta(rel)) return
     out.push({
       path: n.path,

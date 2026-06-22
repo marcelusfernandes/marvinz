@@ -1,10 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import {
-  rankPaletteItems,
-  stripBasename,
-  type PaletteItem,
-} from '../lib/paletteRanker'
+import { rankPaletteItems, stripBasename, type PaletteItem } from '../lib/paletteRanker'
 import { fileIconFor } from '../lib/fileIcons'
 import { Icon } from './Icon'
 import { HighlightedMatch } from './HighlightedMatch'
@@ -129,7 +125,7 @@ export function MentionPicker({
 }: MentionPickerProps) {
   const results = useMemo(
     () => rankPaletteItems(items, query, maxResults),
-    [items, query, maxResults],
+    [items, query, maxResults]
   )
 
   const [selectedIndex, setSelectedIndex] = useState(0)
@@ -180,7 +176,7 @@ export function MentionPicker({
       maxWidth: MAX_WIDTH,
       maxHeight: MAX_HEIGHT,
     }),
-    [anchor.x, anchor.y],
+    [anchor.x, anchor.y]
   )
 
   if (results.length === 0) return null
@@ -199,11 +195,7 @@ export function MentionPicker({
             onMouseEnter={() => setSelectedIndex(i)}
             onClick={() => onSelect(r.item)}
           >
-            <Icon
-              name={fileIconFor(r.item.name)}
-              className="mention-picker-icon"
-              size={14}
-            />
+            <Icon name={fileIconFor(r.item.name)} className="mention-picker-icon" size={14} />
             <span className="mention-picker-name">
               <HighlightedMatch text={r.item.name} matches={r.nameMatches} />
             </span>
@@ -220,6 +212,6 @@ export function MentionPicker({
         )
       })}
     </div>,
-    document.body,
+    document.body
   )
 }

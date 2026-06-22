@@ -31,13 +31,7 @@ const FULL_HEIGHT = '480px'
  * full diff" button expands to `FULL_HEIGHT` or, if `onOpenInEditor` is
  * provided, delegates to the parent to open the file in the main editor.
  */
-function DiffCardImpl({
-  collapsed = false,
-  oldText,
-  newText,
-  fileName,
-  onOpenInEditor,
-}: Props) {
+function DiffCardImpl({ collapsed = false, oldText, newText, fileName, onOpenInEditor }: Props) {
   if (collapsed) return null
 
   return (
@@ -52,12 +46,7 @@ function DiffCardImpl({
 
 type MountedProps = Omit<Props, 'collapsed'>
 
-function DiffCardMounted({
-  oldText,
-  newText,
-  fileName,
-  onOpenInEditor,
-}: MountedProps) {
+function DiffCardMounted({ oldText, newText, fileName, onOpenInEditor }: MountedProps) {
   const hostRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<MergeView | null>(null)
   const [fullHeight, setFullHeight] = useState(false)
@@ -102,11 +91,7 @@ function DiffCardMounted({
       />
       <div className="chat-diff-card-actions">
         {onOpenInEditor ? (
-          <button
-            type="button"
-            className="chat-tool-expand"
-            onClick={onOpenInEditor}
-          >
+          <button type="button" className="chat-tool-expand" onClick={onOpenInEditor}>
             Open in editor
           </button>
         ) : (

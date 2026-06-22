@@ -159,9 +159,7 @@ const isDocxTab = (t: Tab): t is DocxTab => t.type === 'docx'
 const isXlsxTab = (t: Tab): t is XlsxTab => t.type === 'xlsx'
 const isEmptyTab = (t: Tab): t is EmptyTab => t.type === 'empty'
 
-type Dialog =
-  | { kind: 'rename'; target: string; isDir: boolean }
-  | null
+type Dialog = { kind: 'rename'; target: string; isDir: boolean } | null
 
 let tabCounter = 0
 const newTabId = () => `tab-${++tabCounter}`
@@ -253,7 +251,7 @@ function findNodeByPath(nodes: FileNode[], path: string): FileNode | null {
 function currentFolderFromSelection(
   selectedPaths: Set<string>,
   nodes: FileNode[],
-  vaultPath: string,
+  vaultPath: string
 ): string {
   if (selectedPaths.size === 0) return vaultPath
   const [path] = selectedPaths
@@ -276,7 +274,8 @@ function humanizeError(err: unknown): string {
   }
   if (/MARVIN_BINARY/.test(raw)) return 'Binary file — opened externally instead.'
   if (/MARVIN_IS_DIRECTORY/.test(raw)) return 'This is a folder, not a file.'
-  if (/MARVIN_OUTSIDE_VAULT/.test(raw)) return 'File is no longer in the active vault. Refreshing tree…'
+  if (/MARVIN_OUTSIDE_VAULT/.test(raw))
+    return 'File is no longer in the active folder. Refreshing tree…'
   const tooLarge = raw.match(/MARVIN_TOO_LARGE: (\d+)/)
   if (tooLarge) {
     const mb = (Number(tooLarge[1]) / (1024 * 1024)).toFixed(1)
@@ -309,15 +308,12 @@ export default function App() {
   // non-shift gesture (plain click or Cmd-click).
   const [anchorPath, setAnchorPath] = useState<string | null>(null)
   const [creatingIn, setCreatingIn] = useState<CreatingIn | null>(null)
-  const [snapshotPanel, setSnapshotPanel] = useState<
-    | {
-        filePath: string
-        relPath: string
-        currentContent: string
-        initialTurnId?: string
-      }
-    | null
-  >(null)
+  const [snapshotPanel, setSnapshotPanel] = useState<{
+    filePath: string
+    relPath: string
+    currentContent: string
+    initialTurnId?: string
+  } | null>(null)
   const [turnToast, setTurnToast] = useState<{ turnId: string; files: string[] } | null>(null)
   const [externalToast, setExternalToast] = useState<{
     filePath: string
@@ -376,10 +372,10 @@ export default function App() {
     }
   }, [sidebarHidden])
   const [sidebarWidth, setSidebarWidthState] = useState<number>(() =>
-    readStoredWidth(SIDEBAR_WIDTH_KEY, DEFAULT_SIDEBAR_WIDTH, MIN_SIDEBAR, MAX_SIDEBAR),
+    readStoredWidth(SIDEBAR_WIDTH_KEY, DEFAULT_SIDEBAR_WIDTH, MIN_SIDEBAR, MAX_SIDEBAR)
   )
   const [agentsWidth, setAgentsWidthState] = useState<number>(() =>
-    readStoredWidth(AGENTS_WIDTH_KEY, DEFAULT_AGENTS_WIDTH, MIN_AGENTS, MAX_AGENTS),
+    readStoredWidth(AGENTS_WIDTH_KEY, DEFAULT_AGENTS_WIDTH, MIN_AGENTS, MAX_AGENTS)
   )
 
   const persistWidth = useCallback((key: string, value: number) => {
@@ -401,7 +397,7 @@ export default function App() {
         return next
       })
     },
-    [agentsWidth, persistWidth],
+    [agentsWidth, persistWidth]
   )
 
   const handleAgentsDelta = useCallback(
@@ -420,7 +416,7 @@ export default function App() {
         return next
       })
     },
-    [layoutMode, sidebarWidth, persistWidth],
+    [layoutMode, sidebarWidth, persistWidth]
   )
 
   const setLayoutMode = useCallback((mode: LayoutMode) => {
@@ -456,9 +452,7 @@ export default function App() {
   useEffect(() => {
     if (!activeTabId) return
     setEditorMru((prev) =>
-      prev[0] === activeTabId
-        ? prev
-        : [activeTabId, ...prev.filter((id) => id !== activeTabId)],
+      prev[0] === activeTabId ? prev : [activeTabId, ...prev.filter((id) => id !== activeTabId)]
     )
   }, [activeTabId])
 
@@ -466,7 +460,7 @@ export default function App() {
     const noteTabs = tabs.filter(isNoteTab)
     const rank = new Map(editorMru.map((id, i) => [id, i] as const))
     const ordered = [...noteTabs].sort(
-      (a, b) => (rank.get(a.id) ?? Infinity) - (rank.get(b.id) ?? Infinity),
+      (a, b) => (rank.get(a.id) ?? Infinity) - (rank.get(b.id) ?? Infinity)
     )
     const keep = new Set(ordered.slice(0, MAX_MOUNTED_EDITORS).map((t) => t.id))
     // Always keep the active tab mounted even if the MRU effect hasn't run yet
@@ -476,7 +470,7 @@ export default function App() {
     if (evicted.length > 0) {
       console.debug(
         `[App] unmounting ${evicted.length} editor(s) beyond MAX_MOUNTED_EDITORS=${MAX_MOUNTED_EDITORS} (rebuild-on-activate):`,
-        evicted.map((t) => t.path),
+        evicted.map((t) => t.path)
       )
     }
     return noteTabs.filter((t) => keep.has(t.id))
@@ -520,10 +514,7 @@ export default function App() {
           id: 'codex',
           name: 'Codex',
           binaryPath: codexPath,
-          installInstructions: [
-            'npm i -g @openai/codex',
-            'brew install codex',
-          ],
+          installInstructions: ['npm i -g @openai/codex', 'brew install codex'],
         },
       ])
       if (settings.vaultPath) {
@@ -596,8 +587,8 @@ export default function App() {
                     source,
                   },
                 }
-              : t,
-          ),
+              : t
+          )
         )
         return
       }
@@ -613,8 +604,8 @@ export default function App() {
                 version: t.version + 1,
                 pendingExternalChange: undefined,
               }
-            : t,
-        ),
+            : t
+        )
       )
       // For agent writes the snapshot:turn-completed toast already covers
       // multi-file batches, so we don't double-notify here.
@@ -637,7 +628,7 @@ export default function App() {
       if (!vaultPath) return
       const prefix = vaultPath + '/'
       if (!filePath.startsWith(prefix)) {
-        setError('File is outside the current vault')
+        setError('File is outside the current folder')
         return
       }
       const relPath = filePath.slice(prefix.length)
@@ -645,16 +636,14 @@ export default function App() {
       let current: string
       try {
         current =
-          openTab && isNoteTab(openTab)
-            ? openTab.content
-            : await window.marvin.file.read(filePath)
+          openTab && isNoteTab(openTab) ? openTab.content : await window.marvin.file.read(filePath)
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to read file')
         return
       }
       setSnapshotPanel({ filePath, relPath, currentContent: current, initialTurnId })
     },
-    [vaultPath, tabs],
+    [vaultPath, tabs]
   )
 
   const handleRewindToTurn = useCallback(
@@ -678,7 +667,7 @@ export default function App() {
         setError(err instanceof Error ? err.message : 'Failed to open versions panel')
       }
     },
-    [vaultPath, openSnapshotPanel],
+    [vaultPath, openSnapshotPanel]
   )
 
   const handleSnapshotRestored = useCallback(
@@ -687,25 +676,23 @@ export default function App() {
         const content = await readFreshContent(filePath)
         setTabs((prev) =>
           prev.map((t) =>
-            isNoteTab(t) && t.path === filePath
-              ? { ...t, content, version: t.version + 1 }
-              : t,
-          ),
+            isNoteTab(t) && t.path === filePath ? { ...t, content, version: t.version + 1 } : t
+          )
         )
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to reload file')
       }
     },
-    [readFreshContent],
+    [readFreshContent]
   )
 
   const paletteItemsBase = useMemo<PaletteItem[]>(
     () => (vaultPath ? flattenTree(tree, vaultPath) : []),
-    [tree, vaultPath],
+    [tree, vaultPath]
   )
   const paletteItemsWithMeta = useMemo<PaletteItem[]>(
     () => (vaultPath ? flattenTree(tree, vaultPath, { includeClaudeDir: true }) : []),
-    [tree, vaultPath],
+    [tree, vaultPath]
   )
 
   // (Global keyboard shortcuts effect is declared after openNewBrowserTab
@@ -749,7 +736,7 @@ export default function App() {
           (isImageTab(t) && t.path === path) ||
           (isPdfTab(t) && t.path === path) ||
           (isDocxTab(t) && t.path === path) ||
-          (isXlsxTab(t) && t.path === path),
+          (isXlsxTab(t) && t.path === path)
       )
       if (existing) {
         setActiveTabId(existing.id)
@@ -816,7 +803,7 @@ export default function App() {
         reportError(err)
       }
     },
-    [tabs, readFreshContent],
+    [tabs, readFreshContent]
   )
 
   // Navigate within the active tab (used by link clicks in markdown preview).
@@ -843,14 +830,14 @@ export default function App() {
                   back: [...t.back, t.path],
                   forward: [],
                 }
-              : t,
-          ),
+              : t
+          )
         )
       } catch (err) {
         reportError(err)
       }
     },
-    [activeTab, openInTab, readFreshContent],
+    [activeTab, openInTab, readFreshContent]
   )
 
   const goBack = useCallback(async () => {
@@ -870,8 +857,8 @@ export default function App() {
                 back: t.back.slice(0, -1),
                 forward: [...t.forward, t.path],
               }
-            : t,
-        ),
+            : t
+        )
       )
     } catch (err) {
       reportError(err)
@@ -895,8 +882,8 @@ export default function App() {
                 back: [...t.back, t.path],
                 forward: t.forward.slice(0, -1),
               }
-            : t,
-        ),
+            : t
+        )
       )
     } catch (err) {
       reportError(err)
@@ -935,9 +922,7 @@ export default function App() {
         }
         if (closing && isNoteTab(closing)) {
           // Drop tracked buffer/disk content for paths no tab still owns.
-          const stillOpen = next.some(
-            (t) => isNoteTab(t) && t.path === closing.path,
-          )
+          const stillOpen = next.some((t) => isNoteTab(t) && t.path === closing.path)
           if (!stillOpen) {
             bufferContentRef.current.delete(closing.path)
           }
@@ -950,7 +935,7 @@ export default function App() {
         return next
       })
     },
-    [activeTabId],
+    [activeTabId]
   )
 
   const closeTab = useCallback(
@@ -962,8 +947,7 @@ export default function App() {
       const isDirtyNote =
         tab != null &&
         isNoteTab(tab) &&
-        bufferContentRef.current.get(tab.path) !==
-          lastDiskContentRef.current.get(tab.path)
+        bufferContentRef.current.get(tab.path) !== lastDiskContentRef.current.get(tab.path)
       if (!isDirtyNote) {
         performCloseTab(id)
         return
@@ -980,10 +964,7 @@ export default function App() {
         void (async () => {
           try {
             if (!(await saveBuffer(path))) return
-            if (
-              bufferContentRef.current.get(path) !==
-              lastDiskContentRef.current.get(path)
-            ) {
+            if (bufferContentRef.current.get(path) !== lastDiskContentRef.current.get(path)) {
               if (!(await saveBuffer(path))) return
             }
             performCloseTab(id)
@@ -1010,7 +991,7 @@ export default function App() {
         }
       })()
     },
-    [saveMode, performCloseTab, saveBuffer],
+    [saveMode, performCloseTab, saveBuffer]
   )
 
   // Latest-ref hub for handlers passed to FileTree. We capture volatile
@@ -1028,47 +1009,41 @@ export default function App() {
     tabsRef.current = tabs
   })
 
-  const handleTreeSelect = useCallback(
-    (node: FileNode, mods: SelectModifiers) => {
-      const path = node.path
-      if (mods.cmdOrCtrl) {
-        // Cmd-click only toggles selection; does not open the file.
-        setSelectedPaths((prev) => {
-          const next = new Set(prev)
-          if (next.has(path)) next.delete(path)
-          else next.add(path)
-          return next
-        })
-        setAnchorPath(path)
+  const handleTreeSelect = useCallback((node: FileNode, mods: SelectModifiers) => {
+    const path = node.path
+    if (mods.cmdOrCtrl) {
+      // Cmd-click only toggles selection; does not open the file.
+      setSelectedPaths((prev) => {
+        const next = new Set(prev)
+        if (next.has(path)) next.delete(path)
+        else next.add(path)
+        return next
+      })
+      setAnchorPath(path)
+      return
+    }
+    if (mods.shift) {
+      const anchor = anchorPathRef.current
+      const flat = flattenVisibleTree(treeRef.current, openPathsRef.current)
+      const anchorIdx = anchor ? flat.findIndex((it) => it.node.path === anchor) : -1
+      const currentIdx = flat.findIndex((it) => it.node.path === path)
+      if (anchorIdx >= 0) {
+        const [lo, hi] = anchorIdx < currentIdx ? [anchorIdx, currentIdx] : [currentIdx, anchorIdx]
+        const range = flat.slice(lo, hi + 1).map((it) => it.node.path)
+        setSelectedPaths(new Set(range))
+        // anchor preserved on shift-click
         return
       }
-      if (mods.shift) {
-        const anchor = anchorPathRef.current
-        const flat = flattenVisibleTree(treeRef.current, openPathsRef.current)
-        const anchorIdx = anchor
-          ? flat.findIndex((it) => it.node.path === anchor)
-          : -1
-        const currentIdx = flat.findIndex((it) => it.node.path === path)
-        if (anchorIdx >= 0) {
-          const [lo, hi] =
-            anchorIdx < currentIdx ? [anchorIdx, currentIdx] : [currentIdx, anchorIdx]
-          const range = flat.slice(lo, hi + 1).map((it) => it.node.path)
-          setSelectedPaths(new Set(range))
-          // anchor preserved on shift-click
-          return
-        }
-        // Anchor missing or no longer visible — fall back to single-select.
-        setSelectedPaths(new Set([path]))
-        setAnchorPath(path)
-        if (!node.isDir) void openInTabRef.current(path)
-        return
-      }
+      // Anchor missing or no longer visible — fall back to single-select.
       setSelectedPaths(new Set([path]))
       setAnchorPath(path)
       if (!node.isDir) void openInTabRef.current(path)
-    },
-    [],
-  )
+      return
+    }
+    setSelectedPaths(new Set([path]))
+    setAnchorPath(path)
+    if (!node.isDir) void openInTabRef.current(path)
+  }, [])
 
   const handleClearSelection = useCallback(() => {
     setSelectedPaths(new Set())
@@ -1086,7 +1061,7 @@ export default function App() {
       if (!focusedAgent) return
       void window.marvin.pty.write(focusedAgent.ptyId, formatted)
     },
-    [focusedAgent],
+    [focusedAgent]
   )
 
   const handleToggleOpen = useCallback((p: string) => {
@@ -1126,8 +1101,8 @@ export default function App() {
                     back: [...t.back, t.path],
                     forward: [],
                   }
-                : t,
-            ),
+                : t
+            )
           )
           return
         } catch (err) {
@@ -1140,7 +1115,7 @@ export default function App() {
       }
       await openInTab(path)
     },
-    [activeTab, readFreshContent, openInTab],
+    [activeTab, readFreshContent, openInTab]
   )
 
   // --- Browser tabs ----------------------------------------------------
@@ -1189,8 +1164,8 @@ export default function App() {
               loading: true,
               ready: false,
             }
-          : t,
-      ),
+          : t
+      )
     )
     setUrlBarFocusTick((t) => t + 1)
   }, [])
@@ -1202,7 +1177,7 @@ export default function App() {
       setActiveTabId((id) => (id === emptyTabId ? null : id))
       setCreatingIn({ parentDir: vaultPath, kind: 'file' })
     },
-    [vaultPath],
+    [vaultPath]
   )
 
   const chooseFileFromEmpty = useCallback(async (emptyTabId: string) => {
@@ -1217,7 +1192,7 @@ export default function App() {
 
   const handleBrowserDraftChange = useCallback((id: string, value: string) => {
     setTabs((prev) =>
-      prev.map((t) => (isBrowserTab(t) && t.id === id ? { ...t, draftUrl: value } : t)),
+      prev.map((t) => (isBrowserTab(t) && t.id === id ? { ...t, draftUrl: value } : t))
     )
   }, [])
 
@@ -1225,10 +1200,8 @@ export default function App() {
     const normalized = normalizeUrl(url)
     setTabs((prev) =>
       prev.map((t) =>
-        isBrowserTab(t) && t.id === id
-          ? { ...t, draftUrl: normalized, loading: true }
-          : t,
-      ),
+        isBrowserTab(t) && t.id === id ? { ...t, draftUrl: normalized, loading: true } : t
+      )
     )
     try {
       await window.marvin.browser.navigate(id, normalized)
@@ -1238,9 +1211,7 @@ export default function App() {
   }, [])
 
   const handleBrowserReady = useCallback((id: string) => {
-    setTabs((prev) =>
-      prev.map((t) => (isBrowserTab(t) && t.id === id ? { ...t, ready: true } : t)),
-    )
+    setTabs((prev) => prev.map((t) => (isBrowserTab(t) && t.id === id ? { ...t, ready: true } : t)))
   }, [])
 
   // Subscribe to browser events from the main process and reflect them on
@@ -1264,7 +1235,7 @@ export default function App() {
             default:
               return t
           }
-        }),
+        })
       )
     })
     return off
@@ -1356,7 +1327,7 @@ export default function App() {
       const undoRoute = resolveUndoTarget(
         e,
         getActivePanelContext(),
-        activeEditorRef.current != null,
+        activeEditorRef.current != null
       )
       if (undoRoute?.target === 'file-tree') {
         e.preventDefault()
@@ -1366,7 +1337,7 @@ export default function App() {
             setImportToast({
               state: /cannot undo/i.test(msg) ? 'error' : 'success',
               message: msg,
-            }),
+            })
           )
           .then((res) => {
             if (!res.ok) return
@@ -1380,11 +1351,7 @@ export default function App() {
           })
         return
       }
-      if (
-        undoRoute?.target === 'fallback-editor' &&
-        !modalOpen &&
-        !e.defaultPrevented
-      ) {
+      if (undoRoute?.target === 'fallback-editor' && !modalOpen && !e.defaultPrevented) {
         e.preventDefault()
         if (undoRoute.direction === 'redo') activeEditorRef.current?.redo()
         else activeEditorRef.current?.undo()
@@ -1472,26 +1439,23 @@ export default function App() {
         await openInTab(item.path)
       }
     },
-    [activeTab, navigateInActiveTab, openInTab],
+    [activeTab, navigateInActiveTab, openInTab]
   )
 
   // Path-explicit so a hidden editor's debounced save writes to ITS OWN file,
   // not whatever tab is active (#440 — multiple editors are mounted at once).
-  const handleSave = useCallback(
-    async (path: string, content: string) => {
-      try {
-        await window.marvin.file.write(path, content)
-        lastDiskContentRef.current.set(path, content)
-        bufferContentRef.current.set(path, content)
-      } catch (err) {
-        const name = basenameOf(path)
-        const detail = err instanceof Error ? err.message : String(err)
-        setError(`Failed to save ${name}: ${detail}`)
-        throw err
-      }
-    },
-    [],
-  )
+  const handleSave = useCallback(async (path: string, content: string) => {
+    try {
+      await window.marvin.file.write(path, content)
+      lastDiskContentRef.current.set(path, content)
+      bufferContentRef.current.set(path, content)
+    } catch (err) {
+      const name = basenameOf(path)
+      const detail = err instanceof Error ? err.message : String(err)
+      setError(`Failed to save ${name}: ${detail}`)
+      throw err
+    }
+  }, [])
 
   const handleBufferChange = useCallback((path: string, content: string) => {
     bufferContentRef.current.set(path, content)
@@ -1500,10 +1464,8 @@ export default function App() {
   const clearPendingExternalChange = useCallback((filePath: string) => {
     setTabs((prev) =>
       prev.map((t) =>
-        isNoteTab(t) && t.path === filePath
-          ? { ...t, pendingExternalChange: undefined }
-          : t,
-      ),
+        isNoteTab(t) && t.path === filePath ? { ...t, pendingExternalChange: undefined } : t
+      )
     )
   }, [])
 
@@ -1525,7 +1487,7 @@ export default function App() {
           }
           if (res.data.saved === false) {
             setError(
-              "Couldn't snapshot current buffer (binary content) — use 'Keep my version' instead.",
+              "Couldn't snapshot current buffer (binary content) — use 'Keep my version' instead."
             )
             return
           }
@@ -1545,11 +1507,11 @@ export default function App() {
                 version: t.version + 1,
                 pendingExternalChange: undefined,
               }
-            : t,
-        ),
+            : t
+        )
       )
     },
-    [vaultPath],
+    [vaultPath]
   )
 
   // "Keep my version": dismiss the banner without touching the buffer. The
@@ -1577,7 +1539,7 @@ export default function App() {
       }
       clearPendingExternalChange(filePath)
     },
-    [clearPendingExternalChange, vaultPath],
+    [clearPendingExternalChange, vaultPath]
   )
 
   const reportError = (err: unknown) => {
@@ -1596,15 +1558,23 @@ export default function App() {
         if (path === oldPath) path = newPath
         else if (path.startsWith(`${oldPath}/`)) path = newPath + path.slice(oldPath.length)
         const back = t.back.map((p) =>
-          p === oldPath ? newPath : p.startsWith(`${oldPath}/`) ? newPath + p.slice(oldPath.length) : p,
+          p === oldPath
+            ? newPath
+            : p.startsWith(`${oldPath}/`)
+              ? newPath + p.slice(oldPath.length)
+              : p
         )
         const forward = t.forward.map((p) =>
-          p === oldPath ? newPath : p.startsWith(`${oldPath}/`) ? newPath + p.slice(oldPath.length) : p,
+          p === oldPath
+            ? newPath
+            : p.startsWith(`${oldPath}/`)
+              ? newPath + p.slice(oldPath.length)
+              : p
         )
         return path === t.path && back === t.back && forward === t.forward
           ? t
           : { ...t, path, back, forward }
-      }),
+      })
     )
     // remap tracked content for both the on-disk and live buffer maps
     for (const tracked of [lastDiskContentRef.current, bufferContentRef.current]) {
@@ -1623,12 +1593,9 @@ export default function App() {
   const closeTabsUnder = (root: string) => {
     setTabs((prev) => {
       const remaining = prev.filter(
-        (t) => !isNoteTab(t) || (t.path !== root && !t.path.startsWith(`${root}/`)),
+        (t) => !isNoteTab(t) || (t.path !== root && !t.path.startsWith(`${root}/`))
       )
-      if (
-        activeTabId &&
-        !remaining.find((t) => t.id === activeTabId)
-      ) {
+      if (activeTabId && !remaining.find((t) => t.id === activeTabId)) {
         setActiveTabId(remaining[0]?.id ?? null)
       }
       return remaining
@@ -1751,7 +1718,7 @@ export default function App() {
         reportErrorRef.current(err)
       }
     },
-    [loadTree, focusFileTree],
+    [loadTree, focusFileTree]
   )
 
   const executePaste = useCallback(
@@ -1783,7 +1750,7 @@ export default function App() {
             useClipboardStore.getState().clear()
           } else {
             reportErrorRef.current(
-              new Error(`Failed to move: ${failed.map((f) => f.error ?? f.src).join(', ')}`),
+              new Error(`Failed to move: ${failed.map((f) => f.error ?? f.src).join(', ')}`)
             )
           }
         }
@@ -1792,7 +1759,7 @@ export default function App() {
         reportErrorRef.current(err)
       }
     },
-    [loadTree],
+    [loadTree]
   )
 
   useFileClipboardShortcuts({
@@ -1813,13 +1780,13 @@ export default function App() {
         items.push(
           { kind: 'item', id: 'new-note', label: 'New note here' },
           { kind: 'item', id: 'new-folder', label: 'New folder here' },
-          { kind: 'separator' },
+          { kind: 'separator' }
         )
       }
       const clip = useClipboardStore.getState()
       items.push(
         { kind: 'item', id: 'copy', label: 'Copy', accelerator: 'CmdOrCtrl+C' },
-        { kind: 'item', id: 'cut', label: 'Cut', accelerator: 'CmdOrCtrl+X' },
+        { kind: 'item', id: 'cut', label: 'Cut', accelerator: 'CmdOrCtrl+X' }
       )
       if (node.isDir) {
         items.push({
@@ -1833,7 +1800,7 @@ export default function App() {
       items.push(
         { kind: 'separator' },
         { kind: 'item', id: 'rename', label: 'Rename' },
-        { kind: 'item', id: 'reveal', label: 'Reveal in Finder' },
+        { kind: 'item', id: 'reveal', label: 'Reveal in Finder' }
       )
       if (!node.isDir) {
         items.push({ kind: 'item', id: 'versions', label: 'View versions…' })
@@ -1847,7 +1814,7 @@ export default function App() {
           kind: 'item',
           id: 'trash',
           label: node.isDir ? 'Move folder to Trash' : 'Move file to Trash',
-        },
+        }
       )
       const action = await window.marvin.app.showContextMenu(items)
       if (!action) return
@@ -1861,9 +1828,7 @@ export default function App() {
         case 'copy':
         case 'cut': {
           const paths =
-            selectedPathsRef.current.size === 0
-              ? [node.path]
-              : Array.from(selectedPathsRef.current)
+            selectedPathsRef.current.size === 0 ? [node.path] : Array.from(selectedPathsRef.current)
           useClipboardStore.getState().set(action, paths)
           break
         }
@@ -1887,7 +1852,7 @@ export default function App() {
           break
       }
     },
-    [executePaste],
+    [executePaste]
   )
 
   const handleImportResult = useCallback(
@@ -1926,17 +1891,13 @@ export default function App() {
         message: `Imported ${imported.length} ${fileWord(imported.length)} to ${relDest}`,
       })
     },
-    [vaultPath],
+    [vaultPath]
   )
 
   const handleSidebarPaste = (e: React.ClipboardEvent<HTMLElement>) => {
     if (!vaultPath) return
     const target = e.target as HTMLElement
-    if (
-      target.tagName === 'INPUT' ||
-      target.tagName === 'TEXTAREA' ||
-      target.isContentEditable
-    ) {
+    if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
       return
     }
     const files = Array.from(e.clipboardData?.files ?? [])
@@ -1948,8 +1909,7 @@ export default function App() {
       if (p) paths.push(p)
     }
     if (paths.length === 0) return
-    const destDir =
-      activeTab && isNoteTab(activeTab) ? dirOf(activeTab.path) : vaultPath
+    const destDir = activeTab && isNoteTab(activeTab) ? dirOf(activeTab.path) : vaultPath
     void window.marvin.fs
       .importExternal(paths, destDir)
       .then((result) => {
@@ -1968,7 +1928,7 @@ export default function App() {
     // search bar, the header, the footer, or any interactive child.
     if (
       target.closest(
-        '.file-tree-row, .sidebar-icon-strip, .sidebar-header, .sidebar-footer, button, input, a',
+        '.file-tree-row, .sidebar-icon-strip, .sidebar-header, .sidebar-footer, button, input, a'
       )
     ) {
       return
@@ -2017,7 +1977,7 @@ export default function App() {
         <h1>Marvin</h1>
         <p>Markdown notes with Claude Code in your sidebar.</p>
         <button type="button" onClick={handlePickVault}>
-          Open vault folder
+          Open folder
         </button>
       </div>
     )
@@ -2042,10 +2002,7 @@ export default function App() {
         aria-label={sidebarHidden ? 'Show sidebar' : 'Hide sidebar'}
         title={sidebarHidden ? 'Show sidebar' : 'Hide sidebar'}
       >
-        <Icon
-          name={sidebarHidden ? 'layout-sidebar-left' : 'layout-sidebar-left-off'}
-          size={16}
-        />
+        <Icon name={sidebarHidden ? 'layout-sidebar-left' : 'layout-sidebar-left-off'} size={16} />
       </button>
       <button
         type="button"
@@ -2059,7 +2016,6 @@ export default function App() {
     </>
   )
 
-
   return (
     <div className={`shell${sidebarHidden ? ' sidebar-hidden' : ''}`}>
       {visualStyle === 'legacy' && (
@@ -2070,9 +2026,7 @@ export default function App() {
           onLayoutChange={setLayoutMode}
         />
       )}
-      {visualStyle === 'modern' && (
-        <div className="sidebar-icon-strip">{sidebarIconButtons}</div>
-      )}
+      {visualStyle === 'modern' && <div className="sidebar-icon-strip">{sidebarIconButtons}</div>}
       <div
         className="app"
         data-layout={layoutMode}
@@ -2083,337 +2037,326 @@ export default function App() {
           } as React.CSSProperties
         }
       >
-      <aside
-        className="sidebar"
-        onContextMenu={handleSidebarContextMenu}
-        onPaste={handleSidebarPaste}
-      >
-        <div className="sidebar-header">
-          {visualStyle === 'legacy' ? (
-            <span className="vault-name">{vaultPath.split('/').pop()}</span>
-          ) : (
-            <div className="sidebar-project-info">
-              <div className="sidebar-project-text">
-                <span className="sidebar-project-name">{vaultPath.split('/').pop()}</span>
+        <aside
+          className="sidebar"
+          onContextMenu={handleSidebarContextMenu}
+          onPaste={handleSidebarPaste}
+        >
+          <div className="sidebar-header">
+            {visualStyle === 'legacy' ? (
+              <span className="vault-name">{vaultPath.split('/').pop()}</span>
+            ) : (
+              <div className="sidebar-project-info">
+                <div className="sidebar-project-text">
+                  <span className="sidebar-project-name">{vaultPath.split('/').pop()}</span>
+                </div>
               </div>
-            </div>
-          )}
-          <FileTreeToolbar
-            isAnyOpen={openPaths.size > 0}
-            onNewFile={() =>
-              setCreatingIn({
-                parentDir: currentFolderFromSelection(selectedPaths, tree, vaultPath),
-                kind: 'file',
-              })
-            }
-            onNewFolder={() =>
-              setCreatingIn({
-                parentDir: currentFolderFromSelection(selectedPaths, tree, vaultPath),
-                kind: 'folder',
-              })
-            }
-            onRefresh={() => void loadTree(vaultPath)}
-            onToggleAll={() =>
-              setOpenPaths((prev) =>
-                prev.size > 0 ? new Set() : new Set(collectDirPaths(tree)),
-              )
-            }
+            )}
+            <FileTreeToolbar
+              isAnyOpen={openPaths.size > 0}
+              onNewFile={() =>
+                setCreatingIn({
+                  parentDir: currentFolderFromSelection(selectedPaths, tree, vaultPath),
+                  kind: 'file',
+                })
+              }
+              onNewFolder={() =>
+                setCreatingIn({
+                  parentDir: currentFolderFromSelection(selectedPaths, tree, vaultPath),
+                  kind: 'folder',
+                })
+              }
+              onToggleAll={() =>
+                setOpenPaths((prev) => (prev.size > 0 ? new Set() : new Set(collectDirPaths(tree))))
+              }
+            />
+          </div>
+          <FileTree
+            nodes={tree}
+            vaultPath={vaultPath}
+            selectedPaths={selectedPaths}
+            activeFilePath={activeTab && isNoteTab(activeTab) ? activeTab.path : null}
+            openPaths={openPaths}
+            creatingIn={creatingIn}
+            onToggleOpen={handleToggleOpen}
+            onSelect={handleTreeSelect}
+            onClearSelection={handleClearSelection}
+            onCreatingInChange={setCreatingIn}
+            onContextMenu={handleNodeContextMenu}
+            onMove={handleDropMove}
+            onImportResult={handleImportResult}
           />
-        </div>
-        <FileTree
-          nodes={tree}
-          vaultPath={vaultPath}
-          selectedPaths={selectedPaths}
-          activeFilePath={activeTab && isNoteTab(activeTab) ? activeTab.path : null}
-          openPaths={openPaths}
-          creatingIn={creatingIn}
-          onToggleOpen={handleToggleOpen}
-          onSelect={handleTreeSelect}
-          onClearSelection={handleClearSelection}
-          onCreatingInChange={setCreatingIn}
-          onContextMenu={handleNodeContextMenu}
-          onMove={handleDropMove}
-          onImportResult={handleImportResult}
-        />
-        <div className="sidebar-footer">
-          {visualStyle === 'legacy' ? (
-            <button type="button" className="text-btn" onClick={handlePickVault}>
-              Switch vault
-            </button>
-          ) : (
-            <>
-              <button
-                type="button"
-                className="sidebar-footer-btn"
-                onClick={handlePickVault}
-              >
-                <Icon name="folder" size={16} />
-                <span>Switch Folder</span>
+          <div className="sidebar-footer">
+            {visualStyle === 'legacy' ? (
+              <button type="button" className="text-btn" onClick={handlePickVault}>
+                Switch folder
               </button>
-              <button
-                type="button"
-                className="sidebar-footer-btn"
-                onClick={() => setSettingsOpen(true)}
-              >
-                <Icon name="gear" size={16} />
-                <span>Settings</span>
-              </button>
-            </>
-          )}
-        </div>
-      </aside>
+            ) : (
+              <>
+                <button type="button" className="sidebar-footer-btn" onClick={handlePickVault}>
+                  <Icon name="folder" size={16} />
+                  <span>Switch Folder</span>
+                </button>
+                <button
+                  type="button"
+                  className="sidebar-footer-btn"
+                  onClick={() => setSettingsOpen(true)}
+                >
+                  <Icon name="gear" size={16} />
+                  <span>Settings</span>
+                </button>
+              </>
+            )}
+          </div>
+        </aside>
 
-      <Splitter onDelta={handleSidebarDelta} ariaLabel="Resize sidebar" />
+        <Splitter onDelta={handleSidebarDelta} ariaLabel="Resize sidebar" />
 
-      <main className="editor-pane">
-        <TabBar
-          tabs={tabs}
-          activeId={activeTabId}
-          dirtyTabId={isDirty ? activeTabId : null}
-          onActivate={setActiveTabId}
-          onClose={closeTab}
-          onNewTab={openEmptyTab}
-        />
-        <div className="editor-stack">
-          {/* Note/markdown editor tabs are rendered as a stack (all mounted,
+        <main className="editor-pane">
+          <TabBar
+            tabs={tabs}
+            activeId={activeTabId}
+            dirtyTabId={isDirty ? activeTabId : null}
+            onActivate={setActiveTabId}
+            onClose={closeTab}
+            onNewTab={openEmptyTab}
+          />
+          <div className="editor-stack">
+            {/* Note/markdown editor tabs are rendered as a stack (all mounted,
               inactive ones hidden) keyed by stable tab.id so switching tabs
               does NOT unmount the CodeMirror instance — undo history, cursor,
               and scroll survive the switch (#440). Mirrors the browser-tab
               precedent below. The set of mounted tabs is bounded by an MRU
               cap (see mountedNoteTabs). */}
-          {mountedNoteTabs.map((noteTab) => {
-            const isActive = noteTab.id === activeTabId
-            return (
-              <div
-                key={noteTab.id}
-                className="note-tab-container"
-                hidden={!isActive}
-                data-tab-id={noteTab.id}
-              >
-                {isActive && noteTab.pendingExternalChange && (
-                  <ExternalChangeBanner
-                    filePath={noteTab.path}
-                    getCurrentBuffer={() =>
-                      bufferContentRef.current.get(noteTab.path) ?? noteTab.content
-                    }
-                    diskContent={noteTab.pendingExternalChange.diskContent}
-                    diskChangedAt={noteTab.pendingExternalChange.diskChangedAt}
-                    source={noteTab.pendingExternalChange.source}
-                    onAcceptDisk={() =>
-                      handleAcceptDisk(
-                        noteTab.path,
-                        noteTab.pendingExternalChange!.diskContent,
-                        bufferContentRef.current.get(noteTab.path) ?? noteTab.content,
-                      )
-                    }
-                    onKeepMine={() =>
-                      handleKeepMine(
-                        noteTab.path,
-                        noteTab.pendingExternalChange!.source,
-                        noteTab.pendingExternalChange!.diskContent,
-                      )
-                    }
-                    onDismiss={() => clearPendingExternalChange(noteTab.path)}
-                  />
-                )}
-                <Editor
+            {mountedNoteTabs.map((noteTab) => {
+              const isActive = noteTab.id === activeTabId
+              return (
+                <div
                   key={noteTab.id}
-                  isActive={isActive}
-                  filePath={noteTab.path}
-                  vaultPath={vaultPath}
-                  initialContent={noteTab.content}
-                  version={noteTab.version}
-                  geometryKey={`${layoutMode}#${sidebarWidth}#${agentsWidth}`}
-                  paletteItems={paletteItemsWithMeta}
-                  onSave={(content) => handleSave(noteTab.path, content)}
-                  onBufferChange={(content) => handleBufferChange(noteTab.path, content)}
-                  onNavigate={navigateOrOpen}
-                  canBack={noteTab.back.length > 0}
-                  canForward={noteTab.forward.length > 0}
-                  onBack={goBack}
-                  onForward={goForward}
-                  openFindTick={openFindTick}
-                  openReplaceTick={openReplaceTick}
-                  onImportToast={setImportToast}
-                  saveMode={saveMode}
-                  // Only the active editor drives the global dirty indicator and
-                  // owns the single flush ref (Cmd+S / menu save target). Hidden
-                  // editors mustn't overwrite either — the last one to mount
-                  // would otherwise win. Background-tab saving still works: it
-                  // goes through the path-keyed closeTab → saveBuffer, not this
-                  // ref. Editor re-emits its dirty state when it becomes active.
-                  onDirtyChange={isActive ? setIsDirty : undefined}
-                  onFlushSave={
-                    isActive
-                      ? (fn) => {
-                          flushSaveRef.current = fn
-                        }
-                      : undefined
-                  }
-                  // Passed to every mounted editor; each self-gates on isActive
-                  // and clears the ref on going inactive/unmount, so the Cmd+Z
-                  // fallback always targets the visible editor (never a hidden one).
-                  onRegisterHandle={registerActiveEditorHandle}
-                  onSendSelection={
-                    focusedAgent ? handleSendSelectionToFocusedAgent : undefined
-                  }
-                  agentKind={focusedAgent?.agentKind}
-                />
-              </div>
-            )
-          })}
-          {activeTab && isImageTab(activeTab) && (
-            <ImageViewer
-              key={activeTab.id}
-              path={activeTab.path}
-              onRevealInFinder={(p) => void window.marvin.shell.reveal(p)}
-            />
-          )}
-          {activeTab && isPdfTab(activeTab) && (
-            <PdfViewer
-              key={activeTab.id}
-              path={activeTab.path}
-              onRevealInFinder={(p) => void window.marvin.shell.reveal(p)}
-            />
-          )}
-          {activeTab && isDocxTab(activeTab) && (
-            <DocxViewer
-              key={activeTab.id}
-              path={activeTab.path}
-              onRevealInFinder={(p) => void window.marvin.shell.reveal(p)}
-            />
-          )}
-          {activeTab && isXlsxTab(activeTab) && (
-            <XlsxViewer path={activeTab.path} />
-          )}
-          {activeTab && isEmptyTab(activeTab) && (
-            <EmptyTab
-              key={activeTab.id}
-              onOpenBrowser={() => convertEmptyToBrowser(activeTab.id)}
-              onCreateNote={() => startNoteFromEmpty(activeTab.id)}
-              onChooseFile={() => void chooseFileFromEmpty(activeTab.id)}
-              isVaultOpen={!!vaultPath}
-            />
-          )}
-          {!activeTab && (
-            <div className="empty-editor">Select a note or create a new one.</div>
-          )}
-          {/* Browser tabs are rendered as a stack (lazy mount, hidden when
+                  className="note-tab-container"
+                  hidden={!isActive}
+                  data-tab-id={noteTab.id}
+                >
+                  {isActive && noteTab.pendingExternalChange && (
+                    <ExternalChangeBanner
+                      filePath={noteTab.path}
+                      getCurrentBuffer={() =>
+                        bufferContentRef.current.get(noteTab.path) ?? noteTab.content
+                      }
+                      diskContent={noteTab.pendingExternalChange.diskContent}
+                      diskChangedAt={noteTab.pendingExternalChange.diskChangedAt}
+                      source={noteTab.pendingExternalChange.source}
+                      onAcceptDisk={() =>
+                        handleAcceptDisk(
+                          noteTab.path,
+                          noteTab.pendingExternalChange!.diskContent,
+                          bufferContentRef.current.get(noteTab.path) ?? noteTab.content
+                        )
+                      }
+                      onKeepMine={() =>
+                        handleKeepMine(
+                          noteTab.path,
+                          noteTab.pendingExternalChange!.source,
+                          noteTab.pendingExternalChange!.diskContent
+                        )
+                      }
+                      onDismiss={() => clearPendingExternalChange(noteTab.path)}
+                    />
+                  )}
+                  <Editor
+                    key={noteTab.id}
+                    isActive={isActive}
+                    filePath={noteTab.path}
+                    vaultPath={vaultPath}
+                    initialContent={noteTab.content}
+                    version={noteTab.version}
+                    geometryKey={`${layoutMode}#${sidebarWidth}#${agentsWidth}`}
+                    paletteItems={paletteItemsWithMeta}
+                    onSave={(content) => handleSave(noteTab.path, content)}
+                    onBufferChange={(content) => handleBufferChange(noteTab.path, content)}
+                    onNavigate={navigateOrOpen}
+                    canBack={noteTab.back.length > 0}
+                    canForward={noteTab.forward.length > 0}
+                    onBack={goBack}
+                    onForward={goForward}
+                    openFindTick={openFindTick}
+                    openReplaceTick={openReplaceTick}
+                    onImportToast={setImportToast}
+                    saveMode={saveMode}
+                    // Only the active editor drives the global dirty indicator and
+                    // owns the single flush ref (Cmd+S / menu save target). Hidden
+                    // editors mustn't overwrite either — the last one to mount
+                    // would otherwise win. Background-tab saving still works: it
+                    // goes through the path-keyed closeTab → saveBuffer, not this
+                    // ref. Editor re-emits its dirty state when it becomes active.
+                    onDirtyChange={isActive ? setIsDirty : undefined}
+                    onFlushSave={
+                      isActive
+                        ? (fn) => {
+                            flushSaveRef.current = fn
+                          }
+                        : undefined
+                    }
+                    // Passed to every mounted editor; each self-gates on isActive
+                    // and clears the ref on going inactive/unmount, so the Cmd+Z
+                    // fallback always targets the visible editor (never a hidden one).
+                    onRegisterHandle={registerActiveEditorHandle}
+                    onSendSelection={focusedAgent ? handleSendSelectionToFocusedAgent : undefined}
+                    agentKind={focusedAgent?.agentKind}
+                  />
+                </div>
+              )
+            })}
+            {activeTab && isImageTab(activeTab) && (
+              <ImageViewer
+                key={activeTab.id}
+                path={activeTab.path}
+                onRevealInFinder={(p) => void window.marvin.shell.reveal(p)}
+              />
+            )}
+            {activeTab && isPdfTab(activeTab) && (
+              <PdfViewer
+                key={activeTab.id}
+                path={activeTab.path}
+                onRevealInFinder={(p) => void window.marvin.shell.reveal(p)}
+              />
+            )}
+            {activeTab && isDocxTab(activeTab) && (
+              <DocxViewer
+                key={activeTab.id}
+                path={activeTab.path}
+                onRevealInFinder={(p) => void window.marvin.shell.reveal(p)}
+              />
+            )}
+            {activeTab && isXlsxTab(activeTab) && <XlsxViewer path={activeTab.path} />}
+            {activeTab && isEmptyTab(activeTab) && (
+              <EmptyTab
+                key={activeTab.id}
+                onOpenBrowser={() => convertEmptyToBrowser(activeTab.id)}
+                onCreateNote={() => startNoteFromEmpty(activeTab.id)}
+                onChooseFile={() => void chooseFileFromEmpty(activeTab.id)}
+                isVaultOpen={!!vaultPath}
+              />
+            )}
+            {!activeTab && <div className="empty-editor">Select a note or create a new one.</div>}
+            {/* Browser tabs are rendered as a stack (lazy mount, hidden when
               inactive) so each WebContentsView keeps its session alive across
               switches. */}
-          {tabs.filter(isBrowserTab).map((bt) => (
-            <BrowserPane
-              key={bt.id}
-              tab={bt}
-              isActive={bt.id === activeTabId}
-              onUrlBarChange={handleBrowserDraftChange}
-              onNavigate={handleBrowserNavigate}
-              onReady={handleBrowserReady}
-              urlBarFocusTick={urlBarFocusTick}
-              geometryKey={`${layoutMode}#${sidebarWidth}#${agentsWidth}`}
-            />
-          ))}
-        </div>
-      </main>
+            {tabs.filter(isBrowserTab).map((bt) => (
+              <BrowserPane
+                key={bt.id}
+                tab={bt}
+                isActive={bt.id === activeTabId}
+                onUrlBarChange={handleBrowserDraftChange}
+                onNavigate={handleBrowserNavigate}
+                onReady={handleBrowserReady}
+                urlBarFocusTick={urlBarFocusTick}
+                geometryKey={`${layoutMode}#${sidebarWidth}#${agentsWidth}`}
+              />
+            ))}
+          </div>
+        </main>
 
-      <Splitter onDelta={handleAgentsDelta} ariaLabel="Resize agents pane" />
+        <Splitter onDelta={handleAgentsDelta} ariaLabel="Resize agents pane" />
 
-      <aside className="claude-pane">
-        <AgentsPane
-          agents={agents}
-          vaultPath={vaultPath}
-          newTabTick={newAgentTabTick}
-          onRewind={handleRewindToTurn}
-          onTurnSummary={(summary) =>
-            setTurnToast({ turnId: summary.turnId, files: summary.fileNames })
-          }
-          onOpenFile={handleOpenFileFromTerminal}
-          onFocusChange={setFocusedAgent}
-        />
-      </aside>
+        <aside className="claude-pane">
+          <AgentsPane
+            agents={agents}
+            vaultPath={vaultPath}
+            newTabTick={newAgentTabTick}
+            onRewind={handleRewindToTurn}
+            onTurnSummary={(summary) =>
+              setTurnToast({ turnId: summary.turnId, files: summary.fileNames })
+            }
+            onOpenFile={handleOpenFileFromTerminal}
+            onFocusChange={setFocusedAgent}
+          />
+        </aside>
 
-      {dialog && dialogConfig && (
-        <InputDialog
-          title={dialogConfig.title}
-          placeholder={dialogConfig.placeholder}
-          initialValue={dialogConfig.initial}
-          submitLabel={dialogConfig.submit}
-          onSubmit={handleCreate}
-          onCancel={() => setDialog(null)}
-        />
-      )}
+        {dialog && dialogConfig && (
+          <InputDialog
+            title={dialogConfig.title}
+            placeholder={dialogConfig.placeholder}
+            initialValue={dialogConfig.initial}
+            submitLabel={dialogConfig.submit}
+            onSubmit={handleCreate}
+            onCancel={() => setDialog(null)}
+          />
+        )}
 
-      {error && (
-        <div className="error-toast" onClick={() => setError(null)}>
-          {error}
-        </div>
-      )}
+        {error && (
+          <div className="error-toast" onClick={() => setError(null)}>
+            {error}
+          </div>
+        )}
 
-      {paletteOpen && (
-        <CommandPalette
-          items={paletteItemsBase}
-          onPick={handlePalettePick}
-          onClose={() => setPaletteOpen(false)}
-          vaultPath={vaultPath ?? ''}
-        />
-      )}
+        {paletteOpen && (
+          <CommandPalette
+            items={paletteItemsBase}
+            onPick={handlePalettePick}
+            onClose={() => setPaletteOpen(false)}
+            vaultPath={vaultPath ?? ''}
+          />
+        )}
 
-      {settingsOpen && (
-        <SettingsModal
-          onClose={() => setSettingsOpen(false)}
-          layoutMode={layoutMode}
-          onLayoutChange={setLayoutMode}
-        />
-      )}
+        {settingsOpen && (
+          <SettingsModal
+            onClose={() => setSettingsOpen(false)}
+            layoutMode={layoutMode}
+            onLayoutChange={setLayoutMode}
+          />
+        )}
 
-      {snapshotPanel && (
-        <SnapshotPanel
-          filePath={snapshotPanel.filePath}
-          relPath={snapshotPanel.relPath}
-          currentContent={snapshotPanel.currentContent}
-          initialTurnId={snapshotPanel.initialTurnId}
-          onClose={() => setSnapshotPanel(null)}
-          onRestored={handleSnapshotRestored}
-          onError={setError}
-        />
-      )}
+        {snapshotPanel && (
+          <SnapshotPanel
+            filePath={snapshotPanel.filePath}
+            relPath={snapshotPanel.relPath}
+            currentContent={snapshotPanel.currentContent}
+            initialTurnId={snapshotPanel.initialTurnId}
+            onClose={() => setSnapshotPanel(null)}
+            onRestored={handleSnapshotRestored}
+            onError={setError}
+          />
+        )}
 
-      {turnToast && vaultPath && (
-        <SnapshotToast
-          files={turnToast.files}
-          onOpenVersions={() => {
-            const firstRel = turnToast.files[0]
-            if (!firstRel) return
-            const absPath = `${vaultPath}/${firstRel}`
-            void openSnapshotPanel(absPath, turnToast.turnId)
-            setTurnToast(null)
-          }}
-          onDismiss={() => setTurnToast(null)}
-        />
-      )}
+        {turnToast && vaultPath && (
+          <SnapshotToast
+            files={turnToast.files}
+            onOpenVersions={() => {
+              const firstRel = turnToast.files[0]
+              if (!firstRel) return
+              const absPath = `${vaultPath}/${firstRel}`
+              void openSnapshotPanel(absPath, turnToast.turnId)
+              setTurnToast(null)
+            }}
+            onDismiss={() => setTurnToast(null)}
+          />
+        )}
 
-      {externalToast && vaultPath && (
-        <SnapshotToast
-          files={[externalToast.filePath.startsWith(vaultPath + '/')
-            ? externalToast.filePath.slice(vaultPath.length + 1)
-            : externalToast.filePath]}
-          agentLabel="External change"
-          verb="updated"
-          onOpenVersions={() => {
-            void openSnapshotPanel(externalToast.filePath)
-            setExternalToast(null)
-          }}
-          onDismiss={() => setExternalToast(null)}
-        />
-      )}
+        {externalToast && vaultPath && (
+          <SnapshotToast
+            files={[
+              externalToast.filePath.startsWith(vaultPath + '/')
+                ? externalToast.filePath.slice(vaultPath.length + 1)
+                : externalToast.filePath,
+            ]}
+            agentLabel="External change"
+            verb="updated"
+            onOpenVersions={() => {
+              void openSnapshotPanel(externalToast.filePath)
+              setExternalToast(null)
+            }}
+            onDismiss={() => setExternalToast(null)}
+          />
+        )}
 
-      {importToast && (
-        <ImportToast
-          state={importToast.state}
-          message={importToast.message}
-          onDismiss={() => setImportToast(null)}
-        />
-      )}
+        {importToast && (
+          <ImportToast
+            state={importToast.state}
+            message={importToast.message}
+            onDismiss={() => setImportToast(null)}
+          />
+        )}
       </div>
     </div>
   )

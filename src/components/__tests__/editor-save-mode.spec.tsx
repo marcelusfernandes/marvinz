@@ -112,7 +112,10 @@ import { Editor } from '../Editor'
 function setupMarvin(fileWrite?: ReturnType<typeof vi.fn>) {
   Object.assign(window, {
     marvin: {
-      app: { showContextMenu: vi.fn().mockResolvedValue(null), canPaste: vi.fn().mockResolvedValue(false) },
+      app: {
+        showContextMenu: vi.fn().mockResolvedValue(null),
+        canPaste: vi.fn().mockResolvedValue(false),
+      },
       editor: { writeClipboard: vi.fn(), readClipboard: vi.fn().mockResolvedValue('') },
       shell: { openExternal: vi.fn() },
       file: {
@@ -204,7 +207,7 @@ describe('scheduleSave — manual mode', () => {
         onFlushSave={(fn) => {
           flush = fn
         }}
-      />,
+      />
     )
 
     act(() => {
@@ -244,7 +247,7 @@ describe('handleSave error handling', () => {
         onFlushSave={(fn) => {
           flush = fn
         }}
-      />,
+      />
     )
 
     act(() => {
@@ -258,7 +261,7 @@ describe('handleSave error handling', () => {
     await expect(
       act(async () => {
         await flush?.()
-      }),
+      })
     ).rejects.toThrow('disk full')
   })
 
@@ -272,7 +275,7 @@ describe('handleSave error handling', () => {
         onFlushSave={(fn) => {
           flush = fn
         }}
-      />,
+      />
     )
 
     act(() => {
@@ -346,7 +349,7 @@ describe('isDirty transitions', () => {
         onFlushSave={(fn) => {
           flush = fn
         }}
-      />,
+      />
     )
 
     act(() => {

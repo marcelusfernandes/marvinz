@@ -25,13 +25,13 @@ function latestHarnessVersion(repoRoot?: string): string | null {
 export function main(
   argv: string[] = process.argv.slice(2),
   generatedAt: string = new Date().toISOString(),
-  repoRoot?: string,
+  repoRoot?: string
 ): number {
   const version = argv[0] ?? latestHarnessVersion(repoRoot)
   if (!version) {
     process.stderr.write(
       'error: nenhuma harness_version (ledger de predições vazio).\n' +
-        'uso: tsx scripts/complexity/trend-report.ts [harness_version]\n',
+        'uso: tsx scripts/complexity/trend-report.ts [harness_version]\n'
     )
     return 2
   }

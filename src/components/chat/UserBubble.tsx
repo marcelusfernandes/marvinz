@@ -115,11 +115,7 @@ export function UserBubble({ text, turnId, onRewind, sessionId }: Props) {
         {text}
       </div>
       {showToggle && (
-        <button
-          type="button"
-          className="chat-bubble-toggle"
-          onClick={() => setExpanded((v) => !v)}
-        >
+        <button type="button" className="chat-bubble-toggle" onClick={() => setExpanded((v) => !v)}>
           {expanded ? 'Show less' : 'Show more'}
         </button>
       )}

@@ -14,9 +14,7 @@ function basename(p: string): string {
 function padRows(rows: string[][]): string[][] {
   let maxCols = 0
   for (const r of rows) if (r.length > maxCols) maxCols = r.length
-  return rows.map((r) =>
-    r.length < maxCols ? [...r, ...Array(maxCols - r.length).fill('')] : r,
-  )
+  return rows.map((r) => (r.length < maxCols ? [...r, ...Array(maxCols - r.length).fill('')] : r))
 }
 
 function columnLabel(idx: number): string {
@@ -65,7 +63,7 @@ export function XlsxViewer({ path, onRevealInFinder }: Props) {
           if (loadTokenRef.current === token) setLoading(false)
         })
     },
-    [path],
+    [path]
   )
 
   useEffect(() => {
@@ -80,7 +78,7 @@ export function XlsxViewer({ path, onRevealInFinder }: Props) {
 
   const dirty = useMemo(
     () => JSON.stringify(rows) !== JSON.stringify(originalRows),
-    [rows, originalRows],
+    [rows, originalRows]
   )
 
   const handleSheetClick = useCallback(
@@ -88,7 +86,7 @@ export function XlsxViewer({ path, onRevealInFinder }: Props) {
       if (name === activeSheet || dirty) return
       loadSheet(name)
     },
-    [activeSheet, dirty, loadSheet],
+    [activeSheet, dirty, loadSheet]
   )
 
   const enterEditMode = useCallback(() => {
@@ -229,9 +227,7 @@ export function XlsxViewer({ path, onRevealInFinder }: Props) {
                 role="tab"
                 aria-selected={isActive}
                 aria-disabled={blocked}
-                className={
-                  'xlsx-viewer-sheet' + (isActive ? ' xlsx-viewer-sheet-active' : '')
-                }
+                className={'xlsx-viewer-sheet' + (isActive ? ' xlsx-viewer-sheet-active' : '')}
                 onClick={() => handleSheetClick(name)}
                 title={blocked ? 'Save or discard changes before switching sheets' : name}
               >
@@ -285,7 +281,7 @@ export function XlsxViewer({ path, onRevealInFinder }: Props) {
                   <th key={ci} className="xlsx-viewer-cell xlsx-viewer-cell-header" scope="col">
                     {cell}
                   </th>
-                ),
+                )
               )}
             </tr>
           </thead>
@@ -308,7 +304,7 @@ export function XlsxViewer({ path, onRevealInFinder }: Props) {
                     <td key={ci} className="xlsx-viewer-cell">
                       <span className="xlsx-viewer-cell-value">{cell}</span>
                     </td>
-                  ),
+                  )
                 )}
               </tr>
             ))}

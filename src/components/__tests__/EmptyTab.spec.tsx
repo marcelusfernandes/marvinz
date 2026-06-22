@@ -27,68 +27,68 @@ function renderEmptyTab(overrides: Partial<Parameters<typeof EmptyTab>[0]> = {})
 // ---------------------------------------------------------------------------
 
 describe('EmptyTab — render', () => {
-  it('renders Navegador card title', () => {
+  it('renders Browser card title', () => {
     renderEmptyTab()
-    expect(screen.getByText('Navegador')).toBeInTheDocument()
+    expect(screen.getByText('Browser')).toBeInTheDocument()
   })
 
-  it('renders Nova nota card title', () => {
+  it('renders New note card title', () => {
     renderEmptyTab()
-    expect(screen.getByText('Nova nota')).toBeInTheDocument()
+    expect(screen.getByText('New note')).toBeInTheDocument()
   })
 
-  it('renders an icon for Navegador card', () => {
+  it('renders an icon for Browser card', () => {
     renderEmptyTab()
-    const card = screen.getByText('Navegador').closest('[role="button"], button')
+    const card = screen.getByText('Browser').closest('[role="button"], button')
     expect(card?.querySelector('[data-testid]')).not.toBeNull()
   })
 
-  it('renders an icon for Nova nota card', () => {
+  it('renders an icon for New note card', () => {
     renderEmptyTab()
-    const card = screen.getByText('Nova nota').closest('[role="button"], button')
+    const card = screen.getByText('New note').closest('[role="button"], button')
     expect(card?.querySelector('[data-testid]')).not.toBeNull()
   })
 
-  it('renders description text inside the Navegador card', () => {
+  it('renders description text inside the Browser card', () => {
     renderEmptyTab()
-    const card = screen.getByText('Navegador').closest('[role="button"], button')
+    const card = screen.getByText('Browser').closest('[role="button"], button')
     // Card should contain more than just the title span
-    expect(card?.textContent?.length).toBeGreaterThan('Navegador'.length)
+    expect(card?.textContent?.length).toBeGreaterThan('Browser'.length)
   })
 })
 
 // ---------------------------------------------------------------------------
-// Click — Navegador calls onOpenBrowser once
+// Click — Browser calls onOpenBrowser once
 // ---------------------------------------------------------------------------
 
-describe('EmptyTab — click Navegador', () => {
-  it('calls onOpenBrowser once when the Navegador card is clicked', () => {
+describe('EmptyTab — click Browser', () => {
+  it('calls onOpenBrowser once when the Browser card is clicked', () => {
     const { onOpenBrowser } = renderEmptyTab()
-    fireEvent.click(screen.getByText('Navegador'))
+    fireEvent.click(screen.getByText('Browser'))
     expect(onOpenBrowser).toHaveBeenCalledTimes(1)
   })
 
-  it('does not call onCreateNote when Navegador is clicked', () => {
+  it('does not call onCreateNote when Browser is clicked', () => {
     const { onCreateNote } = renderEmptyTab()
-    fireEvent.click(screen.getByText('Navegador'))
+    fireEvent.click(screen.getByText('Browser'))
     expect(onCreateNote).not.toHaveBeenCalled()
   })
 })
 
 // ---------------------------------------------------------------------------
-// Click — Nova nota calls onCreateNote once
+// Click — New note calls onCreateNote once
 // ---------------------------------------------------------------------------
 
-describe('EmptyTab — click Nova nota', () => {
-  it('calls onCreateNote once when the Nova nota card is clicked', () => {
+describe('EmptyTab — click New note', () => {
+  it('calls onCreateNote once when the New note card is clicked', () => {
     const { onCreateNote } = renderEmptyTab()
-    fireEvent.click(screen.getByText('Nova nota'))
+    fireEvent.click(screen.getByText('New note'))
     expect(onCreateNote).toHaveBeenCalledTimes(1)
   })
 
-  it('does not call onOpenBrowser when Nova nota is clicked', () => {
+  it('does not call onOpenBrowser when New note is clicked', () => {
     const { onOpenBrowser } = renderEmptyTab()
-    fireEvent.click(screen.getByText('Nova nota'))
+    fireEvent.click(screen.getByText('New note'))
     expect(onOpenBrowser).not.toHaveBeenCalled()
   })
 })
@@ -98,17 +98,17 @@ describe('EmptyTab — click Nova nota', () => {
 // ---------------------------------------------------------------------------
 
 describe('EmptyTab — keyboard accessibility', () => {
-  it('fires onOpenBrowser when Enter is pressed on the focused Navegador button', async () => {
+  it('fires onOpenBrowser when Enter is pressed on the focused Browser button', async () => {
     const { onOpenBrowser } = renderEmptyTab()
-    const card = screen.getByText('Navegador').closest('[role="button"], button') as HTMLElement
+    const card = screen.getByText('Browser').closest('[role="button"], button') as HTMLElement
     card.focus()
     await userEvent.keyboard('{Enter}')
     expect(onOpenBrowser).toHaveBeenCalledTimes(1)
   })
 
-  it('fires onCreateNote when Enter is pressed on the focused Nova nota button', async () => {
+  it('fires onCreateNote when Enter is pressed on the focused New note button', async () => {
     const { onCreateNote } = renderEmptyTab()
-    const card = screen.getByText('Nova nota').closest('[role="button"], button') as HTMLElement
+    const card = screen.getByText('New note').closest('[role="button"], button') as HTMLElement
     card.focus()
     await userEvent.keyboard('{Enter}')
     expect(onCreateNote).toHaveBeenCalledTimes(1)
@@ -120,57 +120,57 @@ describe('EmptyTab — keyboard accessibility', () => {
 // ---------------------------------------------------------------------------
 
 describe('EmptyTab — disabled cards (vault closed)', () => {
-  it('Arquivos card is disabled when isVaultOpen is false', () => {
+  it('Files card is disabled when isVaultOpen is false', () => {
     renderEmptyTab({ isVaultOpen: false })
-    const card = screen.getByText('Arquivos').closest('button') as HTMLButtonElement
+    const card = screen.getByText('Files').closest('button') as HTMLButtonElement
     expect(card.disabled).toBe(true)
   })
 
-  it('Nova nota card is disabled when isVaultOpen is false', () => {
+  it('New note card is disabled when isVaultOpen is false', () => {
     renderEmptyTab({ isVaultOpen: false })
-    const card = screen.getByText('Nova nota').closest('button') as HTMLButtonElement
+    const card = screen.getByText('New note').closest('button') as HTMLButtonElement
     expect(card.disabled).toBe(true)
   })
 
-  it('Nova nota card is enabled by default (vault assumed open)', () => {
+  it('New note card is enabled by default (vault assumed open)', () => {
     renderEmptyTab()
-    const card = screen.getByText('Nova nota').closest('button') as HTMLButtonElement
+    const card = screen.getByText('New note').closest('button') as HTMLButtonElement
     expect(card.disabled).toBe(false)
   })
 })
 
 // ---------------------------------------------------------------------------
-// Arquivos card — enabled when vault open, calls onChooseFile on click
+// Files card — enabled when vault open, calls onChooseFile on click
 // ---------------------------------------------------------------------------
 
-describe('EmptyTab — Arquivos card', () => {
-  it('renders Arquivos card title', () => {
+describe('EmptyTab — Files card', () => {
+  it('renders Files card title', () => {
     renderEmptyTab()
-    expect(screen.getByText('Arquivos')).toBeInTheDocument()
+    expect(screen.getByText('Files')).toBeInTheDocument()
   })
 
   it('is enabled when isVaultOpen is true', () => {
     renderEmptyTab({ isVaultOpen: true })
-    const card = screen.getByText('Arquivos').closest('button') as HTMLButtonElement
+    const card = screen.getByText('Files').closest('button') as HTMLButtonElement
     expect(card.disabled).toBe(false)
   })
 
   it('calls onChooseFile once when clicked', () => {
     const { onChooseFile } = renderEmptyTab()
-    fireEvent.click(screen.getByText('Arquivos'))
+    fireEvent.click(screen.getByText('Files'))
     expect(onChooseFile).toHaveBeenCalledTimes(1)
   })
 
-  it('does not call other handlers when Arquivos is clicked', () => {
+  it('does not call other handlers when Files is clicked', () => {
     const { onOpenBrowser, onCreateNote } = renderEmptyTab()
-    fireEvent.click(screen.getByText('Arquivos'))
+    fireEvent.click(screen.getByText('Files'))
     expect(onOpenBrowser).not.toHaveBeenCalled()
     expect(onCreateNote).not.toHaveBeenCalled()
   })
 
   it('does not call onChooseFile when disabled (vault closed)', () => {
     const { onChooseFile } = renderEmptyTab({ isVaultOpen: false })
-    fireEvent.click(screen.getByText('Arquivos'))
+    fireEvent.click(screen.getByText('Files'))
     expect(onChooseFile).not.toHaveBeenCalled()
   })
 })

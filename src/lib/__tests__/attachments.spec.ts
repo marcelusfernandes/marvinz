@@ -8,13 +8,13 @@ import { buildAttachmentRelPath, attachmentMarkdown } from '../attachments'
 describe('buildAttachmentRelPath — slug generation', () => {
   it('sanitizes uppercase, special chars, preserves extension', () => {
     expect(buildAttachmentRelPath('My Photo!.PNG')).toMatch(
-      /^attachments\/\d{4}-\d{2}-\d{2}-\d{6}-my-photo-\.png$/,
+      /^attachments\/\d{4}-\d{2}-\d{2}-\d{6}-my-photo-\.png$/
     )
   })
 
   it('no-extension file: no trailing dot in slug', () => {
     expect(buildAttachmentRelPath('no-extension')).toMatch(
-      /^attachments\/\d{4}-\d{2}-\d{2}-\d{6}-no-extension$/,
+      /^attachments\/\d{4}-\d{2}-\d{2}-\d{6}-no-extension$/
     )
   })
 
@@ -66,19 +66,19 @@ describe('buildAttachmentRelPath — timestamp determinism', () => {
 describe('attachmentMarkdown — image vs link', () => {
   it('image/png → markdown image syntax', () => {
     expect(attachmentMarkdown({ name: 'photo.png', type: 'image/png' }, 'attachments/x.png')).toBe(
-      '![photo.png](attachments/x.png)',
+      '![photo.png](attachments/x.png)'
     )
   })
 
   it('application/pdf → markdown link syntax', () => {
-    expect(attachmentMarkdown({ name: 'doc.pdf', type: 'application/pdf' }, 'attachments/x.pdf')).toBe(
-      '[doc.pdf](attachments/x.pdf)',
-    )
+    expect(
+      attachmentMarkdown({ name: 'doc.pdf', type: 'application/pdf' }, 'attachments/x.pdf')
+    ).toBe('[doc.pdf](attachments/x.pdf)')
   })
 
   it('empty MIME type → link branch', () => {
     expect(attachmentMarkdown({ name: 'unknown', type: '' }, 'attachments/x')).toBe(
-      '[unknown](attachments/x)',
+      '[unknown](attachments/x)'
     )
   })
 })

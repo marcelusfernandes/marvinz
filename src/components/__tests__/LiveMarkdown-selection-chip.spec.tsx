@@ -62,15 +62,31 @@ const fakeView = {
     selection: { from: 0, to: 0, empty: true },
     get tr() {
       return {
-        doc: { content: { size: 1000 }, resolve: (n: number) => ({ pos: n, nodeBefore: null, marks: () => [] }) },
+        doc: {
+          content: { size: 1000 },
+          resolve: (n: number) => ({ pos: n, nodeBefore: null, marks: () => [] }),
+        },
         mapping: { map: (p: number) => p + 1 },
         _replaces: [] as unknown[],
-        replace(from: number, to: number, slice: unknown) { this._replaces.push({ from, to, slice }); return this },
-        replaceWith(_from: number, _to: number, _content: unknown) { return this },
-        insert(_pos: number, _content: unknown) { return this },
-        setMeta: vi.fn(function (this: unknown) { return this }),
-        setSelection: vi.fn(function (this: unknown) { return this }),
-        setStoredMarks: vi.fn(function (this: unknown) { return this }),
+        replace(from: number, to: number, slice: unknown) {
+          this._replaces.push({ from, to, slice })
+          return this
+        },
+        replaceWith(_from: number, _to: number, _content: unknown) {
+          return this
+        },
+        insert(_pos: number, _content: unknown) {
+          return this
+        },
+        setMeta: vi.fn(function (this: unknown) {
+          return this
+        }),
+        setSelection: vi.fn(function (this: unknown) {
+          return this
+        }),
+        setStoredMarks: vi.fn(function (this: unknown) {
+          return this
+        }),
       }
     },
   },
@@ -106,7 +122,10 @@ vi.mock('@milkdown/core', () => ({
   Editor: {
     make: () => {
       const builder = {
-        config: (cb: (ctx: typeof fakeCtx) => void) => { cb(fakeCtx); return builder },
+        config: (cb: (ctx: typeof fakeCtx) => void) => {
+          cb(fakeCtx)
+          return builder
+        },
         use: () => builder,
       }
       return builder
@@ -251,7 +270,11 @@ function asDOMRect(r: FakeRect) {
   }
 }
 
-function makeSelection(text: string, anchorNode: Node | null, rects: FakeRect[] = [DEFAULT_FAKE_RECT]) {
+function makeSelection(
+  text: string,
+  anchorNode: Node | null,
+  rects: FakeRect[] = [DEFAULT_FAKE_RECT]
+) {
   const range = document.createRange()
   if (anchorNode) range.selectNodeContents(anchorNode)
 
@@ -549,7 +572,7 @@ describe('LiveMarkdown selection chip — activates in edit and preview mode', (
             body: '# Preview heading\nsome text',
             remountKey: 'preview',
           })}
-        />,
+        />
       )
       container = result.container
     })

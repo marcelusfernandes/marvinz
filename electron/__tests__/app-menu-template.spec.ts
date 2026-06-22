@@ -18,7 +18,7 @@ import { buildMenuTemplate } from '../main.js'
 // Flatten a top-level submenu by label
 function submenu(
   template: Electron.MenuItemConstructorOptions[],
-  label: string,
+  label: string
 ): Electron.MenuItemConstructorOptions[] {
   const entry = template.find((m) => m.label === label)
   return (entry?.submenu as Electron.MenuItemConstructorOptions[]) ?? []
@@ -35,7 +35,7 @@ function collectActions(menuLabel: string, hasNoteTab = true): string[] {
     item.click?.(
       {} as Electron.MenuItem,
       {} as Electron.BrowserWindow,
-      {} as Electron.KeyboardEvent,
+      {} as Electron.KeyboardEvent
     )
   }
   return fired
@@ -63,37 +63,58 @@ describe('buildMenuTemplate — top-level menus', () => {
 
 describe('buildMenuTemplate — Edit roles', () => {
   it('contains undo role', () => {
-    const items = submenu(buildMenuTemplate(() => {}), 'Edit')
+    const items = submenu(
+      buildMenuTemplate(() => {}),
+      'Edit'
+    )
     expect(items.some((i) => i.role === 'undo')).toBe(true)
   })
 
   it('contains redo role', () => {
-    const items = submenu(buildMenuTemplate(() => {}), 'Edit')
+    const items = submenu(
+      buildMenuTemplate(() => {}),
+      'Edit'
+    )
     expect(items.some((i) => i.role === 'redo')).toBe(true)
   })
 
   it('contains cut role', () => {
-    const items = submenu(buildMenuTemplate(() => {}), 'Edit')
+    const items = submenu(
+      buildMenuTemplate(() => {}),
+      'Edit'
+    )
     expect(items.some((i) => i.role === 'cut')).toBe(true)
   })
 
   it('contains copy role', () => {
-    const items = submenu(buildMenuTemplate(() => {}), 'Edit')
+    const items = submenu(
+      buildMenuTemplate(() => {}),
+      'Edit'
+    )
     expect(items.some((i) => i.role === 'copy')).toBe(true)
   })
 
   it('contains paste role', () => {
-    const items = submenu(buildMenuTemplate(() => {}), 'Edit')
+    const items = submenu(
+      buildMenuTemplate(() => {}),
+      'Edit'
+    )
     expect(items.some((i) => i.role === 'paste')).toBe(true)
   })
 
   it('contains selectAll role', () => {
-    const items = submenu(buildMenuTemplate(() => {}), 'Edit')
+    const items = submenu(
+      buildMenuTemplate(() => {}),
+      'Edit'
+    )
     expect(items.some((i) => i.role === 'selectAll')).toBe(true)
   })
 
   it('has no click handlers (roles only — no bridge)', () => {
-    const items = submenu(buildMenuTemplate(() => {}), 'Edit')
+    const items = submenu(
+      buildMenuTemplate(() => {}),
+      'Edit'
+    )
     const withClick = items.filter((i) => typeof i.click === 'function')
     expect(withClick).toHaveLength(0)
   })
@@ -132,7 +153,11 @@ describe('buildMenuTemplate — File menu actions', () => {
     const fired: string[] = []
     const t = buildMenuTemplate((a) => fired.push(a))
     const item = submenu(t, 'File').find((i) => i.label === 'New Note')
-    item?.click?.({} as Electron.MenuItem, {} as Electron.BrowserWindow, {} as Electron.KeyboardEvent)
+    item?.click?.(
+      {} as Electron.MenuItem,
+      {} as Electron.BrowserWindow,
+      {} as Electron.KeyboardEvent
+    )
     expect(fired).toContain('new-note')
   })
 
@@ -140,7 +165,11 @@ describe('buildMenuTemplate — File menu actions', () => {
     const fired: string[] = []
     const t = buildMenuTemplate((a) => fired.push(a))
     const item = submenu(t, 'File').find((i) => i.label === 'Save')
-    item?.click?.({} as Electron.MenuItem, {} as Electron.BrowserWindow, {} as Electron.KeyboardEvent)
+    item?.click?.(
+      {} as Electron.MenuItem,
+      {} as Electron.BrowserWindow,
+      {} as Electron.KeyboardEvent
+    )
     expect(fired).toContain('save')
   })
 
@@ -148,7 +177,11 @@ describe('buildMenuTemplate — File menu actions', () => {
     const fired: string[] = []
     const t = buildMenuTemplate((a) => fired.push(a))
     const item = submenu(t, 'File').find((i) => i.label === 'New Agent Terminal')
-    item?.click?.({} as Electron.MenuItem, {} as Electron.BrowserWindow, {} as Electron.KeyboardEvent)
+    item?.click?.(
+      {} as Electron.MenuItem,
+      {} as Electron.BrowserWindow,
+      {} as Electron.KeyboardEvent
+    )
     expect(fired).toContain('new-agent-terminal')
   })
 
@@ -156,13 +189,23 @@ describe('buildMenuTemplate — File menu actions', () => {
     const fired: string[] = []
     const t = buildMenuTemplate((a) => fired.push(a))
     const item = submenu(t, 'File').find((i) => i.label === 'Command Palette')
-    item?.click?.({} as Electron.MenuItem, {} as Electron.BrowserWindow, {} as Electron.KeyboardEvent)
+    item?.click?.(
+      {} as Electron.MenuItem,
+      {} as Electron.BrowserWindow,
+      {} as Electron.KeyboardEvent
+    )
     expect(fired).toContain('command-palette')
   })
 
   it('enables Export PDF and Reveal in Finder only when a note tab is active', () => {
-    const withNote = submenu(buildMenuTemplate(() => {}, true), 'File')
-    const noNote = submenu(buildMenuTemplate(() => {}, false), 'File')
+    const withNote = submenu(
+      buildMenuTemplate(() => {}, true),
+      'File'
+    )
+    const noNote = submenu(
+      buildMenuTemplate(() => {}, false),
+      'File'
+    )
     const find = (items: Electron.MenuItemConstructorOptions[], label: string) =>
       items.find((i) => i.label === label)
     expect(find(withNote, 'Export PDF')?.enabled).toBe(true)
@@ -172,7 +215,10 @@ describe('buildMenuTemplate — File menu actions', () => {
   })
 
   it('keeps note-independent items enabled regardless of note context', () => {
-    const noNote = submenu(buildMenuTemplate(() => {}, false), 'File')
+    const noNote = submenu(
+      buildMenuTemplate(() => {}, false),
+      'File'
+    )
     const newNote = noNote.find((i) => i.label === 'New Note')
     // New Note / Open Folder don't depend on an active note — must stay enabled.
     expect(newNote?.enabled).not.toBe(false)
@@ -188,22 +234,35 @@ describe('buildMenuTemplate — Marvinz menu', () => {
     const fired: string[] = []
     const t = buildMenuTemplate((a) => fired.push(a))
     const item = submenu(t, 'Marvinz').find((i) => i.label === 'Settings…')
-    item?.click?.({} as Electron.MenuItem, {} as Electron.BrowserWindow, {} as Electron.KeyboardEvent)
+    item?.click?.(
+      {} as Electron.MenuItem,
+      {} as Electron.BrowserWindow,
+      {} as Electron.KeyboardEvent
+    )
     expect(fired).toEqual(['settings'])
   })
 
   it('contains about role', () => {
-    const items = submenu(buildMenuTemplate(() => {}), 'Marvinz')
+    const items = submenu(
+      buildMenuTemplate(() => {}),
+      'Marvinz'
+    )
     expect(items.some((i) => i.role === 'about')).toBe(true)
   })
 
   it('contains hide role', () => {
-    const items = submenu(buildMenuTemplate(() => {}), 'Marvinz')
+    const items = submenu(
+      buildMenuTemplate(() => {}),
+      'Marvinz'
+    )
     expect(items.some((i) => i.role === 'hide')).toBe(true)
   })
 
   it('contains quit role', () => {
-    const items = submenu(buildMenuTemplate(() => {}), 'Marvinz')
+    const items = submenu(
+      buildMenuTemplate(() => {}),
+      'Marvinz'
+    )
     expect(items.some((i) => i.role === 'quit')).toBe(true)
   })
 })
@@ -217,17 +276,27 @@ describe('buildMenuTemplate — View menu', () => {
     const fired: string[] = []
     const t = buildMenuTemplate((a) => fired.push(a))
     const item = submenu(t, 'View').find((i) => i.label === 'Find')
-    item?.click?.({} as Electron.MenuItem, {} as Electron.BrowserWindow, {} as Electron.KeyboardEvent)
+    item?.click?.(
+      {} as Electron.MenuItem,
+      {} as Electron.BrowserWindow,
+      {} as Electron.KeyboardEvent
+    )
     expect(fired).toEqual(['find'])
   })
 
   it('contains reload role', () => {
-    const items = submenu(buildMenuTemplate(() => {}), 'View')
+    const items = submenu(
+      buildMenuTemplate(() => {}),
+      'View'
+    )
     expect(items.some((i) => i.role === 'reload')).toBe(true)
   })
 
   it('contains toggleDevTools role', () => {
-    const items = submenu(buildMenuTemplate(() => {}), 'View')
+    const items = submenu(
+      buildMenuTemplate(() => {}),
+      'View'
+    )
     expect(items.some((i) => i.role === 'toggleDevTools')).toBe(true)
   })
 })
@@ -238,22 +307,34 @@ describe('buildMenuTemplate — View menu', () => {
 
 describe('buildMenuTemplate — Window menu', () => {
   it('contains minimize role', () => {
-    const items = submenu(buildMenuTemplate(() => {}), 'Window')
+    const items = submenu(
+      buildMenuTemplate(() => {}),
+      'Window'
+    )
     expect(items.some((i) => i.role === 'minimize')).toBe(true)
   })
 
   it('contains zoom role', () => {
-    const items = submenu(buildMenuTemplate(() => {}), 'Window')
+    const items = submenu(
+      buildMenuTemplate(() => {}),
+      'Window'
+    )
     expect(items.some((i) => i.role === 'zoom')).toBe(true)
   })
 
   it('contains close role', () => {
-    const items = submenu(buildMenuTemplate(() => {}), 'Window')
+    const items = submenu(
+      buildMenuTemplate(() => {}),
+      'Window'
+    )
     expect(items.some((i) => i.role === 'close')).toBe(true)
   })
 
   it('has no click handlers (roles only)', () => {
-    const items = submenu(buildMenuTemplate(() => {}), 'Window')
+    const items = submenu(
+      buildMenuTemplate(() => {}),
+      'Window'
+    )
     expect(items.filter((i) => typeof i.click === 'function')).toHaveLength(0)
   })
 })
@@ -264,32 +345,50 @@ describe('buildMenuTemplate — Window menu', () => {
 
 describe('buildMenuTemplate — accelerators', () => {
   it('New Note has accelerator Cmd+N', () => {
-    const item = submenu(buildMenuTemplate(() => {}), 'File').find((i) => i.label === 'New Note')
+    const item = submenu(
+      buildMenuTemplate(() => {}),
+      'File'
+    ).find((i) => i.label === 'New Note')
     expect(item?.accelerator).toBe('Cmd+N')
   })
 
   it('Save has accelerator Cmd+S', () => {
-    const item = submenu(buildMenuTemplate(() => {}), 'File').find((i) => i.label === 'Save')
+    const item = submenu(
+      buildMenuTemplate(() => {}),
+      'File'
+    ).find((i) => i.label === 'Save')
     expect(item?.accelerator).toBe('Cmd+S')
   })
 
   it('New Agent Terminal has accelerator Cmd+Shift+T', () => {
-    const item = submenu(buildMenuTemplate(() => {}), 'File').find((i) => i.label === 'New Agent Terminal')
+    const item = submenu(
+      buildMenuTemplate(() => {}),
+      'File'
+    ).find((i) => i.label === 'New Agent Terminal')
     expect(item?.accelerator).toBe('Cmd+Shift+T')
   })
 
   it('Command Palette has accelerator Cmd+P', () => {
-    const item = submenu(buildMenuTemplate(() => {}), 'File').find((i) => i.label === 'Command Palette')
+    const item = submenu(
+      buildMenuTemplate(() => {}),
+      'File'
+    ).find((i) => i.label === 'Command Palette')
     expect(item?.accelerator).toBe('Cmd+P')
   })
 
   it('Settings has accelerator Cmd+,', () => {
-    const item = submenu(buildMenuTemplate(() => {}), 'Marvinz').find((i) => i.label === 'Settings…')
+    const item = submenu(
+      buildMenuTemplate(() => {}),
+      'Marvinz'
+    ).find((i) => i.label === 'Settings…')
     expect(item?.accelerator).toBe('Cmd+,')
   })
 
   it('Find has accelerator Cmd+F', () => {
-    const item = submenu(buildMenuTemplate(() => {}), 'View').find((i) => i.label === 'Find')
+    const item = submenu(
+      buildMenuTemplate(() => {}),
+      'View'
+    ).find((i) => i.label === 'Find')
     expect(item?.accelerator).toBe('Cmd+F')
   })
 })
@@ -303,7 +402,11 @@ describe('buildMenuTemplate — send callback isolation', () => {
     const received: string[] = []
     const t = buildMenuTemplate((a) => received.push(a))
     const item = submenu(t, 'File').find((i) => i.label === 'Export PDF')
-    item?.click?.({} as Electron.MenuItem, {} as Electron.BrowserWindow, {} as Electron.KeyboardEvent)
+    item?.click?.(
+      {} as Electron.MenuItem,
+      {} as Electron.BrowserWindow,
+      {} as Electron.KeyboardEvent
+    )
     expect(received).toEqual(['export-pdf'])
   })
 
@@ -311,7 +414,11 @@ describe('buildMenuTemplate — send callback isolation', () => {
     let count = 0
     const t = buildMenuTemplate(() => count++)
     const item = submenu(t, 'File').find((i) => i.label === 'Reveal in Finder')
-    item?.click?.({} as Electron.MenuItem, {} as Electron.BrowserWindow, {} as Electron.KeyboardEvent)
+    item?.click?.(
+      {} as Electron.MenuItem,
+      {} as Electron.BrowserWindow,
+      {} as Electron.KeyboardEvent
+    )
     expect(count).toBe(1)
   })
 })

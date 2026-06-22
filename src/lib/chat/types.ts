@@ -8,13 +8,7 @@ export type ToolCallId = string
 export type Provider = 'claude' | 'codex'
 export type PermissionMode = 'default' | 'acceptEdits' | 'plan' | 'auto'
 
-export type ToolStatus =
-  | 'pending_approval'
-  | 'running'
-  | 'ok'
-  | 'error'
-  | 'denied'
-  | 'cancelled'
+export type ToolStatus = 'pending_approval' | 'running' | 'ok' | 'error' | 'denied' | 'cancelled'
 
 export type AssistantBlock =
   | { kind: 'thinking'; id: string; text: string }
@@ -74,11 +68,7 @@ export type SystemMessage = {
 
 export type Message = UserMessage | AssistantMessage | SystemMessage
 
-export type TurnState =
-  | 'idle'
-  | 'streaming'
-  | 'awaiting_approval'
-  | 'error'
+export type TurnState = 'idle' | 'streaming' | 'awaiting_approval' | 'error'
 
 export type Session = {
   id: SessionId

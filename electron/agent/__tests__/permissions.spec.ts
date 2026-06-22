@@ -100,15 +100,21 @@ describe('evaluatePermission — mode: auto', () => {
   })
 
   it('returns allow for Write', () => {
-    expect(evaluatePermission(ctx({ permissionMode: 'auto', toolName: 'Write' }))).toEqual({ action: 'allow' })
+    expect(evaluatePermission(ctx({ permissionMode: 'auto', toolName: 'Write' }))).toEqual({
+      action: 'allow',
+    })
   })
 
   it('returns allow for Edit', () => {
-    expect(evaluatePermission(ctx({ permissionMode: 'auto', toolName: 'Edit' }))).toEqual({ action: 'allow' })
+    expect(evaluatePermission(ctx({ permissionMode: 'auto', toolName: 'Edit' }))).toEqual({
+      action: 'allow',
+    })
   })
 
   it('returns allow for any tool including unknown', () => {
-    expect(evaluatePermission(ctx({ permissionMode: 'auto', toolName: 'mcp__foo' }))).toEqual({ action: 'allow' })
+    expect(evaluatePermission(ctx({ permissionMode: 'auto', toolName: 'mcp__foo' }))).toEqual({
+      action: 'allow',
+    })
   })
 })
 
@@ -118,31 +124,45 @@ describe('evaluatePermission — mode: auto', () => {
 
 describe('evaluatePermission — mode: acceptEdits', () => {
   it('returns allow for Write tool (edit family)', () => {
-    expect(evaluatePermission(ctx({ permissionMode: 'acceptEdits', toolName: 'Write' }))).toEqual({ action: 'allow' })
+    expect(evaluatePermission(ctx({ permissionMode: 'acceptEdits', toolName: 'Write' }))).toEqual({
+      action: 'allow',
+    })
   })
 
   it('returns allow for Edit tool (edit family)', () => {
-    expect(evaluatePermission(ctx({ permissionMode: 'acceptEdits', toolName: 'Edit' }))).toEqual({ action: 'allow' })
+    expect(evaluatePermission(ctx({ permissionMode: 'acceptEdits', toolName: 'Edit' }))).toEqual({
+      action: 'allow',
+    })
   })
 
   it('returns allow for NotebookEdit (edit family)', () => {
-    expect(evaluatePermission(ctx({ permissionMode: 'acceptEdits', toolName: 'NotebookEdit' }))).toEqual({ action: 'allow' })
+    expect(
+      evaluatePermission(ctx({ permissionMode: 'acceptEdits', toolName: 'NotebookEdit' }))
+    ).toEqual({ action: 'allow' })
   })
 
   it('returns allow for MultiEdit (edit family)', () => {
-    expect(evaluatePermission(ctx({ permissionMode: 'acceptEdits', toolName: 'MultiEdit' }))).toEqual({ action: 'allow' })
+    expect(
+      evaluatePermission(ctx({ permissionMode: 'acceptEdits', toolName: 'MultiEdit' }))
+    ).toEqual({ action: 'allow' })
   })
 
   it('returns request for Bash tool (not in edit family)', () => {
-    expect(evaluatePermission(ctx({ permissionMode: 'acceptEdits', toolName: 'Bash' }))).toEqual({ action: 'request' })
+    expect(evaluatePermission(ctx({ permissionMode: 'acceptEdits', toolName: 'Bash' }))).toEqual({
+      action: 'request',
+    })
   })
 
   it('returns request for WebFetch tool (not in edit family)', () => {
-    expect(evaluatePermission(ctx({ permissionMode: 'acceptEdits', toolName: 'WebFetch' }))).toEqual({ action: 'request' })
+    expect(
+      evaluatePermission(ctx({ permissionMode: 'acceptEdits', toolName: 'WebFetch' }))
+    ).toEqual({ action: 'request' })
   })
 
   it('returns request for unknown MCP tool', () => {
-    expect(evaluatePermission(ctx({ permissionMode: 'acceptEdits', toolName: 'mcp__custom' }))).toEqual({ action: 'request' })
+    expect(
+      evaluatePermission(ctx({ permissionMode: 'acceptEdits', toolName: 'mcp__custom' }))
+    ).toEqual({ action: 'request' })
   })
 })
 
@@ -152,7 +172,9 @@ describe('evaluatePermission — mode: acceptEdits', () => {
 
 describe('evaluatePermission — mode: plan', () => {
   it('denies Bash tool (write family)', () => {
-    expect(evaluatePermission(ctx({ permissionMode: 'plan', toolName: 'Bash' })).action).toBe('deny')
+    expect(evaluatePermission(ctx({ permissionMode: 'plan', toolName: 'Bash' })).action).toBe(
+      'deny'
+    )
   })
 
   it('deny reason mentions plan mode', () => {
@@ -167,19 +189,27 @@ describe('evaluatePermission — mode: plan', () => {
   })
 
   it('denies Edit tool', () => {
-    expect(evaluatePermission(ctx({ permissionMode: 'plan', toolName: 'Edit' })).action).toBe('deny')
+    expect(evaluatePermission(ctx({ permissionMode: 'plan', toolName: 'Edit' })).action).toBe(
+      'deny'
+    )
   })
 
   it('allows Read tool (plan mode only denies write tools)', () => {
-    expect(evaluatePermission(ctx({ permissionMode: 'plan', toolName: 'Read' }))).toEqual({ action: 'allow' })
+    expect(evaluatePermission(ctx({ permissionMode: 'plan', toolName: 'Read' }))).toEqual({
+      action: 'allow',
+    })
   })
 
   it('allows Glob tool', () => {
-    expect(evaluatePermission(ctx({ permissionMode: 'plan', toolName: 'Glob' }))).toEqual({ action: 'allow' })
+    expect(evaluatePermission(ctx({ permissionMode: 'plan', toolName: 'Glob' }))).toEqual({
+      action: 'allow',
+    })
   })
 
   it('allows WebFetch tool (network, not write)', () => {
-    expect(evaluatePermission(ctx({ permissionMode: 'plan', toolName: 'WebFetch' }))).toEqual({ action: 'allow' })
+    expect(evaluatePermission(ctx({ permissionMode: 'plan', toolName: 'WebFetch' }))).toEqual({
+      action: 'allow',
+    })
   })
 })
 
@@ -189,61 +219,73 @@ describe('evaluatePermission — mode: plan', () => {
 
 describe('evaluatePermission — vault boundary', () => {
   it('denies Write targeting a path outside the vault', () => {
-    const result = evaluatePermission(ctx({
-      toolName: 'Write',
-      input: { file_path: '/etc/passwd', content: 'evil' },
-      vaultRoot: '/vault',
-    }))
+    const result = evaluatePermission(
+      ctx({
+        toolName: 'Write',
+        input: { file_path: '/etc/passwd', content: 'evil' },
+        vaultRoot: '/vault',
+      })
+    )
     expect(result.action).toBe('deny')
     if (result.action === 'deny') expect(result.reason).toContain('VAULT_FORBIDDEN')
   })
 
   it('allows Write targeting a path inside the vault (auto mode)', () => {
-    const result = evaluatePermission(ctx({
-      permissionMode: 'auto',
-      toolName: 'Write',
-      input: { file_path: '/vault/note.md', content: 'hello' },
-      vaultRoot: '/vault',
-    }))
+    const result = evaluatePermission(
+      ctx({
+        permissionMode: 'auto',
+        toolName: 'Write',
+        input: { file_path: '/vault/note.md', content: 'hello' },
+        vaultRoot: '/vault',
+      })
+    )
     expect(result.action).toBe('allow')
   })
 
   it('denies traversal attack (../../ path outside vault)', () => {
-    const result = evaluatePermission(ctx({
-      toolName: 'Edit',
-      input: { file_path: '/vault/../../etc/shadow' },
-      vaultRoot: '/vault',
-    }))
+    const result = evaluatePermission(
+      ctx({
+        toolName: 'Edit',
+        input: { file_path: '/vault/../../etc/shadow' },
+        vaultRoot: '/vault',
+      })
+    )
     expect(result.action).toBe('deny')
   })
 
   it('vault check fires before mode logic — auto mode still denied on boundary violation', () => {
-    const result = evaluatePermission(ctx({
-      permissionMode: 'auto',
-      toolName: 'Write',
-      input: { file_path: '/outside/file.md', content: 'x' },
-      vaultRoot: '/vault',
-    }))
+    const result = evaluatePermission(
+      ctx({
+        permissionMode: 'auto',
+        toolName: 'Write',
+        input: { file_path: '/outside/file.md', content: 'x' },
+        vaultRoot: '/vault',
+      })
+    )
     expect(result.action).toBe('deny')
   })
 
   it('does not apply vault check when input has no path key', () => {
     // Bash with command key only — vault check skipped → default mode → request
-    const result = evaluatePermission(ctx({
-      permissionMode: 'default',
-      toolName: 'Bash',
-      input: { command: 'ls' },
-    }))
+    const result = evaluatePermission(
+      ctx({
+        permissionMode: 'default',
+        toolName: 'Bash',
+        input: { command: 'ls' },
+      })
+    )
     expect(result.action).toBe('request')
   })
 
   it('resolves relative paths against vaultRoot (inside vault → allow in auto)', () => {
-    const result = evaluatePermission(ctx({
-      permissionMode: 'auto',
-      toolName: 'Write',
-      input: { file_path: 'note.md' },
-      vaultRoot: '/vault',
-    }))
+    const result = evaluatePermission(
+      ctx({
+        permissionMode: 'auto',
+        toolName: 'Write',
+        input: { file_path: 'note.md' },
+        vaultRoot: '/vault',
+      })
+    )
     expect(result.action).toBe('allow')
   })
 })

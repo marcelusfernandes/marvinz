@@ -25,9 +25,7 @@ export function justInsertedPlugin(): Plugin<DecorationSet> {
         if (meta.type === 'add') {
           const decorations: Decoration[] = []
           for (const r of meta.ranges) {
-            decorations.push(
-              Decoration.inline(r.from, r.to, { class: 'pm-just-inserted' }),
-            )
+            decorations.push(Decoration.inline(r.from, r.to, { class: 'pm-just-inserted' }))
             // Find inline atom nodes (images, hard breaks) inside the range
             // and emit node decorations so custom node views can mirror the
             // class onto their wrapper element. `descendants` traverses
@@ -38,7 +36,7 @@ export function justInsertedPlugin(): Plugin<DecorationSet> {
               if (p + node.nodeSize <= r.from) return false
               if (node.isAtom && node.isInline) {
                 decorations.push(
-                  Decoration.node(p, p + node.nodeSize, { class: 'pm-just-inserted' }),
+                  Decoration.node(p, p + node.nodeSize, { class: 'pm-just-inserted' })
                 )
                 return false
               }

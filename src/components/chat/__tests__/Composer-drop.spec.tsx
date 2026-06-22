@@ -33,7 +33,7 @@ vi.mock('../../../lib/chat/store', () => ({
       sessions: Record<string, { composer: { draft: string }; permissionMode: string }>
       setComposerDraft: typeof setDraftMock
       setPermissionMode: () => void
-    }) => unknown,
+    }) => unknown
   ) =>
     selector({
       get sessions() {
@@ -58,7 +58,7 @@ const SESSION_ID = 'test-session'
 const VAULT = '/vault'
 
 function defaultProps(
-  overrides: Partial<Parameters<typeof Composer>[0] & { vaultPath: string }> = {},
+  overrides: Partial<Parameters<typeof Composer>[0] & { vaultPath: string }> = {}
 ) {
   return {
     sessionId: SESSION_ID,
@@ -75,7 +75,7 @@ function defaultProps(
 function makeDragEvent(
   type: 'dragover' | 'dragleave' | 'drop',
   internalPath = '',
-  internalPaths: string[] = [],
+  internalPaths: string[] = []
 ) {
   const event = new Event(type, { bubbles: true, cancelable: true }) as DragEvent
   const types: string[] = []
@@ -144,7 +144,7 @@ describe('Composer — drop target (issue #366)', () => {
 
     await act(async () => {
       getComposer().dispatchEvent(
-        makeDragEvent('drop', '', ['/vault/a.md', '/vault/b.md', '/vault/c.md']),
+        makeDragEvent('drop', '', ['/vault/a.md', '/vault/b.md', '/vault/c.md'])
       )
     })
 
@@ -192,7 +192,7 @@ describe('Composer — drop target (issue #366)', () => {
     })
 
     expect(
-      (event as DragEvent & { preventDefault: ReturnType<typeof vi.fn> }).preventDefault,
+      (event as DragEvent & { preventDefault: ReturnType<typeof vi.fn> }).preventDefault
     ).toHaveBeenCalled()
     expect(screen.getByTestId('chat-composer-drop-overlay')).toBeInTheDocument()
   })
@@ -207,7 +207,7 @@ describe('Composer — drop target (issue #366)', () => {
     })
 
     expect(
-      (event as DragEvent & { preventDefault: ReturnType<typeof vi.fn> }).preventDefault,
+      (event as DragEvent & { preventDefault: ReturnType<typeof vi.fn> }).preventDefault
     ).not.toHaveBeenCalled()
     expect(screen.queryByTestId('chat-composer-drop-overlay')).toBeNull()
   })

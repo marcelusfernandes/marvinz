@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 //
-// Integration tests for the Arquivos flow wired in App.tsx (issue #307).
+// Integration tests for the Files flow wired in App.tsx (issue #307).
 // Covers chooseFileFromEmpty — cancel (null pick) keeps empty tab; valid
 // path removes empty tab.
 // (Revisão / DiffTab flow ships in follow-up #361 along with its own tests.)
@@ -42,7 +42,11 @@ vi.mock('../../lib/settingsStore', () => ({
     return undefined
   },
 }))
-vi.mock('../../lib/colorTheme', () => ({ useColorTheme: vi.fn(), useAgentsPaneTransparent: vi.fn(), useEditorEffects: vi.fn() }))
+vi.mock('../../lib/colorTheme', () => ({
+  useColorTheme: vi.fn(),
+  useAgentsPaneTransparent: vi.fn(),
+  useEditorEffects: vi.fn(),
+}))
 vi.mock('../../lib/visualStyle', () => ({ useVisualStyle: () => 'modern' }))
 vi.mock('../../lib/paletteRanker', () => ({}))
 
@@ -147,7 +151,9 @@ async function renderAppWithEmptyTab() {
   await act(async () => {})
   // Open an empty tab via the + button
   const newTabBtn = screen.getByRole('button', { name: /new.*tab/i })
-  await act(async () => { fireEvent.click(newTabBtn) })
+  await act(async () => {
+    fireEvent.click(newTabBtn)
+  })
   return utils
 }
 
@@ -163,18 +169,20 @@ describe('chooseFileFromEmpty — cancel (null) keeps empty tab', () => {
     filePickMock.mockResolvedValue(null)
     await renderAppWithEmptyTab()
 
-    const arquivosBtn = screen.getByText('Arquivos').closest('button') as HTMLButtonElement
-    await act(async () => { fireEvent.click(arquivosBtn) })
+    const arquivosBtn = screen.getByText('Files').closest('button') as HTMLButtonElement
+    await act(async () => {
+      fireEvent.click(arquivosBtn)
+    })
 
-    expect(screen.getByText('Arquivos')).toBeInTheDocument()
+    expect(screen.getByText('Files')).toBeInTheDocument()
   })
 
-  it('file.pick is called once when Arquivos is clicked', async () => {
+  it('file.pick is called once when Files is clicked', async () => {
     filePickMock.mockResolvedValue(null)
     await renderAppWithEmptyTab()
 
     await act(async () => {
-      fireEvent.click(screen.getByText('Arquivos').closest('button') as HTMLButtonElement)
+      fireEvent.click(screen.getByText('Files').closest('button') as HTMLButtonElement)
     })
 
     expect(filePickMock).toHaveBeenCalledTimes(1)
@@ -196,12 +204,12 @@ describe('chooseFileFromEmpty — valid path opens file', () => {
     await renderAppWithEmptyTab()
 
     await act(async () => {
-      fireEvent.click(screen.getByText('Arquivos').closest('button') as HTMLButtonElement)
+      fireEvent.click(screen.getByText('Files').closest('button') as HTMLButtonElement)
     })
     // Give async openInTab time to finish
     await act(async () => {})
 
-    expect(screen.queryByText('Arquivos')).toBeNull()
+    expect(screen.queryByText('Files')).toBeNull()
   })
 })
 

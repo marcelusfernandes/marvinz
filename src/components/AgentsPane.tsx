@@ -5,11 +5,7 @@ import { InputDialog } from './InputDialog'
 import { ChatPanel, type TurnSummary } from './chat/ChatPanel'
 import { useSetting } from '../lib/settingsStore'
 import type { Provider } from '../lib/chat/types'
-import {
-  clearTabLabel,
-  readTabLabels,
-  writeTabLabels,
-} from '../lib/chat/tabLabels'
+import { clearTabLabel, readTabLabels, writeTabLabels } from '../lib/chat/tabLabels'
 import { CHAT_UI_ENABLED, resolveTabMode, type TabMode } from '../lib/featureFlags'
 import { useHorizontalWheelScroll } from '../lib/useHorizontalWheelScroll'
 import type { AgentKind } from '../lib/agent-drop-format'
@@ -70,15 +66,12 @@ export function AgentsPane({
   onOpenFile,
   onFocusChange,
 }: Props) {
-  const installed = useMemo(
-    () => agents.filter((a) => a.binaryPath != null),
-    [agents],
-  )
+  const installed = useMemo(() => agents.filter((a) => a.binaryPath != null), [agents])
   const terminalModeDefault = useSetting('terminalModeEnabled') ?? false
   const [tabs, setTabs] = useState<AgentTab[]>([])
   const [activeId, setActiveId] = useState<string>('')
   const [defaultAgentId, setDefaultAgentId] = useState<string | null>(() =>
-    readStoredDefault(agents),
+    readStoredDefault(agents)
   )
   const [statuses, setStatuses] = useState<Record<string, StatusEntry>>({})
   const [renameTarget, setRenameTarget] = useState<AgentTab | null>(null)
@@ -153,10 +146,7 @@ export function AgentsPane({
     }
   }, [installed, defaultAgentId])
 
-  const findAgent = useCallback(
-    (id: string) => agents.find((a) => a.id === id),
-    [agents],
-  )
+  const findAgent = useCallback((id: string) => agents.find((a) => a.id === id), [agents])
 
   const tabLabel = useCallback(
     (t: AgentTab) => {
@@ -164,7 +154,7 @@ export function AgentsPane({
       const a = findAgent(t.agentId)
       return a ? `${a.name} ${t.num}` : t.agentId
     },
-    [findAgent],
+    [findAgent]
   )
 
   const addTab = useCallback(
@@ -178,9 +168,7 @@ export function AgentsPane({
       counterRef.current[agentId] = ptySeq
       // Display number reuses the lowest free slot — closing tab N frees N
       // for the next new tab of the same agent.
-      const used = new Set(
-        tabs.filter((t) => t.agentId === agentId).map((t) => t.num),
-      )
+      const used = new Set(tabs.filter((t) => t.agentId === agentId).map((t) => t.num))
       let num = 1
       while (used.has(num)) num++
       // Default to chat for native-chat-eligible providers unless the user
@@ -189,7 +177,7 @@ export function AgentsPane({
       const mode: TabMode = resolveTabMode(
         CHAT_UI_ENABLED,
         terminalModeDefault,
-        isChatProvider(agentId),
+        isChatProvider(agentId)
       )
       const tab: AgentTab = {
         id: `${agentId}-${ptySeq}`,
@@ -200,7 +188,7 @@ export function AgentsPane({
       setTabs((prev) => [...prev, tab])
       setActiveId(tab.id)
     },
-    [findAgent, tabs, terminalModeDefault],
+    [findAgent, tabs, terminalModeDefault]
   )
 
   const removeTab = useCallback(
@@ -223,7 +211,7 @@ export function AgentsPane({
       })
       clearTabLabel(id)
     },
-    [activeId],
+    [activeId]
   )
 
   const pickAndOpen = useCallback(
@@ -231,7 +219,7 @@ export function AgentsPane({
       setDefaultAgentId(agentId)
       addTab(agentId)
     },
-    [addTab],
+    [addTab]
   )
 
   const renameTab = useCallback((id: string, label: string) => {
@@ -279,38 +267,33 @@ export function AgentsPane({
       stored[newId] = savedLabel
       writeTabLabels(stored)
     },
-    [removeTab, addTab],
+    [removeTab, addTab]
   )
 
-  const closeOthers = useCallback(
-    (keepId: string) => {
-      const droppedIds = tabsRef.current
-        .filter((t) => t.id !== keepId)
-        .map((t) => t.id)
-      setTabs((prev) => {
-        const keep = prev.find((t) => t.id === keepId)
-        if (!keep) return prev
-        return [keep]
-      })
-      setActiveId(keepId)
-      setStatuses((prev) => {
-        if (keepId in prev) return { [keepId]: prev[keepId] }
-        return {}
-      })
-      if (droppedIds.length > 0) {
-        const stored = readTabLabels()
-        let changed = false
-        for (const id of droppedIds) {
-          if (id in stored) {
-            delete stored[id]
-            changed = true
-          }
+  const closeOthers = useCallback((keepId: string) => {
+    const droppedIds = tabsRef.current.filter((t) => t.id !== keepId).map((t) => t.id)
+    setTabs((prev) => {
+      const keep = prev.find((t) => t.id === keepId)
+      if (!keep) return prev
+      return [keep]
+    })
+    setActiveId(keepId)
+    setStatuses((prev) => {
+      if (keepId in prev) return { [keepId]: prev[keepId] }
+      return {}
+    })
+    if (droppedIds.length > 0) {
+      const stored = readTabLabels()
+      let changed = false
+      for (const id of droppedIds) {
+        if (id in stored) {
+          delete stored[id]
+          changed = true
         }
-        if (changed) writeTabLabels(stored)
       }
-    },
-    [],
-  )
+      if (changed) writeTabLabels(stored)
+    }
+  }, [])
 
   const handleTabContextMenu = useCallback(
     async (e: React.MouseEvent, tabId: string) => {
@@ -348,7 +331,7 @@ export function AgentsPane({
         }
       }
     },
-    [tabs, removeTab, closeOthers, restartTab],
+    [tabs, removeTab, closeOthers, restartTab]
   )
 
   const handlePlus = useCallback(async () => {
@@ -373,7 +356,7 @@ export function AgentsPane({
       const action = await window.marvin.app.showContextMenu(PICKER_ITEMS)
       if (action === 'claude' || action === 'codex') addTab(action)
     },
-    [installed, addTab],
+    [installed, addTab]
   )
 
   // React to Cmd+Shift+T from the App-level shortcut.
@@ -394,7 +377,7 @@ export function AgentsPane({
         return { ...prev, [ptyId]: { status, exitCode } }
       })
     },
-    [],
+    []
   )
 
   const tabsBarRef = useRef<HTMLDivElement>(null)
@@ -434,7 +417,7 @@ export function AgentsPane({
                   removeTab(t.id)
                 }}
               >
-                <Icon name="close" size={14}/>
+                <Icon name="close" size={14} />
               </button>
             </div>
           )
@@ -526,7 +509,7 @@ function NewTabButton({
         title={disabled ? 'No agent installed' : 'New terminal'}
         aria-label="New terminal"
       >
-        <Icon name="add"/>
+        <Icon name="add" />
       </button>
       {showChevron && (
         <button
@@ -536,7 +519,7 @@ function NewTabButton({
           title="Choose agent"
           aria-label="Choose agent"
         >
-          <Icon name="chevron-down"/>
+          <Icon name="chevron-down" />
         </button>
       )}
     </div>
@@ -559,8 +542,7 @@ function EmptyState({
         <ul className="agent-install-hints">
           {agents.map((a) => (
             <li key={a.id}>
-              <strong>{a.name}:</strong>{' '}
-              <code>{a.installInstructions?.[0] ?? '—'}</code>
+              <strong>{a.name}:</strong> <code>{a.installInstructions?.[0] ?? '—'}</code>
             </li>
           ))}
         </ul>

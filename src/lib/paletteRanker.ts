@@ -23,7 +23,7 @@ export const PALETTE_MAX_RESULTS = 60
 export function rankPaletteItems(
   items: PaletteItem[],
   query: string,
-  limit: number = PALETTE_MAX_RESULTS,
+  limit: number = PALETTE_MAX_RESULTS
 ): ScoredPaletteItem[] {
   if (!query.trim()) {
     return items.slice(0, limit).map((item) => ({

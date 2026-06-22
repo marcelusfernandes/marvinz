@@ -17,13 +17,8 @@
  *      e2e/task-list-page-mode.spec.ts.
  */
 
- 
 import { describe, it, expect, afterEach } from 'vitest'
-import {
-  Editor,
-  defaultValueCtx,
-  rootCtx,
-} from '@milkdown/core'
+import { Editor, defaultValueCtx, rootCtx } from '@milkdown/core'
 import { commonmark } from '@milkdown/preset-commonmark'
 import { gfm } from '@milkdown/preset-gfm'
 import { listener } from '@milkdown/plugin-listener'
@@ -34,8 +29,7 @@ import { taskListNodeView } from '../../lib/taskListNodeView'
 // ---------------------------------------------------------------------------
 
 if (typeof globalThis.getSelection === 'undefined') {
-  ;(globalThis as unknown as Record<string, unknown>).getSelection = () =>
-    document.getSelection()
+  ;(globalThis as unknown as Record<string, unknown>).getSelection = () => document.getSelection()
 }
 
 // ---------------------------------------------------------------------------
@@ -54,11 +48,7 @@ afterEach(async () => {
   document.body.innerHTML = ''
 })
 
- 
-async function mountEditor(
-  markdown: string,
-  opts: { withNodeView: boolean },
-) {
+async function mountEditor(markdown: string, opts: { withNodeView: boolean }) {
   const root = document.createElement('div')
   document.body.appendChild(root)
 

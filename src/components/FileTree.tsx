@@ -99,7 +99,7 @@ function isDescendantOf(destDir: string, src: string): boolean {
 function buildVirtualRows(
   items: FlatTreeItem[],
   vaultPath: string,
-  creatingIn: CreatingIn | null,
+  creatingIn: CreatingIn | null
 ): VirtualRow[] {
   const rows: VirtualRow[] = items.map((item) => ({ kind: 'node', item }))
   if (!creatingIn) return rows
@@ -152,7 +152,7 @@ export function FileTree({
   const items = useMemo(() => flattenVisibleTree(nodes, openPaths), [nodes, openPaths])
   const rows = useMemo(
     () => buildVirtualRows(items, vaultPath, creatingIn ?? null),
-    [items, vaultPath, creatingIn],
+    [items, vaultPath, creatingIn]
   )
 
   const scrollRef = useRef<HTMLUListElement | null>(null)
@@ -451,9 +451,7 @@ function FileTreeNodeImpl({
     // keeps the singular-MIME behavior intact (compat retro). Set insertion
     // order is the click order — don't sort.
     const isSelected = selectedPaths.has(node.path)
-    const paths = isSelected && selectedPaths.size > 1
-      ? Array.from(selectedPaths)
-      : [node.path]
+    const paths = isSelected && selectedPaths.size > 1 ? Array.from(selectedPaths) : [node.path]
     if (paths.length > 1) {
       e.dataTransfer.setData(MARVIN_PATHS_MIME, JSON.stringify(paths))
     } else {
@@ -546,17 +544,9 @@ function FileTreeNodeImpl({
             <Icon name={open ? 'chevron-down' : 'chevron-right'} />
           </span>
           {iconTheme === 'material' ? (
-            <MaterialIcon
-              name={node.name}
-              isDir
-              open={open}
-              className="material-file-icon"
-            />
+            <MaterialIcon name={node.name} isDir open={open} className="material-file-icon" />
           ) : (
-            <Icon
-              name={open ? 'folder-opened' : 'folder'}
-              className="folder-icon"
-            />
+            <Icon name={open ? 'folder-opened' : 'folder'} className="folder-icon" />
           )}
           <span className="name">{node.name}</span>
         </button>
@@ -582,9 +572,7 @@ function FileTreeNodeImpl({
         style={{ paddingLeft: padding + 20 }}
         draggable
         onDragStart={handleDragStart}
-        onClick={(e) =>
-          onSelect(node, { cmdOrCtrl: e.metaKey || e.ctrlKey, shift: e.shiftKey })
-        }
+        onClick={(e) => onSelect(node, { cmdOrCtrl: e.metaKey || e.ctrlKey, shift: e.shiftKey })}
         onContextMenu={(e) => onContextMenu(e, node)}
       >
         {iconTheme === 'material' ? (
@@ -624,8 +612,7 @@ function InlineCreateRow({
   const submit = async () => {
     const trimmed = value.trim()
     if (!trimmed) return
-    const finalName =
-      kind === 'file' && !/\.[^/]+$/.test(trimmed) ? `${trimmed}.md` : trimmed
+    const finalName = kind === 'file' && !/\.[^/]+$/.test(trimmed) ? `${trimmed}.md` : trimmed
     submittingRef.current = true
     try {
       if (kind === 'file') {
@@ -657,10 +644,7 @@ function InlineCreateRow({
   }
 
   return (
-    <li
-      className={`file-tree-row inline-edit ${kind}`}
-      style={{ paddingLeft: padding, ...style }}
-    >
+    <li className={`file-tree-row inline-edit ${kind}`} style={{ paddingLeft: padding, ...style }}>
       {kind === 'folder' ? (
         <>
           <span className="chev" />

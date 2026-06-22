@@ -23,6 +23,7 @@ This flow replaces the previous **silent auto-execute** or **xterm-based prompt*
 ### AC1: Permission Request IPC Event
 
 The main process emits a `permission-request` event on `agent:event:<sessionId>` with:
+
 - `sessionId`: UUID of the session
 - `toolUseId`: unique ID for this tool invocation
 - `toolName`: string ("Read", "Write", "Edit", "Bash", "WebFetch", etc.)
@@ -35,6 +36,7 @@ The renderer receives this event and **must not execute the tool** until it rece
 ### AC2: Tool Approval Gate UI (Inline Timeline Item)
 
 The renderer displays a timeline item with:
+
 - **Dot state**: `amber` (pending) with semantic label (e.g., "Awaiting approval")
 - **Tool label**: e.g., "Edit" bold + filename in monospace pill
 - **Inline buttons**: `[Allow]` and `[Deny]` side-by-side, auto-focused to Allow
@@ -45,6 +47,7 @@ The card renders in the message timeline, **not in a modal** (per Vision v3 prin
 ### AC3: Approval Decision Submission
 
 When user clicks `[Allow]` or `[Deny]`:
+
 1. Renderer sends `agent:request` with:
    ```typescript
    {
@@ -61,6 +64,7 @@ When user clicks `[Allow]` or `[Deny]`:
 ### AC4: 5-Minute Approval Timeout
 
 If no approval response is received within **300 seconds**:
+
 1. Main process sets a `setTimeout(300000)` timer when `permission-request` is first sent
 2. On timeout:
    - Clear the pending approval
@@ -72,6 +76,7 @@ If no approval response is received within **300 seconds**:
 ### AC5: Mid-Stream Denial (Clean Turn Termination)
 
 When user clicks `[Deny]`:
+
 1. Render the denial immediately (dot transitions `amber` → `red`, buttons replaced with label "Denied")
 2. Do NOT kill the subprocess immediately; instead, synthesize a `tool-result` event with:
    ```typescript
@@ -92,18 +97,19 @@ When user clicks `[Deny]`:
 
 The UI permission mode pill (4 modes) maps **1:1** to CLI `--permission-mode` flags:
 
-| UI Mode | CLI Flag | Approval Behavior |
-|---------|----------|-------------------|
-| Ask before edits | `--permission-mode default` | Blocks on Edit/Write/Bash; auto-allows safe Read/WebFetch |
-| Edit automatically | `--permission-mode acceptEdits` | All edits auto-allowed; non-file tools auto-allowed |
-| Plan mode | `--permission-mode plan` | All file writes denied; agent generates plan without side effects |
-| Auto mode | `--permission-mode auto` | CLI chooses best mode per request (experimental; sync behavior with CLI v2.1+) |
+| UI Mode            | CLI Flag                        | Approval Behavior                                                              |
+| ------------------ | ------------------------------- | ------------------------------------------------------------------------------ |
+| Ask before edits   | `--permission-mode default`     | Blocks on Edit/Write/Bash; auto-allows safe Read/WebFetch                      |
+| Edit automatically | `--permission-mode acceptEdits` | All edits auto-allowed; non-file tools auto-allowed                            |
+| Plan mode          | `--permission-mode plan`        | All file writes denied; agent generates plan without side effects              |
+| Auto mode          | `--permission-mode auto`        | CLI chooses best mode per request (experimental; sync behavior with CLI v2.1+) |
 
 When user switches modes in the UI (via mode pill → popover), the **next message sent uses the new mode**; retroactive mode changes do not re-evaluate in-flight tool calls.
 
 ### AC7: Concurrent Tool Call Handling
 
 If the agent emits multiple tool calls in a single message (e.g., `tool_use` events in rapid succession before `message_end`), the renderer:
+
 - Displays **multiple pending approval cards stacked** in timeline order
 - Each card has its own approval state machine (pending → approved/denied)
 - User may approve/deny cards in any order
@@ -113,6 +119,7 @@ If the agent emits multiple tool calls in a single message (e.g., `tool_use` eve
 ### AC8: Unknown/Custom Tool Fallback
 
 If the agent calls a tool name that the renderer has no specific card component for (e.g., a new MCP tool added to the CLI after Marvin shipped), the renderer:
+
 - Falls back to a **GenericToolCard** that displays:
   - Tool name (bold)
   - JSON input (pretty-printed, monospace, max-height 200px with scroll)
@@ -129,6 +136,7 @@ If the agent calls a tool name that the renderer has no specific card component 
 **Scenario**: User ignores approval card for 5+ minutes.
 
 **Expected behavior**:
+
 1. Timer fires
 2. Main emits `{ type: 'error', code: 'AGENT_PERMISSION_TIMEOUT', message: '...' }`
 3. Main sends SIGINT to child process
@@ -143,6 +151,7 @@ If the agent calls a tool name that the renderer has no specific card component 
 **Scenario**: User is in "Ask before edits" mode. Agent proposes an Edit. While the approval card is pending, user clicks the mode pill and switches to "Edit automatically".
 
 **Expected behavior**:
+
 - The in-flight approval card respects the **old mode** (was "Ask before edits")
 - User still sees the card and must approve/deny
 - When the next turn starts, the **new mode** ("Edit automatically") applies
@@ -155,6 +164,7 @@ If the agent calls a tool name that the renderer has no specific card component 
 **Scenario**: Two tools pending approval. User denies the first. Timer fires for the second (user ignored it).
 
 **Expected behavior**:
+
 1. Denial of first tool sends synthetic `tool-result` → agent continues
 2. Timeout of second tool fires independently
 3. Main emits `AGENT_PERMISSION_TIMEOUT` error
@@ -167,6 +177,7 @@ No special coordination needed; both events are broadcast to renderer + agent in
 **Scenario**: User clicks `[Deny]` on an Edit call that would write outside the vault anyway.
 
 **Expected behavior**:
+
 - Denial is processed first (user intent honored)
 - Renderer shows "User denied execution"
 - Vault boundary check is **downstream** in the tool execution, not at approval time (keep concerns separate)
@@ -176,6 +187,7 @@ No special coordination needed; both events are broadcast to renderer + agent in
 **Scenario**: User approves an Edit to `src/utils.ts`. Clicks `[Allow] → Remember for this session`.
 
 **Expected behavior**:
+
 1. Current approval allowed
 2. Main process calls `recordDecision(sessionId, 'Edit', { kind: 'allow', remember: 'session' })`
 3. `evaluatePermission()` checks this cache on next Edit call in same session
@@ -256,7 +268,7 @@ export function evaluatePermission(ctx: PermissionContext): PermissionResult {
   // - 'acceptEdits' → auto-allow all (edit mode)
   // - 'plan' → auto-deny all file writes (plan mode)
   // - 'default' → check session rules, fallback to 'request' (ask mode)
-  
+
   if (ctx.permissionMode === 'auto' || ctx.permissionMode === 'acceptEdits') {
     return { action: 'allow' }
   }
@@ -267,8 +279,9 @@ export function evaluatePermission(ctx: PermissionContext): PermissionResult {
   const rules = getSessionRules(ctx.sessionId)
   const remembered = rules.get(ctx.toolName)
   if (remembered?.kind === 'allow') return { action: 'allow' }
-  if (remembered?.kind === 'deny') return { action: 'deny', reason: remembered.reason ?? 'Denied by remembered rule' }
-  return { action: 'request' }  // ask user
+  if (remembered?.kind === 'deny')
+    return { action: 'deny', reason: remembered.reason ?? 'Denied by remembered rule' }
+  return { action: 'request' } // ask user
 }
 ```
 
@@ -280,15 +293,16 @@ Renderer awaits a `permission-request` event → user clicks Allow/Deny → send
 
 ### 6.2 Timeline Dot Semantic Mapping
 
-| Dot Color | State | Semantics |
-|-----------|-------|-----------|
-| **Outline** (transparent border) | Thinking, neutral text | Passive observation |
-| **Green** (solid) | Tool success, agent success, auto-allowed execution | Positive outcome |
-| **Amber** (solid) | Tool pending approval | Action required (user) |
-| **Red** (solid) | Tool error, user denied, timeout | Negative outcome |
-| **Running** (green pulse) | Tool executing | Active work |
+| Dot Color                        | State                                               | Semantics              |
+| -------------------------------- | --------------------------------------------------- | ---------------------- |
+| **Outline** (transparent border) | Thinking, neutral text                              | Passive observation    |
+| **Green** (solid)                | Tool success, agent success, auto-allowed execution | Positive outcome       |
+| **Amber** (solid)                | Tool pending approval                               | Action required (user) |
+| **Red** (solid)                  | Tool error, user denied, timeout                    | Negative outcome       |
+| **Running** (green pulse)        | Tool executing                                      | Active work            |
 
 **Design tokens** (from `.claude/rules/design-tokens.md`):
+
 - Outline: `border: 1.5px var(--border-strong)`, `background: transparent`
 - Green: `background: var(--text-success)` (no border)
 - Amber: `background: var(--text-warning)` (no border)
@@ -302,7 +316,7 @@ Dot size: 8×8px, `border-radius: 50%`, `margin-top: 6px` (optical alignment).
 ```
 ● [AMBER] Edit src/utils.ts
    [Allow] [Deny]
-   
+
    ┌─────────────────────────┐
    │ - 3 lines / + 5 lines   │ (opt-in expand)
    └─────────────────────────┘
@@ -377,6 +391,7 @@ When expanded, inline `@codemirror/merge` shows full diff (max-height 200px, scr
 **Why separate?** User may approve an Edit to a path they don't realize is outside the vault. The tool adapter should validate and synthesize an error, not approve it silently.
 
 **Implementation**:
+
 ```typescript
 // In evaluatePermission: check mode, check rules
 // In tool executor: check vault boundary independently

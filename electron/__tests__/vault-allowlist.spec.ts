@@ -37,7 +37,10 @@ async function teardown(): Promise<void> {
 
 // Replicates what vault:pick/bootstrap does: fs.realpath → add to set.
 // Returns null on ENOENT (mirrors the skip-allowlist behavior in d3cb1ca).
-async function simulateVaultPick(vaultPath: string, allowedSet: Set<string>): Promise<string | null> {
+async function simulateVaultPick(
+  vaultPath: string,
+  allowedSet: Set<string>
+): Promise<string | null> {
   let resolved: string
   try {
     resolved = await fs.realpath(path.resolve(vaultPath))
@@ -111,7 +114,9 @@ describe('assertAllowedVault — path not in set', () => {
 
   it('rejects traversal that resolves to an unregistered parent', () => {
     const traversalToParent = path.join(tmpDir, '..')
-    expect(() => assertAllowedVault(traversalToParent, new Set([tmpDir]))).toThrow('MARVIN_VAULT_NOT_ALLOWED')
+    expect(() => assertAllowedVault(traversalToParent, new Set([tmpDir]))).toThrow(
+      'MARVIN_VAULT_NOT_ALLOWED'
+    )
   })
 })
 
@@ -136,7 +141,9 @@ describe('vault:pick → vault:watch — normal vault, no symlink', () => {
     const raw2 = await fs.mkdtemp(path.join(os.tmpdir(), 'marvin-other-'))
     const other = await fs.realpath(raw2)
     try {
-      await expect(simulateVaultWatch(other, allowedSet)).rejects.toThrow('MARVIN_VAULT_NOT_ALLOWED')
+      await expect(simulateVaultWatch(other, allowedSet)).rejects.toThrow(
+        'MARVIN_VAULT_NOT_ALLOWED'
+      )
     } finally {
       await fs.rm(other, { recursive: true, force: true })
     }
@@ -201,7 +208,9 @@ describe('vault:watch check-side realpath — symlink vault scenarios', () => {
   it('nonexistent path passed to vault:watch throws MARVIN_VAULT_NOT_ALLOWED', async () => {
     const allowedSet = new Set<string>()
     const nonexistent = path.join(os.tmpdir(), `marvin-noexist-${Date.now()}`)
-    await expect(simulateVaultWatch(nonexistent, allowedSet)).rejects.toThrow('MARVIN_VAULT_NOT_ALLOWED')
+    await expect(simulateVaultWatch(nonexistent, allowedSet)).rejects.toThrow(
+      'MARVIN_VAULT_NOT_ALLOWED'
+    )
   })
 })
 

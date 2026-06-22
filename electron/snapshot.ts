@@ -9,7 +9,13 @@ import { assertInsideVaultAsync } from './vault-boundary.js'
 // Types
 // ---------------------------------------------------------------------------
 
-export type SnapshotTrigger = 'file:write' | 'watcher' | 'restore' | 'cascade' | 'buffer-save' | 'external-rejected'
+export type SnapshotTrigger =
+  | 'file:write'
+  | 'watcher'
+  | 'restore'
+  | 'cascade'
+  | 'buffer-save'
+  | 'external-rejected'
 
 export type UserSnapshotTrigger = 'user-trash' | 'user-rename' | 'user-move' | 'user-overwrite'
 
@@ -86,7 +92,12 @@ function assertRelPath(relPath: string): void {
   }
 }
 
-const USER_TRIGGERS = new Set<UserSnapshotTrigger>(['user-trash', 'user-rename', 'user-move', 'user-overwrite'])
+const USER_TRIGGERS = new Set<UserSnapshotTrigger>([
+  'user-trash',
+  'user-rename',
+  'user-move',
+  'user-overwrite',
+])
 
 function assertUserTrigger(trigger: unknown): UserSnapshotTrigger {
   if (typeof trigger !== 'string' || !USER_TRIGGERS.has(trigger as UserSnapshotTrigger)) {
@@ -134,7 +145,12 @@ function validateManifest(obj: unknown): SnapshotManifest | null {
     typeof m.createdAt !== 'string' ||
     typeof m.timestamp !== 'number' ||
     !Array.isArray(m.files) ||
-    (m.trigger !== 'file:write' && m.trigger !== 'watcher' && m.trigger !== 'restore' && m.trigger !== 'cascade' && m.trigger !== 'buffer-save' && m.trigger !== 'external-rejected') ||
+    (m.trigger !== 'file:write' &&
+      m.trigger !== 'watcher' &&
+      m.trigger !== 'restore' &&
+      m.trigger !== 'cascade' &&
+      m.trigger !== 'buffer-save' &&
+      m.trigger !== 'external-rejected') ||
     (m.status !== 'active' && m.status !== 'completed')
   ) {
     return null
@@ -179,7 +195,7 @@ async function dirSizeBytes(dir: string): Promise<number> {
           // file may have been removed concurrently
         }
       }
-    }),
+    })
   )
   return total
 }
@@ -249,7 +265,7 @@ async function pruneUserBucket(vaultRoot: string, manifest: UserManifest): Promi
       } catch {
         // ignore — not critical if cleanup fails
       }
-    }),
+    })
   )
   return { entries: kept }
 }
@@ -269,7 +285,7 @@ export async function writeSnapshot(
   relPath: string,
   contentBefore: string,
   trigger: SnapshotTrigger,
-  agentId?: string,
+  agentId?: string
 ): Promise<boolean> {
   try {
     assertTurnId(turnId) // H4
@@ -347,7 +363,7 @@ export async function listTurns(vaultRoot: string): Promise<SnapshotManifest[]> 
   const manifests = await Promise.all(
     entries
       .filter((e) => e.isDirectory() && e.name !== MANIFEST_NAME && e.name !== USER_BUCKET_ID)
-      .map((e) => readManifest(vaultRoot, e.name)),
+      .map((e) => readManifest(vaultRoot, e.name))
   )
 
   return manifests
@@ -358,10 +374,7 @@ export async function listTurns(vaultRoot: string): Promise<SnapshotManifest[]> 
 /**
  * List all turns that contain a snapshot for `relPath`, newest-first.
  */
-export async function listForFile(
-  vaultRoot: string,
-  relPath: string,
-): Promise<SnapshotManifest[]> {
+export async function listForFile(vaultRoot: string, relPath: string): Promise<SnapshotManifest[]> {
   assertRelPath(relPath) // H4
   const all = await listTurns(vaultRoot)
   return all.filter((m) => m.files.some((f) => f.relPath === relPath))
@@ -373,7 +386,7 @@ export async function listForFile(
 export async function readSnapshot(
   vaultRoot: string,
   turnId: string,
-  relPath: string,
+  relPath: string
 ): Promise<string> {
   assertTurnId(turnId) // C2, H4
   assertRelPath(relPath) // H4
@@ -389,7 +402,7 @@ export async function readSnapshot(
 export async function restoreSnapshot(
   vaultRoot: string,
   turnId: string,
-  relPath: string,
+  relPath: string
 ): Promise<string> {
   assertTurnId(turnId) // C2, H4
   assertRelPath(relPath) // H4
@@ -496,7 +509,7 @@ export async function gc(vaultRoot: string, policy: GCPolicy = DEFAULT_GC_POLICY
       } catch (err) {
         console.error('[snapshot] gc trashItem failed', { id, err })
       }
-    }),
+    })
   )
 }
 
@@ -505,7 +518,10 @@ export async function gc(vaultRoot: string, policy: GCPolicy = DEFAULT_GC_POLICY
  * Format is timestamp-prefixed so IDs are naturally sortable.
  */
 export function newTurnId(): string {
-  const ts = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z')
+  const ts = new Date()
+    .toISOString()
+    .replace(/[-:]/g, '')
+    .replace(/\.\d{3}Z$/, 'Z')
   const salt = crypto.randomBytes(6).toString('hex')
   return `${ts}-${salt}`
 }
@@ -559,7 +575,7 @@ export async function ensureVaultGitignore(vaultRoot: string): Promise<void> {
 export async function captureUserSnapshot(
   vaultRoot: string,
   paths: string[],
-  trigger: UserSnapshotTrigger,
+  trigger: UserSnapshotTrigger
 ): Promise<string> {
   if (!Array.isArray(paths) || paths.length === 0) throw new Error('MARVIN_INVALID_PATH')
   assertUserTrigger(trigger)
@@ -584,13 +600,16 @@ export async function captureUserSnapshot(
 
       const byteSize = Buffer.byteLength(content, 'utf8')
       if (byteSize > TEXT_SIZE_WARN_BYTES) {
-        console.warn('[snapshot] captureUserSnapshot: large text file captured', { relPath, byteSize })
+        console.warn('[snapshot] captureUserSnapshot: large text file captured', {
+          relPath,
+          byteSize,
+        })
       }
 
       const destPath = userSnapshotFilePath(vaultRoot, snapshotId, relPath) // C1
       await fs.mkdir(path.dirname(destPath), { recursive: true })
       await fs.writeFile(destPath, content, 'utf8')
-    }),
+    })
   )
 
   const now = Date.now()
@@ -623,7 +642,10 @@ export async function captureUserSnapshot(
  * Returns the vault-relative paths that were restored so callers can invalidate
  * their file-content caches.
  */
-export async function restoreUserSnapshot(vaultRoot: string, snapshotId: string): Promise<string[]> {
+export async function restoreUserSnapshot(
+  vaultRoot: string,
+  snapshotId: string
+): Promise<string[]> {
   const manifest = await readUserManifest(vaultRoot)
   const entry = manifest.entries.find((e) => e.snapshotId === snapshotId)
   if (!entry) throw new Error('MARVIN_UNKNOWN_SNAPSHOT')
@@ -667,7 +689,7 @@ export async function restoreUserSnapshot(vaultRoot: string, snapshotId: string)
       const content = await fs.readFile(srcPath, 'utf8')
       await fs.mkdir(parentDir, { recursive: true })
       await fs.writeFile(destPath, content, 'utf8')
-    }),
+    })
   )
 
   return entry.paths

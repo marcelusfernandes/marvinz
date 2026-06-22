@@ -56,7 +56,7 @@ describe('TabBar — new tab button', () => {
         onActivate={vi.fn()}
         onClose={vi.fn()}
         onNewTab={onNewTab}
-      />,
+      />
     )
     fireEvent.click(screen.getByRole('button', { name: /new.*tab/i }))
     expect(onNewTab).toHaveBeenCalledTimes(1)
@@ -76,7 +76,7 @@ describe('TabBar — empty tab', () => {
         onActivate={vi.fn()}
         onClose={vi.fn()}
         onNewTab={vi.fn()}
-      />,
+      />
     )
     expect(screen.getByText('New tab')).toBeInTheDocument()
   })
@@ -89,7 +89,7 @@ describe('TabBar — empty tab', () => {
         onActivate={vi.fn()}
         onClose={vi.fn()}
         onNewTab={vi.fn()}
-      />,
+      />
     )
     const tabEl = container.querySelector('.tab')
     expect(tabEl).not.toBeNull()

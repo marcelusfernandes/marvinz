@@ -16,18 +16,18 @@ The milestone produced **two disjoint undo mechanisms**:
 Concrete gaps:
 
 1. **No redo for file ops.** `fileOpsHistory` only pops; there is no future/redo stack. Cmd+Shift+Z is editor-only.
-2. **Focus friction.** File-op undo only fires when the file tree is focused. After a rename (inline input closes, or a native context-menu action) focus is usually *not* on a tree button, so Cmd+Z is a dead no-op until the user clicks the tree.
+2. **Focus friction.** File-op undo only fires when the file tree is focused. After a rename (inline input closes, or a native context-menu action) focus is usually _not_ on a tree button, so Cmd+Z is a dead no-op until the user clicks the tree.
 3. **Ad-hoc reversal.** `undoLast` is a `switch (op.kind)` that hard-codes each inverse and re-pushes on failure. It does not generalize to redo, and there is no locking against a double-Cmd+Z racing an async IPC round-trip, nor invalidation when the underlying file changes.
 
 ## 2. What VSCode actually does (and the surprise)
 
 We assumed the fix was "one unified timeline for text + file ops." **VSCode does the opposite — and arrived there deliberately.**
 
-- **Separate stacks, routed by focus.** Editor text undo lives on the text model's stack; file-op undo lives on a dedicated `UndoRedoSource` (`UNDO_REDO_SOURCE`). They never intermix. Cmd+Z chooses between them by focus. VSCode *removed* a more-global file undo because users complained Cmd+Z **ate their text edits** (vscode#113653, #111630). So our focus-routing instinct matches the validated design — and, notably, **undoing a rename in VSCode also requires the Explorer to be focused.**
+- **Separate stacks, routed by focus.** Editor text undo lives on the text model's stack; file-op undo lives on a dedicated `UndoRedoSource` (`UNDO_REDO_SOURCE`). They never intermix. Cmd+Z chooses between them by focus. VSCode _removed_ a more-global file undo because users complained Cmd+Z **ate their text edits** (vscode#113653, #111630). So our focus-routing instinct matches the validated design — and, notably, **undoing a rename in VSCode also requires the Explorer to be focused.**
 - **One `undo` command, a priority chain of implementations** (`MultiCommand`): `10000` editor-with-text-focus → `1000` editable `<input>`/`<textarea>` → **`110` explorer** (`explorerService.hasViewFocus() && undoRedoService.canUndo(UNDO_REDO_SOURCE)`) → `0` fallback (focus the active editor and undo its text). **Cmd+Z is never a dead no-op** — it degrades to editor undo.
 - **Dual stacks per resource.** Each `ResourceEditStack` has `_past[]` (undo) and `_future[]` (redo). `undo()` moves an element past→future; `redo()` moves it future→past; **a new `pushElement()` destroys `_future`.** Redo is a free byproduct of this shape.
 - **Undo elements are invertible command objects.** `FileUndoRedoElement.undo()` and `.redo()` both call a symmetric `_reverse()` that **re-performs each operation and stores the new inverse in place** — rename↔reverse-rename, create↔delete flip cleanly any number of times. `undo()/redo()` return `Promise<void> | void` (async-friendly for IPC).
-- **Delete is undoable via a content snapshot taken before the delete** (exactly our U2 approach), with a `MAX_UNDO_FILE_SIZE = 5MB` cap above which content is *not* snapshotted (root of vscode#111162 "undo leaves files empty"). OS trash is an orthogonal axis.
+- **Delete is undoable via a content snapshot taken before the delete** (exactly our U2 approach), with a `MAX_UNDO_FILE_SIZE = 5MB` cap above which content is _not_ snapshotted (root of vscode#111162 "undo leaves files empty"). OS trash is an orthogonal axis.
 
 **Conclusion:** keep focus-routing (don't unify the timelines — that's the abandoned anti-pattern). The real upgrade is a proper **undo/redo engine for file ops** (command objects + past/future + redo + locking + invalidation) plus fixing the focus friction.
 
@@ -60,13 +60,13 @@ interface UndoableOp {
 
 ```ts
 interface UndoRedoEngineState {
-  past: UndoableOp[]        // available to undo (newest at end)
-  future: UndoableOp[]      // available to redo
-  locked: boolean           // true while an async invert is in flight
-  push(op: UndoableOp): void          // append to past; clears future
+  past: UndoableOp[] // available to undo (newest at end)
+  future: UndoableOp[] // available to redo
+  locked: boolean // true while an async invert is in flight
+  push(op: UndoableOp): void // append to past; clears future
   undo(notify: Notify): Promise<void> // pop past → invert → push reapply to future
   redo(notify: Notify): Promise<void> // pop future → invert → push reapply to past
-  reset(): void                        // vault switch / external invalidation
+  reset(): void // vault switch / external invalidation
   canUndo(): boolean
   canRedo(): boolean
 }
@@ -81,7 +81,7 @@ interface UndoRedoEngineState {
 
 Generalize `resolveUndoTarget` into a small priority chain mirroring VSCode's `MultiCommand`:
 
-1. **editor text-focus** → let CodeMirror handle (don't preventDefault) — undo *and* redo.
+1. **editor text-focus** → let CodeMirror handle (don't preventDefault) — undo _and_ redo.
 2. **editable `<input>`/`<textarea>`** → let it handle its own undo (the inline rename guard, already added).
 3. **file tree focus** (`canUndo`/`canRedo`) → engine `undo`/`redo`.
 4. **fallback** → if nothing above handled it and an editor exists, focus it and undo/redo its text (never a dead no-op).
@@ -104,7 +104,7 @@ After a file-panel operation completes, **keep/return focus to the file tree** (
 3. **Redo + routing chain** — generalize `resolveUndoTarget` into the priority chain with graceful fallback; bind Cmd+Shift+Z; route both undo and redo.
 4. **Focus retention** — file ops keep/return focus to the tree.
 5. **Invalidation** — flush the engine on vault switch (done) + external file change; structured failure → error toast (removes the `/cannot undo/i` heuristic).
-6. **E2E** — undo↔redo round-trips: rename→undo→redo; move→undo→redo; trash→undo→redo (real FS). Note rename/trash op-*triggers* are native-context-menu-gated in Playwright (see #151); drive via the testable paths.
+6. **E2E** — undo↔redo round-trips: rename→undo→redo; move→undo→redo; trash→undo→redo (real FS). Note rename/trash op-_triggers_ are native-context-menu-gated in Playwright (see #151); drive via the testable paths.
 
 ## 5. Acceptance criteria
 

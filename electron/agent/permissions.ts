@@ -23,14 +23,10 @@ export type PermissionResult =
 export const APPROVAL_TIMEOUT_MS = 5 * 60 * 1000 // 5 minutes
 
 // Tools that write or mutate files/system state.
-const WRITE_TOOLS = new Set([
-  'Edit', 'Write', 'NotebookEdit', 'MultiEdit', 'Bash',
-])
+const WRITE_TOOLS = new Set(['Edit', 'Write', 'NotebookEdit', 'MultiEdit', 'Bash'])
 
 // Tools that are allowed in acceptEdits mode (file-edit family only).
-const EDIT_TOOLS = new Set([
-  'Edit', 'Write', 'NotebookEdit', 'MultiEdit',
-])
+const EDIT_TOOLS = new Set(['Edit', 'Write', 'NotebookEdit', 'MultiEdit'])
 
 // Per-session remembered decisions (in-memory only; cleared when session ends).
 const _sessionRules = new Map<string, Map<string, ApprovalDecision>>()
@@ -77,9 +73,7 @@ function checkVaultBoundary(ctx: PermissionContext): PermissionResult | null {
   const filePath = extractFilePath(ctx.input)
   if (!filePath) return null
   // Resolve relative paths against vaultRoot so relative tool paths work correctly.
-  const resolved = path.isAbsolute(filePath)
-    ? filePath
-    : path.resolve(ctx.vaultRoot, filePath)
+  const resolved = path.isAbsolute(filePath) ? filePath : path.resolve(ctx.vaultRoot, filePath)
   try {
     assertInsideVault(ctx.vaultRoot, resolved)
   } catch {
@@ -101,9 +95,7 @@ export function evaluatePermission(ctx: PermissionContext): PermissionResult {
 
   // H2: acceptEdits auto-allows the file-edit family only; everything else requests.
   if (ctx.permissionMode === 'acceptEdits') {
-    return EDIT_TOOLS.has(ctx.toolName)
-      ? { action: 'allow' }
-      : { action: 'request' }
+    return EDIT_TOOLS.has(ctx.toolName) ? { action: 'allow' } : { action: 'request' }
   }
 
   // H1: plan mode denies write tools; allows read-only and network tools.
@@ -117,7 +109,8 @@ export function evaluatePermission(ctx: PermissionContext): PermissionResult {
   const rules = _sessionRules.get(ctx.sessionId)
   const remembered = rules?.get(ctx.toolName)
   if (remembered?.kind === 'allow') return { action: 'allow' }
-  if (remembered?.kind === 'deny') return { action: 'deny', reason: remembered.reason ?? 'Denied by remembered rule' }
+  if (remembered?.kind === 'deny')
+    return { action: 'deny', reason: remembered.reason ?? 'Denied by remembered rule' }
 
   // No remembered rule — ask the renderer.
   return { action: 'request' }
@@ -163,7 +156,7 @@ export function cancelPendingApprovals(toolUseIds: string[]): void {
 export function recordDecision(
   sessionId: string,
   toolName: string,
-  decision: ApprovalDecision,
+  decision: ApprovalDecision
 ): void {
   let rules = _sessionRules.get(sessionId)
   if (!rules) {

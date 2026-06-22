@@ -62,9 +62,7 @@ describe('MODE_OPTIONS', () => {
 
 describe('ModePill — structure', () => {
   it('renders a button with chat-mode-pill class', () => {
-    const { container } = render(
-      <ModePill mode="default" onClick={() => {}} />,
-    )
+    const { container } = render(<ModePill mode="default" onClick={() => {}} />)
     expect(container.querySelector('button.chat-mode-pill')).toBeInTheDocument()
   })
 
@@ -124,9 +122,7 @@ describe('ModePill — structure', () => {
 describe('ModesPicker — structure', () => {
   function renderPicker(mode: PermissionMode = 'default', onSelect = vi.fn(), onClose = vi.fn()) {
     const ref = createRef<HTMLButtonElement>()
-    return render(
-      <ModesPicker mode={mode} anchorRef={ref} onSelect={onSelect} onClose={onClose} />,
-    )
+    return render(<ModesPicker mode={mode} anchorRef={ref} onSelect={onSelect} onClose={onClose} />)
   }
 
   it('renders a listbox with role="listbox"', () => {
@@ -160,9 +156,7 @@ describe('ModesPicker — structure', () => {
   it('non-selected options have aria-selected="false"', () => {
     const { container } = renderPicker('default')
     const opts = container.querySelectorAll('[role="option"]')
-    const nonSelected = Array.from(opts).filter(
-      (o) => o.getAttribute('aria-selected') === 'false',
-    )
+    const nonSelected = Array.from(opts).filter((o) => o.getAttribute('aria-selected') === 'false')
     expect(nonSelected).toHaveLength(3)
   })
 
@@ -184,10 +178,10 @@ describe('ModesPicker — click selection', () => {
     const onSelect = vi.fn()
     const ref = createRef<HTMLButtonElement>()
     const { container } = render(
-      <ModesPicker mode="default" anchorRef={ref} onSelect={onSelect} onClose={vi.fn()} />,
+      <ModesPicker mode="default" anchorRef={ref} onSelect={onSelect} onClose={vi.fn()} />
     )
-    const planOption = Array.from(container.querySelectorAll('[role="option"]')).find(
-      (o) => o.textContent?.includes('Plan mode'),
+    const planOption = Array.from(container.querySelectorAll('[role="option"]')).find((o) =>
+      o.textContent?.includes('Plan mode')
     ) as HTMLElement
     fireEvent.click(planOption)
     expect(onSelect).toHaveBeenCalledWith('plan')
@@ -197,7 +191,7 @@ describe('ModesPicker — click selection', () => {
     const onClose = vi.fn()
     const ref = createRef<HTMLButtonElement>()
     const { container } = render(
-      <ModesPicker mode="default" anchorRef={ref} onSelect={vi.fn()} onClose={onClose} />,
+      <ModesPicker mode="default" anchorRef={ref} onSelect={vi.fn()} onClose={onClose} />
     )
     const firstOption = container.querySelector('[role="option"]') as HTMLElement
     fireEvent.click(firstOption)
@@ -211,7 +205,7 @@ describe('ModesPicker — keyboard navigation', () => {
     const onClose = vi.fn()
     const ref = createRef<HTMLButtonElement>()
     const utils = render(
-      <ModesPicker mode={mode} anchorRef={ref} onSelect={onSelect} onClose={onClose} />,
+      <ModesPicker mode={mode} anchorRef={ref} onSelect={onSelect} onClose={onClose} />
     )
     return { ...utils, onSelect, onClose }
   }

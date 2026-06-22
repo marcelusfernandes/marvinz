@@ -34,7 +34,11 @@ export function makeOutcome(overrides: Record<string, unknown> = {}): Record<str
     actual_files_touched: { value: 8, provenance: 'measured', evidence: 'git diff --name-only' },
     actual_iterations: { value: 2, provenance: 'measured', evidence: 'gh pr view --json reviews' },
     actual_downstream_fanout: { value: 4, provenance: 'measured', evidence: 'grep -rl' },
-    actual_human_interventions: { value: 1, provenance: 'estimated', evidence: 'julgado: 1 decisão' },
+    actual_human_interventions: {
+      value: 1,
+      provenance: 'estimated',
+      evidence: 'julgado: 1 decisão',
+    },
     ...overrides,
   }
 }

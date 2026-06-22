@@ -10,11 +10,7 @@ import { homedir } from 'node:os'
 import { NdjsonStream } from './ndjson.js'
 import { adaptClaudeObj, makeAdapterState, type AdapterState } from './adapter-claude.js'
 import { adaptCodexObj, makeCodexAdapterState, type CodexAdapterState } from './adapter-codex.js'
-import {
-  clearSessionRules,
-  resolveApproval,
-  cancelPendingApprovals,
-} from './permissions.js'
+import { clearSessionRules, resolveApproval, cancelPendingApprovals } from './permissions.js'
 import { createApprovalServer, type ApprovalServer } from './approval-socket.js'
 import { collectProcessTree, signalPids } from '../proc-group.js'
 import { newTurnId } from '../snapshot.js'
@@ -101,7 +97,14 @@ function resolveBridgePath(): string | null {
     // Dev + unpackaged prod: vite copies bridge alongside main.cjs
     path.join(__dirname, 'pretooluse-bridge.cjs'),
     // Packaged — script must be in asarUnpack so it is executable
-    path.join(process.resourcesPath ?? '', 'app.asar.unpacked', 'electron', 'agent', 'hooks', 'pretooluse-bridge.cjs'),
+    path.join(
+      process.resourcesPath ?? '',
+      'app.asar.unpacked',
+      'electron',
+      'agent',
+      'hooks',
+      'pretooluse-bridge.cjs'
+    ),
   ]
   return candidates.find(existsSync) ?? null
 }
@@ -131,8 +134,10 @@ function buildHookSettings(bridgePath: string): string {
 
 function buildClaudeArgs(req: Extract<AgentRequest, { type: 'start' }>): string[] {
   const args: string[] = [
-    '--output-format', 'stream-json',
-    '--input-format', 'stream-json',
+    '--output-format',
+    'stream-json',
+    '--input-format',
+    'stream-json',
     '--verbose',
     '--include-partial-messages',
     '--include-hook-events',
@@ -267,11 +272,10 @@ export type AgentBinaries = {
 export async function spawnAgent(
   req: Extract<AgentRequest, { type: 'start' }>,
   binaries: AgentBinaries | string,
-  emit: EventEmitter,
+  emit: EventEmitter
 ): Promise<void> {
   // Accept legacy string form (claudeBinary) for backward compatibility.
-  const bins: AgentBinaries =
-    typeof binaries === 'string' ? { claude: binaries } : binaries
+  const bins: AgentBinaries = typeof binaries === 'string' ? { claude: binaries } : binaries
 
   const existing = agentChildren.get(req.sessionId)
   if (existing) {
@@ -285,7 +289,7 @@ export async function spawnAgent(
     : makeAdapterState(req.sessionId)
 
   if (!isCodex) {
-    (adapterState as ReturnType<typeof makeAdapterState>).cwd = req.vaultRoot
+    ;(adapterState as ReturnType<typeof makeAdapterState>).cwd = req.vaultRoot
   }
 
   const binary = isCodex ? (bins.codex ?? 'codex') : bins.claude
@@ -309,7 +313,7 @@ export async function spawnAgent(
       emit,
       agentTurnId,
       touchedFiles,
-      snapshotResults,
+      snapshotResults
     )
   }
 
@@ -406,7 +410,7 @@ export async function spawnAgent(
         signal: null,
       })
       agentChildren.delete(req.sessionId)
-    },
+    }
   )
 
   // For Claude: send the initial prompt as a stream-json input event on stdin.
@@ -454,7 +458,6 @@ export async function spawnAgent(
       })
     }
   })
-
 }
 
 export async function cancelAgent(sessionId: string): Promise<void> {
@@ -479,7 +482,7 @@ export async function killAgentSession(sessionId: string): Promise<void> {
 export function handleApproval(
   _sessionId: string,
   toolUseId: string,
-  decision: Extract<AgentRequest, { type: 'approval' }>['decision'],
+  decision: Extract<AgentRequest, { type: 'approval' }>['decision']
 ): void {
   // Resolves the pending approval in approval-socket.ts so the hook connection
   // can respond to the CLI. No-op if already timed out or unknown toolUseId.

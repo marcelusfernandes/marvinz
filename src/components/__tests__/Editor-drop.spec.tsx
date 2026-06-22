@@ -20,16 +20,14 @@ const fakeView = {
   dispatch: vi.fn(),
   posAtCoords: vi.fn(() => 0),
 }
-fakeView.dispatch.mockImplementation(
-  (tr: { changes?: { from: number; insert: string } }) => {
-    if (tr.changes) {
-      fakeView.state._text =
-        fakeView.state._text.slice(0, tr.changes.from) +
-        tr.changes.insert +
-        fakeView.state._text.slice(tr.changes.from)
-    }
-  },
-)
+fakeView.dispatch.mockImplementation((tr: { changes?: { from: number; insert: string } }) => {
+  if (tr.changes) {
+    fakeView.state._text =
+      fakeView.state._text.slice(0, tr.changes.from) +
+      tr.changes.insert +
+      fakeView.state._text.slice(tr.changes.from)
+  }
+})
 
 // ---------------------------------------------------------------------------
 // Mocks — all before the Editor import
@@ -39,9 +37,7 @@ vi.mock('@codemirror/view', () => ({
   EditorView: {
     lineWrapping: {},
     // Wire real DOM event listeners so tests can fire events directly.
-    domEventHandlers: (
-      handlers: Record<string, (e: Event, view: typeof fakeView) => boolean>,
-    ) => {
+    domEventHandlers: (handlers: Record<string, (e: Event, view: typeof fakeView) => boolean>) => {
       for (const [type, fn] of Object.entries(handlers)) {
         editorContentDOM.addEventListener(type, (e) => fn(e as DragEvent, fakeView))
       }
@@ -207,11 +203,7 @@ function defaultProps() {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function makeDragEvent(
-  files: File[],
-  internalPath = '',
-  internalPaths: string[] = [],
-): DragEvent {
+function makeDragEvent(files: File[], internalPath = '', internalPaths: string[] = []): DragEvent {
   const event = new Event('drop', { bubbles: true, cancelable: true }) as DragEvent
   const types: string[] = []
   if (internalPaths.length > 0) types.push('application/x-marvin-paths')
@@ -219,7 +211,8 @@ function makeDragEvent(
   if (files.length > 0) types.push('Files')
   const mimeData: Record<string, string> = {}
   if (internalPath) mimeData['application/x-marvin-path'] = internalPath
-  if (internalPaths.length > 0) mimeData['application/x-marvin-paths'] = JSON.stringify(internalPaths)
+  if (internalPaths.length > 0)
+    mimeData['application/x-marvin-paths'] = JSON.stringify(internalPaths)
   Object.defineProperty(event, 'dataTransfer', {
     value: {
       files: files as unknown as FileList,
@@ -240,7 +233,7 @@ function makeDragEvent(
 // Render Editor, fire a drop on contentDOM, wait for async handleDrop to finish.
 async function renderAndDrop(
   files: File[],
-  onImportToast: (toast: { state: ImportToastState; message: string }) => void,
+  onImportToast: (toast: { state: ImportToastState; message: string }) => void
 ) {
   fakeView.state._text = ''
   fakeView.dispatch.mockClear()
@@ -291,7 +284,7 @@ describe('Editor — CodeMirror drop handler (issue #289)', () => {
         vaultPath: '/vault',
         relPath: expect.stringMatching(/^attachments\/.+\.png$/),
         base64Bytes: expect.any(String),
-      }),
+      })
     )
     expect(writeBinaryMock.mock.calls[0][0]).not.toHaveProperty('maxBytes')
     expect(fakeView.state._text).toMatch(/!\[photo\.png\]\(attachments\/.+\.png\)/)
@@ -339,7 +332,7 @@ describe('Editor — CodeMirror drop handler (issue #289)', () => {
     const bigFile = Object.defineProperty(
       new File(['x'], 'huge.png', { type: 'image/png' }),
       'size',
-      { value: 26 * 1024 * 1024 },
+      { value: 26 * 1024 * 1024 }
     )
     await renderAndDrop([bigFile], onImportToast)
 
@@ -357,11 +350,7 @@ describe('Editor — CodeMirror drop handler (issue #289)', () => {
     fakeView.state._text = ''
     fakeView.dispatch.mockClear()
     render(
-      <Editor
-        {...defaultProps()}
-        filePath="/vault/sub/note.ts"
-        onImportToast={onImportToast}
-      />,
+      <Editor {...defaultProps()} filePath="/vault/sub/note.ts" onImportToast={onImportToast} />
     )
     await new Promise((r) => setTimeout(r, 10))
     editorContentDOM.dispatchEvent(makeDragEvent([file]))
@@ -423,7 +412,7 @@ describe('Editor — CodeMirror drop handler (issue #289)', () => {
     // Filter to content-changing dispatches only — a follow-up decoration-clear
     // setTimeout fires after 500ms and must not break the undo-atomicity assertion.
     const contentDispatches = fakeView.dispatch.mock.calls.filter(
-      (c) => (c[0] as { changes?: unknown })?.changes != null,
+      (c) => (c[0] as { changes?: unknown })?.changes != null
     )
     expect(contentDispatches).toHaveLength(1)
     // Each path relative to /vault/note.ts → file name only (same dir)

@@ -20,7 +20,7 @@ async function fileCopy(vault: string, srcPath: string, destDir: string): Promis
 async function fileMoveBatch(
   vault: string,
   srcs: string[],
-  destDir: string,
+  destDir: string
 ): Promise<MoveResult[]> {
   const safeDir = await assertInsideVaultAsync(vault, destDir)
   const results: MoveResult[] = []
@@ -201,16 +201,14 @@ describe('file:copy — path traversal rejected', () => {
   afterEach(teardown)
 
   it('rejects srcPath with null byte via MARVIN_OUTSIDE_VAULT', async () => {
-    await expect(
-      fileCopy(vault, path.join(vault, 'ok.md\0'), vault),
-    ).rejects.toThrow('MARVIN_OUTSIDE_VAULT')
+    await expect(fileCopy(vault, path.join(vault, 'ok.md\0'), vault)).rejects.toThrow(
+      'MARVIN_OUTSIDE_VAULT'
+    )
   })
 
   it('rejects destDir outside vault via MARVIN_OUTSIDE_VAULT', async () => {
     const src = path.join(vault, 'note.md')
     await fs.writeFile(src, 'x', 'utf8')
-    await expect(
-      fileCopy(vault, src, '/tmp/evil'),
-    ).rejects.toThrow('MARVIN_OUTSIDE_VAULT')
+    await expect(fileCopy(vault, src, '/tmp/evil')).rejects.toThrow('MARVIN_OUTSIDE_VAULT')
   })
 })

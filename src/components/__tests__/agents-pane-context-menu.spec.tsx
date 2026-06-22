@@ -26,15 +26,11 @@ const realLocalStorage = window.localStorage
 // ---------------------------------------------------------------------------
 
 vi.mock('../AgentTerminal', () => ({
-  AgentTerminal: ({ ptyId }: { ptyId: string }) => (
-    <div data-testid={`terminal-${ptyId}`} />
-  ),
+  AgentTerminal: ({ ptyId }: { ptyId: string }) => <div data-testid={`terminal-${ptyId}`} />,
 }))
 
 vi.mock('../chat/ChatPanel', () => ({
-  ChatPanel: ({ sessionId }: { sessionId: string }) => (
-    <div data-testid={`chat-${sessionId}`} />
-  ),
+  ChatPanel: ({ sessionId }: { sessionId: string }) => <div data-testid={`chat-${sessionId}`} />,
 }))
 
 vi.mock('../ContextMenu', () => ({
@@ -280,7 +276,7 @@ describe('AgentsPane — tab context menu IPC payload', () => {
     const [items] = showContextMenuMock.mock.calls[0] as [MenuItemSpec[]]
     const closeOthers = items.find(
       (i): i is Extract<MenuItemSpec, { kind: 'item' }> =>
-        i.kind === 'item' && i.id === 'closeOthers',
+        i.kind === 'item' && i.id === 'closeOthers'
     )
     expect(closeOthers?.enabled).toBe(false)
   })
@@ -294,7 +290,7 @@ describe('AgentsPane — tab context menu IPC payload', () => {
     const [items] = showContextMenuMock.mock.calls[0] as [MenuItemSpec[]]
     const closeOthers = items.find(
       (i): i is Extract<MenuItemSpec, { kind: 'item' }> =>
-        i.kind === 'item' && i.id === 'closeOthers',
+        i.kind === 'item' && i.id === 'closeOthers'
     )
     expect(closeOthers?.enabled).toBe(true)
   })
@@ -566,10 +562,7 @@ describe('AgentsPane — persistence: GC', () => {
   })
 
   it('removes all entries when no tabs exist at mount time', async () => {
-    realLocalStorage.setItem(
-      TAB_LABELS_KEY,
-      JSON.stringify({ 'claude-1': 'A', 'claude-2': 'B' }),
-    )
+    realLocalStorage.setItem(TAB_LABELS_KEY, JSON.stringify({ 'claude-1': 'A', 'claude-2': 'B' }))
     await act(async () => {
       render(<AgentsPane {...defaultProps()} />)
       await new Promise((r) => setTimeout(r, 20))

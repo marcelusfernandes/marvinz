@@ -16,18 +16,14 @@ function makeDecide() {
 
 describe('ToolApprovalGate — structure', () => {
   it('renders a group container with aria-label "Tool approval"', () => {
-    const { container } = render(
-      <ToolApprovalGate toolUseId="tu1" onDecide={makeDecide()} />,
-    )
+    const { container } = render(<ToolApprovalGate toolUseId="tu1" onDecide={makeDecide()} />)
     const group = container.querySelector('[role="group"]')
     expect(group).toBeInTheDocument()
     expect(group?.getAttribute('aria-label')).toBe('Tool approval')
   })
 
   it('has chat-approval-gate class', () => {
-    const { container } = render(
-      <ToolApprovalGate toolUseId="tu1" onDecide={makeDecide()} />,
-    )
+    const { container } = render(<ToolApprovalGate toolUseId="tu1" onDecide={makeDecide()} />)
     expect(container.querySelector('.chat-approval-gate')).toBeInTheDocument()
   })
 
@@ -47,23 +43,17 @@ describe('ToolApprovalGate — structure', () => {
   })
 
   it('Allow button has data-action="allow"', () => {
-    const { container } = render(
-      <ToolApprovalGate toolUseId="tu1" onDecide={makeDecide()} />,
-    )
+    const { container } = render(<ToolApprovalGate toolUseId="tu1" onDecide={makeDecide()} />)
     expect(container.querySelector('[data-action="allow"]')).toBeInTheDocument()
   })
 
   it('Allow always button has data-action="allow-always"', () => {
-    const { container } = render(
-      <ToolApprovalGate toolUseId="tu1" onDecide={makeDecide()} />,
-    )
+    const { container } = render(<ToolApprovalGate toolUseId="tu1" onDecide={makeDecide()} />)
     expect(container.querySelector('[data-action="allow-always"]')).toBeInTheDocument()
   })
 
   it('Deny button has data-action="deny"', () => {
-    const { container } = render(
-      <ToolApprovalGate toolUseId="tu1" onDecide={makeDecide()} />,
-    )
+    const { container } = render(<ToolApprovalGate toolUseId="tu1" onDecide={makeDecide()} />)
     expect(container.querySelector('[data-action="deny"]')).toBeInTheDocument()
   })
 })
@@ -124,9 +114,7 @@ describe('ToolApprovalGate — Deny button', () => {
 describe('ToolApprovalGate — Escape key', () => {
   it('calls onDecide with kind=deny when Escape is pressed inside the gate', () => {
     const onDecide = makeDecide()
-    const { container } = render(
-      <ToolApprovalGate toolUseId="tu1" onDecide={onDecide} />,
-    )
+    const { container } = render(<ToolApprovalGate toolUseId="tu1" onDecide={onDecide} />)
     const gate = container.querySelector('.chat-approval-gate') as HTMLElement
     fireEvent.keyDown(gate, { key: 'Escape' })
     expect(onDecide).toHaveBeenCalledWith('tu1', { kind: 'deny' })
@@ -166,9 +154,7 @@ describe('ToolApprovalGate — disabled', () => {
 
   it('does not call onDecide on Escape when disabled', () => {
     const onDecide = makeDecide()
-    const { container } = render(
-      <ToolApprovalGate toolUseId="tu1" onDecide={onDecide} disabled />,
-    )
+    const { container } = render(<ToolApprovalGate toolUseId="tu1" onDecide={onDecide} disabled />)
     const gate = container.querySelector('.chat-approval-gate') as HTMLElement
     fireEvent.keyDown(gate, { key: 'Escape' })
     expect(onDecide).not.toHaveBeenCalled()
@@ -181,22 +167,18 @@ describe('ToolApprovalGate — disabled', () => {
 
 describe('ToolApprovalGate — hint slot', () => {
   it('renders hint content when hint prop is provided', () => {
-    render(
-      <ToolApprovalGate toolUseId="tu1" onDecide={makeDecide()} hint={<span>diff</span>} />,
-    )
+    render(<ToolApprovalGate toolUseId="tu1" onDecide={makeDecide()} hint={<span>diff</span>} />)
     expect(screen.getByText('diff')).toBeInTheDocument()
   })
 
   it('does not render hint container when hint is not provided', () => {
-    const { container } = render(
-      <ToolApprovalGate toolUseId="tu1" onDecide={makeDecide()} />,
-    )
+    const { container } = render(<ToolApprovalGate toolUseId="tu1" onDecide={makeDecide()} />)
     expect(container.querySelector('.chat-approval-hint')).not.toBeInTheDocument()
   })
 
   it('hint container has chat-approval-hint class', () => {
     const { container } = render(
-      <ToolApprovalGate toolUseId="tu1" onDecide={makeDecide()} hint={<span>x</span>} />,
+      <ToolApprovalGate toolUseId="tu1" onDecide={makeDecide()} hint={<span>x</span>} />
     )
     expect(container.querySelector('.chat-approval-hint')).toBeInTheDocument()
   })

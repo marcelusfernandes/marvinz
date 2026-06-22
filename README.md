@@ -25,7 +25,27 @@ A minimal Obsidian-style Markdown editor with **Claude Code** running as a sideb
 - Node.js 20+
 - [`claude`](https://docs.claude.com/en/docs/claude-code/quickstart) on `PATH`. Marvin detects it via `which claude` and falls back to `~/.local/bin`, `/usr/local/bin`, `/opt/homebrew/bin`. Install via `npm i -g @anthropic-ai/claude-code` or the install script.
 
-## Quickstart
+## Install
+
+**`npx marvinz`** (recommended) — fetches the latest prebuilt app for your OS from
+[Releases](https://github.com/marcelusfernandes/marvinz/releases) and launches it.
+Because it's downloaded via the terminal (not a browser), macOS does **not** show a
+Gatekeeper warning, and nothing native is compiled on your machine (the prebuilt app
+already bundles `node-pty`):
+
+```bash
+npx marvinz
+```
+
+> The launcher lives in [`cli/`](cli/) and is published to npm as `marvinz`.
+
+**Direct download** — grab the installer from the [Releases](https://github.com/marcelusfernandes/marvinz/releases) page (`.dmg` / `.exe` / `.AppImage`). On macOS the build isn't notarized yet (see #515), so the first launch needs **right-click → Open** (or `xattr -dr com.apple.quarantine /Applications/Marvin.app`).
+
+**Homebrew** — planned (#517): `brew install --cask marcelusfernandes/tap/marvinz`.
+
+**From source** — see Quickstart below.
+
+## Quickstart (run from source / development)
 
 ```bash
 npm install

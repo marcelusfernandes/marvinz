@@ -29,7 +29,7 @@ function runFixture(name: string, sessionId = 'test-session'): AgentEvent[] {
 
 function eventsOfType<T extends AgentEvent['type']>(
   events: AgentEvent[],
-  type: T,
+  type: T
 ): Extract<AgentEvent, { type: T }>[] {
   return events.filter((e): e is Extract<AgentEvent, { type: T }> => e.type === type)
 }
@@ -106,7 +106,10 @@ describe('adapter-claude — simple-text fixture (real CLI)', () => {
     const state = makeAdapterState('s')
     const rateLimit = adaptClaudeObj({ type: 'rate_limit_event', rate_limit_info: {} }, state)
     expect(rateLimit).toEqual([])
-    const systemStatus = adaptClaudeObj({ type: 'system', subtype: 'status', status: 'requesting' }, state)
+    const systemStatus = adaptClaudeObj(
+      { type: 'system', subtype: 'status', status: 'requesting' },
+      state
+    )
     expect(systemStatus).toEqual([])
   })
 
@@ -114,14 +117,27 @@ describe('adapter-claude — simple-text fixture (real CLI)', () => {
     const state = makeAdapterState('s')
     // stream_event wrapping a message_start marks the message as streamed
     const msgStartEvents = adaptClaudeObj(
-      { type: 'stream_event', event: { type: 'message_start', message: { id: 'msg_se1', role: 'assistant', usage: { input_tokens: 5, output_tokens: 0 } } } },
-      state,
+      {
+        type: 'stream_event',
+        event: {
+          type: 'message_start',
+          message: {
+            id: 'msg_se1',
+            role: 'assistant',
+            usage: { input_tokens: 5, output_tokens: 0 },
+          },
+        },
+      },
+      state
     )
     expect(msgStartEvents.map((e) => e.type)).toEqual(['message-start'])
     // Subsequent assistant envelope with same id: content skipped (already streamed), only message-end added
     const assistantEvents = adaptClaudeObj(
-      { type: 'assistant', message: { id: 'msg_se1', role: 'assistant', content: [{ type: 'text', text: 'hi' }] } },
-      state,
+      {
+        type: 'assistant',
+        message: { id: 'msg_se1', role: 'assistant', content: [{ type: 'text', text: 'hi' }] },
+      },
+      state
     )
     expect(assistantEvents.map((e) => e.type)).toEqual(['message-end'])
   })
@@ -255,7 +271,7 @@ describe('adapter-claude — thinking fixture (real CLI)', () => {
     const events = runFixture('thinking.jsonl')
     const allDeltas = events.filter(
       (e): e is Extract<AgentEvent, { type: 'text-delta' | 'thinking-delta' }> =>
-        e.type === 'text-delta' || e.type === 'thinking-delta',
+        e.type === 'text-delta' || e.type === 'thinking-delta'
     )
     for (let i = 1; i < allDeltas.length; i++) {
       expect(allDeltas[i].seq).toBeGreaterThan(allDeltas[i - 1].seq)
@@ -307,14 +323,19 @@ describe('adaptClaudeObj — edge cases', () => {
 
   it('returns [] for system event with non-init subtype', () => {
     const state = makeAdapterState('s')
-    expect(adaptClaudeObj({ type: 'system', subtype: 'other', session_id: 'x', model: 'y', cwd: '/z' }, state)).toEqual([])
+    expect(
+      adaptClaudeObj(
+        { type: 'system', subtype: 'other', session_id: 'x', model: 'y', cwd: '/z' },
+        state
+      )
+    ).toEqual([])
   })
 
   it('assistant envelope (batched, not streamed) emits message-start + content + message-end', () => {
     const state = makeAdapterState('s')
     const events = adaptClaudeObj(
       { type: 'assistant', message: { id: 'msg_x', role: 'assistant', content: [] } },
-      state,
+      state
     )
     // empty content → message-start + message-end
     expect(events.map((e) => e.type)).toEqual(['message-start', 'message-end'])
@@ -323,8 +344,11 @@ describe('adaptClaudeObj — edge cases', () => {
   it('assistant envelope with text block emits message-start + text-delta + message-end', () => {
     const state = makeAdapterState('s')
     const events = adaptClaudeObj(
-      { type: 'assistant', message: { id: 'msg_y', role: 'assistant', content: [{ type: 'text', text: 'hello' }] } },
-      state,
+      {
+        type: 'assistant',
+        message: { id: 'msg_y', role: 'assistant', content: [{ type: 'text', text: 'hello' }] },
+      },
+      state
     )
     expect(events.map((e) => e.type)).toEqual(['message-start', 'text-delta', 'message-end'])
     if (events[1].type === 'text-delta') {
@@ -344,7 +368,7 @@ describe('adaptClaudeObj — edge cases', () => {
           content: [{ type: 'tool_use', id: 'toolu_x', name: 'Bash', input: { command: 'ls' } }],
         },
       },
-      state,
+      state
     )
     expect(events.map((e) => e.type)).toEqual(['message-start', 'tool-use', 'message-end'])
     if (events[1].type === 'tool-use') {
@@ -365,7 +389,7 @@ describe('adaptClaudeObj — edge cases', () => {
           content: [{ type: 'thinking', thinking: 'I think...', signature: 'sig' }],
         },
       },
-      state,
+      state
     )
     expect(events.map((e) => e.type)).toEqual(['message-start', 'thinking-delta', 'message-end'])
     if (events[1].type === 'thinking-delta') {
@@ -384,7 +408,7 @@ describe('adaptClaudeObj — edge cases', () => {
           content: [{ type: 'thinking', thinking: '', signature: 'sig' }],
         },
       },
-      state,
+      state
     )
     // Empty thinking should not produce a thinking-delta
     expect(events.map((e) => e.type)).toEqual(['message-start', 'message-end'])
@@ -397,10 +421,17 @@ describe('adaptClaudeObj — edge cases', () => {
         type: 'user',
         message: {
           role: 'user',
-          content: [{ type: 'tool_result', tool_use_id: 'toolu_a', content: 'output here', is_error: false }],
+          content: [
+            {
+              type: 'tool_result',
+              tool_use_id: 'toolu_a',
+              content: 'output here',
+              is_error: false,
+            },
+          ],
         },
       },
-      state,
+      state
     )
     expect(events).toHaveLength(1)
     if (events[0].type === 'tool-result') {
@@ -417,10 +448,12 @@ describe('adaptClaudeObj — edge cases', () => {
         type: 'user',
         message: {
           role: 'user',
-          content: [{ type: 'tool_result', tool_use_id: 'toolu_b', content: 'error msg', is_error: true }],
+          content: [
+            { type: 'tool_result', tool_use_id: 'toolu_b', content: 'error msg', is_error: true },
+          ],
         },
       },
-      state,
+      state
     )
     if (events[0].type === 'tool-result') {
       expect(events[0].isError).toBe(true)
@@ -434,10 +467,16 @@ describe('adaptClaudeObj — edge cases', () => {
         type: 'user',
         message: {
           role: 'user',
-          content: [{ type: 'tool_result', tool_use_id: 'toolu_c', content: [{ type: 'text', text: 'hi' }] }],
+          content: [
+            {
+              type: 'tool_result',
+              tool_use_id: 'toolu_c',
+              content: [{ type: 'text', text: 'hi' }],
+            },
+          ],
         },
       },
-      state,
+      state
     )
     if (events[0].type === 'tool-result') {
       expect(typeof events[0].output).toBe('string')
@@ -448,7 +487,7 @@ describe('adaptClaudeObj — edge cases', () => {
     const state = makeAdapterState('s')
     const events = adaptClaudeObj(
       { type: 'error', error: { type: 'authentication_error', message: 'not logged in' } },
-      state,
+      state
     )
     expect(events).toHaveLength(1)
     if (events[0].type === 'error') {
@@ -461,7 +500,7 @@ describe('adaptClaudeObj — edge cases', () => {
     const state = makeAdapterState('s')
     const events = adaptClaudeObj(
       { type: 'error', error: { type: 'rate_limit_error', message: 'slow down' } },
-      state,
+      state
     )
     if (events[0].type === 'error') {
       expect(events[0].code).toBe('AGENT_RATE_LIMITED')
@@ -473,7 +512,7 @@ describe('adaptClaudeObj — edge cases', () => {
     const state = makeAdapterState('s')
     const events = adaptClaudeObj(
       { type: 'error', error: { type: 'network_error', message: 'connection refused' } },
-      state,
+      state
     )
     if (events[0].type === 'error') {
       expect(events[0].code).toBe('AGENT_NETWORK')
@@ -485,7 +524,7 @@ describe('adaptClaudeObj — edge cases', () => {
     const state = makeAdapterState('s')
     const events = adaptClaudeObj(
       { type: 'error', error: { type: 'some_random_error', message: 'oops' } },
-      state,
+      state
     )
     if (events[0].type === 'error') {
       expect(events[0].code).toBe('AGENT_INTERNAL')
@@ -502,7 +541,7 @@ describe('adaptClaudeObj — edge cases', () => {
     const state = makeAdapterState('s')
     const events = adaptClaudeObj(
       { type: 'message_delta', delta: { stop_reason: null, stop_sequence: null } },
-      state,
+      state
     )
     expect(events).toHaveLength(1)
     if (events[0].type === 'message-end') {
@@ -517,7 +556,10 @@ describe('adaptClaudeObj — edge cases', () => {
 
   it('content_block_stop for non-tool_use block returns []', () => {
     const state = makeAdapterState('s')
-    adaptClaudeObj({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } }, state)
+    adaptClaudeObj(
+      { type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } },
+      state
+    )
     const events = adaptClaudeObj({ type: 'content_block_stop', index: 0 }, state)
     expect(events).toEqual([])
   })
@@ -526,12 +568,20 @@ describe('adaptClaudeObj — edge cases', () => {
     const state = makeAdapterState('s')
     state.currentMessageId = 'msg_x'
     adaptClaudeObj(
-      { type: 'content_block_start', index: 0, content_block: { type: 'tool_use', id: 'toolu_y', name: 'Bash', input: {} } },
-      state,
+      {
+        type: 'content_block_start',
+        index: 0,
+        content_block: { type: 'tool_use', id: 'toolu_y', name: 'Bash', input: {} },
+      },
+      state
     )
     adaptClaudeObj(
-      { type: 'content_block_delta', index: 0, delta: { type: 'input_json_delta', partial_json: '{invalid' } },
-      state,
+      {
+        type: 'content_block_delta',
+        index: 0,
+        delta: { type: 'input_json_delta', partial_json: '{invalid' },
+      },
+      state
     )
     const events = adaptClaudeObj({ type: 'content_block_stop', index: 0 }, state)
     expect(events).toHaveLength(1)

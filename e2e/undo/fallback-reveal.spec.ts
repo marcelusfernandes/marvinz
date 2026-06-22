@@ -57,7 +57,7 @@ async function createUserDataDir(vaultPath: string): Promise<string> {
   await fs.writeFile(
     path.join(dir, 'settings.json'),
     JSON.stringify({ vaultPath, saveMode: 'manual' }),
-    'utf8',
+    'utf8'
   )
   return dir
 }
@@ -104,9 +104,7 @@ async function switchToSourceMode(page: Page): Promise<void> {
 /** Drop keyboard focus to <body> so getActivePanelContext() reports 'neutral'. */
 async function blurToNeutral(page: Page): Promise<void> {
   await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur())
-  await expect
-    .poll(() => page.evaluate(() => document.activeElement?.tagName ?? null))
-    .toBe('BODY')
+  await expect.poll(() => page.evaluate(() => document.activeElement?.tagName ?? null)).toBe('BODY')
 }
 
 const exists = (p: string) =>
@@ -199,9 +197,7 @@ test.describe('Cmd+Z graceful fallback + reveal (#456)', () => {
       // Focus must have stayed on the file tree (so the next Cmd+Z routes there).
       await expect
         .poll(() =>
-          page.evaluate(
-            () => !!document.activeElement?.closest('[data-panel="file-tree"]'),
-          ),
+          page.evaluate(() => !!document.activeElement?.closest('[data-panel="file-tree"]'))
         )
         .toBe(true)
 

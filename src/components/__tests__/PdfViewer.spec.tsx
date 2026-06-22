@@ -31,7 +31,7 @@ describe('PdfViewer', () => {
   it('calls onRevealInFinder with the correct path when button is clicked', () => {
     const onRevealInFinder = vi.fn()
     const { container } = render(
-      <PdfViewer path="/docs/report.pdf" onRevealInFinder={onRevealInFinder} />,
+      <PdfViewer path="/docs/report.pdf" onRevealInFinder={onRevealInFinder} />
     )
     const btn = container.querySelector<HTMLButtonElement>('button.pdf-viewer-action')
     expect(btn).not.toBeNull()

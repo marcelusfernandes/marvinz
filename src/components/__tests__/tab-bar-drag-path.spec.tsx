@@ -100,7 +100,7 @@ describe('TabBar — file tabs as drag source', () => {
           onActivate={vi.fn()}
           onClose={vi.fn()}
           onNewTab={vi.fn()}
-        />,
+        />
       )
       const tabEl = container.querySelector('.tab')!
       expect(tabEl.getAttribute('draggable')).toBe('true')
@@ -119,7 +119,7 @@ describe('TabBar — file tabs as drag source', () => {
         onActivate={vi.fn()}
         onClose={vi.fn()}
         onNewTab={vi.fn()}
-      />,
+      />
     )
     const { dt } = fireDragStart(container.querySelector('.tab')!)
     expect(dt.effectAllowed).toBe('copy')
@@ -139,7 +139,7 @@ describe('TabBar — non-file tabs are not drag sources', () => {
         onActivate={vi.fn()}
         onClose={vi.fn()}
         onNewTab={vi.fn()}
-      />,
+      />
     )
     const tabEl = container.querySelector('.tab')!
     // draggable={false} renders as the attribute absent or "false"
@@ -154,7 +154,7 @@ describe('TabBar — non-file tabs are not drag sources', () => {
         onActivate={vi.fn()}
         onClose={vi.fn()}
         onNewTab={vi.fn()}
-      />,
+      />
     )
     const tabEl = container.querySelector('.tab')!
     expect(tabEl.getAttribute('draggable')).not.toBe('true')
@@ -168,7 +168,7 @@ describe('TabBar — non-file tabs are not drag sources', () => {
         onActivate={vi.fn()}
         onClose={vi.fn()}
         onNewTab={vi.fn()}
-      />,
+      />
     )
     const { setData } = fireDragStart(container.querySelector('.tab')!)
     expect(setData).not.toHaveBeenCalledWith(MIME, expect.anything())
@@ -188,7 +188,7 @@ describe('TabBar — mixed bar', () => {
         onActivate={vi.fn()}
         onClose={vi.fn()}
         onNewTab={vi.fn()}
-      />,
+      />
     )
     const draggables = container.querySelectorAll('.tab[draggable="true"]')
     expect(draggables.length).toBe(1)

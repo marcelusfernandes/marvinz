@@ -198,7 +198,7 @@ export function makeAdapterState(sessionId: string): AdapterState {
 }
 
 function toStopReason(
-  raw: string | null | undefined,
+  raw: string | null | undefined
 ): 'end_turn' | 'tool_use' | 'max_tokens' | 'cancelled' {
   if (raw === 'end_turn' || raw === 'tool_use' || raw === 'max_tokens') return raw
   return 'cancelled'
@@ -206,7 +206,7 @@ function toStopReason(
 
 // Classify a claude error type string to our ErrorCode.
 function classifyClaudeError(
-  errorType: string,
+  errorType: string
 ): 'AGENT_NOT_AUTHENTICATED' | 'AGENT_RATE_LIMITED' | 'AGENT_NETWORK' | 'AGENT_INTERNAL' {
   if (errorType === 'authentication_error' || errorType === 'unauthenticated') {
     return 'AGENT_NOT_AUTHENTICATED'
@@ -333,9 +333,8 @@ export function adaptClaudeObj(obj: unknown, state: AdapterState): AgentEvent[] 
       const events: AgentEvent[] = []
       for (const item of env.message.content) {
         if (item.type !== 'tool_result') continue
-        const output = typeof item.content === 'string'
-          ? item.content
-          : JSON.stringify(item.content)
+        const output =
+          typeof item.content === 'string' ? item.content : JSON.stringify(item.content)
         events.push({
           type: 'tool-result',
           sessionId: state.sessionId,
@@ -493,10 +492,8 @@ export function adaptClaudeObj(obj: unknown, state: AdapterState): AgentEvent[] 
       const usage = res.usage
       const inputTokens = (usage?.input_tokens ?? 0) || state.inputTokens
       const outputTokens = (usage?.output_tokens ?? 0) || state.outputTokens
-      const cacheReadTokens =
-        (usage?.cache_read_input_tokens ?? 0) || state.cacheReadTokens
-      const cacheWriteTokens =
-        (usage?.cache_creation_input_tokens ?? 0) || state.cacheWriteTokens
+      const cacheReadTokens = (usage?.cache_read_input_tokens ?? 0) || state.cacheReadTokens
+      const cacheWriteTokens = (usage?.cache_creation_input_tokens ?? 0) || state.cacheWriteTokens
 
       const tokenUsage: TokenUsage = {
         inputTokens,
@@ -532,5 +529,3 @@ export function adaptClaudeObj(obj: unknown, state: AdapterState): AgentEvent[] 
       return []
   }
 }
-
-

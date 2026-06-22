@@ -25,7 +25,7 @@ import { assertInsideVaultAsync } from '../vault-boundary.js'
 
 async function writeBinary(
   vaultPath: string,
-  payload: { relPath: string; base64Bytes: string; maxBytes?: number },
+  payload: { relPath: string; base64Bytes: string; maxBytes?: number }
 ): Promise<string> {
   const { relPath, base64Bytes, maxBytes } = payload
   const absolute = path.join(vaultPath, relPath)
@@ -66,9 +66,9 @@ describe('file:writeBinary — out-of-vault traversal', () => {
   afterEach(teardown)
 
   it('rejects relPath "../etc/passwd" with MARVIN_OUTSIDE_VAULT', async () => {
-    await expect(
-      writeBinary(vault, { relPath: '../etc/passwd', base64Bytes: '' }),
-    ).rejects.toThrow('MARVIN_OUTSIDE_VAULT')
+    await expect(writeBinary(vault, { relPath: '../etc/passwd', base64Bytes: '' })).rejects.toThrow(
+      'MARVIN_OUTSIDE_VAULT'
+    )
   })
 })
 
@@ -99,7 +99,7 @@ describe('file:writeBinary — symlink escape', () => {
       writeBinary(vault, {
         relPath: 'escape/secret.bin',
         base64Bytes: Buffer.from('x').toString('base64'),
-      }),
+      })
     ).rejects.toThrow('MARVIN_OUTSIDE_VAULT')
     // Nothing written into the symlink target.
     await expect(fs.access(path.join(outsideDir, 'secret.bin'))).rejects.toThrow()
@@ -119,9 +119,9 @@ describe('file:writeBinary — oversized payload', () => {
     const b64 = bytes.toString('base64')
     const relPath = 'attachments/big.bin'
 
-    await expect(
-      writeBinary(vault, { relPath, base64Bytes: b64, maxBytes: 10 }),
-    ).rejects.toThrow('MARVIN_TOO_LARGE: 11')
+    await expect(writeBinary(vault, { relPath, base64Bytes: b64, maxBytes: 10 })).rejects.toThrow(
+      'MARVIN_TOO_LARGE: 11'
+    )
 
     // File must not exist after the throw
     await expect(fs.access(path.join(vault, relPath))).rejects.toThrow()
@@ -133,9 +133,9 @@ describe('file:writeBinary — oversized payload', () => {
     const b64 = 'A'.repeat(100)
     const relPath = 'attachments/huge.bin'
 
-    await expect(
-      writeBinary(vault, { relPath, base64Bytes: b64, maxBytes: 10 }),
-    ).rejects.toThrow(/MARVIN_TOO_LARGE: payload$/)
+    await expect(writeBinary(vault, { relPath, base64Bytes: b64, maxBytes: 10 })).rejects.toThrow(
+      /MARVIN_TOO_LARGE: payload$/
+    )
 
     await expect(fs.access(path.join(vault, relPath))).rejects.toThrow()
   })
@@ -146,9 +146,9 @@ describe('file:writeBinary — oversized payload', () => {
     const b64 = 'A'.repeat(16)
     const relPath = 'attachments/adversarial.bin'
 
-    await expect(
-      writeBinary(vault, { relPath, base64Bytes: b64, maxBytes: 10 }),
-    ).rejects.toThrow(/MARVIN_TOO_LARGE: 12$/)
+    await expect(writeBinary(vault, { relPath, base64Bytes: b64, maxBytes: 10 })).rejects.toThrow(
+      /MARVIN_TOO_LARGE: 12$/
+    )
 
     await expect(fs.access(path.join(vault, relPath))).rejects.toThrow()
   })

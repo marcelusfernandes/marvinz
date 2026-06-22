@@ -1,6 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
-import { useChatStore, setStreamingScheduler, resetStreamingBuffers, flushPendingDeltas } from '../store'
+import {
+  useChatStore,
+  setStreamingScheduler,
+  resetStreamingBuffers,
+  flushPendingDeltas,
+} from '../store'
 import { useChatSession, useChatMessage, useStickToBottom } from '../hooks'
 import type React from 'react'
 
@@ -9,7 +14,10 @@ import type React from 'react'
 // ---------------------------------------------------------------------------
 
 setStreamingScheduler({
-  schedule: (cb) => { setTimeout(cb, 0); return 1 },
+  schedule: (cb) => {
+    setTimeout(cb, 0)
+    return 1
+  },
   cancel: (_h) => {},
 })
 
@@ -29,7 +37,10 @@ function makeIpcStub() {
       listeners.set(sessionId, [...existing, cb])
       return () => {
         const cur = listeners.get(sessionId) ?? []
-        listeners.set(sessionId, cur.filter((l) => l !== cb))
+        listeners.set(
+          sessionId,
+          cur.filter((l) => l !== cb)
+        )
       }
     }),
     request: vi.fn(() => Promise.resolve()),
@@ -133,7 +144,7 @@ describe('useChatSession — send', () => {
         type: 'start',
         sessionId: 's1',
         prompt: 'Hello',
-      }),
+      })
     )
   })
 
@@ -147,7 +158,7 @@ describe('useChatSession — send', () => {
       expect.objectContaining({
         provider: 'claude',
         vaultRoot: '/my-vault',
-      }),
+      })
     )
   })
 
@@ -159,7 +170,7 @@ describe('useChatSession — send', () => {
     })
     const messages = useChatStore.getState().sessions['s1'].messages
     const found = Object.values(messages).find(
-      (m) => m.role === 'user' && (m as { text?: string }).text === 'Optimistic',
+      (m) => m.role === 'user' && (m as { text?: string }).text === 'Optimistic'
     )
     expect(found).toBeDefined()
   })
@@ -198,7 +209,7 @@ describe('useChatSession — cancel', () => {
       expect.objectContaining({
         type: 'cancel',
         sessionId: 's1',
-      }),
+      })
     )
   })
 
@@ -208,7 +219,7 @@ describe('useChatSession — cancel', () => {
     await expect(
       act(async () => {
         await result.current.cancel()
-      }),
+      })
     ).resolves.not.toThrow()
   })
 })
@@ -223,7 +234,12 @@ describe('useChatSession — IPC event forwarding', () => {
     renderHook(() => useChatSession('s1'))
 
     act(() => {
-      ipc._emit('s1', { type: 'message-start', sessionId: 's1', messageId: 'm1', role: 'assistant' })
+      ipc._emit('s1', {
+        type: 'message-start',
+        sessionId: 's1',
+        messageId: 'm1',
+        role: 'assistant',
+      })
     })
 
     const msg = useChatStore.getState().sessions['s1'].messages['m1']
@@ -236,7 +252,12 @@ describe('useChatSession — IPC event forwarding', () => {
     renderHook(() => useChatSession('s1'))
 
     act(() => {
-      ipc._emit('s1', { type: 'message-start', sessionId: 's1', messageId: 'm1', role: 'assistant' })
+      ipc._emit('s1', {
+        type: 'message-start',
+        sessionId: 's1',
+        messageId: 'm1',
+        role: 'assistant',
+      })
       ipc._emit('s1', { type: 'text-delta', sessionId: 's1', messageId: 'm1', delta: 'Hi', seq: 0 })
     })
     flushPendingDeltas()
@@ -326,7 +347,7 @@ describe('useStickToBottom', () => {
     })
 
     expect(scrollEl.scrollTo).toHaveBeenCalledWith(
-      expect.objectContaining({ top: scrollEl.scrollHeight }),
+      expect.objectContaining({ top: scrollEl.scrollHeight })
     )
   })
 

@@ -79,7 +79,7 @@ vi.mock('@uiw/react-codemirror', () => ({
       capturedOnUpdate.fn = props.onUpdate ?? null
       setTimeout(() => props.onCreateEditor?.(currentFakeView), 0)
       return <div data-testid="codemirror" />
-    },
+    }
   ),
 }))
 

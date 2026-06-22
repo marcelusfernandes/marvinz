@@ -33,7 +33,7 @@ function signalTrend(
   name: string,
   direction: string,
   pairs: CalibrationPair[],
-  measuredOnly: boolean,
+  measuredOnly: boolean
 ): SignalTrend {
   return {
     signal_name: name,
@@ -50,7 +50,7 @@ export function binaryTrend(
   name: string,
   getBool: (p: CalibrationPair) => boolean,
   pairs: CalibrationPair[],
-  measuredOnly: boolean,
+  measuredOnly: boolean
 ): SignalTrend | null {
   const yes = pairs.filter(getBool)
   const no = pairs.filter((p) => !getBool(p))
@@ -69,14 +69,16 @@ export function ordinalTrend(
   name: string,
   getNum: (p: CalibrationPair) => number,
   pairs: CalibrationPair[],
-  measuredOnly: boolean,
+  measuredOnly: boolean
 ): SignalTrend | null {
   if (pairs.length < 3) return null // co-movimento precisa de variação mínima
   let concordant = 0
   let discordant = 0
   for (let i = 0; i < pairs.length; i++) {
     for (let j = i + 1; j < pairs.length; j++) {
-      const s = Math.sign(getNum(pairs[i]) - getNum(pairs[j])) * Math.sign(iterationsOf(pairs[i]) - iterationsOf(pairs[j]))
+      const s =
+        Math.sign(getNum(pairs[i]) - getNum(pairs[j])) *
+        Math.sign(iterationsOf(pairs[i]) - iterationsOf(pairs[j]))
       if (s > 0) concordant++
       else if (s < 0) discordant++
     }
@@ -100,10 +102,10 @@ export function routingAudit(pairs: CalibrationPair[]): string {
   if (pairs.length === 0) return 'sem pares para auditar o roteamento.'
   const med = median(pairs.map(iterationsOf))
   const under = pairs.filter(
-    (p) => p.prediction.assigned_oversight === 'autonomous' && iterationsOf(p) > med,
+    (p) => p.prediction.assigned_oversight === 'autonomous' && iterationsOf(p) > med
   ).length
   const over = pairs.filter(
-    (p) => p.prediction.assigned_oversight === 'deep_review' && iterationsOf(p) < med,
+    (p) => p.prediction.assigned_oversight === 'deep_review' && iterationsOf(p) < med
   ).length
   return [
     `mediana de iterações: ${med} sobre ${pairs.length} pares.`,
@@ -116,22 +118,56 @@ export function routingAudit(pairs: CalibrationPair[]): string {
 export function buildTrendReport(
   allPairs: CalibrationPair[],
   harnessVersion: string,
-  generatedAt: string,
+  generatedAt: string
 ): TrendReport {
   const pairs = allPairs.filter((p) => p.prediction.harness_version === harnessVersion)
   const trends: SignalTrend[] = []
 
   if (pairs.length >= 2) {
-    const dfMeasured = pairs.every((p) => p.prediction.structural.downstream_fanout.provenance === 'measured')
-    const ufMeasured = pairs.every((p) => p.prediction.structural.upstream_fanout.provenance === 'measured')
+    const dfMeasured = pairs.every(
+      (p) => p.prediction.structural.downstream_fanout.provenance === 'measured'
+    )
+    const ufMeasured = pairs.every(
+      (p) => p.prediction.structural.upstream_fanout.provenance === 'measured'
+    )
     const candidates = [
-      ordinalTrend('downstream_fanout', (p) => p.prediction.structural.downstream_fanout.value, pairs, dfMeasured),
-      ordinalTrend('upstream_fanout', (p) => p.prediction.structural.upstream_fanout.value, pairs, ufMeasured),
+      ordinalTrend(
+        'downstream_fanout',
+        (p) => p.prediction.structural.downstream_fanout.value,
+        pairs,
+        dfMeasured
+      ),
+      ordinalTrend(
+        'upstream_fanout',
+        (p) => p.prediction.structural.upstream_fanout.value,
+        pairs,
+        ufMeasured
+      ),
       // weighted_risk_score e predicted_size vêm de julgamento do agente, não de tool → não-measured.
-      ordinalTrend('weighted_risk_score', (p) => weightedRiskScore(p.prediction.agents), pairs, false),
-      ordinalTrend('predicted_size', (p) => BAND_ORDINAL[p.prediction.predicted_size], pairs, false),
-      binaryTrend('touches_nondeterministic', (p) => p.prediction.structural.touches_nondeterministic, pairs, true),
-      binaryTrend('touches_shared_contract', (p) => p.prediction.structural.touches_shared_contract, pairs, true),
+      ordinalTrend(
+        'weighted_risk_score',
+        (p) => weightedRiskScore(p.prediction.agents),
+        pairs,
+        false
+      ),
+      ordinalTrend(
+        'predicted_size',
+        (p) => BAND_ORDINAL[p.prediction.predicted_size],
+        pairs,
+        false
+      ),
+      binaryTrend(
+        'touches_nondeterministic',
+        (p) => p.prediction.structural.touches_nondeterministic,
+        pairs,
+        true
+      ),
+      binaryTrend(
+        'touches_shared_contract',
+        (p) => p.prediction.structural.touches_shared_contract,
+        pairs,
+        true
+      ),
     ]
     for (const trend of candidates) if (trend) trends.push(trend)
   }

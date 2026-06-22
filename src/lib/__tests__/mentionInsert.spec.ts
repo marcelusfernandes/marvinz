@@ -41,7 +41,7 @@ const NOTE = `${VAULT}/note.md`
 describe('mentionInsertText', () => {
   it('inserts a wikilink for markdown notes, stripping the extension', () => {
     expect(mentionInsertText(item({ name: 'My Note.md', isMarkdown: true }), NOTE)).toBe(
-      '[[My Note]]',
+      '[[My Note]]'
     )
   })
 
@@ -55,17 +55,14 @@ describe('mentionInsertText', () => {
 
   it('inserts a file-relative markdown link for other files', () => {
     expect(
-      mentionInsertText(
-        item({ name: 'report.pdf', path: `${VAULT}/docs/report.pdf` }),
-        NOTE,
-      ),
+      mentionInsertText(item({ name: 'report.pdf', path: `${VAULT}/docs/report.pdf` }), NOTE)
     ).toBe('[report.pdf](docs/report.pdf)')
   })
 
   it('emits an UP-relative target when the note lives in a subdirectory', () => {
     const insert = mentionInsertText(
       item({ name: 'report.pdf', path: `${VAULT}/docs/report.pdf` }),
-      `${VAULT}/notes/today.md`,
+      `${VAULT}/notes/today.md`
     )
     expect(insert).toBe('[report.pdf](../docs/report.pdf)')
   })
@@ -81,7 +78,7 @@ describe('mentionInsertText', () => {
   it('angle-wraps targets containing spaces (Blocker 2)', () => {
     const insert = mentionInsertText(
       item({ name: 'Q3 Budget.csv', path: `${VAULT}/finance/Q3 Budget.csv` }),
-      NOTE,
+      NOTE
     )
     expect(insert).toBe('[Q3 Budget.csv](<finance/Q3 Budget.csv>)')
     // And the unwrapped destination still resolves to the file.
@@ -89,8 +86,8 @@ describe('mentionInsertText', () => {
   })
 
   it('falls back to a markdown link when an extensionless file is not markdown', () => {
-    expect(
-      mentionInsertText(item({ name: 'LICENSE', path: `${VAULT}/LICENSE` }), NOTE),
-    ).toBe('[LICENSE](LICENSE)')
+    expect(mentionInsertText(item({ name: 'LICENSE', path: `${VAULT}/LICENSE` }), NOTE)).toBe(
+      '[LICENSE](LICENSE)'
+    )
   })
 })

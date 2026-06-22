@@ -72,7 +72,7 @@ function makeExternalDt(files: File[]): DataTransfer {
 /** Build a real DOM DragEvent with mocked dataTransfer so closest() guard works correctly. */
 function makeDomDragEvent(
   type: 'dragover' | 'drop',
-  dt: DataTransfer,
+  dt: DataTransfer
 ): Event & { dataTransfer: DataTransfer; preventDefault: ReturnType<typeof vi.fn> } {
   const event = new Event(type, { bubbles: true, cancelable: true })
   Object.defineProperty(event, 'dataTransfer', { value: dt, writable: false })
@@ -216,7 +216,7 @@ describe('FileTree — toggle folder', () => {
     expect(onSelect).toHaveBeenCalledTimes(1)
     expect(onSelect).toHaveBeenCalledWith(
       expect.objectContaining({ path: '/vault/docs', isDir: true }),
-      { cmdOrCtrl: false, shift: false },
+      { cmdOrCtrl: false, shift: false }
     )
   })
 })
@@ -234,7 +234,7 @@ describe('FileTree — file selection', () => {
     expect(onSelect).toHaveBeenCalledTimes(1)
     expect(onSelect).toHaveBeenCalledWith(
       expect.objectContaining({ path: '/vault/readme.md', isDir: false }),
-      { cmdOrCtrl: false, shift: false },
+      { cmdOrCtrl: false, shift: false }
     )
   })
 
@@ -247,7 +247,7 @@ describe('FileTree — file selection', () => {
     expect(onSelect).toHaveBeenCalledTimes(1)
     expect(onSelect).toHaveBeenCalledWith(
       expect.objectContaining({ path: '/vault/docs/intro.md' }),
-      { cmdOrCtrl: false, shift: false },
+      { cmdOrCtrl: false, shift: false }
     )
   })
 
@@ -262,10 +262,12 @@ describe('FileTree — file selection', () => {
       { path: '/vault/readme.md', name: 'readme.md', isDir: false, children: [] },
       { path: '/vault/other.md', name: 'other.md', isDir: false, children: [] },
     ]
-    const { container } = render(<FileTree {...baseProps({ nodes, selectedPaths: new Set(['/vault/readme.md']) })} />)
+    const { container } = render(
+      <FileTree {...baseProps({ nodes, selectedPaths: new Set(['/vault/readme.md']) })} />
+    )
     const buttons = container.querySelectorAll('button.file-tree-row.file')
-    const readmeBtn = Array.from(buttons).find(b => b.textContent?.includes('readme'))
-    const otherBtn = Array.from(buttons).find(b => b.textContent?.includes('other'))
+    const readmeBtn = Array.from(buttons).find((b) => b.textContent?.includes('readme'))
+    const otherBtn = Array.from(buttons).find((b) => b.textContent?.includes('other'))
     expect(readmeBtn?.classList.contains('selected')).toBe(true)
     expect(otherBtn?.classList.contains('selected')).toBe(false)
   })
@@ -510,7 +512,7 @@ describe('FileTree — icon theme', () => {
     expect(materialIcons.length).toBeGreaterThan(0)
     // Folder/file codicon icons should not be present (chevrons still use Icon)
     const fileOrFolderIcons = container.querySelectorAll(
-      'span[data-testid="icon-folder"], span[data-testid="icon-folder-opened"]',
+      'span[data-testid="icon-folder"], span[data-testid="icon-folder-opened"]'
     )
     expect(fileOrFolderIcons.length).toBe(0)
   })
@@ -522,7 +524,9 @@ describe('FileTree — icon theme', () => {
 
     mockIconTheme = 'material'
     rerender(<FileTree {...baseProps()} />)
-    expect(container.querySelectorAll('img[data-testid^="material-icon-"]').length).toBeGreaterThan(0)
+    expect(container.querySelectorAll('img[data-testid^="material-icon-"]').length).toBeGreaterThan(
+      0
+    )
   })
 })
 
@@ -693,7 +697,7 @@ describe('FileTree — external drop on root ul', () => {
     ul.dispatchEvent(makeDomDragEvent('drop', dt))
 
     // Give async a tick to confirm nothing fires
-    await new Promise(r => setTimeout(r, 10))
+    await new Promise((r) => setTimeout(r, 10))
     expect(importExternalMock).not.toHaveBeenCalled()
   })
 })
@@ -802,7 +806,11 @@ describe('FileTree — external drop on root ul', () => {
       await Promise.resolve()
     })
 
-    expect(onImportResult).toHaveBeenCalledWith({ ok: true, result: importResult, destDir: '/vault' })
+    expect(onImportResult).toHaveBeenCalledWith({
+      ok: true,
+      result: importResult,
+      destDir: '/vault',
+    })
   })
 
   it('calls onImportResult with ok:false when importExternal rejects', async () => {
@@ -920,9 +928,7 @@ describe('FileTree — ARIA semantics', () => {
       path: '/vault/assets',
       name: 'assets',
       isDir: true,
-      children: [
-        { path: '/vault/assets/logo.png', name: 'logo.png', isDir: false, children: [] },
-      ],
+      children: [{ path: '/vault/assets/logo.png', name: 'logo.png', isDir: false, children: [] }],
     },
     { path: '/vault/readme.md', name: 'readme.md', isDir: false, children: [] },
   ]
@@ -996,9 +1002,7 @@ describe('FileTree — ARIA semantics', () => {
   it('sets aria-selected="true" on the selected node and "false" on others', () => {
     const openPaths = new Set(['/vault/docs'])
     render(
-      <FileTree
-        {...baseProps({ openPaths, selectedPaths: new Set(['/vault/docs/intro.md']) })}
-      />,
+      <FileTree {...baseProps({ openPaths, selectedPaths: new Set(['/vault/docs/intro.md']) })} />
     )
     expect(itemByName('intro').getAttribute('aria-selected')).toBe('true')
     expect(itemByName('docs').getAttribute('aria-selected')).toBe('false')
@@ -1179,9 +1183,7 @@ describe('FileTree — hoveredPath lift (single source of truth)', () => {
 
     for (const btn of [docsBtn, assetsBtn, docsBtn]) {
       fireEvent.dragOver(btn, makeDragEvent([DRAG_MIME]))
-      const activeTargets = [docsBtn, assetsBtn].filter(b =>
-        b.classList.contains('drop-target'),
-      )
+      const activeTargets = [docsBtn, assetsBtn].filter((b) => b.classList.contains('drop-target'))
       expect(activeTargets).toHaveLength(1)
       expect(activeTargets[0]).toBe(btn)
     }
@@ -1206,9 +1208,7 @@ describe('FileTree — hoveredPath lift (single source of truth)', () => {
         path: '/vault/parent',
         name: 'parent',
         isDir: true,
-        children: [
-          { path: '/vault/parent/child', name: 'child', isDir: true, children: [] },
-        ],
+        children: [{ path: '/vault/parent/child', name: 'child', isDir: true, children: [] }],
       },
     ]
     const openPaths = new Set(['/vault/parent'])
@@ -1257,7 +1257,9 @@ describe('FileTree — iconTheme lift (single useSetting call at root)', () => {
     const openPaths = new Set(['/vault/docs'])
     const { container, rerender } = render(<FileTree {...baseProps({ openPaths })} />)
 
-    expect(container.querySelectorAll('img[data-testid^="material-icon-"]').length).toBeGreaterThan(0)
+    expect(container.querySelectorAll('img[data-testid^="material-icon-"]').length).toBeGreaterThan(
+      0
+    )
 
     mockIconTheme = 'codicon'
     rerender(<FileTree {...baseProps({ openPaths })} />)
@@ -1307,13 +1309,25 @@ describe('Drag and drop — auto-scroll', () => {
     // Override getBoundingClientRect as a direct method so it takes precedence
     // over the HTMLElement.prototype shim from _virtualizerSetup.
     ul.getBoundingClientRect = () =>
-      ({ top: 0, bottom: VIEWPORT_HEIGHT, left: 0, right: 0, width: 0, height: VIEWPORT_HEIGHT, x: 0, y: 0, toJSON: () => ({}) } as DOMRect)
+      ({
+        top: 0,
+        bottom: VIEWPORT_HEIGHT,
+        left: 0,
+        right: 0,
+        width: 0,
+        height: VIEWPORT_HEIGHT,
+        x: 0,
+        y: 0,
+        toJSON: () => ({}),
+      }) as DOMRect
 
     let scrollTop = initialScrollTop
     Object.defineProperty(ul, 'scrollTop', {
       configurable: true,
       get: () => scrollTop,
-      set: (v: number) => { scrollTop = v },
+      set: (v: number) => {
+        scrollTop = v
+      },
     })
     return { getScrollTop: () => scrollTop }
   }
@@ -1333,7 +1347,7 @@ describe('Drag and drop — auto-scroll', () => {
     ul.dispatchEvent(makeDragEvent(30))
     expect(rafQueue).toHaveLength(1)
 
-    rafQueue.forEach(cb => cb(0))
+    rafQueue.forEach((cb) => cb(0))
     expect(getScrollTop()).toBeLessThan(200)
   })
 
@@ -1352,7 +1366,7 @@ describe('Drag and drop — auto-scroll', () => {
     ul.dispatchEvent(makeDragEvent(VIEWPORT_HEIGHT - EDGE_ZONE + 20))
     expect(rafQueue).toHaveLength(1)
 
-    rafQueue.forEach(cb => cb(0))
+    rafQueue.forEach((cb) => cb(0))
     expect(getScrollTop()).toBeGreaterThan(0)
   })
 

@@ -9,7 +9,15 @@ import { render } from '@testing-library/react'
 // public `.props.handleDOMEvents` instead of mocking it.
 // ---------------------------------------------------------------------------
 
-const { PARSER_CTX, EDITOR_VIEW_CTX, EDITOR_VIEW_OPTIONS_CTX, ROOT_CTX, DEFAULT_VALUE_CTX, PROSE_PLUGINS_CTX, LISTENER_CTX } = vi.hoisted(() => ({
+const {
+  PARSER_CTX,
+  EDITOR_VIEW_CTX,
+  EDITOR_VIEW_OPTIONS_CTX,
+  ROOT_CTX,
+  DEFAULT_VALUE_CTX,
+  PROSE_PLUGINS_CTX,
+  LISTENER_CTX,
+} = vi.hoisted(() => ({
   PARSER_CTX: Symbol('parserCtx'),
   EDITOR_VIEW_CTX: Symbol('editorViewCtx'),
   EDITOR_VIEW_OPTIONS_CTX: Symbol('editorViewOptionsCtx'),
@@ -238,11 +246,7 @@ function setupMarvinMock(writeBinary?: ReturnType<typeof vi.fn>) {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function makeDragEvent(
-  files: File[],
-  internalPath = '',
-  internalPaths: string[] = [],
-): DragEvent {
+function makeDragEvent(files: File[], internalPath = '', internalPaths: string[] = []): DragEvent {
   const event = new Event('drop', { bubbles: true, cancelable: true }) as DragEvent
   const types: string[] = []
   if (internalPaths.length > 0) types.push('application/x-marvin-paths')
@@ -250,7 +254,8 @@ function makeDragEvent(
   if (files.length > 0) types.push('Files')
   const mimeData: Record<string, string> = {}
   if (internalPath) mimeData['application/x-marvin-path'] = internalPath
-  if (internalPaths.length > 0) mimeData['application/x-marvin-paths'] = JSON.stringify(internalPaths)
+  if (internalPaths.length > 0)
+    mimeData['application/x-marvin-paths'] = JSON.stringify(internalPaths)
   Object.defineProperty(event, 'dataTransfer', {
     value: {
       files: files as unknown as FileList,
@@ -378,11 +383,9 @@ describe('LiveMarkdown — Milkdown drop handler (issue #290)', () => {
     const onImportToast = vi.fn()
     render(<LiveMarkdown {...defaultProps()} onImportToast={onImportToast} />)
 
-    const big = Object.defineProperty(
-      new File(['x'], 'huge.png', { type: 'image/png' }),
-      'size',
-      { value: 26 * 1024 * 1024 },
-    )
+    const big = Object.defineProperty(new File(['x'], 'huge.png', { type: 'image/png' }), 'size', {
+      value: 26 * 1024 * 1024,
+    })
     capturedHandlers.drop!(fakeView, makeDragEvent([big]))
     await new Promise((r) => setTimeout(r, 30))
 
@@ -392,7 +395,7 @@ describe('LiveMarkdown — Milkdown drop handler (issue #290)', () => {
       expect.objectContaining({
         state: 'error',
         message: expect.stringContaining('huge.png'),
-      }),
+      })
     )
   })
 
@@ -410,7 +413,7 @@ describe('LiveMarkdown — Milkdown drop handler (issue #290)', () => {
       expect.objectContaining({
         state: 'error',
         message: expect.stringContaining('secret.md'),
-      }),
+      })
     )
   })
 
@@ -424,7 +427,7 @@ describe('LiveMarkdown — Milkdown drop handler (issue #290)', () => {
     // Image atoms don't carry marks so the trailing-space escape isn't fired;
     // the image stays inline with surrounding text instead of getting its
     // own paragraph (avoids serializing as a blank line in markdown source).
-    const tr = (fakeView.dispatch.mock.calls[0]?.[0] as unknown) as {
+    const tr = fakeView.dispatch.mock.calls[0]?.[0] as unknown as {
       _splits: unknown[]
       _inserts: unknown[]
     }
@@ -457,7 +460,7 @@ describe('LiveMarkdown — Milkdown drop handler (issue #290)', () => {
     capturedHandlers.drop!(linkSpyView, makeDragEvent([file]))
     await new Promise((r) => setTimeout(r, 30))
 
-    const tr = (linkSpyView.dispatch.mock.calls[0]?.[0] as unknown) as {
+    const tr = linkSpyView.dispatch.mock.calls[0]?.[0] as unknown as {
       _splits: unknown[]
       _inserts: unknown[]
     }

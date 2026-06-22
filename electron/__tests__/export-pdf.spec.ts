@@ -24,7 +24,9 @@ const mockExportWin = {
 }
 
 vi.mock('electron', () => ({
-  BrowserWindow: vi.fn(function () { return mockExportWin }),
+  BrowserWindow: vi.fn(function () {
+    return mockExportWin
+  }),
   dialog: {
     showSaveDialog: vi.fn(),
   },
@@ -106,16 +108,15 @@ async function exportPdf(filePath: string): Promise<void> {
 
 beforeEach(() => {
   vi.clearAllMocks()
-
-  ;(BrowserWindow as unknown as ReturnType<typeof vi.fn>).mockImplementation(function () { return mockExportWin })
+  ;(BrowserWindow as unknown as ReturnType<typeof vi.fn>).mockImplementation(function () {
+    return mockExportWin
+  })
   mockExportWin.loadFile.mockResolvedValue(undefined)
   mockExportWin.destroy.mockReturnValue(undefined)
   mockWebContents.printToPDF.mockResolvedValue(new Uint8Array([1, 2, 3]))
-
   ;(fs.readFile as ReturnType<typeof vi.fn>).mockResolvedValue('# Hello')
   ;(fs.writeFile as ReturnType<typeof vi.fn>).mockResolvedValue(undefined)
   ;(fs.unlink as ReturnType<typeof vi.fn>).mockResolvedValue(undefined)
-
   ;(marked as unknown as ReturnType<typeof vi.fn>).mockReturnValue('<p>content</p>')
 })
 

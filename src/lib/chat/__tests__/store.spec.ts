@@ -15,8 +15,13 @@ import type { AssistantBlock } from '../types'
 let pendingCb: (() => void) | null = null
 
 setStreamingScheduler({
-  schedule: (cb) => { pendingCb = cb; return 1 },
-  cancel: (_h) => { pendingCb = null },
+  schedule: (cb) => {
+    pendingCb = cb
+    return 1
+  },
+  cancel: (_h) => {
+    pendingCb = null
+  },
 })
 
 function drainRaf(): void {
@@ -260,7 +265,12 @@ describe('applyStreamEvent: message-start', () => {
   })
 
   it('is idempotent — repeated event with same id does not duplicate', () => {
-    const ev = { type: 'message-start' as const, sessionId: 's1', messageId: 'm1', role: 'assistant' as const }
+    const ev = {
+      type: 'message-start' as const,
+      sessionId: 's1',
+      messageId: 'm1',
+      role: 'assistant' as const,
+    }
     getStore().applyStreamEvent('s1', ev)
     getStore().applyStreamEvent('s1', ev)
     expect(getSession('s1').ordering.filter((id) => id === 'm1')).toHaveLength(1)
@@ -286,8 +296,20 @@ describe('applyStreamEvent: text-delta via ref buffer', () => {
   afterEach(resetStreamingBuffers)
 
   it('accumulates text deltas and flush creates a text block', () => {
-    getStore().applyStreamEvent('s1', { type: 'text-delta', sessionId: 's1', messageId: 'm1', delta: 'Hello', seq: 0 })
-    getStore().applyStreamEvent('s1', { type: 'text-delta', sessionId: 's1', messageId: 'm1', delta: ' world', seq: 1 })
+    getStore().applyStreamEvent('s1', {
+      type: 'text-delta',
+      sessionId: 's1',
+      messageId: 'm1',
+      delta: 'Hello',
+      seq: 0,
+    })
+    getStore().applyStreamEvent('s1', {
+      type: 'text-delta',
+      sessionId: 's1',
+      messageId: 'm1',
+      delta: ' world',
+      seq: 1,
+    })
     drainRaf()
     const textBlock = getBlocks('s1', 'm1').find((b) => b.kind === 'text')
     expect(textBlock).toBeDefined()
@@ -295,7 +317,13 @@ describe('applyStreamEvent: text-delta via ref buffer', () => {
   })
 
   it('flushPendingDeltas commits buffer to store immediately', () => {
-    getStore().applyStreamEvent('s1', { type: 'text-delta', sessionId: 's1', messageId: 'm1', delta: 'Direct', seq: 0 })
+    getStore().applyStreamEvent('s1', {
+      type: 'text-delta',
+      sessionId: 's1',
+      messageId: 'm1',
+      delta: 'Direct',
+      seq: 0,
+    })
     flushPendingDeltas()
     const textBlock = getBlocks('s1', 'm1').find((b) => b.kind === 'text')
     expect(textBlock).toBeDefined()
@@ -304,10 +332,27 @@ describe('applyStreamEvent: text-delta via ref buffer', () => {
 
   it('multiple text-deltas to different messageIds are isolated', () => {
     getStore().startSession('s2', 'claude', '/vault')
-    getStore().applyStreamEvent('s2', { type: 'message-start', sessionId: 's2', messageId: 'm2', role: 'assistant' })
+    getStore().applyStreamEvent('s2', {
+      type: 'message-start',
+      sessionId: 's2',
+      messageId: 'm2',
+      role: 'assistant',
+    })
 
-    getStore().applyStreamEvent('s1', { type: 'text-delta', sessionId: 's1', messageId: 'm1', delta: 'AAA', seq: 0 })
-    getStore().applyStreamEvent('s2', { type: 'text-delta', sessionId: 's2', messageId: 'm2', delta: 'BBB', seq: 0 })
+    getStore().applyStreamEvent('s1', {
+      type: 'text-delta',
+      sessionId: 's1',
+      messageId: 'm1',
+      delta: 'AAA',
+      seq: 0,
+    })
+    getStore().applyStreamEvent('s2', {
+      type: 'text-delta',
+      sessionId: 's2',
+      messageId: 'm2',
+      delta: 'BBB',
+      seq: 0,
+    })
     flushPendingDeltas()
 
     const block1 = getBlocks('s1', 'm1').find((b) => b.kind === 'text')
@@ -319,9 +364,21 @@ describe('applyStreamEvent: text-delta via ref buffer', () => {
   })
 
   it('produces only one text block per message across multiple rAF flushes', () => {
-    getStore().applyStreamEvent('s1', { type: 'text-delta', sessionId: 's1', messageId: 'm1', delta: 'Part1', seq: 0 })
+    getStore().applyStreamEvent('s1', {
+      type: 'text-delta',
+      sessionId: 's1',
+      messageId: 'm1',
+      delta: 'Part1',
+      seq: 0,
+    })
     drainRaf()
-    getStore().applyStreamEvent('s1', { type: 'text-delta', sessionId: 's1', messageId: 'm1', delta: 'Part2', seq: 1 })
+    getStore().applyStreamEvent('s1', {
+      type: 'text-delta',
+      sessionId: 's1',
+      messageId: 'm1',
+      delta: 'Part2',
+      seq: 1,
+    })
     drainRaf()
     const textBlocks = getBlocks('s1', 'm1').filter((b) => b.kind === 'text')
     expect(textBlocks).toHaveLength(1)
@@ -329,15 +386,33 @@ describe('applyStreamEvent: text-delta via ref buffer', () => {
   })
 
   it('deduplicates repeated seq — does not double-add text', () => {
-    getStore().applyStreamEvent('s1', { type: 'text-delta', sessionId: 's1', messageId: 'm1', delta: 'Hi', seq: 5 })
-    getStore().applyStreamEvent('s1', { type: 'text-delta', sessionId: 's1', messageId: 'm1', delta: 'Hi', seq: 5 })
+    getStore().applyStreamEvent('s1', {
+      type: 'text-delta',
+      sessionId: 's1',
+      messageId: 'm1',
+      delta: 'Hi',
+      seq: 5,
+    })
+    getStore().applyStreamEvent('s1', {
+      type: 'text-delta',
+      sessionId: 's1',
+      messageId: 'm1',
+      delta: 'Hi',
+      seq: 5,
+    })
     flushPendingDeltas()
     const textBlock = getBlocks('s1', 'm1').find((b) => b.kind === 'text')
     if (textBlock?.kind === 'text') expect(textBlock.text).toBe('Hi')
   })
 
   it('dispatchStreamEvent routes text-delta to buffer (same result as applyStreamEvent)', () => {
-    dispatchStreamEvent({ type: 'text-delta', sessionId: 's1', messageId: 'm1', delta: 'Via dispatch', seq: 0 })
+    dispatchStreamEvent({
+      type: 'text-delta',
+      sessionId: 's1',
+      messageId: 'm1',
+      delta: 'Via dispatch',
+      seq: 0,
+    })
     flushPendingDeltas()
     const textBlock = getBlocks('s1', 'm1').find((b) => b.kind === 'text')
     expect(textBlock).toBeDefined()
@@ -412,7 +487,13 @@ describe('applyStreamEvent: message-end', () => {
   })
 
   it('flushes buffered deltas before marking done', () => {
-    getStore().applyStreamEvent('s1', { type: 'text-delta', sessionId: 's1', messageId: 'm1', delta: 'Final', seq: 0 })
+    getStore().applyStreamEvent('s1', {
+      type: 'text-delta',
+      sessionId: 's1',
+      messageId: 'm1',
+      delta: 'Final',
+      seq: 0,
+    })
     getStore().applyStreamEvent('s1', {
       type: 'message-end',
       sessionId: 's1',
@@ -428,7 +509,12 @@ describe('applyStreamEvent: message-end', () => {
   })
 
   it('is idempotent — repeated message-end on already-done message returns same state ref', () => {
-    const ev = { type: 'message-end' as const, sessionId: 's1', messageId: 'm1', stopReason: 'end_turn' as const }
+    const ev = {
+      type: 'message-end' as const,
+      sessionId: 's1',
+      messageId: 'm1',
+      stopReason: 'end_turn' as const,
+    }
     getStore().applyStreamEvent('s1', ev)
     const snap1 = getSession('s1')
     getStore().applyStreamEvent('s1', ev)
@@ -515,21 +601,42 @@ describe('selector: shallow equality', () => {
   beforeEach(() => {
     resetStore()
     getStore().startSession('s1', 'claude', '/vault')
-    getStore().applyStreamEvent('s1', { type: 'message-start', sessionId: 's1', messageId: 'm1', role: 'assistant' })
-    getStore().applyStreamEvent('s1', { type: 'message-start', sessionId: 's1', messageId: 'm2', role: 'assistant' })
+    getStore().applyStreamEvent('s1', {
+      type: 'message-start',
+      sessionId: 's1',
+      messageId: 'm1',
+      role: 'assistant',
+    })
+    getStore().applyStreamEvent('s1', {
+      type: 'message-start',
+      sessionId: 's1',
+      messageId: 'm2',
+      role: 'assistant',
+    })
   })
 
   it('subscribe notifies listener on state change', () => {
     const listener = vi.fn()
     const unsub = useChatStore.subscribe(listener)
-    getStore().applyStreamEvent('s1', { type: 'message-start', sessionId: 's1', messageId: 'm3', role: 'assistant' })
+    getStore().applyStreamEvent('s1', {
+      type: 'message-start',
+      sessionId: 's1',
+      messageId: 'm3',
+      role: 'assistant',
+    })
     unsub()
     expect(listener).toHaveBeenCalled()
   })
 
   it('ordering array is reference-equal when only a text block is updated', () => {
     const ordering1 = getSession('s1').ordering
-    getStore().applyStreamEvent('s1', { type: 'text-delta', sessionId: 's1', messageId: 'm1', delta: 'X', seq: 0 })
+    getStore().applyStreamEvent('s1', {
+      type: 'text-delta',
+      sessionId: 's1',
+      messageId: 'm1',
+      delta: 'X',
+      seq: 0,
+    })
     flushPendingDeltas()
     const ordering2 = getSession('s1').ordering
     // No new messages were added — ordering has same content
@@ -547,7 +654,12 @@ describe('selector: shallow equality', () => {
 
   it('no-op events do not trigger listener (same ref guard)', () => {
     // Applying a message-start for an existing id returns same state
-    const ev = { type: 'message-start' as const, sessionId: 's1', messageId: 'm1', role: 'assistant' as const }
+    const ev = {
+      type: 'message-start' as const,
+      sessionId: 's1',
+      messageId: 'm1',
+      role: 'assistant' as const,
+    }
     getStore().applyStreamEvent('s1', ev) // first call — already exists, same ref
     const listener = vi.fn()
     const unsub = useChatStore.subscribe(listener)

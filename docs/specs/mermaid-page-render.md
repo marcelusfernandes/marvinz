@@ -16,6 +16,7 @@
 ### The Gap
 
 Today in Marvinz:
+
 - **Page mode** (Milkdown WYSIWYG) shows ` ```mermaid` blocks as raw syntax text, identical to code blocks.
 - **Source mode** correctly preserves the raw mermaid syntax for editing.
 - Users cannot see diagram previews until they export or use an external renderer.
@@ -42,29 +43,34 @@ Competing editors (**Obsidian**, **Typora**, **Notion**) render mermaid diagrams
 ## 3. Acceptance Criteria
 
 ### Core Rendering
+
 - [ ] Valid `~~~mermaid ... ~~~` code blocks render as diagrams in Page mode only.
 - [ ] Source mode preserves raw mermaid text unchanged (no visual editor or inline code generation).
 - [ ] Editing mermaid source in Source mode triggers diagram re-render when switching back to Page mode.
 - [ ] Diagrams are responsive and scale within the editor container.
 
 ### Content Integrity
+
 - [ ] Markdown round-trips correctly: save → reload → Page mode shows diagram, Source mode shows raw mermaid.
 - [ ] Existing wikilinks, images, @-mention triggers, and find/replace continue to work alongside diagrams.
 - [ ] Drag-drop attachments (files, images, internal links) work in documents containing diagrams.
 
 ### Visual Consistency
+
 - [ ] Diagrams respect the current theme (light/dark mode) at render time.
 - [ ] Diagram colors and fonts integrate visually with Marvinz's design tokens.
 - [ ] No layout shift when diagram renders.
 - [ ] When theme toggles (light ↔ dark), re-render diagrams with new theme immediately (MutationObserver on data-theme).
 
 ### Error Handling & Graceful Degradation
+
 - [ ] Invalid mermaid syntax shows a friendly error message (e.g., "Diagram rendering failed") instead of crashing.
 - [ ] Syntax errors include a hint to check mermaid syntax documentation.
 - [ ] Empty ` ```mermaid ``` ` blocks render as empty container without error.
 - [ ] Very large/complex diagrams render without hanging the editor (performance threshold to be determined by engineering).
 
 ### Testing & Quality
+
 - [ ] Unit tests cover valid diagram types (flowchart, sequence, state, class, er, pie, gantt).
 - [ ] Unit tests cover error cases (invalid syntax, empty blocks, malformed JSON in diagram config).
 - [ ] Integration tests verify markdown serialization (save → load → content match).
@@ -76,15 +82,18 @@ Competing editors (**Obsidian**, **Typora**, **Notion**) render mermaid diagrams
 ## 4. Why This Matters
 
 ### User Value
+
 - **Completes the editing experience**: Marvinz already handles wikilinks, images, and code blocks well. Adding diagram rendering removes the last friction point for visual content workflows.
 - **Reduces tool-switching**: Users can view and edit diagrams without leaving Marvinz.
 - **Competitive parity**: Obsidian and Typora are ahead here; closing the gap improves market positioning.
 
 ### Business Impact
+
 - **Unlock use cases**: Teams using diagram-heavy processes (architecture, compliance, product workflows) can standardize on Marvinz instead of splitting between markdown editor and diagramming tools.
 - **Differentiation**: A fully embedded, theme-aware diagram editor signals completeness and polish.
 
 ### Technical Validation
+
 - **Low-risk integration**: Mermaid is widely adopted (npm). We implement a minimal custom `code_block` NodeView (same pattern as imageNodeView) — zero schema mutation, guaranteed round-trip serialization.
 - **Scoped scope**: Render-only; no visual editing, no exports, no custom diagram languages.
 
@@ -93,6 +102,7 @@ Competing editors (**Obsidian**, **Typora**, **Notion**) render mermaid diagrams
 ## 5. Scope Boundaries
 
 ### In Scope
+
 - Rendering mermaid diagrams in Page mode via a custom `code_block` NodeView.
 - Light/dark theme support (mermaid natively supports theme switching via `mermaid.initialize()`).
 - Friendly error messages for invalid syntax (no crashes).
@@ -100,6 +110,7 @@ Competing editors (**Obsidian**, **Typora**, **Notion**) render mermaid diagrams
 - Lazy-loaded mermaid library (via dynamic import, avoiding bundle bloat on startup).
 
 ### Out of Scope
+
 - **Visual diagram editing** (e.g., drag nodes, edit connections in-canvas).
 - **Separate preview pane** (diagrams render inline in Page mode only).
 - **Diagram export** (PNG, SVG — handled by mermaid if needed later).
@@ -112,14 +123,14 @@ Competing editors (**Obsidian**, **Typora**, **Notion**) render mermaid diagrams
 
 ### Risk Matrix
 
-| Risk | Severity | Mitigation | Owner |
-|------|----------|-----------|-------|
-| **Plugin compatibility** | HIGH → **RESOLVED** | Custom code_block NodeView (no external plugin). Avoids @milkdown/plugin-diagram@7.7.0 unmaintained status + instance-dup risk (similar to plugin-history bug). See Technical Findings. | react |
-| **Bundle size: mermaid weight** | **HIGH → MANAGED** | Mermaid is large (~500KB–1MB depending on version; bundles d3, dagre, cytoscape). **MITIGATION**: Lazy-load via dynamic `import()` only when first diagram is encountered. Notes without diagrams pay zero cost. Acceptance criterion: confirm lazy-load is implemented. | react |
-| **Find/replace limitation** | MEDIUM | Diagram source hidden behind rendered SVG in Page mode (not searchable visually). **Known limitation, not regression** — source text is in the model but obscured by rendering. Users search in Source mode. Acceptable for render-only scope; document in release notes. | react |
-| **Theme toggle while open** | LOW → **RESOLVED** | Implement live re-theming via MutationObserver on data-theme. When theme toggles, re-render all mermaid blocks with new theme immediately. Low-cost feature, fully aligned with v1 scope. | lipe-ui + react |
-| **Performance: mermaid render** | MEDIUM | `mermaid.render()` is async + CPU-heavy (dagre/d3 layout can take 100s of ms to seconds on large graphs). May jank editor during render. **MITIGATIONS**: (a) render async + show placeholder; (b) debounce re-render during editing; (c) cache by source hash; (d) try/catch + friendly error (never crash). | react |
-| **Markdown serialization** | MEDIUM | Code_block node structure unchanged → guaranteed lossless round-trip. Comprehensive save/load tests in task #6. | react |
+| Risk                            | Severity            | Mitigation                                                                                                                                                                                                                                                                                                    | Owner           |
+| ------------------------------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
+| **Plugin compatibility**        | HIGH → **RESOLVED** | Custom code_block NodeView (no external plugin). Avoids @milkdown/plugin-diagram@7.7.0 unmaintained status + instance-dup risk (similar to plugin-history bug). See Technical Findings.                                                                                                                       | react           |
+| **Bundle size: mermaid weight** | **HIGH → MANAGED**  | Mermaid is large (~500KB–1MB depending on version; bundles d3, dagre, cytoscape). **MITIGATION**: Lazy-load via dynamic `import()` only when first diagram is encountered. Notes without diagrams pay zero cost. Acceptance criterion: confirm lazy-load is implemented.                                      | react           |
+| **Find/replace limitation**     | MEDIUM              | Diagram source hidden behind rendered SVG in Page mode (not searchable visually). **Known limitation, not regression** — source text is in the model but obscured by rendering. Users search in Source mode. Acceptable for render-only scope; document in release notes.                                     | react           |
+| **Theme toggle while open**     | LOW → **RESOLVED**  | Implement live re-theming via MutationObserver on data-theme. When theme toggles, re-render all mermaid blocks with new theme immediately. Low-cost feature, fully aligned with v1 scope.                                                                                                                     | lipe-ui + react |
+| **Performance: mermaid render** | MEDIUM              | `mermaid.render()` is async + CPU-heavy (dagre/d3 layout can take 100s of ms to seconds on large graphs). May jank editor during render. **MITIGATIONS**: (a) render async + show placeholder; (b) debounce re-render during editing; (c) cache by source hash; (d) try/catch + friendly error (never crash). | react           |
+| **Markdown serialization**      | MEDIUM              | Code_block node structure unchanged → guaranteed lossless round-trip. Comprehensive save/load tests in task #6.                                                                                                                                                                                               | react           |
 
 ### Existing Page-Mode Capabilities at Risk
 
@@ -142,18 +153,21 @@ The following features are active in LiveMarkdown and must remain unaffected:
 **Decision: Custom Code-Block NodeView**
 
 We implement a **minimal custom `code_block` NodeView** targeting `language === "mermaid"` (same pattern as `imageNodeView`). This approach:
+
 - **Zero schema mutation**: Code_block node structure unchanged — the fence is serialized by the untouched commonmark serializer, byte-stable and lossless. The NodeView changes only RENDERING (how the diagram appears), never the model. This guarantees round-trip integrity: save → reload preserves the exact ` ```mermaid ... ``` ` syntax.
 - **No plugin risks**: Avoids `@milkdown/plugin-diagram@7.7.0` (frozen, unmaintained since Milkdown 7.8.0, hard-pins `@milkdown/utils@7.7.0` + `@milkdown/exception@7.7.0` with instance-dup risk — similar to plugin-history bug at LiveMarkdown.tsx:411-413).
 - **Smallest blast radius**: Pure render-view logic, fully aligned with repo's "surgical changes" rule.
 - **Render**: When lang === "mermaid", call `mermaid.render()` into the node-view DOM; otherwise fall through to default code rendering. User can edit the mermaid source in Source mode or via click-to-edit affordance in Page mode (UX detail, task #5).
 
 **Plugin Stability Analysis**
+
 - @milkdown/plugin-diagram@7.7.0 is the last published version; it was dropped from the Milkdown monorepo while core/preset/utils advanced to 7.21.x. We'd run plugin@7.7.0 against editor@7.20.0 — growing version gap.
 - Plugin hard-pins @milkdown/utils@7.7.0 + @milkdown/exception@7.7.0 as DIRECT dependencies → duplicate Milkdown instance risk. This repo already experienced this class of bug: @milkdown/plugin-history broke the SchemaReady timer (see LiveMarkdown.tsx:411-413) and had to be dropped in favor of raw prosemirror-history.
 - Plugin ships NO render view itself — only schema + remark + input rule + command. We'd write the render view either way.
 - **Conclusion**: Low confidence in the official plugin. Custom NodeView is the recommended PRIMARY path.
 
 **Implementation Details**
+
 - **Lazy-load mermaid**: Import via dynamic `import()` only when the first ```mermaid fence is encountered in a note. Mermaid's gzipped runtime is ~500KB (bundles d3, dagre, cytoscape). **Lazy-loading is critical**: this 500KB is deferred from app startup; only notes with diagrams load it, on demand. Notes without any mermaid blocks pay zero cost.
   - **Acceptance criterion**: Confirm lazy-load via dynamic import is implemented (task #5).
 - **Dark theme support**: Wire `mermaid.initialize({ theme: ... })` to Marvinz's existing `data-theme='dark'` attribute. Implement MutationObserver on `document.documentElement` watching `data-theme` changes; re-call `mermaid.render()` on theme toggle.
@@ -165,11 +179,13 @@ We implement a **minimal custom `code_block` NodeView** targeting `language === 
 - **Source editing**: Mermaid source is edited in Source mode (always available). Page mode is render-only in v1 — no inline/click-to-edit affordance in the NodeView. Inline source editing in Page mode is a future enhancement (separate scope addition; would require lipe-ui affordance spec + implementation).
 
 **Bundle Impact**
+
 - **mermaid** (~500KB gzipped): Non-negotiable for diagram rendering. **Lazy-loaded on-demand** — NOT added to initial app startup. Only loads when first ```mermaid fence is encountered. Notes without diagrams pay zero cost.
 - **Custom view code**: ~5KB (node-view + CSS).
 - **No external plugin**: ~0KB (avoids plugin-diagram@7.7.0 overhead).
 
 **Known Limitations & Trade-offs**
+
 1. **Find/Replace in Page mode**: Diagram source is hidden behind the rendered SVG in Page mode, so `prosemirror-search` (Cmd+F) won't visually locate matches within diagrams. Source text IS in the document model (not removed), so users can find/edit it by switching to Source mode. Acceptable for render-only scope; document in release notes.
 2. **Theme toggle while open**: If user toggles light/dark theme while editing, live re-rendering via MutationObserver on data-theme is the v1 approach (per §8.2 spec). Already-rendered diagrams will re-theme immediately when data-theme changes. If MutationObserver is deferred to v1.1, document as known limitation (re-render on note reload). Decision: v1 ships with live re-theme (recommendation: low-cost feature).
 
@@ -179,30 +195,46 @@ We implement a **minimal custom `code_block` NodeView** targeting `language === 
 
 ### Valid Edge Cases
 
-1. **Empty mermaid block**  
-   ```markdown
+1. **Empty mermaid block**
+
+   ````markdown
    ```mermaid
+
    ```
+   ````
+
    ```
    Renders as empty container without error.
 
-2. **Unsupported mermaid type**  
-   ```markdown
+   ```
+
+2. **Unsupported mermaid type**
+
+   ````markdown
    ```mermaid
    unsupportedDiagramType:
    ```
+   ````
+
    ```
    Shows error banner: "Unsupported diagram type. Mermaid supports: flowchart, sequence, state, class, er, pie, gantt, etc."
 
-3. **Invalid syntax**  
-   ```markdown
+   ```
+
+3. **Invalid syntax**
+
+   ````markdown
    ```mermaid
    flowchart LR
      A --> B
      C ]] D (missing quote)
    ```
+   ````
+
    ```
    Shows error banner: "Diagram syntax error: Expected closing bracket. [Link to mermaid docs]"
+
+   ```
 
 4. **Very large/complex diagram** (e.g., 100+ nodes, 500+ connections)  
    Renders without hanging the editor. If rendering is slow, the diagram paints after completion — no spinner or timeout warning in v1. Optimization (loading states, render timeouts) can be added later if needed.
@@ -282,18 +314,18 @@ Mermaid themes at `mermaid.initialize({ theme, themeVariables })` time — it do
 
 `themeVariables` mapping for the engineer:
 
-| mermaid variable | Light (token) | Dark (token) |
-|---|---|---|
-| `background` | `#f4f4f5` (`--surface-2`) | `#262626` (`--surface-2`) |
-| `mainBkg` | `#ffffff` (`--surface-1`) | `#1f1f1f` (`--surface-1`) |
-| `nodeBorder` | `#e8e8ea` (`--border`) | `#2e2e2e` (`--border`) |
-| `lineColor` | `#656565` (`--text-secondary`) | `#aeaeb2` (`--text-secondary`) |
-| `textColor` | `#2c2c2b` (`--text-primary`) | `#f2f2f7` (`--text-primary`) |
-| `primaryColor` | `#f4f4f5` (`--surface-2`) | `#262626` (`--surface-2`) |
-| `primaryBorderColor` | `#e8e8ea` (`--border`) | `#2e2e2e` (`--border`) |
-| `primaryTextColor` | `#2c2c2b` (`--text-primary`) | `#f2f2f7` (`--text-primary`) |
-| `edgeLabelBackground` | `#ffffff` (`--surface-1`) | `#1f1f1f` (`--surface-1`) |
-| `clusterBkg` | `#efeff1` (`--surface-3`) | `#2e2e2e` (`--surface-3`) |
+| mermaid variable      | Light (token)                  | Dark (token)                   |
+| --------------------- | ------------------------------ | ------------------------------ |
+| `background`          | `#f4f4f5` (`--surface-2`)      | `#262626` (`--surface-2`)      |
+| `mainBkg`             | `#ffffff` (`--surface-1`)      | `#1f1f1f` (`--surface-1`)      |
+| `nodeBorder`          | `#e8e8ea` (`--border`)         | `#2e2e2e` (`--border`)         |
+| `lineColor`           | `#656565` (`--text-secondary`) | `#aeaeb2` (`--text-secondary`) |
+| `textColor`           | `#2c2c2b` (`--text-primary`)   | `#f2f2f7` (`--text-primary`)   |
+| `primaryColor`        | `#f4f4f5` (`--surface-2`)      | `#262626` (`--surface-2`)      |
+| `primaryBorderColor`  | `#e8e8ea` (`--border`)         | `#2e2e2e` (`--border`)         |
+| `primaryTextColor`    | `#2c2c2b` (`--text-primary`)   | `#f2f2f7` (`--text-primary`)   |
+| `edgeLabelBackground` | `#ffffff` (`--surface-1`)      | `#1f1f1f` (`--surface-1`)      |
+| `clusterBkg`          | `#efeff1` (`--surface-3`)      | `#2e2e2e` (`--surface-3`)      |
 
 Node fills follow surface tokens, not `--accent` — diagrams are content, not brand assets. Result: flowchart boxes look like cards in the current theme.
 
@@ -308,6 +340,7 @@ Node fills follow surface tokens, not `--accent` — diagrams are content, not b
 When mermaid throws a parse error, the NodeView replaces the diagram SVG with an inline error banner. The error state must read as a calm informational message — not a crash, not an alert box.
 
 **Structure**:
+
 ```
 ┌──────────────────────────────────────────────────┐
 │  Diagram syntax error                             │
@@ -316,6 +349,7 @@ When mermaid throws a parse error, the NodeView replaces the diagram SVG with an
 ```
 
 **Styling**:
+
 - **Container**: same `.mermaid-diagram` wrapper (no change in border-radius or padding). The border color switches to `var(--border-error)` to signal problem state — a single CSS class swap (`.mermaid-diagram--error`).
 - **Background**: `var(--bg-error-subtle)` — very faint error wash (`rgba(192, 57, 43, 0.08)` in light, `rgba(224, 123, 110, 0.08)` in dark). Visible but not alarming.
 - **Label**: "Diagram syntax error" — `var(--font-size-sm)` (12px), `var(--font-weight-semibold)`, `var(--text-error)`.
@@ -390,8 +424,12 @@ React confirmed that lazy-importing mermaid means the first diagram in a session
 }
 
 @keyframes mermaid-shimmer {
-  0%   { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
 }
 ```
 
@@ -428,13 +466,13 @@ Sequence diagrams and large flowcharts routinely exceed the editor column width 
 
 ## 9. Blockers & Unblocking Sequence
 
-| Item | Owner | Status | Notes |
-|------|-------|--------|-------|
-| **Design direction** (task #3) | lipe-ui | ✅ Complete | Visual spec (§8) finalized; ready for implementation. |
-| **Founder approval** | team-lead | ⏳ Gate | PRD + visual direction + regression plan → founder sign-off required before task #5 starts. |
-| **Regression test plan** (task #4) | qa | 🔄 In progress | Unblocks after founder gate; finalizes test cases for task #6. |
-| **Implementation** (task #5) | react | ⏳ Pending | Starts after founder approval. Custom code_block NodeView + mermaid lazy-load. |
-| **Tests** (task #6) | qa | ⏳ Pending | Starts after task #5; covers render, error, round-trip, and regression (image, @-mention, find/replace, etc.). |
+| Item                               | Owner     | Status         | Notes                                                                                                          |
+| ---------------------------------- | --------- | -------------- | -------------------------------------------------------------------------------------------------------------- |
+| **Design direction** (task #3)     | lipe-ui   | ✅ Complete    | Visual spec (§8) finalized; ready for implementation.                                                          |
+| **Founder approval**               | team-lead | ⏳ Gate        | PRD + visual direction + regression plan → founder sign-off required before task #5 starts.                    |
+| **Regression test plan** (task #4) | qa        | 🔄 In progress | Unblocks after founder gate; finalizes test cases for task #6.                                                 |
+| **Implementation** (task #5)       | react     | ⏳ Pending     | Starts after founder approval. Custom code_block NodeView + mermaid lazy-load.                                 |
+| **Tests** (task #6)                | qa        | ⏳ Pending     | Starts after task #5; covers render, error, round-trip, and regression (image, @-mention, find/replace, etc.). |
 
 ---
 
@@ -443,6 +481,7 @@ Sequence diagrams and large flowcharts routinely exceed the editor column width 
 **This PRD requires founder approval before implementation begins.**
 
 Sign-off checklist:
+
 - [ ] Founder reviews risk assessment and regression plan.
 - [ ] Founder approves visual direction (from lipe-ui).
 - [ ] PM confirms scope boundaries are acceptable.
@@ -454,6 +493,7 @@ Sign-off checklist:
 ## Appendix: Mermaid Diagram Types Supported
 
 Mermaid supports:
+
 - **Flowchart / Graph** (LR, TD, BT, RL, RAD layouts)
 - **Sequence Diagram** (actors, interactions, alt/else/par blocks)
 - **State Diagram** (states, transitions)

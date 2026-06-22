@@ -12,7 +12,7 @@
 
 import { z } from 'zod'
 
-export const SCHEMA_VERSION = '2.0'
+export const SCHEMA_VERSION = '2.1'
 
 export const Severity = z.enum(['low', 'medium', 'high', 'critical'])
 export type Severity = z.infer<typeof Severity>
@@ -106,6 +106,11 @@ export const OutcomeRecord = z.object({
   issue_id: z.string(),
   completed_at: z.string(),
   harness_version: z.string(),
+
+  // Ponteiros de rastreabilidade para deep-dive pós-merge (PR + comentário de
+  // variance). nullable/default null: os registros históricos não os carregam.
+  pr_number: z.number().int().nullable().default(null),
+  merge_sha: z.string().nullable().default(null),
 
   actual_files_touched: Metric, // git diff --name-only base...merge | wc -l
   actual_iterations: Metric, // ciclos de review + commits de correção pós-1º review

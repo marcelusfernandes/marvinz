@@ -52,9 +52,7 @@ const SECTION_LABEL: Record<PaletteCategory, string> = {
   hook: 'Hooks',
 }
 
-type FlatEntry =
-  | { kind: 'file'; result: ScoredPaletteItem }
-  | { kind: 'content'; hit: ContentHit }
+type FlatEntry = { kind: 'file'; result: ScoredPaletteItem } | { kind: 'content'; hit: ContentHit }
 
 type DisplayRow =
   | { kind: 'header'; label: string; loading?: boolean }
@@ -124,7 +122,8 @@ export function CommandPalette({ items, onPick, onClose, vaultPath = '' }: Props
     for (const cat of SECTION_ORDER) {
       const bucket = buckets.get(cat)
       if (!bucket || bucket.length === 0) continue
-      const label = bucket.length > 1 ? `${SECTION_LABEL[cat]} (${bucket.length})` : SECTION_LABEL[cat]
+      const label =
+        bucket.length > 1 ? `${SECTION_LABEL[cat]} (${bucket.length})` : SECTION_LABEL[cat]
       display.push({ kind: 'header', label })
       for (const r of bucket) {
         display.push({ kind: 'item', result: r, itemIdx: flat.length })
@@ -135,9 +134,8 @@ export function CommandPalette({ items, onPick, onClose, vaultPath = '' }: Props
       display.push({ kind: 'header', label: 'Content matches' })
       display.push({ kind: 'rg-unavailable' })
     } else if (contentHits.length > 0) {
-      const label = contentHits.length > 1
-        ? `Content matches (${contentHits.length})`
-        : 'Content matches'
+      const label =
+        contentHits.length > 1 ? `Content matches (${contentHits.length})` : 'Content matches'
       display.push({ kind: 'header', label, loading: contentLoading })
       for (const hit of contentHits) {
         display.push({ kind: 'content-item', hit, itemIdx: flat.length })
@@ -159,7 +157,7 @@ export function CommandPalette({ items, onPick, onClose, vaultPath = '' }: Props
 
   useEffect(() => {
     const node = listRef.current?.querySelector(
-      `[data-item-idx="${activeIdx}"]`,
+      `[data-item-idx="${activeIdx}"]`
     ) as HTMLElement | null
     node?.scrollIntoView({ block: 'nearest' })
   }, [activeIdx, displayList])
@@ -188,17 +186,15 @@ export function CommandPalette({ items, onPick, onClose, vaultPath = '' }: Props
 
   return (
     <div className="palette-backdrop" onMouseDown={onClose}>
-      <div
-        className="palette"
-        onMouseDown={(e) => e.stopPropagation()}
-        onKeyDown={handleKey}
-      >
+      <div className="palette" onMouseDown={(e) => e.stopPropagation()} onKeyDown={handleKey}>
         <input
           ref={inputRef}
           className="palette-input"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder={vaultPath ? `Search in ${vaultPath.split('/').pop() || 'vault'}…` : 'Search files…'}
+          placeholder={
+            vaultPath ? `Search in ${vaultPath.split('/').pop() || 'folder'}…` : 'Search files…'
+          }
           spellCheck={false}
           autoComplete="off"
         />
@@ -209,10 +205,7 @@ export function CommandPalette({ items, onPick, onClose, vaultPath = '' }: Props
             displayList.map((row, rowIdx) => {
               if (row.kind === 'header') {
                 return (
-                  <div
-                    key={`header-${rowIdx}-${row.label}`}
-                    className="palette-section-header"
-                  >
+                  <div key={`header-${rowIdx}-${row.label}`} className="palette-section-header">
                     {row.label}
                     {row.loading && (
                       <span
@@ -228,8 +221,7 @@ export function CommandPalette({ items, onPick, onClose, vaultPath = '' }: Props
               if (row.kind === 'rg-unavailable') {
                 return (
                   <div key={`rg-unavailable-${rowIdx}`} className="palette-rg-unavailable">
-                    Content search requires ripgrep — install via{' '}
-                    <code>brew install ripgrep</code>
+                    Content search requires ripgrep — install via <code>brew install ripgrep</code>
                   </div>
                 )
               }
@@ -242,20 +234,20 @@ export function CommandPalette({ items, onPick, onClose, vaultPath = '' }: Props
                     data-item-idx={itemIdx}
                     className={`palette-row palette-row-content${itemIdx === activeIdx ? ' active' : ''}`}
                     onMouseEnter={() => setActiveIdx(itemIdx)}
-                    onClick={(e) =>
-                      onPick(contentHitToItem(hit), e.metaKey || e.ctrlKey, hit.line)
-                    }
+                    onClick={(e) => onPick(contentHitToItem(hit), e.metaKey || e.ctrlKey, hit.line)}
                   >
                     <div className="palette-row-line1">
                       {iconTheme === 'material' ? (
-                        <MaterialIcon name={hit.name} isDir={false} className="material-file-icon" />
+                        <MaterialIcon
+                          name={hit.name}
+                          isDir={false}
+                          className="material-file-icon"
+                        />
                       ) : (
                         <Icon name={fileIconFor(hit.name)} className="palette-icon" size={14} />
                       )}
                       <span className="palette-name">{hit.name}</span>
-                      <span className="palette-rel">
-                        {stripBasename(hit.rel, hit.name)}
-                      </span>
+                      <span className="palette-rel">{stripBasename(hit.rel, hit.name)}</span>
                       <span className="palette-line">L{hit.line}</span>
                     </div>
                     {hit.lineText && (
@@ -301,10 +293,26 @@ export function CommandPalette({ items, onPick, onClose, vaultPath = '' }: Props
           )}
         </div>
         <div className="palette-footer">
-          <span><span className="kbd-combo"><kbd>↑</kbd><kbd>↓</kbd></span> navigate</span>
-          <span><kbd>Enter</kbd> open in new tab</span>
-          <span><span className="kbd-combo"><kbd>⌘</kbd><kbd>Enter</kbd></span> open in current tab</span>
-          <span><kbd>Esc</kbd> close</span>
+          <span>
+            <span className="kbd-combo">
+              <kbd>↑</kbd>
+              <kbd>↓</kbd>
+            </span>{' '}
+            navigate
+          </span>
+          <span>
+            <kbd>Enter</kbd> open in new tab
+          </span>
+          <span>
+            <span className="kbd-combo">
+              <kbd>⌘</kbd>
+              <kbd>Enter</kbd>
+            </span>{' '}
+            open in current tab
+          </span>
+          <span>
+            <kbd>Esc</kbd> close
+          </span>
         </div>
       </div>
     </div>

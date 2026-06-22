@@ -60,8 +60,7 @@ describe('getActivePanelContext', () => {
   it('returns "editable" for a focused input INSIDE the file tree (inline rename)', () => {
     // The inline rename/create field lives inside [data-panel="file-tree"] but
     // must keep its own native text undo — Cmd+Z there must NOT undo a file op.
-    document.body.innerHTML =
-      '<div data-panel="file-tree"><input class="rename-input" /></div>'
+    document.body.innerHTML = '<div data-panel="file-tree"><input class="rename-input" /></div>'
     ;(document.querySelector('input') as HTMLElement).focus()
     expect(getActivePanelContext()).toBe('editable')
   })
@@ -123,12 +122,18 @@ describe('resolveUndoTarget', () => {
   })
 
   it('returns null without the Cmd/Ctrl modifier', () => {
-    expect(resolveUndoTarget({ ...cmdZ, metaKey: false, ctrlKey: false }, 'file-tree', true)).toBeNull()
+    expect(
+      resolveUndoTarget({ ...cmdZ, metaKey: false, ctrlKey: false }, 'file-tree', true)
+    ).toBeNull()
   })
 
   it('accepts Ctrl+Z (non-mac) for the file tree', () => {
     expect(
-      resolveUndoTarget({ key: 'z', shiftKey: false, metaKey: false, ctrlKey: true }, 'file-tree', true),
+      resolveUndoTarget(
+        { key: 'z', shiftKey: false, metaKey: false, ctrlKey: true },
+        'file-tree',
+        true
+      )
     ).toEqual({ target: 'file-tree' })
   })
 

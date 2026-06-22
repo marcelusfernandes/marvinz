@@ -653,7 +653,7 @@ ipcMain.handle('file:pick', async () => {
 ipcMain.handle('vault:pick', async () => {
   const result = await dialog.showOpenDialog({
     properties: ['openDirectory', 'createDirectory'],
-    title: 'Select your vault folder',
+    title: 'Select your folder',
   })
   if (result.canceled || result.filePaths.length === 0) return null
   const vaultPath = result.filePaths[0]

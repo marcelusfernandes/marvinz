@@ -115,7 +115,10 @@ import { Editor } from '../Editor'
 function setupMarvin() {
   Object.assign(window, {
     marvin: {
-      app: { showContextMenu: vi.fn().mockResolvedValue(null), canPaste: vi.fn().mockResolvedValue(false) },
+      app: {
+        showContextMenu: vi.fn().mockResolvedValue(null),
+        canPaste: vi.fn().mockResolvedValue(false),
+      },
       editor: { writeClipboard: vi.fn(), readClipboard: vi.fn().mockResolvedValue('') },
       shell: { openExternal: vi.fn() },
       file: {
@@ -242,7 +245,9 @@ describe('savedContentRef advances after save — undo to last-saved clears dirt
   it('after a successful save, undo to saved content clears dirty', async () => {
     const onDirtyChange = vi.fn()
     const onSave = vi.fn().mockResolvedValue(undefined)
-    render(<Editor {...baseProps({ onDirtyChange, onSave, saveMode: 'auto', initialContent: 'v1' })} />)
+    render(
+      <Editor {...baseProps({ onDirtyChange, onSave, saveMode: 'auto', initialContent: 'v1' })} />
+    )
 
     // Type new content → triggers auto-save debounce
     act(() => {

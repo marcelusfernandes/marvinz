@@ -102,7 +102,7 @@ export function CsvEditor({ filePath, initialContent, onChange }: Props) {
       lastSerializedRef.current = serialized
       onChange(serialized)
     },
-    [onChange],
+    [onChange]
   )
 
   const removeColumn = useCallback(
@@ -116,7 +116,7 @@ export function CsvEditor({ filePath, initialContent, onChange }: Props) {
       commit({ ...parsed, columns: nextColumns, rows: nextRows })
       setSortColumns((prev) => prev.filter((s) => s.columnKey !== key))
     },
-    [commit, parsed],
+    [commit, parsed]
   )
 
   const insertColumn = useCallback(
@@ -133,26 +133,26 @@ export function CsvEditor({ filePath, initialContent, onChange }: Props) {
       const nextRows = parsed.rows.map((r) => ({ ...r, [newCol.key]: '' }))
       commit({ ...parsed, columns: nextColumns, rows: nextRows })
     },
-    [commit, parsed],
+    [commit, parsed]
   )
 
   const sortByColumn = useCallback(
     (key: string, direction: 'ASC' | 'DESC') => {
       const sign = direction === 'ASC' ? 1 : -1
       const sorted = [...parsed.rows].sort(
-        (a, b) => sign * compareCells(a[key] ?? '', b[key] ?? ''),
+        (a, b) => sign * compareCells(a[key] ?? '', b[key] ?? '')
       )
       commit({ ...parsed, rows: sorted })
       setSortColumns([{ columnKey: key, direction }])
     },
-    [commit, parsed],
+    [commit, parsed]
   )
 
   const removeRow = useCallback(
     (id: string) => {
       commit({ ...parsed, rows: parsed.rows.filter((r) => r.__id !== id) })
     },
-    [commit, parsed],
+    [commit, parsed]
   )
 
   const insertRow = useCallback(
@@ -167,7 +167,7 @@ export function CsvEditor({ filePath, initialContent, onChange }: Props) {
       const nextRows = [...parsed.rows.slice(0, insertAt), empty, ...parsed.rows.slice(insertAt)]
       commit({ ...parsed, rows: nextRows })
     },
-    [commit, parsed],
+    [commit, parsed]
   )
 
   const openColumnMenu = useCallback(
@@ -201,7 +201,7 @@ export function CsvEditor({ filePath, initialContent, onChange }: Props) {
           break
       }
     },
-    [insertColumn, sortByColumn, removeColumn],
+    [insertColumn, sortByColumn, removeColumn]
   )
 
   const openRowMenu = useCallback(
@@ -226,7 +226,7 @@ export function CsvEditor({ filePath, initialContent, onChange }: Props) {
           break
       }
     },
-    [insertRow, removeRow],
+    [insertRow, removeRow]
   )
 
   const handleColumnContextMenu = useCallback(
@@ -235,7 +235,7 @@ export function CsvEditor({ filePath, initialContent, onChange }: Props) {
       e.stopPropagation()
       void openColumnMenu(key)
     },
-    [openColumnMenu],
+    [openColumnMenu]
   )
 
   const handleColumnMenuButton = useCallback(
@@ -244,7 +244,7 @@ export function CsvEditor({ filePath, initialContent, onChange }: Props) {
       e.stopPropagation()
       void openColumnMenu(key)
     },
-    [openColumnMenu],
+    [openColumnMenu]
   )
 
   const handleRowContextMenu = useCallback(
@@ -253,7 +253,7 @@ export function CsvEditor({ filePath, initialContent, onChange }: Props) {
       e.stopPropagation()
       void openRowMenu(id)
     },
-    [openRowMenu],
+    [openRowMenu]
   )
 
   const handleRowMenuButton = useCallback(
@@ -262,7 +262,7 @@ export function CsvEditor({ filePath, initialContent, onChange }: Props) {
       e.stopPropagation()
       void openRowMenu(id)
     },
-    [openRowMenu],
+    [openRowMenu]
   )
 
   const columns = useMemo<Column<Row>[]>(() => {
@@ -326,7 +326,7 @@ export function CsvEditor({ filePath, initialContent, onChange }: Props) {
     (nextRows: Row[]) => {
       commit({ ...parsed, rows: nextRows })
     },
-    [commit, parsed],
+    [commit, parsed]
   )
 
   // Sorting persists to the file: reordering the rows IS the edit.
@@ -337,11 +337,11 @@ export function CsvEditor({ filePath, initialContent, onChange }: Props) {
       const { columnKey, direction } = next[0]
       const sign = direction === 'ASC' ? 1 : -1
       const sorted = [...parsed.rows].sort(
-        (a, b) => sign * compareCells(a[columnKey] ?? '', b[columnKey] ?? ''),
+        (a, b) => sign * compareCells(a[columnKey] ?? '', b[columnKey] ?? '')
       )
       commit({ ...parsed, rows: sorted })
     },
-    [commit, parsed],
+    [commit, parsed]
   )
 
   const addRow = useCallback(() => {
@@ -389,8 +389,8 @@ export function CsvEditor({ filePath, initialContent, onChange }: Props) {
           + Column
         </button>
         <span className="csv-grid-meta">
-          {parsed.rows.length} row{parsed.rows.length === 1 ? '' : 's'} ·{' '}
-          {parsed.columns.length} col{parsed.columns.length === 1 ? '' : 's'} · delim{' '}
+          {parsed.rows.length} row{parsed.rows.length === 1 ? '' : 's'} · {parsed.columns.length}{' '}
+          col{parsed.columns.length === 1 ? '' : 's'} · delim{' '}
           <code>{parsed.delimiter === '\t' ? '\\t' : parsed.delimiter}</code>
         </span>
       </div>

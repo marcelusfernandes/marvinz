@@ -32,7 +32,7 @@ function buildSubline(
   status: ToolBodyProps['status'],
   newContent: string | null,
   oldContent: string | null,
-  result: unknown,
+  result: unknown
 ): string | null {
   if (status === 'error') return 'Failed'
   if (status === 'denied') return 'Denied'

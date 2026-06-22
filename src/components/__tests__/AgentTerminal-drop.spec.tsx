@@ -9,7 +9,10 @@ import { AgentTerminal } from '../AgentTerminal'
 // ---------------------------------------------------------------------------
 
 vi.mock('../Icon', () => ({ Icon: () => null }))
-vi.mock('../../lib/colorTheme', () => ({ useColorTheme: () => 'light', useAgentsPaneTransparent: () => false }))
+vi.mock('../../lib/colorTheme', () => ({
+  useColorTheme: () => 'light',
+  useAgentsPaneTransparent: () => false,
+}))
 vi.mock('../../lib/terminalLinkProvider', () => ({
   createTerminalLinkProvider: () => ({ dispose: vi.fn() }),
   createOsc8LinkHandler: () => ({}),
@@ -99,7 +102,7 @@ function defaultProps(overrides: Partial<Parameters<typeof AgentTerminal>[0]> = 
 function makeDragEvent(
   type: 'dragover' | 'dragleave' | 'drop',
   internalPath = '',
-  internalPaths: string[] = [],
+  internalPaths: string[] = []
 ) {
   const event = new Event(type, { bubbles: true, cancelable: true }) as DragEvent
   const types: string[] = []
@@ -160,14 +163,11 @@ describe('AgentTerminal — drop target (issue #365)', () => {
 
     const container = getTerminalContainer()
     container.dispatchEvent(
-      makeDragEvent('drop', '', ['/vault/a.md', '/vault/sub/b.md', '/vault/c.md']),
+      makeDragEvent('drop', '', ['/vault/a.md', '/vault/sub/b.md', '/vault/c.md'])
     )
 
     expect(ptyWriteMock).toHaveBeenCalledTimes(1)
-    expect(ptyWriteMock).toHaveBeenCalledWith(
-      PTY_ID,
-      '@/vault/a.md @/vault/sub/b.md @/vault/c.md ',
-    )
+    expect(ptyWriteMock).toHaveBeenCalledWith(PTY_ID, '@/vault/a.md @/vault/sub/b.md @/vault/c.md ')
   })
 
   it('drop without any marvin MIME: no PTY write (no-op)', async () => {
@@ -192,7 +192,9 @@ describe('AgentTerminal — drop target (issue #365)', () => {
       container.dispatchEvent(event)
     })
 
-    expect((event as DragEvent & { preventDefault: ReturnType<typeof vi.fn> }).preventDefault).toHaveBeenCalled()
+    expect(
+      (event as DragEvent & { preventDefault: ReturnType<typeof vi.fn> }).preventDefault
+    ).toHaveBeenCalled()
     expect(screen.getByTestId('agent-terminal-drop-overlay')).toBeInTheDocument()
   })
 
@@ -207,7 +209,9 @@ describe('AgentTerminal — drop target (issue #365)', () => {
       container.dispatchEvent(event)
     })
 
-    expect((event as DragEvent & { preventDefault: ReturnType<typeof vi.fn> }).preventDefault).not.toHaveBeenCalled()
+    expect(
+      (event as DragEvent & { preventDefault: ReturnType<typeof vi.fn> }).preventDefault
+    ).not.toHaveBeenCalled()
     expect(screen.queryByTestId('agent-terminal-drop-overlay')).toBeNull()
   })
 
@@ -312,7 +316,7 @@ describe('AgentTerminal — drop target (issue #365)', () => {
         {...defaultProps({
           agent: { id: 'claude-code', name: 'Claude Code', binaryPath: '/usr/bin/claude' },
         })}
-      />,
+      />
     )
     await act(async () => {})
 

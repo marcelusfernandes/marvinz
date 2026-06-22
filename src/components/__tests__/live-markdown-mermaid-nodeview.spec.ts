@@ -98,14 +98,16 @@ afterEach(() => {
 // Helper: build a real NodeView from buildCodeBlockView
 // ---------------------------------------------------------------------------
 
-function buildView(node: ReturnType<typeof makeMermaidNode> | ReturnType<typeof makePassthroughNode>) {
+function buildView(
+  node: ReturnType<typeof makeMermaidNode> | ReturnType<typeof makePassthroughNode>
+) {
   const constructor = buildCodeBlockView()
   const view = constructor(
     node as never,
     null as never,
     null as never,
     null as never,
-    null as never,
+    null as never
   )
   if (view.destroy) destroyFns.push(view.destroy.bind(view))
   return view
@@ -171,7 +173,7 @@ describe('mermaidNodeView — mermaid branch: successful render', () => {
         startOnLoad: false,
         theme: 'base',
         securityLevel: 'strict',
-      }),
+      })
     )
   })
 
@@ -180,10 +182,7 @@ describe('mermaidNodeView — mermaid branch: successful render', () => {
     buildView(makeMermaidNode(source))
     await tick()
 
-    expect(mermaid.render).toHaveBeenCalledWith(
-      expect.stringMatching(/^marvinz-mermaid-/),
-      source,
-    )
+    expect(mermaid.render).toHaveBeenCalledWith(expect.stringMatching(/^marvinz-mermaid-/), source)
   })
 
   it('injects the returned SVG into the canvas element', async () => {
@@ -276,7 +275,9 @@ describe('mermaidNodeView — mermaid branch: update()', () => {
 
   it('returns false when language switches away from mermaid', async () => {
     const view = buildView(makeMermaidNode())
-    const result = (view as unknown as { update: (n: unknown) => boolean }).update(makePassthroughNode('python'))
+    const result = (view as unknown as { update: (n: unknown) => boolean }).update(
+      makePassthroughNode('python')
+    )
     expect(result).toBe(false)
   })
 
@@ -286,7 +287,7 @@ describe('mermaidNodeView — mermaid branch: update()', () => {
     vi.mocked(mermaid.render).mockClear()
 
     const updated = (view as unknown as { update: (n: unknown) => boolean }).update(
-      makeMermaidNode('flowchart LR\n  X --> Y'),
+      makeMermaidNode('flowchart LR\n  X --> Y')
     )
     expect(updated).toBe(true)
     await tick()
@@ -298,10 +299,8 @@ describe('mermaidNodeView — mermaid branch: update()', () => {
     const view = buildView(makeMermaidNode(source))
     await tick()
     vi.mocked(mermaid.render).mockClear()
-
     ;(view as unknown as { update: (n: unknown) => boolean }).update(makeMermaidNode(source))
     await tick()
     expect(mermaid.render).not.toHaveBeenCalled()
   })
 })
-

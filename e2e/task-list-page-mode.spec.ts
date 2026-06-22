@@ -39,11 +39,7 @@ import os from 'node:os'
 async function createUserDataDir(vaultPath: string): Promise<string> {
   const raw = await fs.mkdtemp(path.join(os.tmpdir(), 'marvin-e2e-tasklist-data-'))
   const userDataDir = await fs.realpath(raw)
-  await fs.writeFile(
-    path.join(userDataDir, 'settings.json'),
-    JSON.stringify({ vaultPath }),
-    'utf8',
-  )
+  await fs.writeFile(path.join(userDataDir, 'settings.json'), JSON.stringify({ vaultPath }), 'utf8')
   return userDataDir
 }
 
@@ -54,10 +50,7 @@ async function seedVault(vaultRoot: string, fileName: string, content: string): 
 }
 
 /** Click a file in the sidebar and wait for the editor area to appear. */
-async function openFile(
-  page: import('playwright').Page,
-  labelRe: RegExp,
-): Promise<void> {
+async function openFile(page: import('playwright').Page, labelRe: RegExp): Promise<void> {
   const fileRow = page.locator('.sidebar .file-tree-row.file', { hasText: labelRe })
   await expect(fileRow).toBeVisible({ timeout: 15_000 })
   await fileRow.click()
@@ -91,7 +84,7 @@ test.describe('task-list Page mode — layout (A)', () => {
     await seedVault(
       vaultRoot,
       'tasks.md',
-      '# Heading\n\n- [ ] unchecked item\n- [x] checked item\n  - [ ] nested task\n- regular bullet\n',
+      '# Heading\n\n- [ ] unchecked item\n- [x] checked item\n  - [ ] nested task\n- regular bullet\n'
     )
     userDataDir = await createUserDataDir(vaultRoot)
   })
@@ -117,9 +110,7 @@ test.describe('task-list Page mode — layout (A)', () => {
       await expect(li).toBeVisible({ timeout: 5_000 })
 
       // CSS sets display:flex on task items so checkbox + content are in a row.
-      const display = await li.evaluate(
-        (el) => window.getComputedStyle(el).display,
-      )
+      const display = await li.evaluate((el) => window.getComputedStyle(el).display)
       expect(display).toBe('flex')
 
       // Belt-and-suspenders: bounding boxes must not be stacked. With
@@ -159,9 +150,7 @@ test.describe('task-list Page mode — layout (A)', () => {
       const li = page.locator('.milkdown-host li[data-item-type="task"]').first()
       await expect(li).toBeVisible({ timeout: 5_000 })
 
-      const listStyle = await li.evaluate(
-        (el) => window.getComputedStyle(el).listStyleType,
-      )
+      const listStyle = await li.evaluate((el) => window.getComputedStyle(el).listStyleType)
       expect(listStyle).toBe('none')
     } finally {
       await app.close()
@@ -208,18 +197,16 @@ test.describe('task-list Page mode — layout (A)', () => {
 
       // Wait for the task items to confirm the editor parsed the whole doc.
       // 2 top-level + 1 nested = 3.
-      await expect(page.locator('.milkdown-host li[data-item-type="task"]')).toHaveCount(3, { timeout: 5_000 })
+      await expect(page.locator('.milkdown-host li[data-item-type="task"]')).toHaveCount(3, {
+        timeout: 5_000,
+      })
 
       // The regular bullet is a <li> WITHOUT data-item-type="task".
-      const regularLi = page.locator(
-        '.milkdown-host li:not([data-item-type="task"])',
-      ).first()
+      const regularLi = page.locator('.milkdown-host li:not([data-item-type="task"])').first()
       await expect(regularLi).toBeVisible()
 
       // Regular bullets keep their list marker (disc or circle — not 'none').
-      const listStyle = await regularLi.evaluate(
-        (el) => window.getComputedStyle(el).listStyleType,
-      )
+      const listStyle = await regularLi.evaluate((el) => window.getComputedStyle(el).listStyleType)
       expect(listStyle).not.toBe('none')
 
       // Regular items must NOT have a checkbox injected by the node view.
@@ -243,13 +230,17 @@ test.describe('task-list Page mode — layout (A)', () => {
       await switchToPage(page)
 
       // 2 top-level + 1 nested = 3.
-      await expect(page.locator('.milkdown-host li[data-item-type="task"]')).toHaveCount(3, { timeout: 5_000 })
+      await expect(page.locator('.milkdown-host li[data-item-type="task"]')).toHaveCount(3, {
+        timeout: 5_000,
+      })
 
       // The heading establishes the content margin. The task checkbox should
       // be within 10 px of it horizontally — not indented an extra ~22 px into
       // the bullet-reserved gap.
       const heading = page.locator('.milkdown-host h1').first()
-      const taskCheckbox = page.locator('.milkdown-host li[data-item-type="task"]').first()
+      const taskCheckbox = page
+        .locator('.milkdown-host li[data-item-type="task"]')
+        .first()
         .locator('input[type="checkbox"]')
 
       await expect(heading).toBeVisible()
@@ -317,7 +308,9 @@ test.describe('task-list Page mode — layout (A)', () => {
       await switchToPage(page)
 
       // 2 top-level + 1 nested = 3.
-      await expect(page.locator('.milkdown-host li[data-item-type="task"]')).toHaveCount(3, { timeout: 5_000 })
+      await expect(page.locator('.milkdown-host li[data-item-type="task"]')).toHaveCount(3, {
+        timeout: 5_000,
+      })
 
       // The plain `- regular bullet` is a sibling <li> in the same <ul> as
       // the task items. Applying padding-left:0 to the parent <ul> (an earlier
@@ -326,9 +319,7 @@ test.describe('task-list Page mode — layout (A)', () => {
       await expect(regularLi).toBeVisible()
 
       // Must keep its disc marker.
-      const listStyle = await regularLi.evaluate(
-        (el) => window.getComputedStyle(el).listStyleType,
-      )
+      const listStyle = await regularLi.evaluate((el) => window.getComputedStyle(el).listStyleType)
       expect(listStyle).not.toBe('none')
 
       // Must have no checkbox.
@@ -338,7 +329,9 @@ test.describe('task-list Page mode — layout (A)', () => {
       // not collapsed to 0 by a ul-level CSS rule. Compare against a task
       // checkbox in the same list: they share the same <ul> so the regular
       // bullet left must be close to the task content left (within 10 px).
-      const taskContent = page.locator('.milkdown-host li[data-item-type="task"]').first()
+      const taskContent = page
+        .locator('.milkdown-host li[data-item-type="task"]')
+        .first()
         .locator('.task-list-item__content')
       const regularBox = await regularLi.boundingBox()
       const contentBox = await taskContent.boundingBox()

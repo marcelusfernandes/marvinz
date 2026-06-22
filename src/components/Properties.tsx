@@ -161,7 +161,7 @@ function PropertyRow({
         aria-label={`Remove ${propKey}`}
         onClick={onRemove}
       >
-        <Icon name="close"/>
+        <Icon name="close" />
       </button>
     </li>
   )
@@ -175,7 +175,11 @@ function KeyEditor({ name, onRename }: { name: string; onRename: (next: string) 
 
   if (!editing) {
     return (
-      <span className="prop-key" onDoubleClick={() => setEditing(true)} title="Double-click to rename">
+      <span
+        className="prop-key"
+        onDoubleClick={() => setEditing(true)}
+        title="Double-click to rename"
+      >
         {name}
       </span>
     )
@@ -252,14 +256,7 @@ function ValueEditor({
     )
   }
 
-  return (
-    <SimpleInput
-      type={type}
-      value={value}
-      onCommit={onCommit}
-      onCancel={onCancel}
-    />
-  )
+  return <SimpleInput type={type} value={value} onCommit={onCommit} onCancel={onCancel} />
 }
 
 function ValueDisplay({ value, type }: { value: unknown; type: PropertyType }) {
@@ -280,12 +277,7 @@ function SimpleInput({
   onCommit: (next: unknown) => void
   onCancel: () => void
 }) {
-  const initial =
-    type === 'date'
-      ? toDateInputValue(value)
-      : value == null
-        ? ''
-        : String(value)
+  const initial = type === 'date' ? toDateInputValue(value) : value == null ? '' : String(value)
   const [draft, setDraft] = useState(initial)
   const ref = useRef<HTMLInputElement>(null)
 
@@ -335,13 +327,7 @@ function toDateInputValue(value: unknown): string {
   return ''
 }
 
-function TagsEditor({
-  value,
-  onCommit,
-}: {
-  value: unknown
-  onCommit: (next: unknown) => void
-}) {
+function TagsEditor({ value, onCommit }: { value: unknown; onCommit: (next: unknown) => void }) {
   const tags = normalizeTags(value)
   const [draft, setDraft] = useState('')
 
@@ -373,7 +359,7 @@ function TagsEditor({
             aria-label={`Remove ${tag}`}
             onClick={() => remove(i)}
           >
-            <Icon name="close"/>
+            <Icon name="close" />
           </button>
         </span>
       ))}
@@ -396,13 +382,7 @@ function TagsEditor({
   )
 }
 
-function ListEditor({
-  value,
-  onCommit,
-}: {
-  value: unknown
-  onCommit: (next: unknown) => void
-}) {
+function ListEditor({ value, onCommit }: { value: unknown; onCommit: (next: unknown) => void }) {
   const items = Array.isArray(value) ? value.map((v) => String(v)) : []
   const [draft, setDraft] = useState('')
 
@@ -429,7 +409,7 @@ function ListEditor({
             aria-label={`Remove ${item}`}
             onClick={() => remove(i)}
           >
-            <Icon name="close"/>
+            <Icon name="close" />
           </button>
         </span>
       ))}
@@ -521,7 +501,17 @@ function AddPropertyRow({
   )
 }
 
-const PROP_ICON_BY_TYPE: Record<PropertyType, 'symbol-string' | 'symbol-numeric' | 'symbol-boolean' | 'calendar' | 'tag' | 'list-unordered' | 'json' | 'dash'> = {
+const PROP_ICON_BY_TYPE: Record<
+  PropertyType,
+  | 'symbol-string'
+  | 'symbol-numeric'
+  | 'symbol-boolean'
+  | 'calendar'
+  | 'tag'
+  | 'list-unordered'
+  | 'json'
+  | 'dash'
+> = {
   string: 'symbol-string',
   number: 'symbol-numeric',
   boolean: 'symbol-boolean',
