@@ -158,10 +158,25 @@ Confirme:
 
 Reporte ao usuário: versão na main, tag, link do GitHub Release.
 
+### B.5 Back-merge `main` → `develop` (higiene de ancestralidade — obrigatório)
+
+Depois do release selado, traga o merge commit do promote de volta pra `develop`. Mesmo com merge commit correto, a `main` fica **1 commit à frente** da `develop` (o commit do promote vive só na main) → sem o back-merge, o próximo `/release` reincide em "DIVERGED" + `-s ours`.
+
+- Abra um PR **`main` → `develop`** (head=`main`, base=`develop`):
+  ```bash
+  gh pr create --base develop --head main \
+    --title "chore: back-merge main into develop after vVER" \
+    --body "Content-neutral back-merge so main is an ancestor of develop again (keeps future promotes clean, no -s ours)."
+  ```
+- É **content-neutral** — `main` e `develop` têm árvores idênticas pós-release (0 arquivos). Valide: `gh pr view <n> --json files --jq '.files|length'` deve ser `0`.
+- Merge com **`--merge`** (merge commit — **NUNCA** squash; squash não registra a `main` como parent e mantém o drift): `gh pr merge <n> --merge --admin`. **Não** use `--delete-branch` (o head é a `main`).
+- Confirme: `git merge-base --is-ancestor origin/main origin/develop` → verdadeiro. Próximo promote cai no caminho **CLEAN** (A.3), sem `-s ours`.
+
 ## Governança (sempre lembrar)
 
-- **Releases saem SEMPRE do `develop`.** Promover via merge commit mantém a `main` ancestral do `develop` → as próximas promoções são merge limpo, **sem precisar de `-s ours`**.
-- O `-s ours` só existe pra consertar drift histórico. Se você precisou dele, deixe claro no corpo da PR o porquê e o lembrete de não repetir (a release v0.10.0 foi o caso que originou este comando).
+- **Releases saem SEMPRE do `develop`** e o promote usa **merge commit** (nunca squash/rebase — o ruleset da `main` bloqueia). **Squash no promote cria commit de parent único e quebra a ancestralidade** — foi a causa do drift que exigiu `-s ours` (v0.10.0 e de novo no v0.12.0, quando o promote do v0.11.1 / #497 entrou squashed).
+- **Back-merge `main` → `develop` após cada release (B.5)** é o que mantém a `main` ancestral e evita o "DIVERGED" reincidir. Pular esse passo é a causa mais comum do drift recorrente.
+- O `-s ours` (A.3) só existe pra consertar drift histórico (squash antigo ou back-merge esquecido). Se precisou dele, **valide diff-vazio vs `develop`** e documente o porquê no corpo da PR.
 
 ## Quando NÃO usar /release
 
