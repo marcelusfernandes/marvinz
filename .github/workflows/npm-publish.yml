@@ -1,0 +1,43 @@
+name: Publish npx launcher
+
+# Publishes the thin launcher in cli/ (npm package "marvinz") on a release tag,
+# from main's state. Lets users run `npx marvinz`. Gated on the NPM_TOKEN secret
+# (an npm Automation token, which bypasses 2FA) — skips cleanly if it's not set,
+# so the release pipeline never breaks on its absence.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Detect NPM_TOKEN
+        id: detect
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -n "$NPM_TOKEN" ]; then
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::NPM_TOKEN not set — skipping npm publish."
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.detect.outputs.ok == 'true'
+
+      - uses: actions/setup-node@v4
+        if: steps.detect.outputs.ok == 'true'
+        with:
+          node-version: 20
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Publish marvinz launcher
+        if: steps.detect.outputs.ok == 'true'
+        working-directory: cli
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
