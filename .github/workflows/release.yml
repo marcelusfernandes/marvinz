@@ -37,6 +37,15 @@ jobs:
         run: npm run build
 
       - name: Package for ${{ matrix.os }}
+        env:
+          # macOS code signing + notarization. No-op until these repo secrets are
+          # set (empty CSC_LINK = unsigned build, same as today). To finish #515:
+          # add the secrets below AND set "notarize": true in build.mac (package.json).
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: npx electron-builder --${{ matrix.target }} --publish=never
 
       - name: Upload artifacts

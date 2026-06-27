@@ -1,9 +1,11 @@
 name: Publish npx launcher
 
-# Publishes the thin launcher in cli/ (npm package "marvinz") on a release tag,
-# from main's state. Lets users run `npx marvinz`. Gated on the NPM_TOKEN secret
-# (an npm Automation token, which bypasses 2FA) — skips cleanly if it's not set,
-# so the release pipeline never breaks on its absence.
+# Publishes the thin launcher in cli/ (npm package "marvinz") on a release tag.
+# The published version is set to match the release version (e.g. v0.12.0 →
+# marvinz@0.12.0), so npm stays in sync with the app releases. Lets users run
+# `npx marvinz`. Gated on the NPM_TOKEN secret — skips cleanly if it's not set,
+# so the release pipeline never breaks on its absence. Idempotent: skips if that
+# version is already on npm, so re-runs / re-tags don't fail.
 
 on:
   push:
@@ -35,9 +37,31 @@ jobs:
           node-version: 20
           registry-url: 'https://registry.npmjs.org'
 
-      - name: Publish marvinz launcher
+      - name: Resolve release version
+        id: ver
+        if: steps.detect.outputs.ok == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            V="${GITHUB_REF_NAME#v}"
+          else
+            # workflow_dispatch (no tag): use the latest published GitHub Release.
+            V="$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName | sed 's/^v//')"
+          fi
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          echo "Resolved launcher version: $V"
+
+      - name: Set version + publish if new
         if: steps.detect.outputs.ok == 'true'
         working-directory: cli
-        run: npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          V: ${{ steps.ver.outputs.version }}
+        run: |
+          npm version "$V" --no-git-tag-version --allow-same-version
+          if npm view "marvinz@$V" version >/dev/null 2>&1; then
+            echo "marvinz@$V already published — skipping"
+          else
+            npm publish --access public
+          fi
