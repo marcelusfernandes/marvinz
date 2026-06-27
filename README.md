@@ -80,7 +80,14 @@ Notes:
 
 - `node-pty` is a native module — it's unpacked from `app.asar` (see `build.asarUnpack` in `package.json`) so the `.node` binary and `spawn-helper` are reachable at runtime.
 - App icons live in `build/icon.icns` (macOS) and `build/icon.png` (Windows/Linux source — `electron-builder` auto-converts to `.ico` and resized PNGs).
-- Code signing and notarization are **not** configured yet. The macOS build picks up a local Apple Development cert from your keychain if present; the resulting `.dmg` will warn Gatekeeper on other Macs until a Developer ID cert + notarization are wired in.
+- macOS code signing + notarization is **wired** (see #515): `build.mac` sets `hardenedRuntime`, `gatekeeperAssess: false`, `entitlements` (`build/entitlements.mac.plist`), and `notarize: true`, and `release.yml` passes the signing/notarization secrets to `electron-builder`. It signs + notarizes **as soon as these repo secrets are set** (until then it builds unsigned, no error):
+  - `CSC_LINK` — base64 of a _Developer ID Application_ `.p12`
+  - `CSC_KEY_PASSWORD` — that `.p12`'s password
+  - `APPLE_ID` — the Apple ID email
+  - `APPLE_APP_SPECIFIC_PASSWORD` — an app-specific password from appleid.apple.com
+  - `APPLE_TEAM_ID` — the Apple Team ID
+
+  Then the released `.dmg` opens with no Gatekeeper warning. Verify with `spctl -a -vvv <app>` and `codesign --verify --deep --strict <app>`. (Rotate by replacing the secrets.)
 
 ## Project layout
 
