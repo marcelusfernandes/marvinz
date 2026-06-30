@@ -20,6 +20,9 @@ jobs:
             target: mac
             artifact-pattern: '*.dmg'
     runs-on: ${{ matrix.os }}
+    # Fail fast instead of hanging for hours if macOS notarization stalls
+    # (Apple's notary service can sit "In Progress" on a cold/new account).
+    timeout-minutes: 45
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -38,9 +41,8 @@ jobs:
 
       - name: Package for ${{ matrix.os }}
         env:
-          # macOS code signing + notarization. No-op until these repo secrets are
-          # set (empty CSC_LINK = unsigned build, same as today). To finish #515:
-          # add the secrets below AND set "notarize": true in build.mac (package.json).
+          # macOS code signing + notarization (build.mac has notarize: true).
+          # No-op if these repo secrets are empty (build stays unsigned).
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
