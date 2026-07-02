@@ -33,6 +33,9 @@ vi.mock('electron', () => ({
   ipcMain: {
     handle: vi.fn(),
   },
+  app: {
+    getPath: vi.fn(() => '/tmpdir'),
+  },
 }))
 
 vi.mock('node:fs/promises', () => ({
@@ -47,23 +50,28 @@ vi.mock('marked', () => ({
   marked: vi.fn(() => '<p>content</p>'),
 }))
 
-import { BrowserWindow, dialog } from 'electron'
+import { BrowserWindow, dialog, app } from 'electron'
 import fs from 'node:fs/promises'
 import { marked } from 'marked'
+
+// Stand-in for main.ts's assertInVault: resolves inside the vault, throws
+// outside it. Overridden per-test to simulate a boundary violation.
+const assertInVault = vi.fn(async (p: string) => p)
 
 // ---------------------------------------------------------------------------
 // Handler factory — mirrors main.ts file:exportPdf logic exactly
 // ---------------------------------------------------------------------------
 
 async function exportPdf(filePath: string): Promise<void> {
-  const content = await fs.readFile(filePath, 'utf-8')
-  const dir = path.dirname(filePath)
+  const safe = await assertInVault(filePath)
+  const content = await fs.readFile(safe, 'utf-8')
 
   const bodyHtml = await marked(content as string)
 
   const html = `<!DOCTYPE html>
 <html><head>
 <meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self' data: file: marvin: https:; style-src 'unsafe-inline'; font-src 'self' data:;">
 <style>
   body { font-family: system-ui, -apple-system, sans-serif; max-width: 800px; margin: 0 auto; padding: 2rem; line-height: 1.6; color: #1a1a1a; }
   h1, h2, h3, h4, h5, h6 { margin-top: 1.5em; }
@@ -76,12 +84,12 @@ async function exportPdf(filePath: string): Promise<void> {
 </style>
 </head><body>${bodyHtml}</body></html>`
 
-  const tmpPath = path.join(dir, `._marvinz_export_${Date.now()}.html`)
+  const tmpPath = path.join(app.getPath('temp'), `._marvinz_export_${Date.now()}.html`)
   await fs.writeFile(tmpPath, html, 'utf-8')
 
   const exportWin = new BrowserWindow({
     show: false,
-    webPreferences: { nodeIntegration: false, contextIsolation: true },
+    webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true },
   })
 
   try {
@@ -108,6 +116,7 @@ async function exportPdf(filePath: string): Promise<void> {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  assertInVault.mockImplementation(async (p: string) => p)
   ;(BrowserWindow as unknown as ReturnType<typeof vi.fn>).mockImplementation(function () {
     return mockExportWin
   })
@@ -243,7 +252,7 @@ describe('file:exportPdf — temp file cleanup', () => {
     expect(unlinkedPath).toMatch(/\/\._marvinz_export_\d+\.html$/)
   })
 
-  it('temp file path is inside the source file directory', async () => {
+  it('temp file path is in the OS temp dir, not the source directory', async () => {
     ;(dialog.showSaveDialog as ReturnType<typeof vi.fn>).mockResolvedValue({
       canceled: true,
     })
@@ -251,6 +260,68 @@ describe('file:exportPdf — temp file cleanup', () => {
     await exportPdf('/vault/docs/note.md')
 
     const [unlinkedPath] = (fs.unlink as ReturnType<typeof vi.fn>).mock.calls[0]
-    expect(unlinkedPath.startsWith('/vault/docs/')).toBe(true)
+    expect(unlinkedPath.startsWith('/tmpdir/')).toBe(true)
+    expect(unlinkedPath.startsWith('/vault/docs/')).toBe(false)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// 5. Vault boundary + hardening (security fix)
+// ---------------------------------------------------------------------------
+
+describe('file:exportPdf — vault boundary', () => {
+  it('validates the path via assertInVault before reading it', async () => {
+    ;(dialog.showSaveDialog as ReturnType<typeof vi.fn>).mockResolvedValue({ canceled: true })
+
+    await exportPdf('/vault/note.md')
+
+    expect(assertInVault).toHaveBeenCalledWith('/vault/note.md')
+  })
+
+  it('reads the realpath returned by assertInVault, not the raw input', async () => {
+    assertInVault.mockImplementation(async () => '/vault/real/note.md')
+    ;(dialog.showSaveDialog as ReturnType<typeof vi.fn>).mockResolvedValue({ canceled: true })
+
+    await exportPdf('/vault/link.md')
+
+    expect(fs.readFile).toHaveBeenCalledWith('/vault/real/note.md', 'utf-8')
+  })
+
+  it('never reads the file when the path is outside the vault', async () => {
+    assertInVault.mockImplementation(async () => {
+      throw new Error('MARVIN_OUTSIDE_VAULT')
+    })
+
+    await expect(exportPdf('/etc/passwd')).rejects.toThrow('MARVIN_OUTSIDE_VAULT')
+    expect(fs.readFile).not.toHaveBeenCalled()
+    expect(BrowserWindow).not.toHaveBeenCalled()
+  })
+})
+
+describe('file:exportPdf — hardening', () => {
+  it('injects a restrictive Content-Security-Policy into the export HTML', async () => {
+    ;(dialog.showSaveDialog as ReturnType<typeof vi.fn>).mockResolvedValue({ canceled: true })
+
+    await exportPdf('/vault/note.md')
+
+    const htmlWrite = (fs.writeFile as ReturnType<typeof vi.fn>).mock.calls.find((c) =>
+      String(c[0]).endsWith('.html')
+    )
+    expect(htmlWrite).toBeDefined()
+    const html = htmlWrite![1] as string
+    expect(html).toContain('Content-Security-Policy')
+    expect(html).toContain("default-src 'none'")
+  })
+
+  it('creates the export window sandboxed', async () => {
+    ;(dialog.showSaveDialog as ReturnType<typeof vi.fn>).mockResolvedValue({ canceled: true })
+
+    await exportPdf('/vault/note.md')
+
+    expect(BrowserWindow).toHaveBeenCalledWith(
+      expect.objectContaining({
+        webPreferences: expect.objectContaining({ sandbox: true }),
+      })
+    )
   })
 })
