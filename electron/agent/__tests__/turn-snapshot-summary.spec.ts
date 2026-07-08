@@ -18,9 +18,10 @@ import path from 'node:path'
 import { EventEmitter } from 'node:events'
 import { PassThrough } from 'node:stream'
 import type { ChildProcess } from 'node:child_process'
-import { createApprovalServer, approvalSocketPath } from '../approval-socket'
+import { createApprovalServer, approvalSocketPath, type PreEditState } from '../approval-socket'
 import { clearSessionRules, resolveApproval } from '../permissions'
 import { newTurnId } from '../../snapshot'
+import { diffTouchedFiles } from '../turn-content-gate'
 import type { AgentEvent, AgentRequest } from '../protocol'
 
 vi.mock('node:child_process', async (importOriginal) => {
@@ -192,6 +193,72 @@ describe('approval-socket — touchedFiles gate on denied edits (#537)', () => {
 })
 
 // ---------------------------------------------------------------------------
+// Interactive request→approve path — approval-socket.ts:308 only adds the
+// file to touchedFiles once the renderer resolves 'allow'. Test B above only
+// exercised the deny branch; this covers the allow branch (revert-safe).
+// ---------------------------------------------------------------------------
+
+describe('approval-socket — touchedFiles gate on interactive approve (#537)', () => {
+  const SESSION = 'touched-approve-session'
+
+  beforeEach(() => clearSessionRules(SESSION))
+
+  it('adds the file to touchedFiles once approved, and diffTouchedFiles reports it as changed', async () => {
+    const vaultRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'marvinz-537-approve-'))
+    try {
+      const relPath = 'note.md'
+      const absPath = path.join(vaultRoot, relPath)
+      await fs.writeFile(absPath, 'original content', 'utf8')
+
+      const touchedFiles = new Set<string>()
+      const preEditStates = new Map<string, PreEditState>()
+      const emit = makeEmit()
+      const handle = await createApprovalServer(
+        SESSION,
+        { sessionId: SESSION, permissionMode: 'default', vaultRoot },
+        new Set(),
+        new Map(),
+        emit,
+        { current: newTurnId() },
+        touchedFiles,
+        new Map(),
+        preEditStates
+      )
+
+      try {
+        const pending = sendHookMessage(SESSION, {
+          toolUseId: 'tu-approved',
+          toolName: 'Write',
+          input: { file_path: absPath, content: 'changed content' },
+        })
+
+        await vi.waitFor(() => expect(emit).toHaveBeenCalled(), { timeout: 2000 })
+        resolveApproval('tu-approved', { kind: 'allow' })
+        const resp = await pending
+        expect(resp.decision).toBe('allow')
+
+        // AC: an approved edit DOES enter touchedFiles (approval-socket.ts:308).
+        expect(touchedFiles.has(relPath)).toBe(true)
+
+        await vi.waitFor(() => expect(preEditStates.has(relPath)).toBe(true), { timeout: 2000 })
+
+        // Simulate the tool actually changing the file, then confirm the same
+        // function index.ts uses to build turn-snapshot-summary reports this
+        // file as changed — the interactive-approve path really does feed the
+        // summary, not just the touchedFiles bookkeeping.
+        await fs.writeFile(absPath, 'changed content', 'utf8')
+        const changed = await diffTouchedFiles(vaultRoot, touchedFiles, preEditStates)
+        expect(changed).toEqual([relPath])
+      } finally {
+        await handle.close()
+      }
+    } finally {
+      await fs.rm(vaultRoot, { recursive: true, force: true })
+    }
+  })
+})
+
+// ---------------------------------------------------------------------------
 // Tests A, C, D — index.ts turn-result -> turn-snapshot-summary content gate
 // ---------------------------------------------------------------------------
 
@@ -306,5 +373,59 @@ describe('spawnAgent — turn-snapshot-summary content gate (#537)', () => {
     const summaries = summaryEvents(emit)
     expect(summaries).toHaveLength(1)
     expect(summaries[0].fileNames).toEqual([realRelPath])
+  })
+})
+
+// ---------------------------------------------------------------------------
+// diffTouchedFiles (turn-content-gate.ts) — pure branch table, no harness needed
+// ---------------------------------------------------------------------------
+
+describe('diffTouchedFiles — branch table (#537)', () => {
+  let vaultRoot: string
+
+  beforeEach(async () => {
+    vaultRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'marvinz-537-gate-'))
+  })
+
+  afterEach(async () => {
+    await fs.rm(vaultRoot, { recursive: true, force: true })
+  })
+
+  it('created with empty content: excluded (not a real change)', async () => {
+    const relPath = 'new-empty.md'
+    await fs.writeFile(path.join(vaultRoot, relPath), '', 'utf8')
+    const preEditStates = new Map<string, PreEditState>([[relPath, { existed: false }]])
+
+    expect(await diffTouchedFiles(vaultRoot, [relPath], preEditStates)).toEqual([])
+  })
+
+  it('created with non-empty content: included', async () => {
+    const relPath = 'new-content.md'
+    await fs.writeFile(path.join(vaultRoot, relPath), 'hello', 'utf8')
+    const preEditStates = new Map<string, PreEditState>([[relPath, { existed: false }]])
+
+    expect(await diffTouchedFiles(vaultRoot, [relPath], preEditStates)).toEqual([relPath])
+  })
+
+  it('deleted (existed before, missing now): included', async () => {
+    const relPath = 'deleted.md'
+    // Not written to disk at all — simulates deletion after the pre-edit snapshot.
+    const preEditStates = new Map<string, PreEditState>([
+      [relPath, { existed: true, hash: 'deadbeef' }],
+    ])
+
+    expect(await diffTouchedFiles(vaultRoot, [relPath], preEditStates)).toEqual([relPath])
+  })
+
+  it('unreadable for a non-ENOENT reason: conservatively included', async () => {
+    const relPath = 'unreadable-dir'
+    // A directory at the touched path makes fs.readFile fail with EISDIR
+    // (not ENOENT) without needing to mock node:fs/promises.
+    await fs.mkdir(path.join(vaultRoot, relPath))
+    const preEditStates = new Map<string, PreEditState>([
+      [relPath, { existed: true, hash: 'deadbeef' }],
+    ])
+
+    expect(await diffTouchedFiles(vaultRoot, [relPath], preEditStates)).toEqual([relPath])
   })
 })
