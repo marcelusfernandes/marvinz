@@ -231,6 +231,31 @@ describe('watcher change — snapshot content guard (#536)', () => {
     expect(await listTurns(vaultDir)).toHaveLength(0)
   })
 
+  it('GREEN (regression): a cache-miss seeds the cache — a second change on the same file snapshots that seeded baseline', async () => {
+    // First change: genuine cache miss (never primed via file:read). Per the
+    // cache-miss policy pinned above, this must not snapshot — but it should
+    // seed fileContentCache with the post-write content so a LATER change in
+    // the same turn has a real baseline to diff against, instead of being
+    // treated as a cache miss forever.
+    await writeVaultFile('seeded.md', 'X')
+    await stampAiTurnActive()
+
+    getChangeListener()(path.join(vaultDir, 'seeded.md'))
+    await expectNoSnapshotEntry('seeded.md')
+
+    // Second change: content differs from the seeded baseline ('X') — this
+    // must now snapshot, with 'X' (not a fresh cache-miss fallback read) as
+    // the recorded before-content.
+    await writeVaultFile('seeded.md', 'Y')
+    getChangeListener()(path.join(vaultDir, 'seeded.md'))
+
+    const turns = await waitForSnapshotEntry('seeded.md')
+    expect(turns).toHaveLength(1)
+
+    const snapped = await readSnapshot(vaultDir, turns[0].turnId, 'seeded.md')
+    expect(snapped).toBe('X')
+  })
+
   it('RED: a cached EMPTY STRING is a valid baseline, not a cache miss', async () => {
     await writeVaultFile('empty.md', '')
     await primeCache('empty.md') // caches '' — must NOT be treated as a cache miss
