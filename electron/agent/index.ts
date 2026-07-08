@@ -252,11 +252,19 @@ function dispatchEvent(child: AgentChild, event: AgentEvent, emit: EventEmitter)
 
   emit(`agent:event:${child.sessionId}`, event)
 
-  // After turn-result: reset per-turn state synchronously (so it can't race
-  // the next turn's edits), then diff the just-finished turn's touched files
-  // against their pre-edit state and emit turn-snapshot-summary only for the
-  // files that really changed on disk (#537). The disk reads are async, so
-  // this happens without delaying turn-result or any other event above.
+  // After turn-result: snapshot touchedFiles/preEditStates and reset them
+  // synchronously so this turn's diff can't race the next turn's edits, then
+  // diff the just-finished turn's touched files against their pre-edit state
+  // and emit turn-snapshot-summary only for the files that really changed on
+  // disk (#537). The disk reads are async, so this happens without delaying
+  // turn-result or any other event above.
+  // Note: touchedFiles is populated synchronously (on approval), so this
+  // reset cleanly separates turn N from turn N+1 for it. preEditStates is
+  // filled by a fire-and-forget promise in approval-socket.ts that can in
+  // principle still be resolving when this reset runs, so in rare races a
+  // turn-N baseline could land in turn N+1's map (or first-write-wins could
+  // reflect promise-resolution order rather than edit order) — no worse than
+  // today's behavior, and not hardened here.
   if (event.type === 'turn-result' && child.touchedFiles.size > 0) {
     const turnId = child.agentTurnId.current
     const turnFiles = [...child.touchedFiles]
