@@ -876,10 +876,11 @@ export function Editor({
     return () => onRegisterHandle?.(null)
   }, [isActive, onRegisterHandle, editorHandle])
 
-  // Remount Milkdown only when the file changes (not on every keystroke);
-  // typing edits are propagated through onChange and re-applied via React
-  // state without forcing a re-init of the editor.
-  const liveKey = filePath
+  // Remount Milkdown when the file changes OR when its version bumps (external
+  // reload / snapshot restore). version bumps only on those paths, never on
+  // keystrokes or manual saves, so typing edits still flow through onChange and
+  // re-apply via React state without forcing a re-init of the editor.
+  const liveKey = `${filePath}#${version}`
 
   return (
     <div className="editor">
