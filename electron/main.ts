@@ -865,7 +865,11 @@ ipcMain.handle('file:write', async (_e, filePath: string, content: string) => {
         // No-op write (content identical to disk): skip both the snapshot
         // and the redundant disk write — nothing actually changed, so
         // snapshotting it would create an empty-seeming turn that still
-        // fires the "Claude modified" toast (#535).
+        // fires the "Claude modified" toast (#535). Skipping the write itself
+        // isn't just an optimization: an identical-content fs.writeFile still
+        // bumps mtime, which would trigger chokidar's `change` event and let
+        // the same spurious toast resurface via snapshotExternalChange (that
+        // path has no content-equality guard until #536).
         if (before === content) return
         await writeSnapshot(activeVaultPath, turnId, relPath, before, 'file:write')
       } catch (err) {

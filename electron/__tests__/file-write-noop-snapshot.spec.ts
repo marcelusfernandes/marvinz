@@ -119,11 +119,17 @@ describe('file:write — snapshot skip on no-op write during an AI turn (#535)',
     await fileWrite(undefined, absPath, 'unchanged content')
 
     // Desired (post-fix) contract: no snapshot recorded for this file...
+    // this is the deterministic revert-guard for this test — it fails today
+    // (RED) and flips green once the handler skips the snapshot.
     expect(await listForFile(vaultDir, 'note.md')).toHaveLength(0)
     // ...and no turn manifest materializes at all — the handler shouldn't
     // create a turn directory just to record a no-op (this is also the
     // "toast evidence stays empty" acceptance criterion: finalizeTurn sends
     // manifest.files to the renderer, and an empty listTurns means no files).
+    // Note: this assertion does NOT cover the watcher path (#536) — chokidar
+    // events land asynchronously, after these assertions run, so a spurious
+    // mtime-triggered snapshot from snapshotExternalChange wouldn't show up
+    // here even if it existed.
     expect(await listTurns(vaultDir)).toHaveLength(0)
 
     expect(await fs.readFile(absPath, 'utf8')).toBe('unchanged content')
