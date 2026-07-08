@@ -768,7 +768,7 @@ ipcMain.handle('vault:watch', async (_e, vaultPath: string) => {
     try {
       after = await fs.readFile(filePath, 'utf8')
     } catch {
-      return // file unreadable (binary, deleted, permission) — skip
+      return // file unreadable (deleted, permission) — skip
     }
 
     if (before == null) {
