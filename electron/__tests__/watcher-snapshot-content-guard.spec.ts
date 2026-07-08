@@ -99,7 +99,7 @@ function getChangeListener(): (p: string) => void {
   const results = watchMock.mock.results
   const last = results[results.length - 1]
   if (!last || last.type !== 'return') throw new Error('chokidar.watch was never called')
-  const watcher = last.value as WatcherMock
+  const watcher = last.value as unknown as WatcherMock
   const call = watcher.on.mock.calls.find(([event]) => event === 'change')
   if (!call) throw new Error("watcher.on('change', ...) was never registered")
   return call[1] as (p: string) => void
