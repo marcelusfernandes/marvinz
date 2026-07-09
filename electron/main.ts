@@ -45,6 +45,7 @@ import { importExternal } from './fs-import-external.js'
 import { searchContent } from './search-content.js'
 import { killProcessTree } from './proc-group.js'
 import { resolveConflict } from './conflictResolver.js'
+import { writeTextFileAndRefreshCache } from './file-write-cache.js'
 import type { MoveResult } from '../src/types.js'
 
 process.env.APP_ROOT = path.join(__dirname, '..')
@@ -867,7 +868,7 @@ ipcMain.handle('file:write', async (_e, filePath: string, content: string) => {
         console.error('[snapshot] file:write pre-snapshot failed', { relPath, turnId, err })
       }
     }
-    await fs.writeFile(safe, content, 'utf8')
+    await writeTextFileAndRefreshCache(fileContentCache, safe, content)
   } catch (e) {
     wrapFsError(e)
   }
