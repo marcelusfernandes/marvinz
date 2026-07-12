@@ -739,12 +739,17 @@ ipcMain.handle('vault:watch', async (_e, vaultPath: string) => {
     win?.webContents.send('file:changed', filePath, source)
 
   // Snapshot before notifying the renderer of an external change.
-  // Prefers the in-memory cache (last content served via file:read) as the
-  // "before" value. If the cache is empty (file was never opened in the editor,
-  // e.g. Claude created and modified it entirely via PTY), falls back to reading
-  // from disk. Known race: the watcher fires after the write completes, so the
-  // disk read may already reflect the new content — we snapshot best-effort and
-  // log a warning when that happens (hashes equal after snapshot write).
+  // Uses the in-memory cache (last content served via file:read) as the
+  // "before" value, then does a single disk read to get the post-change
+  // content — reused both to decide whether to snapshot and to refresh the
+  // cache, so there's no second read and no torn-content window.
+  // - Cache miss (file never opened in the editor, e.g. Claude created and
+  //   wrote it entirely via PTY): the watcher fires after the write lands, so
+  //   a disk read here would already be post-change — treating it as "before"
+  //   would be misleading history. Skip the snapshot (no turn-toast evidence)
+  //   and just seed the cache for next time.
+  // - No content change (e.g. an editor re-save or mtime-only touch): skip
+  //   the snapshot so it doesn't surface as a false "Claude modified" toast.
   const snapshotExternalChange = async (filePath: string): Promise<void> => {
     const aiActive = Date.now() - lastPtyWriteAt < AI_TURN_WINDOW_MS
     if (
@@ -757,18 +762,26 @@ ipcMain.handle('vault:watch', async (_e, vaultPath: string) => {
     if (!activeTurnId) activeTurnId = turnId
     const relPath = path.relative(activeVaultPath, filePath)
 
-    let before = fileContentCache.get(filePath)
-    if (!before) {
-      // Cache miss — read from disk (best-effort; may already be post-write content)
-      try {
-        before = await fs.readFile(filePath, 'utf8')
-        console.warn(
-          '[snapshot] watcher cache miss — reading from disk, may be post-write content',
-          { relPath }
-        )
-      } catch {
-        return // file unreadable (binary, deleted, permission) — skip
-      }
+    const before = fileContentCache.get(filePath)
+
+    let after: string
+    try {
+      after = await fs.readFile(filePath, 'utf8')
+    } catch {
+      return // file unreadable (deleted, permission) — skip
+    }
+
+    if (before == null) {
+      console.warn('[snapshot] watcher cache miss — skipping snapshot, seeding cache', {
+        relPath,
+      })
+      fileContentCache.set(filePath, after)
+      return
+    }
+
+    if (before === after) {
+      fileContentCache.set(filePath, after)
+      return
     }
 
     try {
@@ -776,13 +789,7 @@ ipcMain.handle('vault:watch', async (_e, vaultPath: string) => {
     } catch (err) {
       console.error('[snapshot] watcher pre-change snapshot failed', { filePath, turnId, err })
     }
-    // Update cache to the new on-disk content so the next change has a fresh baseline
-    try {
-      const next = await fs.readFile(filePath, 'utf8')
-      fileContentCache.set(filePath, next)
-    } catch {
-      fileContentCache.delete(filePath)
-    }
+    fileContentCache.set(filePath, after)
   }
 
   vaultWatcher
