@@ -42,6 +42,7 @@ import {
 } from './agent/index.js'
 import type { AgentRequest, AgentEvent } from './agent/protocol.js'
 import { importExternal } from './fs-import-external.js'
+import { assertRenameTargetAvailable } from './fs-rename-guard.js'
 import { searchContent } from './search-content.js'
 import { killProcessTree } from './proc-group.js'
 import { resolveConflict } from './conflictResolver.js'
@@ -1279,7 +1280,7 @@ ipcMain.handle('path:rename', async (_e, oldPath: string, newPath: string) => {
   try {
     const safeOld = await assertInVault(oldPath)
     const safeNew = await assertInVault(newPath)
-    if (existsSync(safeNew)) throw new Error('MARVIN_FS_EEXIST')
+    await assertRenameTargetAvailable(safeOld, safeNew)
 
     // Snapshot the source file before moving if AI turn is active
     const aiActive = Date.now() - lastPtyWriteAt < AI_TURN_WINDOW_MS
