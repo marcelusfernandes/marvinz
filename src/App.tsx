@@ -623,6 +623,20 @@ export default function App() {
     return content
   }, [])
 
+  // Navigation reads disk (so lastDiskContentRef stays fresh for external-change
+  // detection) but a pending unsaved buffer for the target wins the returned
+  // content, so navigating to a file never silently discards an in-flight edit.
+  const readForNavigation = useCallback(
+    async (path: string): Promise<string> => {
+      const buffered = bufferContentRef.current.get(path)
+      const fresh = await readFreshContent(path)
+      if (buffered === undefined || buffered === fresh) return fresh
+      bufferContentRef.current.set(path, buffered)
+      return buffered
+    },
+    [readFreshContent]
+  )
+
   const openSnapshotPanel = useCallback(
     async (filePath: string, initialTurnId?: string) => {
       if (!vaultPath) return
@@ -818,7 +832,7 @@ export default function App() {
       if (path === activeTab.path) return
       const noteTab = activeTab
       try {
-        const content = await readFreshContent(path)
+        const content = await readForNavigation(path)
         setTabs((prev) =>
           prev.map((t) =>
             isNoteTab(t) && t.id === noteTab.id
@@ -837,7 +851,7 @@ export default function App() {
         reportError(err)
       }
     },
-    [activeTab, openInTab, readFreshContent]
+    [activeTab, openInTab, readForNavigation]
   )
 
   const goBack = useCallback(async () => {
@@ -845,7 +859,7 @@ export default function App() {
     const noteTab = activeTab
     const target = noteTab.back[noteTab.back.length - 1]
     try {
-      const content = await readFreshContent(target)
+      const content = await readForNavigation(target)
       setTabs((prev) =>
         prev.map((t) =>
           isNoteTab(t) && t.id === noteTab.id
@@ -863,14 +877,14 @@ export default function App() {
     } catch (err) {
       reportError(err)
     }
-  }, [activeTab, readFreshContent])
+  }, [activeTab, readForNavigation])
 
   const goForward = useCallback(async () => {
     if (!activeTab || !isNoteTab(activeTab) || activeTab.forward.length === 0) return
     const noteTab = activeTab
     const target = noteTab.forward[noteTab.forward.length - 1]
     try {
-      const content = await readFreshContent(target)
+      const content = await readForNavigation(target)
       setTabs((prev) =>
         prev.map((t) =>
           isNoteTab(t) && t.id === noteTab.id
@@ -888,7 +902,7 @@ export default function App() {
     } catch (err) {
       reportError(err)
     }
-  }, [activeTab, readFreshContent])
+  }, [activeTab, readForNavigation])
 
   // Writes the live buffer for a path straight to disk, path-keyed so it works
   // for any note tab (active or not — both refs are keyed by path, no mounted
@@ -1089,7 +1103,7 @@ export default function App() {
       ) {
         const noteTab = activeTab
         try {
-          const content = await readFreshContent(path)
+          const content = await readForNavigation(path)
           setTabs((prev) =>
             prev.map((t) =>
               isNoteTab(t) && t.id === noteTab.id
@@ -1115,7 +1129,7 @@ export default function App() {
       }
       await openInTab(path)
     },
-    [activeTab, readFreshContent, openInTab]
+    [activeTab, readForNavigation, openInTab]
   )
 
   // --- Browser tabs ----------------------------------------------------
