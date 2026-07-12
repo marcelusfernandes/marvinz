@@ -241,6 +241,16 @@ vi.mock('./MentionPicker', () => ({ MentionPicker: () => null }))
 
 import { Editor, type EditorHandle } from '../Editor'
 import { undoDepth } from '@codemirror/commands'
+import type { EditorState } from '@codemirror/state'
+
+// `undoDepth` is real-typed to take an `EditorState`, but our mock (above)
+// operates on `FakeCmView` (assigned to `undoDepth` at runtime via the
+// `vi.mock('@codemirror/commands', ...)` override) — this cast only bridges
+// the type gap between the real declaration and the test's fake view; the
+// mock ignores the declared param type entirely at runtime.
+function undoDepthOf(view: FakeCmView): number {
+  return undoDepth(view as unknown as EditorState)
+}
 
 // ---------------------------------------------------------------------------
 // window.marvin mock
@@ -353,7 +363,7 @@ describe('Undo history must not bleed across files on in-tab navigation (issue #
     // Type in A — a real, undo-able edit.
     type('edited content for A')
     expect(lastCmProps?.value).toBe('edited content for A')
-    expect(undoDepth(lastFakeView!)).toBeGreaterThan(0)
+    expect(undoDepthOf(lastFakeView!)).toBeGreaterThan(0)
 
     // Navigate to B: same contract goBack/goForward/navigateInActiveTab/
     // navigateOrOpen use post-#560 — filePath + version + initialContent
@@ -375,7 +385,7 @@ describe('Undo history must not bleed across files on in-tab navigation (issue #
     // Catches a fix that remounts CodeMirror but resets `value` a tick late
     // (post-commit effect): the fresh history could still end up with one
     // stray entry from that lagged reset (undoDepth 1, not 0).
-    expect(undoDepth(lastFakeView!)).toBe(0)
+    expect(undoDepthOf(lastFakeView!)).toBe(0)
 
     // Undo now, while viewing B — must never resurrect A's content, and
     // with a clean history there should be nothing to undo at all.
@@ -406,7 +416,7 @@ describe('Undo history must not bleed across files on in-tab navigation (issue #
       )
     })
     await flush()
-    expect(undoDepth(lastFakeView!)).toBe(0)
+    expect(undoDepthOf(lastFakeView!)).toBe(0)
 
     // Undo more times than A's history ever had — must stay on B throughout,
     // never resurrecting any of A's edits.
@@ -431,7 +441,7 @@ describe('Undo history must not bleed across files on in-tab navigation (issue #
       )
     })
     await flush()
-    expect(undoDepth(lastFakeView!)).toBe(0)
+    expect(undoDepthOf(lastFakeView!)).toBe(0)
 
     for (let i = 0; i < 5; i++) {
       callUndo()
@@ -481,7 +491,7 @@ describe('Undo history must not bleed across files on in-tab navigation (issue #
     })
     await flush()
     expect(lastCmProps?.value).toBe('edit before save')
-    expect(undoDepth(lastFakeView!)).toBeGreaterThan(0)
+    expect(undoDepthOf(lastFakeView!)).toBeGreaterThan(0)
 
     type('edit after save')
     expect(lastCmProps?.value).toBe('edit after save')
@@ -498,7 +508,7 @@ describe('Undo history must not bleed across files on in-tab navigation (issue #
     await flush()
 
     type('edit before rename')
-    const depthBeforeRename = undoDepth(lastFakeView!)
+    const depthBeforeRename = undoDepthOf(lastFakeView!)
     expect(depthBeforeRename).toBeGreaterThan(0)
 
     // Rename contract (#560's renameInTabs): path changes, version and
@@ -517,7 +527,7 @@ describe('Undo history must not bleed across files on in-tab navigation (issue #
     })
     await flush()
 
-    expect(undoDepth(lastFakeView!)).toBe(depthBeforeRename)
+    expect(undoDepthOf(lastFakeView!)).toBe(depthBeforeRename)
     expect(lastCmProps?.value).toBe('edit before rename')
 
     callUndo()
