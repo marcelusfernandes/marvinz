@@ -18,7 +18,12 @@ under E2E + manual QA, no session/process leaks, and the dev-only flag guard is 
 
 ---
 
-## EPIC 1 — Conversational continuity + recovery
+## EPIC 1 — Conversational continuity + recovery ✅ DONE
+
+**Status:** all 6 stories implemented and tested (commits `5d32501`, `01fc898`, `d9dac65`). ~30 new
+unit tests; full chat + editor suites green. Multi-turn continuity, error/crash recovery banner with
+retry, message queue + optimistic cancel, and the session-close leak fix are all live behind
+`CHAT_UI_ENABLED`.
 
 **Epic objective:** turn the chat from a one-shot demo into a real, recoverable conversation. This is
 the blocker: without it, nothing else matters because the user can't ask a second question.
