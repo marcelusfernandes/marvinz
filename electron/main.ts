@@ -1,7 +1,6 @@
 import {
   app,
   BrowserWindow,
-  WebContentsView,
   ipcMain,
   dialog,
   protocol,
@@ -12,43 +11,31 @@ import {
 } from 'electron'
 import path from 'node:path'
 import fs from 'node:fs/promises'
-import { existsSync, statSync } from 'node:fs'
+import { existsSync } from 'node:fs'
 import { spawnSync, type SpawnSyncOptionsWithStringEncoding } from 'node:child_process'
 import chokidar, { type FSWatcher } from 'chokidar'
-import * as pty from 'node-pty'
 import {
   writeSnapshot,
   newTurnId,
   ensureVaultGitignore,
   completeTurn,
   listTurns,
-  listForFile,
-  readSnapshot,
-  restoreSnapshot,
-  captureUserSnapshot,
-  restoreUserSnapshot,
   type SnapshotTrigger,
 } from './snapshot.js'
 import { assertInsideVaultAsync } from './vault-boundary.js'
 import { assertAllowedVault } from './vault-allowlist.js'
 import { isNoisy, relPathIsNoisy } from './noisyPaths.js'
-import { assertPtySpawnAllowed, registerDynamicShell } from './pty-spawn-guard.js'
-import { assertAgentDetectAllowed, registerDetectedAgent } from './agent-detect-guard.js'
-import {
-  spawnAgent,
-  cancelAgent,
-  killAgentSession,
-  handleApproval,
-  killAllAgents,
-} from './agent/index.js'
-import type { AgentRequest, AgentEvent } from './agent/protocol.js'
+import { killAllAgents } from './agent/index.js'
 import { importExternal } from './fs-import-external.js'
-import { assertRenameTargetAvailable } from './fs-rename-guard.js'
 import { debounce } from './debounce.js'
 import { BoundedCache } from './bounded-cache.js'
 import { searchContent } from './search-content.js'
-import { killProcessTree } from './proc-group.js'
 import { resolveConflict } from './conflictResolver.js'
+import { registerPtyHandlers, killAllPty } from './ipc/pty.js'
+import { registerFsHandlers } from './ipc/fs-handlers.js'
+import { registerBrowserHandlers } from './ipc/browser.js'
+import { registerSnapshotHandlers } from './ipc/snapshot-handlers.js'
+import { registerAgentHandlers } from './ipc/agent.js'
 import type { MoveResult } from '../src/types.js'
 
 process.env.APP_ROOT = path.join(__dirname, '..')
@@ -120,7 +107,6 @@ const notifyTree = debounce((): void => {
 // Allowlist of vault paths that were opened via OS dialog (vault:pick) or loaded
 // from the persisted settings file. vault:watch only accepts paths in this set.
 const allowedVaultPaths = new Set<string>()
-const ptyProcesses = new Map<string, pty.IPty>()
 
 // AI turn tracking — a PTY write stamps lastPtyWriteAt; file:write checks recency.
 // 2 s window (PRD: PTY_ACTIVE_THRESHOLD = 2000 ms): if PTY was active within 2 s, treat as AI turn.
@@ -155,6 +141,16 @@ function scheduleTurnEnd(vaultRoot: string, turnId: string) {
     activeTurnId = null
     finalizeTurn(vaultRoot, turnId).catch(() => {})
   }, TURN_END_MS)
+}
+
+// Cancels a pending scheduleTurnEnd timer without finalizing — used by the
+// pty:* handlers (electron/ipc/pty.ts) when the last pty exits and a turn end
+// fires immediately instead of waiting out the timer (#570).
+function cancelScheduledTurnEnd(): void {
+  if (turnEndTimer) {
+    clearTimeout(turnEndTimer)
+    turnEndTimer = null
+  }
 }
 
 // Centralizes the "AI turn active -> adopt/allocate activeTurnId -> snapshot
@@ -238,69 +234,23 @@ async function resetVaultSessionState(): Promise<void> {
 export const FILE_CONTENT_CACHE_MAX_ENTRIES = 100
 const fileContentCache = new BoundedCache<string, string>(FILE_CONTENT_CACHE_MAX_ENTRIES)
 
-// Geometry descriptor: insets from each contentView edge to the browser-host
-// element. Registered by the renderer once and reused by main on every resize.
-type BrowserGeometry = {
-  leftInset: number
-  topInset: number
-  rightInset: number
-  bottomInset: number
-}
-
-type BrowserEntry = {
-  view: WebContentsView
-  /** Last known bounds set from the renderer; fallback when no geometry registered. */
-  lastBounds: { x: number; y: number; width: number; height: number }
-  /** Geometry descriptor for synchronous main-side resize recompute. */
-  geometry: BrowserGeometry | null
-  /** Whether this view is currently the active browser tab. */
-  active: boolean
-  /** When true, all browsers are temporarily hidden (e.g. a React modal is open). */
-  globallyHidden: boolean
-}
-const browserViews = new Map<string, BrowserEntry>()
-let browsersGloballyHidden = false
-
-const HIDDEN_BOUNDS = { x: 0, y: 0, width: 0, height: 0 }
-
-function boundsFromGeometry(
-  geometry: BrowserGeometry,
-  contentWidth: number,
-  contentHeight: number
-): { x: number; y: number; width: number; height: number } {
-  return {
-    x: geometry.leftInset,
-    y: geometry.topInset,
-    width: Math.max(0, contentWidth - geometry.leftInset - geometry.rightInset),
-    height: Math.max(0, contentHeight - geometry.topInset - geometry.bottomInset),
+// Renderer-safe send for browser-tab events — a closed-but-non-null window
+// throws "Object has been destroyed" on send. Stays here (not moved into
+// electron/ipc/browser.ts with the browser handlers it also serves) because
+// electron/ipc/pty.ts's ctx also uses it as sendToRenderer (#570); threaded
+// into both via ctx.
+function safeBrowserSend(channel: string, payload: unknown) {
+  try {
+    if (win && !win.isDestroyed()) win.webContents.send(channel, payload)
+  } catch {
+    // renderer being torn down — ignore
   }
 }
 
-function applyBounds(entry: BrowserEntry) {
-  if (!entry.active || entry.globallyHidden) {
-    entry.view.setBounds(HIDDEN_BOUNDS)
-    return
-  }
-  entry.view.setBounds(entry.lastBounds)
-}
-
-// Recompute bounds from stored geometry descriptors using current window size.
-// Called synchronously on every resize event to avoid an IPC round-trip.
-// Uses getContentBounds() — same coordinate space as getBoundingClientRect() in
-// the renderer and as WebContentsView.setBounds() (content area, excludes frame).
-function reapplyAllWithGeometry() {
-  if (!win || win.isDestroyed()) return
-  const { width: contentWidth, height: contentHeight } = win.getContentBounds()
-  for (const entry of browserViews.values()) {
-    if (!entry.geometry) {
-      applyBounds(entry)
-      continue
-    }
-    const newBounds = boundsFromGeometry(entry.geometry, contentWidth, contentHeight)
-    entry.lastBounds = newBounds
-    applyBounds(entry)
-  }
-}
+const { reapplyAllWithGeometry } = registerBrowserHandlers({
+  getWin: () => win,
+  sendToRenderer: safeBrowserSend,
+})
 
 const SETTINGS_FILE = () => path.join(app.getPath('userData'), 'settings.json')
 
@@ -536,7 +486,7 @@ let menuHasNoteTab = false
 function buildAppMenu() {
   if (process.platform !== 'darwin') return
   // `?.` only guards null; a closed-but-non-null window throws "Object has been
-  // destroyed" on send — mirror the safeSend/safeBrowserSend idiom.
+  // destroyed" on send — mirror the safeBrowserSend idiom.
   const send = (action: string) => {
     if (win && !win.isDestroyed()) win.webContents.send('menu:action', action)
   }
@@ -626,8 +576,7 @@ app.whenReady().then(() => {
 // off and orphaning children.
 const pendingTeardowns = new Set<Promise<unknown>>()
 function teardownChildren(): Promise<void> {
-  for (const p of ptyProcesses.values()) killProcessTree(p.pid, 'SIGKILL')
-  ptyProcesses.clear()
+  killAllPty()
   vaultWatcher?.close()
   notifyTree.cancel()
   // Waits for any in-flight fire-and-forget link rewrite (#566) too — mitigates
@@ -906,12 +855,13 @@ ipcMain.handle('vault:watch', async (_e, vaultPath: string) => {
   return resolvedVault
 })
 
-const FILE_SIZE_LIMIT = 5 * 1024 * 1024 // 5 MB — guard against pathologically large files
-const BINARY_PROBE_BYTES = 8192 // any null byte in the first 8 KB → treat as binary
-
 // Re-throw fs errors as MARVIN_FS_<CODE> so raw host paths never reach the
 // renderer (e.g. "EACCES: ... '/Users/lipe/vault/foo.md'"). Our own MARVIN_*/
 // SNAPSHOT_* codes pass through untouched. Mirrors the snapshot err() envelope.
+//
+// Stays here (not moved into fs-handlers.ts with the handlers that use it)
+// because file:writeBinary, folder:create, and file:move-batch — all
+// out of scope for #574 — also call it; threaded into fs-handlers.ts via ctx.
 export function wrapFsError(e: unknown): never {
   const msg = e instanceof Error ? e.message : ''
   if (/^(MARVIN|SNAPSHOT)_[A-Z_]+/.test(msg)) throw e
@@ -919,164 +869,16 @@ export function wrapFsError(e: unknown): never {
   throw new Error(code ? `MARVIN_FS_${code}` : 'MARVIN_FS_UNKNOWN')
 }
 
-ipcMain.handle('file:read', async (_e, filePath: string) => {
-  try {
-    const safe = await assertInVault(filePath)
-    const stats = await fs.stat(safe)
-    if (stats.isDirectory()) throw new Error('MARVIN_IS_DIRECTORY')
-    if (stats.size > FILE_SIZE_LIMIT) {
-      throw new Error(`MARVIN_TOO_LARGE: ${stats.size}`)
-    }
-    // Sniff the head for null bytes — the standard binary heuristic. Most
-    // text formats (utf-8) don't contain literal NUL; most binary files do.
-    if (stats.size > 0) {
-      const fd = await fs.open(safe, 'r')
-      try {
-        const probeLen = Math.min(BINARY_PROBE_BYTES, stats.size)
-        const probe = Buffer.alloc(probeLen)
-        await fd.read(probe, 0, probeLen, 0)
-        if (probe.includes(0)) {
-          throw new Error('MARVIN_BINARY')
-        }
-      } finally {
-        await fd.close()
-      }
-    }
-    const content = await fs.readFile(safe, 'utf8')
-    fileContentCache.set(safe, content)
-    return content
-  } catch (e) {
-    wrapFsError(e)
-  }
-})
-
-ipcMain.handle('file:write', async (_e, filePath: string, content: string) => {
-  try {
-    const safe = await assertInVault(filePath)
-    // Set by the readBefore resolver below when the write is a no-op (content
-    // identical to disk) — a Promise<void> helper can't itself distinguish
-    // "no AI turn active" (write must proceed) from "no-op during an AI turn"
-    // (write must be skipped), so the resolver signals it via this flag.
-    let isNoop = false
-    await snapshotBeforeMutation(
-      safe,
-      'file:write',
-      () => existsSync(safe),
-      async () => {
-        const before = await fs.readFile(safe, 'utf8')
-        // No-op write (content identical to disk): skip both the snapshot
-        // and the redundant disk write — nothing actually changed, so
-        // snapshotting it would create an empty-seeming turn that still
-        // fires the "Claude modified" toast (#535). Skipping the write itself
-        // isn't just an optimization: an identical-content fs.writeFile still
-        // bumps mtime, which would trigger chokidar's `change` event and let
-        // the same spurious toast resurface via snapshotExternalChange (that
-        // path has no content-equality guard until #536).
-        if (before === content) {
-          isNoop = true
-          return null
-        }
-        return before
-      }
-    )
-    if (isNoop) return
-    await fs.writeFile(safe, content, 'utf8')
-  } catch (e) {
-    wrapFsError(e)
-  }
-})
-
-ipcMain.handle('office:readDocx', async (_e, filePath: string) => {
-  const mammoth = await import('mammoth')
-  const safe = await assertInVault(filePath)
-  const stats = await fs.stat(safe)
-  if (stats.size > 25 * 1024 * 1024) throw new Error(`MARVIN_TOO_LARGE: ${stats.size}`)
-  const buf = await fs.readFile(safe)
-  const result = await mammoth.convertToHtml({ buffer: buf })
-  return { html: result.value, messages: result.messages }
-})
-
-ipcMain.handle('office:writeDocx', async (_e, filePath: string, plainText: string) => {
-  if (plainText.length > 10 * 1024 * 1024) throw new Error('MARVIN_TOO_LARGE')
-  const { Document, Paragraph, TextRun, Packer } = await import('docx')
-  const safe = await assertInVault(filePath)
-  const paragraphs = plainText
-    .split(/\n\n+/)
-    .map((text) => new Paragraph({ children: [new TextRun(text)] }))
-  const doc = new Document({ sections: [{ children: paragraphs }] })
-  const buf = await Packer.toBuffer(doc)
-  await fs.writeFile(safe, buf)
-})
-
-ipcMain.handle('office:readXlsx', async (_e, filePath: string, sheetName?: string) => {
-  const XLSX = await import('xlsx')
-  const safe = await assertInVault(filePath)
-  const stats = await fs.stat(safe)
-  if (stats.size > 25 * 1024 * 1024) throw new Error(`MARVIN_TOO_LARGE: ${stats.size}`)
-  const buf = await fs.readFile(safe)
-  // cellFormula/cellHTML disabled to reduce parser attack surface (SheetJS CVEs)
-  const wb = XLSX.read(buf, { type: 'buffer', cellFormula: false, cellHTML: false })
-  const sheetNames = wb.SheetNames
-  const targetSheet = sheetName && sheetNames.includes(sheetName) ? sheetName : sheetNames[0]
-  const sheet = wb.Sheets[targetSheet]
-  const raw = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1 })
-  const rows = raw.map((r) => (r as unknown[]).map((c) => (c == null ? '' : String(c))))
-  return { rows, sheetNames }
-})
-
-// eslint-disable-next-line no-useless-escape -- \[ inside [] avoids parser ambiguity
-const XLSX_SHEET_NAME_RE = /[\[\]:*?/\\]/
-
-ipcMain.handle(
-  'office:writeXlsx',
-  async (_e, filePath: string, rows: unknown, sheetName: unknown) => {
-    if (
-      !Array.isArray(rows) ||
-      !rows.every(
-        (r) =>
-          Array.isArray(r) &&
-          r.every((c) => typeof c === 'string' || typeof c === 'number' || c == null)
-      )
-    ) {
-      throw new Error('MARVIN_INVALID_ROWS')
-    }
-    if (
-      typeof sheetName !== 'string' ||
-      sheetName.length === 0 ||
-      sheetName.length > 31 ||
-      XLSX_SHEET_NAME_RE.test(sheetName)
-    ) {
-      throw new Error('MARVIN_INVALID_SHEET_NAME')
-    }
-    let totalCells = 0
-    for (const r of rows as unknown[][]) {
-      totalCells += r.length
-      if (totalCells > 1_000_000) throw new Error('MARVIN_TOO_LARGE')
-    }
-    const XLSX = await import('xlsx')
-    const safe = await assertInVault(filePath)
-    const ws = XLSX.utils.aoa_to_sheet(rows as string[][])
-    const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, sheetName)
-    const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }) as Buffer
-    await fs.writeFile(safe, buf)
-  }
-)
-
-ipcMain.handle('file:create', async (_e, parentDir: string, name: string) => {
-  try {
-    const safeName = name.endsWith('.md') ? name : `${name}.md`
-    const full = path.join(parentDir, safeName)
-    const safe = await assertInVault(full)
-    // Pre-check stays: fs.writeFile would silently overwrite an existing file.
-    if (existsSync(safe)) throw new Error('MARVIN_FS_EEXIST')
-    await fs.mkdir(path.dirname(safe), { recursive: true })
-    await fs.writeFile(safe, '', 'utf8')
-    notifyTree()
-    return safe
-  } catch (e) {
-    wrapFsError(e)
-  }
+registerFsHandlers({
+  getActiveVaultPath: () => activeVaultPath,
+  assertInVault,
+  wrapFsError,
+  snapshotBeforeMutation,
+  enqueueLinkRewrite,
+  notifyTree,
+  setFileCacheEntry: (key, value) => {
+    fileContentCache.set(key, value)
+  },
 })
 
 ipcMain.handle(
@@ -1119,15 +921,6 @@ ipcMain.handle('folder:create', async (_e, parentDir: string, name: string) => {
   } catch (e) {
     wrapFsError(e)
   }
-})
-
-ipcMain.handle('file:copy', async (_e, srcPath: string, destDir: string): Promise<string> => {
-  const safeSrc = await assertInVault(srcPath)
-  const safeDir = await assertInVault(destDir)
-  const destPath = await resolveConflict(safeDir, path.basename(safeSrc), 'copy')
-  await fs.cp(safeSrc, destPath, { recursive: true, errorOnExist: false })
-  notifyTree()
-  return destPath
 })
 
 ipcMain.handle(
@@ -1368,110 +1161,6 @@ function rewriteWikilinksOneFile(
   })
 }
 
-ipcMain.handle('path:rename', async (_e, oldPath: string, newPath: string) => {
-  try {
-    const safeOld = await assertInVault(oldPath)
-    const safeNew = await assertInVault(newPath)
-    await assertRenameTargetAvailable(safeOld, safeNew)
-
-    // Snapshot the source file before moving if AI turn is active.
-    // Trigger is 'file:write', not a distinct 'path:rename' value — a
-    // pre-existing mislabel (#569), preserved deliberately here since fixing
-    // it changes on-disk manifest data and is a separate, deliberate decision
-    // out of scope for this refactor.
-    await snapshotBeforeMutation(
-      safeOld,
-      'file:write',
-      () => existsSync(safeOld),
-      () => fs.readFile(safeOld, 'utf8')
-    )
-
-    await fs.mkdir(path.dirname(safeNew), { recursive: true })
-    await fs.rename(safeOld, safeNew)
-    notifyTree()
-    if (activeVaultPath) {
-      // Fire-and-forget: the full-vault link-rewrite walk is O(vault size),
-      // so it must not hold up this handler's response — rename latency
-      // would otherwise scale with vault size instead of the renamed file
-      // (#566). Still serialized via enqueueLinkRewrite, so it can't race a
-      // concurrent file:move-batch/path:rename rewrite over the same files.
-      // Accepted trade-off: if the app crashes or is force-quit while this is
-      // in flight, some referencing files may be rewritten and others not,
-      // with no record beyond the console.error below — the same best-effort
-      // characteristic rewriteLinksAfterMoveBatch already has via file:move-batch's
-      // internal Promise.all. A graceful quit still waits for it (teardownChildren).
-      enqueueLinkRewrite(activeVaultPath, [{ src: safeOld, dest: safeNew }]).catch((err) => {
-        console.error('[rewriteLinksAfterMove] failed', err)
-      })
-    }
-    return safeNew
-  } catch (e) {
-    wrapFsError(e)
-  }
-})
-
-ipcMain.handle('path:trash', async (_e, target: string) => {
-  try {
-    const safe = await assertInVault(target)
-    await shell.trashItem(safe)
-    notifyTree()
-  } catch (e) {
-    wrapFsError(e)
-  }
-})
-
-ipcMain.handle('file:exportPdf', async (_e, filePath: string) => {
-  try {
-    const content = await fs.readFile(filePath, 'utf-8')
-    const dir = path.dirname(filePath)
-
-    const { marked } = await import('marked')
-    const bodyHtml = await marked(content)
-
-    const html = `<!DOCTYPE html>
-<html><head>
-<meta charset="utf-8">
-<style>
-  body { font-family: system-ui, -apple-system, sans-serif; max-width: 800px; margin: 0 auto; padding: 2rem; line-height: 1.6; color: #1a1a1a; }
-  h1, h2, h3, h4, h5, h6 { margin-top: 1.5em; }
-  img { max-width: 100%; height: auto; }
-  pre { background: #f5f5f5; padding: 1rem; border-radius: 4px; overflow-x: auto; }
-  code { font-family: monospace; font-size: 0.9em; }
-  table { border-collapse: collapse; width: 100%; }
-  th, td { border: 1px solid #ddd; padding: 0.5rem; }
-  blockquote { border-left: 4px solid #ddd; margin: 0; padding-left: 1rem; color: #555; }
-</style>
-</head><body>${bodyHtml}</body></html>`
-
-    const tmpPath = path.join(dir, `._marvinz_export_${Date.now()}.html`)
-    await fs.writeFile(tmpPath, html, 'utf-8')
-
-    const exportWin = new BrowserWindow({
-      show: false,
-      webPreferences: { nodeIntegration: false, contextIsolation: true },
-    })
-
-    try {
-      await exportWin.loadFile(tmpPath)
-
-      const { canceled, filePath: savePath } = await dialog.showSaveDialog({
-        defaultPath: filePath.replace(/\.md$/, '.pdf'),
-        filters: [{ name: 'PDF', extensions: ['pdf'] }],
-      })
-
-      if (!canceled && savePath) {
-        const pdfBuffer = await exportWin.webContents.printToPDF({ printBackground: true })
-        await fs.writeFile(savePath, Buffer.from(pdfBuffer))
-      }
-    } finally {
-      exportWin.destroy()
-      await fs.unlink(tmpPath).catch(() => {})
-    }
-  } catch (e) {
-    wrapFsError(e)
-  }
-})
-
 ipcMain.handle('fs:importExternal', async (_e, sources: string[], destDir: string) => {
   if (!activeVaultPath) throw new Error('MARVIN_OUTSIDE_VAULT')
   const result = await importExternal(activeVaultPath, sources, destDir)
@@ -1581,389 +1270,21 @@ ipcMain.handle('editor:clipboard-read-rich', (): { html: string; text: string } 
 
 ipcMain.handle('editor:spellcheck-context', () => lastSpellcheck)
 
-function detectBinary(name: string): string | null {
-  // Defensive: only allow simple binary names — no path traversal or shell.
-  if (!/^[a-zA-Z0-9_-]+$/.test(name)) return null
-  const env = getShellEnv()
-  const pathDirs = (env.PATH || '').split(':').filter(Boolean)
-  const fallback = [path.join(env.HOME || '', '.local/bin'), '/usr/local/bin', '/opt/homebrew/bin']
-  for (const dir of [...pathDirs, ...fallback]) {
-    const candidate = path.join(dir, name)
-    try {
-      const st = statSync(candidate)
-      if (st.isFile() || st.isSymbolicLink()) return candidate
-    } catch {
-      // ignore
-    }
-  }
-  return null
-}
-
-ipcMain.handle('agent:detect', async (_e, name: string) => {
-  assertAgentDetectAllowed(name)
-  const detected = detectBinary(name)
-  if (detected) {
-    registerDetectedAgent(detected)
-    // Also register on the pty allowlist so users can open the agent in the
-    // legacy xterm terminal via pty:spawn (the chat panel uses child_process.spawn,
-    // but the terminal panel uses pty.spawn and needs the binary allowlisted).
-    registerDynamicShell(detected)
-  }
-  return detected
+registerPtyHandlers({
+  getActiveVaultPath: () => activeVaultPath,
+  getShellEnv,
+  getActiveTurnId: () => activeTurnId,
+  setActiveTurnId: (id) => {
+    activeTurnId = id
+  },
+  setLastPtyWriteAt: (timestamp) => {
+    lastPtyWriteAt = timestamp
+  },
+  scheduleTurnEnd,
+  cancelScheduledTurnEnd,
+  finalizeTurn,
+  sendToRenderer: safeBrowserSend,
 })
-
-// Back-compat shim for the previous renderer API.
-ipcMain.handle('claude:detect', async () => {
-  const detected = detectBinary('claude')
-  if (detected) registerDynamicShell(detected)
-  return detected
-})
-
-ipcMain.handle(
-  'pty:spawn',
-  async (
-    _e,
-    opts: { id: string; shell: string; cwd: string; cols: number; rows: number; args?: string[] }
-  ) => {
-    if (!activeVaultPath) throw new Error('MARVIN_OUTSIDE_VAULT')
-    const { shell: resolvedShell, cwd: safeCwd } = await assertPtySpawnAllowed(
-      activeVaultPath,
-      opts
-    )
-
-    const existing = ptyProcesses.get(opts.id)
-    if (existing) existing.kill()
-
-    const shellEnv = getShellEnv()
-    const env: Record<string, string> = {}
-    for (const [k, v] of Object.entries(shellEnv)) {
-      if (v != null) env[k] = v
-    }
-    delete env.ELECTRON_RUN_AS_NODE
-    env.TERM = 'xterm-256color'
-    env.COLORTERM = 'truecolor'
-    env.FORCE_COLOR = '1'
-
-    const cols = Math.max(opts.cols || 80, 20)
-    const rows = Math.max(opts.rows || 24, 5)
-
-    try {
-      const ptyProcess = pty.spawn(resolvedShell, opts.args ?? [], {
-        name: 'xterm-256color',
-        cols,
-        rows,
-        cwd: safeCwd,
-        env,
-      })
-      ptyProcesses.set(opts.id, ptyProcess)
-
-      const safeSend = (channel: string, payload: unknown) => {
-        try {
-          if (win && !win.isDestroyed()) {
-            win.webContents.send(channel, payload)
-          }
-        } catch {
-          // renderer being torn down (HMR) — ignore
-        }
-      }
-      ptyProcess.onData((data) => {
-        // Stamp AI turn activity on every data chunk — Claude streams output
-        // continuously, so the 2s window stays open while it's responding.
-        lastPtyWriteAt = Date.now()
-        if (!activeTurnId) activeTurnId = newTurnId()
-        if (activeVaultPath) scheduleTurnEnd(activeVaultPath, activeTurnId)
-        safeSend(`pty:data:${opts.id}`, data)
-      })
-      ptyProcess.onExit(({ exitCode }) => {
-        safeSend(`pty:exit:${opts.id}`, exitCode)
-        ptyProcesses.delete(opts.id)
-        // When last PTY exits, fire turn-end immediately rather than waiting the timer
-        if (ptyProcesses.size === 0 && activeTurnId && activeVaultPath) {
-          if (turnEndTimer) {
-            clearTimeout(turnEndTimer)
-            turnEndTimer = null
-          }
-          const tid = activeTurnId
-          activeTurnId = null
-          finalizeTurn(activeVaultPath, tid).catch(() => {})
-        } else if (ptyProcesses.size === 0) {
-          activeTurnId = null
-        }
-      })
-      return { pid: ptyProcess.pid }
-    } catch (err) {
-      const code = err instanceof Error ? err.message : String(err)
-      if (/^(MARVIN|SNAPSHOT)_[A-Z_]+$/.test(code)) throw err
-      console.error('[pty:spawn] spawn failed', { id: opts.id, shell: opts.shell, err })
-      throw new Error('MARVIN_PTY_SPAWN_FAILED', { cause: err })
-    }
-  }
-)
-
-ipcMain.handle('pty:write', (_e, id: string, data: string) => {
-  lastPtyWriteAt = Date.now()
-  if (!activeTurnId) activeTurnId = newTurnId()
-  if (activeVaultPath) scheduleTurnEnd(activeVaultPath, activeTurnId)
-  ptyProcesses.get(id)?.write(data)
-})
-
-ipcMain.handle('pty:resize', (_e, id: string, cols: number, rows: number) => {
-  ptyProcesses.get(id)?.resize(cols, rows)
-})
-
-ipcMain.handle('pty:kill', (_e, id: string) => {
-  ptyProcesses.get(id)?.kill()
-  ptyProcesses.delete(id)
-})
-
-// --- In-app browser (WebContentsView) -----------------------------------
-
-function safeBrowserSend(channel: string, payload: unknown) {
-  try {
-    if (win && !win.isDestroyed()) win.webContents.send(channel, payload)
-  } catch {
-    // renderer being torn down — ignore
-  }
-}
-
-type BrowserBounds = { x: number; y: number; width: number; height: number }
-
-ipcMain.handle(
-  'browser:create',
-  async (_e, opts: { id: string; url: string; bounds: BrowserBounds }) => {
-    if (!win) throw new Error('No window available')
-    // Idempotent: if a view with this id already exists (e.g. HMR remount of
-    // the React component), return its current state instead of recreating.
-    const existing = browserViews.get(opts.id)
-    if (existing) {
-      existing.lastBounds = opts.bounds
-      applyBounds(existing)
-      const wc = existing.view.webContents
-      return {
-        url: wc.getURL(),
-        title: wc.getTitle(),
-        canBack: wc.navigationHistory.canGoBack(),
-        canForward: wc.navigationHistory.canGoForward(),
-      }
-    }
-
-    const view = new WebContentsView({
-      webPreferences: {
-        sandbox: true,
-        contextIsolation: true,
-        nodeIntegration: false,
-        // No preload — the embedded page must not see Marvin's API.
-      },
-    })
-    view.setBackgroundColor('#1e1e1e')
-
-    const entry: BrowserEntry = {
-      view,
-      lastBounds: opts.bounds,
-      geometry: null,
-      active: true,
-      globallyHidden: browsersGloballyHidden,
-    }
-    browserViews.set(opts.id, entry)
-
-    win.contentView.addChildView(view)
-    applyBounds(entry)
-
-    const { webContents } = view
-
-    webContents.setWindowOpenHandler(({ url }) => {
-      shell.openExternal(url)
-      return { action: 'deny' }
-    })
-
-    // Block file:// navigations to avoid local file disclosure inside the
-    // sandboxed browser. Allow http(s)/about:blank.
-    webContents.on('will-navigate', (event, url) => {
-      try {
-        const u = new URL(url)
-        if (u.protocol !== 'http:' && u.protocol !== 'https:' && u.protocol !== 'about:') {
-          event.preventDefault()
-        }
-      } catch {
-        event.preventDefault()
-      }
-    })
-
-    const sendNavState = () => {
-      safeBrowserSend('browser:event', {
-        id: opts.id,
-        kind: 'nav-state',
-        canBack: webContents.navigationHistory.canGoBack(),
-        canForward: webContents.navigationHistory.canGoForward(),
-      })
-    }
-
-    webContents.on('page-title-updated', (_evt, title) => {
-      safeBrowserSend('browser:event', { id: opts.id, kind: 'title', title })
-    })
-    webContents.on('did-navigate', (_evt, url) => {
-      safeBrowserSend('browser:event', { id: opts.id, kind: 'url', url })
-      sendNavState()
-    })
-    webContents.on('did-navigate-in-page', (_evt, url) => {
-      safeBrowserSend('browser:event', { id: opts.id, kind: 'url', url })
-      sendNavState()
-    })
-    webContents.on('did-start-loading', () => {
-      safeBrowserSend('browser:event', { id: opts.id, kind: 'loading', loading: true })
-    })
-    webContents.on('did-stop-loading', () => {
-      safeBrowserSend('browser:event', { id: opts.id, kind: 'loading', loading: false })
-      sendNavState()
-    })
-    webContents.on('did-fail-load', (_evt, errorCode, errorDesc, validatedURL) => {
-      // Sub-frame failures emit too; only surface main-frame failures.
-      if (_evt && (_evt as unknown as { isMainFrame?: boolean }).isMainFrame === false) return
-      safeBrowserSend('browser:event', {
-        id: opts.id,
-        kind: 'load-error',
-        url: validatedURL,
-        message: `${errorDesc} (${errorCode})`,
-      })
-    })
-
-    try {
-      await webContents.loadURL(opts.url)
-    } catch {
-      // The error event already fired; swallow the rejection so create still
-      // resolves and the renderer can show the URL bar with the broken URL.
-    }
-
-    return {
-      url: webContents.getURL(),
-      title: webContents.getTitle(),
-      canBack: webContents.navigationHistory.canGoBack(),
-      canForward: webContents.navigationHistory.canGoForward(),
-    }
-  }
-)
-
-ipcMain.handle('browser:navigate', async (_e, id: string, url: string) => {
-  const entry = browserViews.get(id)
-  if (!entry) return
-  try {
-    await entry.view.webContents.loadURL(url)
-  } catch {
-    // surfaced via did-fail-load
-  }
-})
-
-ipcMain.handle('browser:back', (_e, id: string) => {
-  const entry = browserViews.get(id)
-  if (entry?.view.webContents.navigationHistory.canGoBack()) {
-    entry.view.webContents.navigationHistory.goBack()
-  }
-})
-
-ipcMain.handle('browser:forward', (_e, id: string) => {
-  const entry = browserViews.get(id)
-  if (entry?.view.webContents.navigationHistory.canGoForward()) {
-    entry.view.webContents.navigationHistory.goForward()
-  }
-})
-
-ipcMain.handle('browser:reload', (_e, id: string) => {
-  browserViews.get(id)?.view.webContents.reload()
-})
-
-ipcMain.handle('browser:stop', (_e, id: string) => {
-  browserViews.get(id)?.view.webContents.stop()
-})
-
-ipcMain.handle('browser:setBounds', (_e, id: string, bounds: BrowserBounds) => {
-  const entry = browserViews.get(id)
-  if (!entry) return
-  entry.lastBounds = bounds
-  applyBounds(entry)
-})
-
-// Geometry descriptor path: renderer registers insets from window edges once
-// (and on panel layout changes). Main recomputes absolute bounds synchronously
-// on every win.on('resize') without a renderer round-trip — eliminates the
-// "wait then snap" on macOS maximize/restore.
-ipcMain.handle(
-  'browser:setGeometry',
-  (
-    _e,
-    id: string,
-    geometry: { leftInset: number; topInset: number; rightInset: number; bottomInset: number }
-  ) => {
-    const entry = browserViews.get(id)
-    if (!entry || !win || win.isDestroyed()) return
-    entry.geometry = geometry
-    const { width: contentWidth, height: contentHeight } = win.getContentBounds()
-    const newBounds = boundsFromGeometry(geometry, contentWidth, contentHeight)
-    entry.lastBounds = newBounds
-    applyBounds(entry)
-  }
-)
-
-ipcMain.handle('browser:setActive', (_e, activeId: string | null) => {
-  for (const [id, entry] of browserViews.entries()) {
-    entry.active = id === activeId
-    applyBounds(entry)
-  }
-})
-
-ipcMain.handle('browser:setAllHidden', (_e, hidden: boolean) => {
-  browsersGloballyHidden = hidden
-  for (const entry of browserViews.values()) {
-    entry.globallyHidden = hidden
-    applyBounds(entry)
-  }
-})
-
-ipcMain.handle('browser:close', (_e, id: string) => {
-  const entry = browserViews.get(id)
-  if (!entry) return
-  try {
-    win?.contentView.removeChildView(entry.view)
-  } catch {
-    // ignore
-  }
-  // Close the underlying webContents to release Chromium resources.
-  // Newer Electron exposes destroy() via close(); fall back to setting
-  // bounds to zero and dropping references.
-  try {
-    ;(entry.view.webContents as unknown as { close?: () => void }).close?.()
-  } catch {
-    // ignore
-  }
-  browserViews.delete(id)
-})
-
-// --- Snapshot IPC handlers ---------------------------------------------------
-
-// PRD format: <ISO-8601-compact>Z-<12-char-hex-salt>  e.g. 20250521T120345Z-abc123def456
-const TURN_ID_RE = /^\d{8}T\d{6}Z-[0-9a-f]{12}$/i
-
-function validateTurnId(turnId: unknown): string {
-  if (typeof turnId !== 'string' || !TURN_ID_RE.test(turnId)) {
-    throw new Error('SNAPSHOT_INVALID_TURN_ID')
-  }
-  return turnId
-}
-
-const MARVIN_DIR_PREFIX = '.marvin'
-
-function validateRelPath(relPath: unknown): string {
-  if (typeof relPath !== 'string' || !relPath) throw new Error('SNAPSHOT_INVALID_REL_PATH')
-  if (relPath.includes('\0')) throw new Error('SNAPSHOT_INVALID_REL_PATH') // L4: null byte
-  const normalized = path.normalize(relPath)
-  if (normalized.startsWith('..') || path.isAbsolute(normalized)) {
-    throw new Error('SNAPSHOT_INVALID_REL_PATH')
-  }
-  // L5: block access to .marvin/ internals via IPC
-  if (normalized === MARVIN_DIR_PREFIX || normalized.startsWith(MARVIN_DIR_PREFIX + path.sep)) {
-    throw new Error('SNAPSHOT_INVALID_REL_PATH')
-  }
-  return normalized
-}
 
 async function assertInVault(filePath: string): Promise<string> {
   if (!activeVaultPath) throw new Error('MARVIN_NO_VAULT')
@@ -1972,260 +1293,20 @@ async function assertInVault(filePath: string): Promise<string> {
   return assertInsideVaultAsync(activeVaultPath, filePath)
 }
 
-function requireVault(): string {
-  if (!activeVaultPath) throw new Error('SNAPSHOT_NO_VAULT')
-  return activeVaultPath
-}
-
-type SnapshotEnvelope<T> = { ok: true; data: T } | { ok: false; error: string }
-
-function ok<T>(data: T): SnapshotEnvelope<T> {
-  return { ok: true, data }
-}
-
-// M9: never leak absolute host paths or fs error details to the renderer.
-// Whitelist our own error codes; map fs errors to SNAPSHOT_FS_<CODE>;
-// everything else becomes SNAPSHOT_INTERNAL_ERROR.
-const KNOWN_CODE_RE = /^(MARVIN|SNAPSHOT)_[A-Z_]+$/
-function err(e: unknown): SnapshotEnvelope<never> {
-  const message = e instanceof Error ? e.message : ''
-  if (KNOWN_CODE_RE.test(message)) return { ok: false, error: message }
-  const fsCode = (e as NodeJS.ErrnoException)?.code
-  return { ok: false, error: fsCode ? `SNAPSHOT_FS_${fsCode}` : 'SNAPSHOT_INTERNAL_ERROR' }
-}
-
-ipcMain.handle('snapshot:listTurns', async () => {
-  try {
-    const vault = requireVault()
-    const turns = await listTurns(vault)
-    return ok(turns)
-  } catch (e) {
-    return err(e)
-  }
+registerSnapshotHandlers({
+  getActiveVaultPath: () => activeVaultPath,
+  assertInVault,
+  getActiveTurnId: () => activeTurnId,
+  setActiveTurnId: (id) => {
+    activeTurnId = id
+  },
+  deleteFileCacheEntry: (key) => {
+    fileContentCache.delete(key)
+  },
+  notifyTree,
 })
 
-ipcMain.handle('snapshot:listForFile', async (_e, relPath: unknown) => {
-  try {
-    const vault = requireVault()
-    const rel = validateRelPath(relPath)
-    const turns = await listForFile(vault, rel)
-    return ok(turns)
-  } catch (e) {
-    return err(e)
-  }
-})
-
-ipcMain.handle('snapshot:read', async (_e, turnId: unknown, relPath: unknown) => {
-  try {
-    const vault = requireVault()
-    const tid = validateTurnId(turnId)
-    const rel = validateRelPath(relPath)
-    const content = await readSnapshot(vault, tid, rel)
-    return ok(content)
-  } catch (e) {
-    return err(e)
-  }
-})
-
-ipcMain.handle('snapshot:restore', async (_e, turnId: unknown, relPath: unknown) => {
-  try {
-    const vault = requireVault()
-    const tid = validateTurnId(turnId)
-    const rel = validateRelPath(relPath)
-    const preTurnId = await restoreSnapshot(vault, tid, rel)
-    // Invalidate cache so the next file:read picks up the restored content
-    const absPath = path.join(vault, rel)
-    fileContentCache.delete(absPath)
-    notifyTree()
-    return ok({ preTurnId })
-  } catch (e) {
-    return err(e)
-  }
-})
-
-const BUFFER_SAVE_MAX_BYTES = 50 * 1024 * 1024 // 50 MB hard cap
-
-ipcMain.handle('snapshot:saveBuffer', async (_e, relPath: unknown, content: unknown) => {
-  try {
-    if (typeof content !== 'string') throw new Error('SNAPSHOT_INVALID_CONTENT')
-    if (Buffer.byteLength(content, 'utf8') > BUFFER_SAVE_MAX_BYTES)
-      throw new Error('SNAPSHOT_BUFFER_TOO_LARGE')
-    const vault = requireVault()
-    const rel = validateRelPath(relPath)
-    const turnId = activeTurnId ?? newTurnId()
-    if (!activeTurnId) activeTurnId = turnId
-    const saved = await writeSnapshot(vault, turnId, rel, content, 'buffer-save')
-    return ok({ turnId, saved })
-  } catch (e) {
-    return err(e)
-  }
-})
-
-ipcMain.handle('snapshot:saveExternalChange', async (_e, relPath: unknown, content: unknown) => {
-  try {
-    const vault = requireVault()
-    const rel = validateRelPath(relPath)
-    if (typeof content !== 'string') throw new Error('SNAPSHOT_INVALID_CONTENT')
-    if (Buffer.byteLength(content, 'utf8') > BUFFER_SAVE_MAX_BYTES) {
-      throw new Error('SNAPSHOT_BUFFER_TOO_LARGE')
-    }
-    const turnId = activeTurnId ?? newTurnId()
-    if (!activeTurnId) activeTurnId = turnId
-    const saved = await writeSnapshot(vault, turnId, rel, content, 'external-rejected')
-    return ok({ turnId, saved })
-  } catch (e) {
-    return err(e)
-  }
-})
-
-// U2: user-driven snapshot capture/restore (no AI turn required)
-// Validate snapshotId is a UUID v4 to prevent path traversal via the id parameter
-const SNAPSHOT_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
-
-ipcMain.handle('snapshot:capture', async (_e, payload: unknown) => {
-  try {
-    if (!payload || typeof payload !== 'object') throw new Error('SNAPSHOT_INVALID_PAYLOAD')
-    const { paths, trigger } = payload as Record<string, unknown>
-
-    if (!Array.isArray(paths) || paths.length === 0) throw new Error('SNAPSHOT_INVALID_PATHS')
-    if (paths.some((p) => typeof p !== 'string')) throw new Error('SNAPSHOT_INVALID_PATHS')
-
-    if (typeof trigger !== 'string') throw new Error('MARVIN_INVALID_TRIGGER')
-
-    const vault = requireVault()
-
-    // assertInVault: realpath-resolves + TOCTOU-safe boundary check — same as path:trash.
-    // Renderer sends absolute paths; we derive vault-relative paths from the safe result.
-    const relPaths: string[] = await Promise.all(
-      (paths as string[]).map(async (rawPath) => {
-        const safe = await assertInVault(rawPath)
-        return path.relative(vault, safe)
-      })
-    )
-
-    const snapshotId = await captureUserSnapshot(
-      vault,
-      relPaths,
-      trigger as import('./snapshot.js').UserSnapshotTrigger
-    )
-    return ok({ snapshotId })
-  } catch (e) {
-    return err(e)
-  }
-})
-
-ipcMain.handle('snapshot:restoreOne', async (_e, payload: unknown) => {
-  try {
-    if (!payload || typeof payload !== 'object') throw new Error('SNAPSHOT_INVALID_PAYLOAD')
-    const { snapshotId } = payload as Record<string, unknown>
-
-    if (typeof snapshotId !== 'string' || !SNAPSHOT_ID_RE.test(snapshotId)) {
-      throw new Error('SNAPSHOT_INVALID_ID')
-    }
-
-    const vault = requireVault()
-    const restoredPaths = await restoreUserSnapshot(vault, snapshotId)
-
-    // Invalidate cache for each restored path — mirrors snapshot:restore behaviour
-    for (const relPath of restoredPaths) {
-      fileContentCache.delete(path.join(vault, relPath))
-    }
-    notifyTree()
-    return ok({})
-  } catch (e) {
-    return err(e)
-  }
-})
-
-// --- Agent IPC handlers (agent namespace) ------------------------------------
-
-type AgentResponse = { ok: true } | { ok: false; error: string }
-
-// L2: sessionId must be alphanumeric + dash/underscore only — no path traversal.
-const SESSION_ID_RE = /^[a-zA-Z0-9_-]+$/
-
-function requireAgentRequest(raw: unknown): AgentRequest {
-  if (!raw || typeof raw !== 'object' || !('type' in raw)) {
-    throw new Error('AGENT_INVALID_REQUEST')
-  }
-  const obj = raw as Record<string, unknown>
-  if ('sessionId' in obj) {
-    if (typeof obj.sessionId !== 'string' || !SESSION_ID_RE.test(obj.sessionId)) {
-      throw new Error('AGENT_INVALID_REQUEST')
-    }
-  }
-  // M3: validate decision.kind for approval requests.
-  if (obj.type === 'approval') {
-    const d = obj.decision as Record<string, unknown> | undefined
-    if (!d || (d.kind !== 'allow' && d.kind !== 'deny')) {
-      throw new Error('AGENT_INVALID_REQUEST')
-    }
-  }
-  return raw as AgentRequest
-}
-
-ipcMain.handle('agent:request', async (e, raw: unknown): Promise<AgentResponse> => {
-  try {
-    const req = requireAgentRequest(raw)
-
-    // Events go back to the renderer that made the request, not a global win ref.
-    const sender = e.sender
-    function senderSend(channel: string, payload: AgentEvent) {
-      try {
-        if (!sender.isDestroyed()) sender.send(channel, payload)
-      } catch {
-        // renderer being torn down — ignore
-      }
-    }
-
-    if (req.type === 'start') {
-      // C2: vaultRoot must be an allowed vault path (opened via dialog or settings).
-      let resolvedVault: string
-      try {
-        resolvedVault = await fs.realpath(path.resolve(req.vaultRoot))
-      } catch {
-        throw new Error('MARVIN_VAULT_NOT_ALLOWED')
-      }
-      assertAllowedVault(resolvedVault, allowedVaultPaths)
-
-      const binary =
-        process.env.NODE_ENV === 'test' && process.env.MOCK_CLAUDE_BIN
-          ? process.env.MOCK_CLAUDE_BIN
-          : detectBinary('claude')
-      if (!binary) {
-        senderSend(`agent:event:${req.sessionId}`, {
-          type: 'error',
-          sessionId: req.sessionId,
-          code: 'AGENT_NOT_FOUND',
-          message: 'claude binary not found in PATH',
-          recoverable: false,
-        })
-        return { ok: true }
-      }
-      // Register the binary so pty-spawn-guard validates it if ever needed.
-      registerDynamicShell(binary)
-      await spawnAgent({ ...req, vaultRoot: resolvedVault }, binary, senderSend)
-      return { ok: true }
-    }
-
-    if (req.type === 'cancel') {
-      await cancelAgent(req.sessionId)
-      return { ok: true }
-    }
-
-    if (req.type === 'kill') {
-      await killAgentSession(req.sessionId)
-      return { ok: true }
-    }
-
-    if (req.type === 'approval') {
-      handleApproval(req.sessionId, req.toolUseId, req.decision)
-      return { ok: true }
-    }
-
-    return { ok: true }
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err)
-    return { ok: false, error: message }
-  }
+registerAgentHandlers({
+  getShellEnv,
+  getAllowedVaultPaths: () => allowedVaultPaths,
 })

@@ -30,7 +30,6 @@ const GRANDFATHERED_COMPLEXITY = [
 ]
 
 const GRANDFATHERED_MAX_LINES = [
-  'electron/main.ts',
   'src/App.tsx',
   'src/components/Editor.tsx',
   'src/components/FileTree.tsx',
@@ -108,6 +107,19 @@ export default defineConfig([
     files: GRANDFATHERED_MAX_LINES,
     rules: {
       'max-lines': 'off',
+    },
+  },
+  // electron/main.ts (#573/#580): reduced from 2116 to 1312 raw lines (1003
+  // counted by this rule's skipBlankLines/skipComments) by extracting
+  // pty/fs/browser/snapshot/agent IPC handlers into electron/ipc/*. Remaining
+  // surface (vault/settings/misc handlers, window lifecycle, app bootstrap)
+  // is still above the 500-line default, so a numeric cap (measured count +
+  // small headroom) replaces the blanket grandfather 'off' — tight enough to
+  // catch further growth, unlike an unconditional 'off'.
+  {
+    files: ['electron/main.ts'],
+    rules: {
+      'max-lines': ['error', { max: 1050, skipBlankLines: true, skipComments: true }],
     },
   },
 ])
