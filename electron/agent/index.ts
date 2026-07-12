@@ -170,6 +170,14 @@ function buildClaudeArgs(req: Extract<AgentRequest, { type: 'start' }>): string[
   return args
 }
 
+// Serialize one user turn as a stream-json input line for `claude
+// --input-format stream-json`. The CLI reads one JSON object per line from
+// stdin and processes each as a turn, preserving context across turns — so
+// stdin is kept OPEN after the first prompt (unlike Codex's one-shot exec).
+function claudeUserInputLine(content: string): string {
+  return JSON.stringify({ type: 'user', message: { role: 'user', content } }) + '\n'
+}
+
 function buildCodexArgs(req: Extract<AgentRequest, { type: 'start' }>): string[] {
   // codex exec is non-interactive, one-shot per turn.
   // Prompt is passed as a positional argument; no stdin writes needed.
@@ -413,15 +421,11 @@ export async function spawnAgent(
     }
   )
 
-  // For Claude: send the initial prompt as a stream-json input event on stdin.
+  // For Claude: send the initial prompt as a stream-json input event on stdin,
+  // but keep stdin OPEN so follow-up turns can be written via sendAgentInput —
+  // closing it here would end the session after a single turn (C1-1).
   if (!isCodex && proc.stdin) {
-    const inputEvent =
-      JSON.stringify({
-        type: 'user',
-        message: { role: 'user', content: req.prompt },
-      }) + '\n'
-    proc.stdin.write(inputEvent)
-    proc.stdin.end()
+    proc.stdin.write(claudeUserInputLine(req.prompt))
   }
 
   const stderrChunks: Buffer[] = []
@@ -458,6 +462,24 @@ export async function spawnAgent(
       })
     }
   })
+}
+
+/**
+ * Send a follow-up user turn to a live Claude session over its open stdin.
+ * Returns false when there is no live child, the child is Codex (one-shot, no
+ * persistent stdin), or stdin is not writable — the caller then falls back to
+ * spawning a fresh session. This is what makes the chat multi-turn (C1-2).
+ */
+export function sendAgentInput(sessionId: string, content: string): boolean {
+  const child = agentChildren.get(sessionId)
+  if (!child || child.provider === 'codex') return false
+  const stdin = child.proc.stdin
+  if (!stdin || stdin.destroyed || !stdin.writable) return false
+  // write() returns a backpressure boolean (false = buffer full but still
+  // queued), not a success flag — the turn is queued either way, so report
+  // success once the write is accepted.
+  stdin.write(claudeUserInputLine(content))
+  return true
 }
 
 export async function cancelAgent(sessionId: string): Promise<void> {

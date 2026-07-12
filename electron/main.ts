@@ -35,6 +35,7 @@ import { assertPtySpawnAllowed, registerDynamicShell } from './pty-spawn-guard.j
 import { assertAgentDetectAllowed, registerDetectedAgent } from './agent-detect-guard.js'
 import {
   spawnAgent,
+  sendAgentInput,
   cancelAgent,
   killAgentSession,
   handleApproval,
@@ -2116,6 +2117,13 @@ ipcMain.handle('agent:request', async (e, raw: unknown): Promise<AgentResponse> 
     if (req.type === 'approval') {
       handleApproval(req.sessionId, req.toolUseId, req.decision)
       return { ok: true }
+    }
+
+    if (req.type === 'input') {
+      // Follow-up turn on a live session. Returns false when no live child
+      // exists (e.g. it crashed) so the renderer can fall back to a fresh start.
+      const delivered = sendAgentInput(req.sessionId, req.content)
+      return delivered ? { ok: true } : { ok: false, error: 'NO_LIVE_SESSION' }
     }
 
     return { ok: true }

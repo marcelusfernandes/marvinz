@@ -64,17 +64,33 @@ export function useChatSession(sessionId: SessionId): UseChatSessionResult {
       store.appendUserMessage(sessionId, trimmed)
       const api = getAgentApi()
       if (!api?.request) return
+
+      // Continue a live Claude session with an incremental turn so context is
+      // preserved (C1-2). Codex is one-shot per turn, so it always spawns.
+      if (current.live && current.agentId !== 'codex') {
+        const res = await api.request({ type: 'input', sessionId, content: trimmed })
+        if (res && res.ok) return
+        // The child was gone (NO_LIVE_SESSION) — fall through to a fresh start,
+        // resuming the prior CLI session id to recover context where possible.
+        store.setSessionLive(sessionId, false)
+      }
+
+      // Optimistically mark live so a rapid second send (before session-init
+      // arrives) takes the input path instead of killing the just-spawned child.
+      store.setSessionLive(sessionId, true)
       // PRD AC6: each turn uses the mode that was active at send time. The
       // session.permissionMode is the source of truth; opts.permissionMode
       // exists as an override for explicit per-call control.
-      await api.request({
+      const startRes = await api.request({
         type: 'start',
         sessionId,
         provider: current.agentId,
         prompt: trimmed,
         vaultRoot: current.vaultPath,
         permissionMode: opts?.permissionMode ?? current.permissionMode,
+        resumeFromSessionId: current.cliSessionId,
       })
+      if (startRes && !startRes.ok) store.setSessionLive(sessionId, false)
     },
     [sessionId]
   )

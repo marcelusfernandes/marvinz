@@ -43,7 +43,9 @@ function makeIpcStub() {
         )
       }
     }),
-    request: vi.fn(() => Promise.resolve()),
+    request: vi.fn(
+      (_req?: unknown): Promise<{ ok: boolean; error?: string }> => Promise.resolve({ ok: true })
+    ),
     _emit(sessionId: string, ev: unknown) {
       ;(listeners.get(sessionId) ?? []).forEach((l) => l(ev))
     },
@@ -191,6 +193,144 @@ describe('useChatSession — send', () => {
       await result.current.send('')
     })
     expect(ipc.request).not.toHaveBeenCalled()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// useChatSession — multi-turn continuity (C1-2)
+// ---------------------------------------------------------------------------
+
+function sessionInit(sessionId: string, cliSessionId: string) {
+  return {
+    type: 'session-init' as const,
+    sessionId,
+    provider: 'claude' as const,
+    cliSessionId,
+    model: 'claude-sonnet-5',
+    cwd: '/vault',
+    startedAt: 0,
+  }
+}
+
+describe('useChatSession — multi-turn continuity', () => {
+  it('sends the first turn as a fresh start', async () => {
+    ipc.request.mockResolvedValue({ ok: true })
+    useChatStore.getState().startSession('s1', 'claude', '/vault')
+    const { result } = renderHook(() => useChatSession('s1'))
+    await act(async () => {
+      await result.current.send('first')
+    })
+    expect(ipc.request).toHaveBeenCalledTimes(1)
+    expect(ipc.request).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'start', prompt: 'first' })
+    )
+  })
+
+  it('continues a live session with an input turn, not a new start', async () => {
+    ipc.request.mockResolvedValue({ ok: true })
+    useChatStore.getState().startSession('s1', 'claude', '/vault')
+    const { result } = renderHook(() => useChatSession('s1'))
+    await act(async () => {
+      await result.current.send('first')
+    })
+    // CLI confirms a live child.
+    act(() => {
+      ipc._emit('s1', sessionInit('s1', 'cli-abc'))
+    })
+    ipc.request.mockClear()
+    await act(async () => {
+      await result.current.send('second')
+    })
+    expect(ipc.request).toHaveBeenCalledTimes(1)
+    expect(ipc.request).toHaveBeenCalledWith({ type: 'input', sessionId: 's1', content: 'second' })
+  })
+
+  it('marks the session live optimistically so a rapid second send uses input', async () => {
+    ipc.request.mockResolvedValue({ ok: true })
+    useChatStore.getState().startSession('s1', 'claude', '/vault')
+    const { result } = renderHook(() => useChatSession('s1'))
+    await act(async () => {
+      await result.current.send('first')
+    })
+    // No session-init yet — but the first send set live optimistically.
+    ipc.request.mockClear()
+    await act(async () => {
+      await result.current.send('second')
+    })
+    expect(ipc.request).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'input', content: 'second' })
+    )
+  })
+
+  it('falls back to a resuming start when the live child is gone', async () => {
+    useChatStore.getState().startSession('s1', 'claude', '/vault')
+    const { result } = renderHook(() => useChatSession('s1'))
+    ipc.request.mockResolvedValue({ ok: true })
+    await act(async () => {
+      await result.current.send('first')
+    })
+    act(() => {
+      ipc._emit('s1', sessionInit('s1', 'cli-xyz'))
+    })
+    // Next input is rejected because the child died; send must retry as start.
+    ipc.request.mockReset()
+    ipc.request
+      .mockResolvedValueOnce({ ok: false, error: 'NO_LIVE_SESSION' })
+      .mockResolvedValueOnce({ ok: true })
+    await act(async () => {
+      await result.current.send('second')
+    })
+    expect(ipc.request).toHaveBeenNthCalledWith(1, {
+      type: 'input',
+      sessionId: 's1',
+      content: 'second',
+    })
+    expect(ipc.request).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ type: 'start', prompt: 'second', resumeFromSessionId: 'cli-xyz' })
+    )
+  })
+
+  it('always spawns a fresh start for Codex (one-shot per turn)', async () => {
+    ipc.request.mockResolvedValue({ ok: true })
+    useChatStore.getState().startSession('s1', 'codex', '/vault')
+    // Even with live set, Codex must not take the input path.
+    useChatStore.getState().setSessionLive('s1', true)
+    const { result } = renderHook(() => useChatSession('s1'))
+    await act(async () => {
+      await result.current.send('hello')
+    })
+    expect(ipc.request).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'start', prompt: 'hello' })
+    )
+    expect(ipc.request).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'input' }))
+  })
+
+  it('clears live on an unrecoverable error so the next send starts fresh', async () => {
+    ipc.request.mockResolvedValue({ ok: true })
+    useChatStore.getState().startSession('s1', 'claude', '/vault')
+    const { result } = renderHook(() => useChatSession('s1'))
+    await act(async () => {
+      await result.current.send('first')
+    })
+    act(() => {
+      ipc._emit('s1', sessionInit('s1', 'cli-1'))
+      ipc._emit('s1', {
+        type: 'error',
+        sessionId: 's1',
+        code: 'AGENT_INTERNAL',
+        message: 'boom',
+        recoverable: false,
+      })
+    })
+    expect(useChatStore.getState().sessions['s1'].live).toBe(false)
+    ipc.request.mockClear()
+    await act(async () => {
+      await result.current.send('second')
+    })
+    expect(ipc.request).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'start', prompt: 'second' })
+    )
   })
 })
 

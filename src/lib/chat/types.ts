@@ -84,6 +84,13 @@ export type Session = {
   /** Currently-selected permission mode for the next turn (PRD AC6). */
   permissionMode: PermissionMode
   cliSessionId?: string
+  /**
+   * Whether a live CLI child is running for this session. Set optimistically
+   * when the first turn is started and cleared on crash / unrecoverable error /
+   * close. Drives whether the next send continues the session (`input`) or
+   * spawns a fresh one (`start`). See C1-2.
+   */
+  live?: boolean
 }
 
 // Subset of AgentEvent shapes the renderer cares about. Mirrors
