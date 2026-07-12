@@ -7,6 +7,10 @@ import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useChatStore } from './store'
 import type { Mention, Message, MessageId, PermissionMode, Session, SessionId } from './types'
 
+// Not migrated to lib/marvinApi.ts's facade (#597) — see useToolApproval.ts's
+// getAgentApi() comment: the `api?.onEvent`/`api?.request` presence checks below
+// need window.marvin.agent itself, not the facade's always-defined `agent` object,
+// to be able to detect an older preload build that's missing a method.
 function getAgentApi() {
   if (typeof window === 'undefined') return null
   return window.marvin?.agent ?? null

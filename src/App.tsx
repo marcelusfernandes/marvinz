@@ -229,7 +229,7 @@ export default function App() {
     performCloseTab,
     renameInTabs,
     closeTabsUnder,
-  } = useTabs({ closeBrowserTab: (id) => void window.marvin.browser.close(id) })
+  } = useTabs({ closeBrowserTab: (id) => void marvin.browser.close(id) })
   const [agents, setAgents] = useState<AgentDef[]>([])
   const [bootstrapped, setBootstrapped] = useState(false)
   const [dialog, setDialog] = useState<Dialog>(null)
@@ -382,8 +382,8 @@ export default function App() {
     ;(async () => {
       const settings = await window.marvin.settings.get()
       const [claudePath, codexPath] = await Promise.all([
-        window.marvin.agent.detect('claude'),
-        window.marvin.agent.detect('codex'),
+        marvin.agent.detect('claude'),
+        marvin.agent.detect('codex'),
       ])
       setAgents([
         {
@@ -432,7 +432,7 @@ export default function App() {
 
   useEffect(() => {
     if (!vaultPath) return
-    const off = window.marvin.snapshot.onTurnCompleted((event) => {
+    const off = marvin.snapshot.onTurnCompleted((event) => {
       if (event.files.length === 0) return
       setTurnToast({ turnId: event.turnId, files: event.files })
     })
@@ -554,7 +554,7 @@ export default function App() {
     async (turnId: string) => {
       if (!vaultPath) return
       try {
-        const res = await window.marvin.snapshot.listTurns()
+        const res = await marvin.snapshot.listTurns()
         if (!res.ok) {
           setError('Failed to load snapshot turns')
           return
@@ -923,7 +923,7 @@ export default function App() {
   const handleSendSelectionToFocusedAgent = useCallback(
     (formatted: string) => {
       if (!focusedAgent) return
-      void window.marvin.pty.write(focusedAgent.ptyId, formatted)
+      void marvin.pty.write(focusedAgent.ptyId, formatted)
     },
     [focusedAgent]
   )
@@ -1067,7 +1067,7 @@ export default function App() {
         )
       )
       try {
-        await window.marvin.browser.navigate(id, normalized)
+        await marvin.browser.navigate(id, normalized)
       } catch {
         // surfaced via load-error event
       }
@@ -1087,7 +1087,7 @@ export default function App() {
   // Subscribe to browser events from the main process and reflect them on
   // the relevant tab's state.
   useEffect(() => {
-    const off = window.marvin.browser.onEvent((event) => {
+    const off = marvin.browser.onEvent((event) => {
       setTabs((prev) =>
         prev.map((t) => {
           if (!isBrowserTab(t) || t.id !== event.id) return t
@@ -1121,7 +1121,7 @@ export default function App() {
     } else if (activeTab && isNoteTab(activeTab) && isHtmlPath(activeTab.path)) {
       activeBrowserId = `html-preview-${activeTab.path}`
     }
-    void window.marvin.browser.setActive(activeBrowserId)
+    void marvin.browser.setActive(activeBrowserId)
   }, [activeTab])
 
   useEffect(() => {
@@ -1134,7 +1134,7 @@ export default function App() {
   // don't paint over the modal (WebContentsView is always above the renderer).
   const modalOpen = paletteOpen || settingsOpen || dialog != null
   useEffect(() => {
-    void window.marvin.browser.setAllHidden(modalOpen)
+    void marvin.browser.setAllHidden(modalOpen)
   }, [modalOpen])
 
   // Global keyboard shortcuts. Declared after openNewBrowserTab so the
@@ -1369,7 +1369,7 @@ export default function App() {
       if (filePath.startsWith(prefix)) {
         const relPath = filePath.slice(prefix.length)
         try {
-          const res = await window.marvin.snapshot.saveBuffer(relPath, currentBuffer)
+          const res = await marvin.snapshot.saveBuffer(relPath, currentBuffer)
           if (!res.ok) {
             setError(`Could not snapshot your buffer before reloading (${res.error}).`)
             return
@@ -1417,7 +1417,7 @@ export default function App() {
         if (filePath.startsWith(prefix)) {
           const relPath = filePath.slice(prefix.length)
           try {
-            const res = await window.marvin.snapshot.saveExternalChange(relPath, diskContent)
+            const res = await marvin.snapshot.saveExternalChange(relPath, diskContent)
             if (!res.ok) {
               setError(`Could not snapshot external change (${res.error}).`)
             }
@@ -1472,7 +1472,7 @@ export default function App() {
       let snapshotId: string | null = null
       if (isMarkdownPath(target)) {
         try {
-          const res = await window.marvin.snapshot.capture([target], 'user-trash')
+          const res = await marvin.snapshot.capture([target], 'user-trash')
           if (res.ok) snapshotId = res.data.snapshotId
           else throw new Error(res.error)
         } catch {
