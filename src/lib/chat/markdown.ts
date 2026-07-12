@@ -54,3 +54,94 @@ export function closeOpenMarkdown(text: string): string {
 
   return out
 }
+
+// ---------------------------------------------------------------------------
+// splitMarkdownBlocks — stable block boundaries for streaming (#591)
+// ---------------------------------------------------------------------------
+
+const FENCE_RE = /^```/
+const LIST_ITEM_RE = /^\s*(?:[-*+]|\d+[.)])(?:\s|$)/
+const BLOCKQUOTE_RE = /^\s*>/
+const INDENTED_RE = /^[ \t]+\S/
+
+type LineKind = 'list' | 'blockquote' | 'other'
+
+function classifyLine(line: string, prevKind: LineKind | null): LineKind {
+  if (BLOCKQUOTE_RE.test(line)) return 'blockquote'
+  if (LIST_ITEM_RE.test(line)) return 'list'
+  if (prevKind === 'list' && INDENTED_RE.test(line)) return 'list'
+  return 'other'
+}
+
+function continuesBlock(kind: LineKind, line: string): boolean {
+  if (kind === 'blockquote') return BLOCKQUOTE_RE.test(line)
+  if (kind === 'list') return LIST_ITEM_RE.test(line) || INDENTED_RE.test(line)
+  return false
+}
+
+/**
+ * Split accumulated streamed markdown into an ordered list of block strings,
+ * preserving fenced code blocks as atomic units. Used by StreamingMarkdown to
+ * memoize markdown that's already finished forming instead of re-parsing the
+ * whole message on every delta.
+ *
+ * The scan is strictly forward — a boundary is only confirmed once a line
+ * that already arrived disambiguates it (e.g. a blank line after a list item
+ * is only a hard split once a later, non-continuing line has been seen).
+ * This is what makes completed blocks a stable, append-only prefix: since a
+ * decision never depends on text that hasn't arrived yet, appending more text
+ * can only ever affect the still-open trailing block, never revise an
+ * earlier one. The last element of the returned array is always that
+ * trailing, still-mutable block (or the sole block, early in a stream).
+ *
+ * Loose lists and blockquotes (blank line, then a line that continues the
+ * same list/blockquote) are kept as one block — a naive blank-line split
+ * would render them as separate lists/quotes instead of one. Lazy blockquote
+ * continuation (no blank line, no `>` prefix) is out of scope: CommonMark
+ * only lets inline emphasis span within a block, never across a real
+ * blank-line boundary, so per-block parsing for other constructs stays exact.
+ */
+export function splitMarkdownBlocks(text: string): string[] {
+  if (!text) return []
+
+  const lines = text.split('\n')
+  const blocks: string[] = []
+  let current: string[] = []
+  let pendingBlank: string[] = []
+  let inFence = false
+  let lastKind: LineKind | null = null
+
+  for (const line of lines) {
+    if (inFence) {
+      current.push(line)
+      if (FENCE_RE.test(line)) inFence = false
+      continue
+    }
+    if (FENCE_RE.test(line)) {
+      current.push(...pendingBlank, line)
+      pendingBlank = []
+      inFence = true
+      lastKind = 'other'
+      continue
+    }
+    if (line.trim() === '') {
+      pendingBlank.push(line)
+      continue
+    }
+    if (pendingBlank.length > 0) {
+      if (current.length > 0 && lastKind !== null && continuesBlock(lastKind, line)) {
+        current.push(...pendingBlank, line)
+      } else {
+        if (current.length > 0) blocks.push(current.join('\n'))
+        current = [line]
+      }
+      pendingBlank = []
+    } else {
+      current.push(line)
+    }
+    lastKind = classifyLine(line, lastKind)
+  }
+
+  if (current.length > 0) blocks.push(current.join('\n'))
+  return blocks
+}

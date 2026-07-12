@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { StreamingMarkdown } from '../StreamingMarkdown'
-import { closeOpenMarkdown } from '../../../lib/chat/markdown'
+import { closeOpenMarkdown, splitMarkdownBlocks } from '../../../lib/chat/markdown'
 
 // ---------------------------------------------------------------------------
 // closeOpenMarkdown helper — unit tests
@@ -186,5 +188,114 @@ describe('StreamingMarkdown — React.memo stability', () => {
     expect(StreamingMarkdown).toHaveProperty('$$typeof')
     const memoSymbol = Symbol.for('react.memo')
     expect((StreamingMarkdown as unknown as { $$typeof: symbol }).$$typeof).toBe(memoSymbol)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// splitMarkdownBlocks — block boundary unit tests (#591)
+// ---------------------------------------------------------------------------
+
+describe('splitMarkdownBlocks helper', () => {
+  it('returns an empty array for empty text', () => {
+    expect(splitMarkdownBlocks('')).toEqual([])
+  })
+
+  it('keeps a single paragraph with no boundary as one block', () => {
+    expect(splitMarkdownBlocks('just one paragraph')).toEqual(['just one paragraph'])
+  })
+
+  it('splits two paragraphs separated by a blank line', () => {
+    expect(splitMarkdownBlocks('first paragraph\n\nsecond paragraph')).toEqual([
+      'first paragraph',
+      'second paragraph',
+    ])
+  })
+
+  it('keeps a fenced code block atomic even with an internal blank line', () => {
+    const doc = '```js\nline one\n\nline two\n```'
+    expect(splitMarkdownBlocks(doc)).toEqual([doc])
+  })
+
+  it('splits content that follows a closed fence once a boundary is confirmed', () => {
+    const doc = '```js\ncode\n```\n\nafter\n\nmore'
+    expect(splitMarkdownBlocks(doc)).toEqual(['```js\ncode\n```', 'after', 'more'])
+  })
+
+  it('keeps a tight list (no internal blank lines) as one block', () => {
+    const doc = '- one\n- two\n- three'
+    expect(splitMarkdownBlocks(doc)).toEqual([doc])
+  })
+
+  it('keeps a loose list (blank line between items) as one block — a naive split would break it into separate lists', () => {
+    const doc = '- one\n\n- two\n\n- three'
+    expect(splitMarkdownBlocks(doc)).toEqual([doc])
+  })
+
+  it('splits once a loose list is followed by a non-list paragraph', () => {
+    const doc = '- one\n\n- two\n\nafter the list'
+    expect(splitMarkdownBlocks(doc)).toEqual(['- one\n\n- two', 'after the list'])
+  })
+
+  it('keeps blockquote continuation across a blank line as one block', () => {
+    const doc = '> line one\n\n> line two'
+    expect(splitMarkdownBlocks(doc)).toEqual([doc])
+  })
+
+  it('splits once a blockquote is followed by a non-quote paragraph', () => {
+    const doc = '> quoted\n\nafter the quote'
+    expect(splitMarkdownBlocks(doc)).toEqual(['> quoted', 'after the quote'])
+  })
+
+  it('drops a dangling blank-line run at the very end — no confirming line has arrived, so it stays part of the still-open block', () => {
+    expect(splitMarkdownBlocks('- one\n\n')).toEqual(['- one'])
+  })
+
+  it('never revises an earlier confirmed block when more text is appended (stable-prefix invariant)', () => {
+    const prefix = 'first paragraph\n\nsecond paragraph'
+    const grown = prefix + '\n\nthird paragraph'
+    const blocksBefore = splitMarkdownBlocks(prefix)
+    const blocksAfter = splitMarkdownBlocks(grown)
+    // Every block confirmed complete before growth (all but the trailing one)
+    // must appear unchanged, at the same position, after more text arrives.
+    expect(blocksAfter.slice(0, blocksBefore.length - 1)).toEqual(blocksBefore.slice(0, -1))
+  })
+})
+
+// ---------------------------------------------------------------------------
+// StreamingMarkdown — final rendered output identity (#591)
+// ---------------------------------------------------------------------------
+
+describe('StreamingMarkdown — final output matches the pre-#591 single-pass render', () => {
+  // Deliberately includes every hazard the splitter must not mis-split:
+  // prose, a tight list, a loose list, a fenced block with an internal blank
+  // line, inline bold/code, and a trailing paragraph.
+  const HAZARD_DOC = [
+    'A prose paragraph with **bold** and `inline code`.',
+    '',
+    '- tight item one',
+    '- tight item two',
+    '',
+    '- loose item one',
+    '',
+    '- loose item two',
+    '',
+    '```js',
+    'function example() {',
+    '',
+    '  return 1',
+    '}',
+    '```',
+    '',
+    'A trailing paragraph after everything else.',
+  ].join('\n')
+
+  it('renders byte-identical HTML to a direct ReactMarkdown call once streaming is done', () => {
+    const { container: actual } = render(<StreamingMarkdown text={HAZARD_DOC} streaming={false} />)
+    const { container: expected } = render(
+      <span className="chat-md">
+        <ReactMarkdown remarkPlugins={[remarkGfm]}>{HAZARD_DOC}</ReactMarkdown>
+      </span>
+    )
+    expect(actual.innerHTML).toBe(expected.innerHTML)
   })
 })

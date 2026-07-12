@@ -1,7 +1,7 @@
 import { memo, useMemo } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { closeOpenMarkdown } from '../../lib/chat/markdown'
+import { closeOpenMarkdown, splitMarkdownBlocks } from '../../lib/chat/markdown'
 
 type Props = {
   text: string
@@ -11,14 +11,43 @@ type Props = {
 
 const remarkPlugins = [remarkGfm]
 
+type BlockProps = { text: string }
+
+// Memoized so a completed block (never the trailing one) is never re-parsed
+// by ReactMarkdown once a later block exists after it — see splitMarkdownBlocks.
+function MarkdownBlockImpl({ text }: BlockProps) {
+  return <ReactMarkdown remarkPlugins={remarkPlugins}>{text}</ReactMarkdown>
+}
+const MarkdownBlock = memo(MarkdownBlockImpl)
+
 function StreamingMarkdownImpl({ text, streaming = false }: Props) {
-  // While streaming, speculatively close open markers so the parser doesn't
-  // bail on partial input. When done, render the raw text — react-markdown
-  // memoizes well and skips full reparses if the text is stable.
-  const source = useMemo(() => (streaming ? closeOpenMarkdown(text) : text), [text, streaming])
+  // While streaming, split into blocks so completed ones (everything but the
+  // last) can be memoized instead of re-parsed on every delta. Once done,
+  // render the raw text in one shot — identical to the pre-#591 behavior, so
+  // the final rendered output for a completed message never depends on how
+  // the split happened to land mid-stream.
+  const blocks = useMemo(() => (streaming ? splitMarkdownBlocks(text) : null), [text, streaming])
+
+  if (!streaming || !blocks) {
+    return (
+      <span className="chat-md">
+        <ReactMarkdown remarkPlugins={remarkPlugins}>{text}</ReactMarkdown>
+      </span>
+    )
+  }
+
+  const completed = blocks.slice(0, -1)
+  // The trailing block is the whole text until a boundary is confirmed after
+  // it (see splitMarkdownBlocks) — closeOpenMarkdown only needs to speculate
+  // on this still-open piece, not the full accumulated message.
+  const trailing = blocks.length > 0 ? blocks[blocks.length - 1] : text
+
   return (
-    <span className={`chat-md${streaming ? ' streaming' : ''}`}>
-      <ReactMarkdown remarkPlugins={remarkPlugins}>{source}</ReactMarkdown>
+    <span className="chat-md streaming">
+      {completed.map((block, i) => (
+        <MarkdownBlock key={i} text={block} />
+      ))}
+      <ReactMarkdown remarkPlugins={remarkPlugins}>{closeOpenMarkdown(trailing)}</ReactMarkdown>
     </span>
   )
 }
