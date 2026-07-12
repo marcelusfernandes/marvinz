@@ -138,6 +138,29 @@ vi.mock('../lib/wikilinks', () => ({
 vi.mock('../lib/paletteRanker', () => ({}))
 vi.mock('./MentionPicker', () => ({ MentionPicker: () => null }))
 
+// Editor.tsx talks to file.writeBinary/exportPdf through the marvinApi facade
+// (#596) rather than window.marvin directly — mock the facade module instead
+// of stubbing those two methods on the window global. mockWriteBinary/
+// mockExportPdf are referenced inside the factory below; the `mock` name
+// prefix is required for Vitest to allow that despite vi.mock hoisting.
+type WriteBinaryPayload = {
+  vaultPath: string
+  relPath: string
+  base64Bytes: string
+  maxBytes?: number
+}
+const mockWriteBinary = vi.fn(async ({ relPath }: WriteBinaryPayload) => relPath)
+const mockExportPdf = vi.fn(async (_filePath: string) => undefined)
+
+vi.mock('../../lib/marvinApi', () => ({
+  marvin: {
+    file: {
+      writeBinary: (payload: WriteBinaryPayload) => mockWriteBinary(payload),
+      exportPdf: (filePath: string) => mockExportPdf(filePath),
+    },
+  },
+}))
+
 // ---------------------------------------------------------------------------
 // Import Editor after all mocks
 // ---------------------------------------------------------------------------
@@ -146,13 +169,14 @@ import { Editor } from '../Editor'
 import type { ImportToastState } from '../ImportToast'
 
 // ---------------------------------------------------------------------------
-// window.marvin mock
+// window.marvin mock — file.writeBinary/exportPdf are covered by the
+// marvinApi mock above; only the domains Editor.tsx still reads directly
+// off window.marvin (app/editor/shell, out of scope for #596) live here.
 // ---------------------------------------------------------------------------
 
-let writeBinaryMock: ReturnType<typeof vi.fn>
-
-function setupMarvinMock(writeBinary?: ReturnType<typeof vi.fn>) {
-  writeBinaryMock = writeBinary ?? vi.fn(async ({ relPath }: { relPath: string }) => relPath)
+function setupMarvinMock(writeBinaryImpl?: (payload: WriteBinaryPayload) => Promise<string>) {
+  mockWriteBinary.mockReset()
+  mockWriteBinary.mockImplementation(writeBinaryImpl ?? (async ({ relPath }) => relPath))
   Object.defineProperty(globalThis, 'window', {
     value: {
       ...(typeof window !== 'undefined' ? window : {}),
@@ -166,10 +190,6 @@ function setupMarvinMock(writeBinary?: ReturnType<typeof vi.fn>) {
           readClipboard: vi.fn().mockResolvedValue(''),
         },
         shell: { openExternal: vi.fn() },
-        file: {
-          writeBinary: writeBinaryMock,
-          exportPdf: vi.fn().mockResolvedValue(undefined),
-        },
       },
     },
     writable: true,
@@ -278,15 +298,15 @@ describe('Editor — CodeMirror drop handler (issue #289)', () => {
     const file = new File(['fake-png'], 'photo.png', { type: 'image/png' })
     await renderAndDrop([file], onImportToast)
 
-    expect(writeBinaryMock).toHaveBeenCalledTimes(1)
-    expect(writeBinaryMock).toHaveBeenCalledWith(
+    expect(mockWriteBinary).toHaveBeenCalledTimes(1)
+    expect(mockWriteBinary).toHaveBeenCalledWith(
       expect.objectContaining({
         vaultPath: '/vault',
         relPath: expect.stringMatching(/^attachments\/.+\.png$/),
         base64Bytes: expect.any(String),
       })
     )
-    expect(writeBinaryMock.mock.calls[0][0]).not.toHaveProperty('maxBytes')
+    expect(mockWriteBinary.mock.calls[0][0]).not.toHaveProperty('maxBytes')
     expect(fakeView.state._text).toMatch(/!\[photo\.png\]\(attachments\/.+\.png\)/)
     expect(onImportToast).toHaveBeenCalledTimes(1)
     expect(onImportToast).toHaveBeenCalledWith({
@@ -300,7 +320,7 @@ describe('Editor — CodeMirror drop handler (issue #289)', () => {
     const file = new File(['pdf-bytes'], 'doc.pdf', { type: 'application/pdf' })
     await renderAndDrop([file], onImportToast)
 
-    expect(writeBinaryMock).toHaveBeenCalledTimes(1)
+    expect(mockWriteBinary).toHaveBeenCalledTimes(1)
     expect(fakeView.state._text).toMatch(/\[doc\.pdf\]\(attachments\/.+\.pdf\)/)
     expect(onImportToast).toHaveBeenCalledTimes(1)
     expect(onImportToast).toHaveBeenCalledWith({
@@ -315,9 +335,9 @@ describe('Editor — CodeMirror drop handler (issue #289)', () => {
     const pdf = new File(['pdf'], 'doc.pdf', { type: 'application/pdf' })
     await renderAndDrop([img, pdf], onImportToast)
 
-    expect(writeBinaryMock).toHaveBeenCalledTimes(2)
-    expect(writeBinaryMock.mock.calls[0][0].relPath).toMatch(/\.png$/)
-    expect(writeBinaryMock.mock.calls[1][0].relPath).toMatch(/\.pdf$/)
+    expect(mockWriteBinary).toHaveBeenCalledTimes(2)
+    expect(mockWriteBinary.mock.calls[0][0].relPath).toMatch(/\.png$/)
+    expect(mockWriteBinary.mock.calls[1][0].relPath).toMatch(/\.pdf$/)
     expect(fakeView.state._text).toMatch(/!\[photo\.png\]/)
     expect(fakeView.state._text).toMatch(/\[doc\.pdf\]/)
     expect(onImportToast).toHaveBeenCalledTimes(1)
@@ -336,7 +356,7 @@ describe('Editor — CodeMirror drop handler (issue #289)', () => {
     )
     await renderAndDrop([bigFile], onImportToast)
 
-    expect(writeBinaryMock).not.toHaveBeenCalled()
+    expect(mockWriteBinary).not.toHaveBeenCalled()
     expect(onImportToast).toHaveBeenCalledTimes(1)
     const toast = onImportToast.mock.calls[0][0] as { state: string; message: string }
     expect(toast.state).toBe('error')
@@ -367,7 +387,7 @@ describe('Editor — CodeMirror drop handler (issue #289)', () => {
     editorContentDOM.dispatchEvent(makeDragEvent([], '/vault/sub/photo.png'))
     await new Promise((r) => setTimeout(r, 20))
 
-    expect(writeBinaryMock).not.toHaveBeenCalled()
+    expect(mockWriteBinary).not.toHaveBeenCalled()
     expect(fakeView.state._text).toBe('![photo.png](sub/photo.png)')
   })
 
@@ -383,17 +403,23 @@ describe('Editor — CodeMirror drop handler (issue #289)', () => {
   })
 
   it('IPC rejection: error toast contains filename and error message', async () => {
-    setupMarvinMock(vi.fn().mockRejectedValue(new Error('MARVIN_FS_EACCES')))
+    // Tests the wiring from a rejected writeBinary call to the toast — the
+    // marvinApi mock above stands in for the real facade, so its own
+    // MARVIN_* → friendly-message mapping (friendlyFileError, #596) isn't
+    // exercised here; that's covered by src/lib/__tests__/marvinApi.spec.ts.
+    setupMarvinMock(async () => {
+      throw new Error('Permission denied')
+    })
     const onImportToast = vi.fn()
     const file = new File(['bytes'], 'secret.md', { type: 'text/markdown' })
     await renderAndDrop([file], onImportToast)
 
-    expect(writeBinaryMock).toHaveBeenCalledTimes(1)
+    expect(mockWriteBinary).toHaveBeenCalledTimes(1)
     expect(onImportToast).toHaveBeenCalledTimes(1)
     const toast = onImportToast.mock.calls[0][0] as { state: string; message: string }
     expect(toast.state).toBe('error')
     expect(toast.message).toContain('secret.md')
-    expect(toast.message).toContain('MARVIN_FS_EACCES')
+    expect(toast.message).toContain('Permission denied')
   })
 
   it('plural MIME (3 paths): inserts 3 markdown lines joined by \\n in one dispatch', async () => {
@@ -408,7 +434,7 @@ describe('Editor — CodeMirror drop handler (issue #289)', () => {
     editorContentDOM.dispatchEvent(makeDragEvent([], '', paths))
     await new Promise((r) => setTimeout(r, 20))
 
-    expect(writeBinaryMock).not.toHaveBeenCalled()
+    expect(mockWriteBinary).not.toHaveBeenCalled()
     // Filter to content-changing dispatches only — a follow-up decoration-clear
     // setTimeout fires after 500ms and must not break the undo-atomicity assertion.
     const contentDispatches = fakeView.dispatch.mock.calls.filter(
@@ -431,7 +457,7 @@ describe('Editor — CodeMirror drop handler (issue #289)', () => {
     editorContentDOM.dispatchEvent(makeDragEvent([], '/vault/note2.md'))
     await new Promise((r) => setTimeout(r, 20))
 
-    expect(writeBinaryMock).not.toHaveBeenCalled()
+    expect(mockWriteBinary).not.toHaveBeenCalled()
     expect(fakeView.state._text).toBe('[note2.md](note2.md)')
   })
 

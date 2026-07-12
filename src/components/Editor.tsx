@@ -46,6 +46,7 @@ import {
 } from '../lib/dropAttachments'
 import { isWikilinkHref, resolveWikilink } from '../lib/wikilinks'
 import { mentionInsertText } from '../lib/mentionInsert'
+import { marvin } from '../lib/marvinApi'
 import { Icon } from './Icon'
 import { useVisualStyle } from '../lib/visualStyle'
 import { mentionTrigger } from '../lib/cmMentionTrigger'
@@ -426,7 +427,7 @@ export function Editor({
         files,
         vaultPath,
         notePath: filePath,
-        writeBinary: (p) => window.marvin.file.writeBinary(p),
+        writeBinary: (p) => marvin.file.writeBinary(p),
         onToast: onImportToast,
       })
       if (outcome.inserts.length > 0) insertAt(view, event, outcome.inserts.join('\n'))
@@ -960,7 +961,7 @@ export function Editor({
               type="button"
               className="btn btn--ghost"
               onClick={() =>
-                void window.marvin.file.exportPdf(filePath).catch((err) => {
+                void marvin.file.exportPdf(filePath).catch((err) => {
                   console.error('Export PDF failed', err)
                 })
               }

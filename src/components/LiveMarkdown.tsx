@@ -30,6 +30,7 @@ import { justReplacedPlugin } from '../lib/pmJustReplacedHighlight'
 import type { PaletteItem } from '../lib/paletteRanker'
 import { parseWikilinks, unparseWikilinks } from '../lib/wikilinks'
 import { mentionInsertText } from '../lib/mentionInsert'
+import { marvin } from '../lib/marvinApi'
 import { mentionTrigger } from '../lib/pmMentionTrigger'
 import { MentionPicker } from './MentionPicker'
 import {
@@ -472,7 +473,7 @@ function LiveMarkdownInner({
                       files,
                       vaultPath: vaultPathRef.current,
                       notePath: filePathRef.current,
-                      writeBinary: (p) => window.marvin.file.writeBinary(p),
+                      writeBinary: (p) => marvin.file.writeBinary(p),
                       onToast: onImportToastRef.current,
                     })
                     if (outcome.inserts.length > 0) {
