@@ -1,7 +1,10 @@
 /**
- * Characterization tests for electron/ipc/fs-handlers.ts (#574).
+ * Characterization tests for electron/ipc/fs-handlers.ts (#574; file:writeBinary
+ * and file:move-batch added in #613 — both were out of scope for #574,
+ * deferred because they also called main.ts-owned assertInVault/wrapFsError,
+ * which are still threaded here the same way).
  *
- * Coverage per moved handler (11 total):
+ * Coverage per moved handler (13 total):
  *   - file:read, file:write, path:rename — real-handler integration coverage
  *     via main.ts's side-effect import in other specs
  *     (file-write-noop-snapshot.spec.ts, path-rename-*.spec.ts,
@@ -13,10 +16,11 @@
  *     exercised by office-xlsx.spec.ts's logic-replication tests, and the
  *     move doesn't touch their internals, only where they're registered from.
  *   - office:readDocx, office:writeDocx, file:copy, file:exportPdf,
- *     file:create, path:trash — had ZERO real-handler coverage before #574
- *     (office:readDocx/writeDocx only had "replicate the logic" unit tests
- *     elsewhere; the rest had none at all). Covered in this file, tested
- *     directly against registerFsHandlers(ctx) + a fake ctx, same pattern as
+ *     file:create, path:trash, file:writeBinary, file:move-batch — had ZERO
+ *     real-handler coverage before their respective moves (office:readDocx/
+ *     writeDocx only had "replicate the logic" unit tests elsewhere; the
+ *     rest had none at all). Covered in this file, tested directly against
+ *     registerFsHandlers(ctx) + a fake ctx, same pattern as
  *     ipc-pty-handlers.spec.ts (#570).
  */
 
@@ -89,7 +93,6 @@ function makeCtx(overrides: Partial<FsHandlersCtx> = {}): FsHandlersCtx {
       throw e
     }) as FsHandlersCtx['wrapFsError'],
     snapshotBeforeMutation: vi.fn(async () => {}),
-    enqueueLinkRewrite: vi.fn(async () => {}),
     notifyTree: vi.fn(),
     setFileCacheEntry: vi.fn(),
     ...overrides,
@@ -249,5 +252,114 @@ describe('path:trash', () => {
     expect(ctx.assertInVault).toHaveBeenCalledWith(target)
     expect(shell.trashItem).toHaveBeenCalledWith(target)
     expect(ctx.notifyTree).toHaveBeenCalledTimes(1)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// file:writeBinary — no prior real-handler coverage (#613; out of scope for #574)
+// ---------------------------------------------------------------------------
+
+describe('file:writeBinary', () => {
+  it('writes decoded base64 bytes through assertInVault and returns the vault-relative path', async () => {
+    const ctx = makeCtx()
+    registerFsHandlers(ctx)
+    const bytes = Buffer.from([0x89, 0x50, 0x4e, 0x47]) // arbitrary binary content
+
+    const result = await getHandler('file:writeBinary')(null, {
+      vaultPath: vault,
+      relPath: 'image.png',
+      base64Bytes: bytes.toString('base64'),
+    })
+
+    expect(ctx.assertInVault).toHaveBeenCalledWith(path.join(vault, 'image.png'))
+    expect(result).toBe('image.png')
+    expect(await fs.readFile(path.join(vault, 'image.png'))).toEqual(bytes)
+  })
+
+  it('rejects a payload whose decoded size exceeds maxBytes with MARVIN_TOO_LARGE', async () => {
+    const ctx = makeCtx()
+    registerFsHandlers(ctx)
+    const bytes = Buffer.from('this decodes to more than the tiny cap below')
+
+    await expect(
+      getHandler('file:writeBinary')(null, {
+        vaultPath: vault,
+        relPath: 'oversized.bin',
+        base64Bytes: bytes.toString('base64'),
+        maxBytes: 4,
+      })
+    ).rejects.toThrow(/MARVIN_TOO_LARGE/)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// file:move-batch — no prior real-handler coverage (#613; out of scope for #574)
+// ---------------------------------------------------------------------------
+
+describe('file:move-batch', () => {
+  it('moves each source into destDir, rewrites referencing links, and notifies the tree', async () => {
+    const srcPath = path.join(vault, 'note.md')
+    await fs.writeFile(srcPath, '# Note', 'utf8')
+    const referencingPath = path.join(vault, 'referencing.md')
+    await fs.writeFile(referencingPath, 'See [note](note.md) for details.', 'utf8')
+    const destDir = path.join(vault, 'dest')
+    await fs.mkdir(destDir)
+    const ctx = makeCtx()
+    registerFsHandlers(ctx)
+
+    const results = await getHandler('file:move-batch')(null, [srcPath], destDir)
+
+    const destPath = path.join(destDir, 'note.md')
+    expect(results).toEqual([{ src: srcPath, dest: destPath, ok: true }])
+    expect(await fs.readFile(destPath, 'utf8')).toBe('# Note')
+    // Link-rewrite is awaited inline here (unlike path:rename's fire-and-forget),
+    // so by the time the handler resolves the referencing file is already rewritten.
+    expect(await fs.readFile(referencingPath, 'utf8')).toBe('See [note](dest/note.md) for details.')
+    expect(ctx.notifyTree).toHaveBeenCalledTimes(1)
+  })
+
+  it('reports per-item ok:false without aborting the batch when one source fails assertInVault', async () => {
+    const goodSrc = path.join(vault, 'good.md')
+    await fs.writeFile(goodSrc, '# good', 'utf8')
+    const badSrc = path.join('/outside', 'bad.md')
+    const destDir = path.join(vault, 'dest')
+    await fs.mkdir(destDir)
+    const ctx = makeCtx({
+      assertInVault: vi.fn(async (filePath: string) => {
+        if (filePath === badSrc) throw new Error('MARVIN_OUTSIDE_VAULT')
+        return filePath
+      }),
+    })
+    registerFsHandlers(ctx)
+
+    const results = await getHandler('file:move-batch')(null, [goodSrc, badSrc], destDir)
+
+    expect(results).toEqual([
+      { src: goodSrc, dest: path.join(destDir, 'good.md'), ok: true },
+      { src: badSrc, dest: '', ok: false, error: 'MARVIN_OUTSIDE_VAULT' },
+    ])
+  })
+
+  it('falls back to copy+remove when rename fails with EXDEV (cross-filesystem move)', async () => {
+    const srcPath = path.join(vault, 'cross-fs.md')
+    await fs.writeFile(srcPath, '# cross fs', 'utf8')
+    const destDir = path.join(vault, 'dest')
+    await fs.mkdir(destDir)
+    const ctx = makeCtx()
+    registerFsHandlers(ctx)
+
+    const renameSpy = vi
+      .spyOn(fs, 'rename')
+      .mockRejectedValueOnce(
+        Object.assign(new Error('EXDEV: cross-device link not permitted'), { code: 'EXDEV' })
+      )
+
+    const results = await getHandler('file:move-batch')(null, [srcPath], destDir)
+
+    const destPath = path.join(destDir, 'cross-fs.md')
+    expect(results).toEqual([{ src: srcPath, dest: destPath, ok: true }])
+    expect(await fs.readFile(destPath, 'utf8')).toBe('# cross fs')
+    await expect(fs.access(srcPath)).rejects.toThrow() // removed from source after cp
+    renameSpy.mockRestore()
   })
 })

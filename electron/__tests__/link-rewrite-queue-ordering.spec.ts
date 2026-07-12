@@ -15,8 +15,9 @@
  * fired without awaiting between them, so their rewrite passes have a
  * realistic chance to genuinely overlap. The queue's serialization is also a
  * structural guarantee (a single chained `linkRewriteQueue` promise — see
- * enqueueLinkRewrite in electron/main.ts), not solely established by this
- * test; this test is the empirical check on top of that structural guarantee.
+ * enqueueLinkRewrite in electron/ipc/fs-handlers.ts), not solely established
+ * by this test; this test is the empirical check on top of that structural
+ * guarantee.
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
