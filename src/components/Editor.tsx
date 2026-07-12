@@ -2,11 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import CodeMirror from '@uiw/react-codemirror'
 import { EditorView, keymap } from '@codemirror/view'
 import { search, searchKeymap } from '@codemirror/search'
-import {
-  clearInsertedFlashes,
-  flashInserted,
-  justInsertedField,
-} from '../lib/cmJustInsertedHighlight'
+import { justInsertedField } from '../lib/cmJustInsertedHighlight'
 import { justReplacedField } from '../lib/cmJustReplacedHighlight'
 import {
   bracketMatching,
@@ -34,15 +30,6 @@ import { FindReplaceOverlay } from './FindReplaceOverlay'
 import { CodeMirrorFindBar } from './CodeMirrorFindBar'
 import type { ImportToastState } from './ImportToast'
 import type { PaletteItem } from '../lib/paletteRanker'
-import {
-  MARVIN_PATH_MIME,
-  MARVIN_PATHS_MIME,
-  collectFiles,
-  emitSummaryToast,
-  internalDragMarkdown,
-  persistDroppedFiles,
-  readDraggedPaths,
-} from '../lib/dropAttachments'
 import { isWikilinkHref, resolveWikilink } from '../lib/wikilinks'
 import { mentionInsertText } from '../lib/mentionInsert'
 import { marvin } from '../lib/marvinApi'
@@ -53,6 +40,7 @@ import { MentionPicker } from './MentionPicker'
 import { useAppContext } from '../context/AppContext'
 import { useFindReplaceState } from '../hooks/useFindReplaceState'
 import { useSelectionChip } from '../hooks/useSelectionChip'
+import { useDropExtension } from '../hooks/useDropExtension'
 import type { AgentKind } from '../lib/agent-drop-format'
 import { EditorSelectionChip } from './EditorSelectionChip'
 
@@ -339,82 +327,7 @@ export function Editor({
     [openFind]
   )
 
-  const dropExtension = useMemo(() => {
-    const insertAt = (view: EditorView, event: DragEvent, text: string): void => {
-      const pos =
-        view.posAtCoords({ x: event.clientX, y: event.clientY }) ?? view.state.selection.main.head
-      const to = pos + text.length
-      view.dispatch({
-        changes: { from: pos, insert: text },
-        selection: EditorSelection.cursor(to),
-        effects: flashInserted.of([{ from: pos, to }]),
-      })
-      // One-shot entrance animation; clear the decoration once it's done so
-      // subsequent drops re-trigger the animation cleanly.
-      setTimeout(() => {
-        view.dispatch({ effects: clearInsertedFlashes.of(null) })
-      }, 500)
-    }
-
-    const handleInternalDrop = (view: EditorView, event: DragEvent, paths: string[]): void => {
-      // Multi-drag: produce one markdown line per path and insert them all in
-      // a single dispatch so undo reverts the whole drop atomically.
-      const markdown = paths.map((p) => internalDragMarkdown(filePath, p)).join('\n')
-      insertAt(view, event, markdown)
-    }
-
-    const handleExternalDrop = async (
-      view: EditorView,
-      event: DragEvent,
-      files: File[]
-    ): Promise<void> => {
-      const outcome = await persistDroppedFiles({
-        files,
-        vaultPath,
-        notePath: filePath,
-        writeBinary: (p) => marvin.file.writeBinary(p),
-        onToast: onImportToast,
-      })
-      if (outcome.inserts.length > 0) insertAt(view, event, outcome.inserts.join('\n'))
-      emitSummaryToast(outcome, onImportToast)
-    }
-
-    return EditorView.domEventHandlers({
-      dragover(event) {
-        const types = event.dataTransfer?.types ?? []
-        if (
-          !types.includes('Files') &&
-          !types.includes(MARVIN_PATH_MIME) &&
-          !types.includes(MARVIN_PATHS_MIME)
-        )
-          return false
-        event.preventDefault()
-        // 'move' suppresses the macOS green-plus copy badge while staying
-        // compatible with the file tree's effectAllowed.
-        if (event.dataTransfer) event.dataTransfer.dropEffect = 'move'
-        return true
-      },
-      drop(event, view) {
-        const dt = event.dataTransfer
-        if (!dt) return false
-        const internalPaths = readDraggedPaths(dt)
-        const files = collectFiles(dt)
-        if (internalPaths.length > 0) {
-          event.preventDefault()
-          event.stopPropagation()
-          handleInternalDrop(view, event, internalPaths)
-          return true
-        }
-        if (files.length > 0) {
-          event.preventDefault()
-          event.stopPropagation()
-          void handleExternalDrop(view, event, files)
-          return true
-        }
-        return false
-      },
-    })
-  }, [vaultPath, filePath, onImportToast])
+  const dropExtension = useDropExtension({ vaultPath, filePath, onImportToast })
 
   // The `@`-mention trigger extension is built once per Editor mount.
   // Callbacks are stable setState invocations, so the extension never has
