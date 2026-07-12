@@ -66,29 +66,33 @@ vi.mock('@uiw/react-codemirror', () => ({
   },
 }))
 
-vi.mock('../lib/cmLanguage', () => ({
+// Lib modules resolve two levels up from __tests__/ ('../../lib/x') — the old
+// '../lib/x' specifiers pointed at nonexistent modules and never intercepted (#549).
+vi.mock('../../lib/cmLanguage', () => ({
   languageIdFor: () => null,
   loadLanguage: () => Promise.resolve(null),
 }))
 
-vi.mock('../lib/cmJustReplacedHighlight', () => ({ justReplacedField: {} }))
-vi.mock('../lib/cmJustInsertedHighlight', () => ({
+vi.mock('../../lib/cmJustReplacedHighlight', () => ({ justReplacedField: {} }))
+vi.mock('../../lib/cmJustInsertedHighlight', () => ({
   justInsertedField: {},
   flashInserted: { of: () => ({}) },
   clearInsertedFlashes: { of: () => ({}) },
 }))
 
-vi.mock('../lib/frontmatter', () => ({
+vi.mock('../../lib/frontmatter', () => ({
   replaceFrontmatter: (c: string) => c,
   serializeFrontmatter: () => '',
   splitFrontmatter: (c: string) => ({ data: null, body: c }),
 }))
 
-vi.mock('./Properties', () => ({ Properties: () => null }))
-vi.mock('./CsvEditor', () => ({ CsvEditor: () => null }))
-vi.mock('./HtmlPreview', () => ({ HtmlPreview: () => null }))
-vi.mock('./PathSuggest', () => ({ PathSuggest: () => null }))
-vi.mock('./Icon', () => ({ Icon: () => null }))
+// Sibling components resolve one level up from __tests__/ ('../X') — the old
+// './X' specifiers pointed at nonexistent modules and never intercepted (#549).
+vi.mock('../Properties', () => ({ Properties: () => null }))
+vi.mock('../CsvEditor', () => ({ CsvEditor: () => null }))
+vi.mock('../HtmlPreview', () => ({ HtmlPreview: () => null }))
+vi.mock('../PathSuggest', () => ({ PathSuggest: () => null }))
+vi.mock('../Icon', () => ({ Icon: () => null }))
 // Resolved relative to THIS file (in __tests__/), so the sibling component is
 // '../LiveMarkdown' — a './LiveMarkdown' specifier would point at a
 // nonexistent module and silently never intercept (#533). The testid marker
@@ -96,14 +100,22 @@ vi.mock('./Icon', () => ({ Icon: () => null }))
 vi.mock('../LiveMarkdown', () => ({
   LiveMarkdown: () => <div data-testid="live-markdown" />,
 }))
-vi.mock('./FindReplaceOverlay', () => ({ FindReplaceOverlay: () => null }))
-vi.mock('./CodeMirrorFindBar', () => ({ CodeMirrorFindBar: () => null }))
-vi.mock('../lib/visualStyle', () => ({ useVisualStyle: () => 'modern' }))
-vi.mock('../lib/wikilinks', () => ({
+vi.mock('../FindReplaceOverlay', () => ({ FindReplaceOverlay: () => null }))
+vi.mock('../CodeMirrorFindBar', () => ({ CodeMirrorFindBar: () => null }))
+vi.mock('../../lib/visualStyle', () => ({ useVisualStyle: () => 'modern' }))
+vi.mock('../../lib/wikilinks', () => ({
   isWikilinkHref: () => null,
   resolveWikilink: () => null,
+  // Consumed by lib/mentionInsert (in Editor's graph), faithful to the real
+  // contract: strip a trailing .md/.markdown extension.
+  stripMdExt: (name: string) => name.replace(/\.(md|markdown)$/i, ''),
 }))
-vi.mock('../lib/paletteRanker', () => ({}))
+// Editor imports only the PaletteItem type, but MentionPicker (in Editor's
+// graph) needs the runtime symbols.
+vi.mock('../../lib/paletteRanker', () => ({
+  rankPaletteItems: () => [],
+  stripBasename: () => '',
+}))
 
 // ---------------------------------------------------------------------------
 // Import Editor after mocks
