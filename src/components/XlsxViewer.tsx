@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { OFFICE_EDIT_ENABLED } from '../lib/featureFlags'
+import { marvin } from '../lib/marvinApi'
 import { Icon } from './Icon'
 
 type Props = {
@@ -45,7 +46,7 @@ export function XlsxViewer({ path, onRevealInFinder }: Props) {
       setLoading(true)
       setReadError(null)
       setSaveError(null)
-      window.marvin.office
+      marvin.office
         .readXlsx(path, sheetName)
         .then((res) => {
           if (loadTokenRef.current !== token) return
@@ -105,7 +106,7 @@ export function XlsxViewer({ path, onRevealInFinder }: Props) {
     setSaving(true)
     setSaveError(null)
     try {
-      await window.marvin.office.writeXlsx(path, rows, activeSheet || 'Sheet1')
+      await marvin.office.writeXlsx(path, rows, activeSheet || 'Sheet1')
       setOriginalRows(rows)
       setEditMode(false)
     } catch (err) {

@@ -30,6 +30,7 @@ import { TabBar } from './components/TabBar'
 import { EmptyTab } from './components/EmptyTab'
 import { CommandPalette } from './components/CommandPalette'
 import { SettingsModal } from './components/SettingsModal'
+import { marvin } from './lib/marvinApi'
 import { seedFromMain, useSetting } from './lib/settingsStore'
 import { resolveAppFindShortcut } from './lib/appFindShortcut'
 import { useClipboardStore, clipPasteLabel } from './lib/clipboardStore'
@@ -452,12 +453,12 @@ export default function App() {
   }, [vaultPath])
 
   useEffect(() => {
-    const off = window.marvin.file.onChanged(async (filePath, source) => {
+    const off = marvin.file.onChanged(async (filePath, source) => {
       const last = lastDiskContentRef.current.get(filePath)
       if (last == null) return
       let fresh: string
       try {
-        fresh = await window.marvin.file.read(filePath)
+        fresh = await marvin.file.read(filePath)
       } catch {
         // file may have been deleted concurrently; the unlink handler will close tabs
         return
@@ -515,7 +516,7 @@ export default function App() {
 
   const readFreshContent = useCallback(
     async (path: string): Promise<string> => {
-      const content = await window.marvin.file.read(path)
+      const content = await marvin.file.read(path)
       lastDiskContentRef.current.set(path, content)
       bufferContentRef.current.set(path, content)
       return content
@@ -552,8 +553,7 @@ export default function App() {
       const openTab = tabs.find((t) => isNoteTab(t) && t.path === filePath)
       let current: string
       try {
-        current =
-          openTab && isNoteTab(openTab) ? openTab.content : await window.marvin.file.read(filePath)
+        current = openTab && isNoteTab(openTab) ? openTab.content : await marvin.file.read(filePath)
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to read file')
         return
@@ -802,7 +802,7 @@ export default function App() {
       const buffer = bufferContentRef.current.get(path)
       if (buffer == null) return true
       try {
-        await window.marvin.file.write(path, buffer)
+        await marvin.file.write(path, buffer)
         lastDiskContentRef.current.set(path, buffer)
         return true
       } catch (err) {
@@ -1051,7 +1051,7 @@ export default function App() {
 
   const chooseFileFromEmpty = useCallback(
     async (emptyTabId: string) => {
-      const picked = await window.marvin.file.pick()
+      const picked = await marvin.file.pick()
       if (!picked) return
       setTabs((prev) => prev.filter((t) => t.id !== emptyTabId))
       setActiveTabId((id) => (id === emptyTabId ? null : id))
@@ -1292,7 +1292,7 @@ export default function App() {
         break
       case 'export-pdf':
         if (!activeTab || !isNoteTab(activeTab)) return
-        void window.marvin.file.exportPdf(activeTab.path)
+        void marvin.file.exportPdf(activeTab.path)
         break
       case 'reveal':
         if (!activeTab || !isNoteTab(activeTab)) return
@@ -1330,7 +1330,7 @@ export default function App() {
   const handleSave = useCallback(
     async (path: string, content: string) => {
       try {
-        await window.marvin.file.write(path, content)
+        await marvin.file.write(path, content)
         lastDiskContentRef.current.set(path, content)
         bufferContentRef.current.set(path, content)
         setTabs((prev) =>
@@ -1578,7 +1578,7 @@ export default function App() {
           const failed: string[] = []
           for (const p of clip.paths) {
             try {
-              await window.marvin.file.copy(p, target)
+              await marvin.file.copy(p, target)
             } catch {
               failed.push(p)
             }
@@ -1587,7 +1587,7 @@ export default function App() {
             reportErrorRef.current(new Error(`Failed to copy: ${failed.join(', ')}`))
           }
         } else {
-          const results = await window.marvin.file.moveBatch(Array.from(clip.paths), target)
+          const results = await marvin.file.moveBatch(Array.from(clip.paths), target)
           for (const r of results) {
             if (r.ok) renameInTabsRef.current(r.src, r.dest)
           }
@@ -1691,7 +1691,7 @@ export default function App() {
           void openSnapshotPanelRef.current(node.path)
           break
         case 'export-pdf':
-          await window.marvin.file.exportPdf(node.path)
+          await marvin.file.exportPdf(node.path)
           break
         case 'trash':
           await handleTrashRef.current(node.path)
