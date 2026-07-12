@@ -7,6 +7,7 @@ import * as pty from 'node-pty'
 import { newTurnId } from '../snapshot.js'
 import { assertPtySpawnAllowed, type PtySpawnOpts } from '../pty-spawn-guard.js'
 import { killProcessTree } from '../proc-group.js'
+import { IPC_CHANNELS } from '../../src/shared/ipc-channels.js'
 
 export type PtyDeps = {
   getActiveVaultPath: () => string | null
@@ -31,7 +32,7 @@ export function killAllPty(): void {
 }
 
 export function registerPtyHandlers(deps: PtyDeps): void {
-  ipcMain.handle('pty:spawn', async (_e, opts: PtySpawnOpts) => {
+  ipcMain.handle(IPC_CHANNELS.pty.spawn, async (_e, opts: PtySpawnOpts) => {
     const activeVaultPath = deps.getActiveVaultPath()
     if (!activeVaultPath) throw new Error('MARVIN_OUTSIDE_VAULT')
     const { shell: resolvedShell, cwd: safeCwd } = await assertPtySpawnAllowed(
@@ -78,10 +79,10 @@ export function registerPtyHandlers(deps: PtyDeps): void {
         }
         const vaultRoot = deps.getActiveVaultPath()
         if (vaultRoot) deps.scheduleTurnEnd(vaultRoot, turnId)
-        deps.sendToRenderer(`pty:data:${opts.id}`, data)
+        deps.sendToRenderer(IPC_CHANNELS.pty.data(opts.id), data)
       })
       ptyProcess.onExit(({ exitCode }) => {
-        deps.sendToRenderer(`pty:exit:${opts.id}`, exitCode)
+        deps.sendToRenderer(IPC_CHANNELS.pty.exit(opts.id), exitCode)
         ptyProcesses.delete(opts.id)
         const turnId = deps.getActiveTurnId()
         const vaultRoot = deps.getActiveVaultPath()
@@ -103,7 +104,7 @@ export function registerPtyHandlers(deps: PtyDeps): void {
     }
   })
 
-  ipcMain.handle('pty:write', (_e, id: string, data: string) => {
+  ipcMain.handle(IPC_CHANNELS.pty.write, (_e, id: string, data: string) => {
     deps.setLastPtyWriteAt(Date.now())
     let turnId = deps.getActiveTurnId()
     if (!turnId) {
@@ -115,11 +116,11 @@ export function registerPtyHandlers(deps: PtyDeps): void {
     ptyProcesses.get(id)?.write(data)
   })
 
-  ipcMain.handle('pty:resize', (_e, id: string, cols: number, rows: number) => {
+  ipcMain.handle(IPC_CHANNELS.pty.resize, (_e, id: string, cols: number, rows: number) => {
     ptyProcesses.get(id)?.resize(cols, rows)
   })
 
-  ipcMain.handle('pty:kill', (_e, id: string) => {
+  ipcMain.handle(IPC_CHANNELS.pty.kill, (_e, id: string) => {
     // Stays .kill() (not killProcessTree) — same #561 out-of-scope note as
     // the spawn-replacement kill above.
     ptyProcesses.get(id)?.kill()

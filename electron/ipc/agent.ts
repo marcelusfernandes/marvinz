@@ -15,6 +15,7 @@ import { registerDynamicShell } from '../pty-spawn-guard.js'
 import { assertAgentDetectAllowed, registerDetectedAgent } from '../agent-detect-guard.js'
 import { spawnAgent, cancelAgent, killAgentSession, handleApproval } from '../agent/index.js'
 import type { AgentRequest, AgentEvent } from '../agent/protocol.js'
+import { IPC_CHANNELS } from '../../src/shared/ipc-channels.js'
 
 export type AgentHandlersCtx = {
   getShellEnv: () => NodeJS.ProcessEnv
@@ -65,7 +66,7 @@ function requireAgentRequest(raw: unknown): AgentRequest {
 }
 
 export function registerAgentHandlers(ctx: AgentHandlersCtx): void {
-  ipcMain.handle('agent:detect', async (_e, name: string) => {
+  ipcMain.handle(IPC_CHANNELS.agent.detect, async (_e, name: string) => {
     assertAgentDetectAllowed(name)
     const detected = detectBinary(name, ctx)
     if (detected) {
@@ -79,13 +80,13 @@ export function registerAgentHandlers(ctx: AgentHandlersCtx): void {
   })
 
   // Back-compat shim for the previous renderer API.
-  ipcMain.handle('claude:detect', async () => {
+  ipcMain.handle(IPC_CHANNELS.claude.detect, async () => {
     const detected = detectBinary('claude', ctx)
     if (detected) registerDynamicShell(detected)
     return detected
   })
 
-  ipcMain.handle('agent:request', async (e, raw: unknown): Promise<AgentResponse> => {
+  ipcMain.handle(IPC_CHANNELS.agent.request, async (e, raw: unknown): Promise<AgentResponse> => {
     try {
       const req = requireAgentRequest(raw)
 
@@ -114,7 +115,7 @@ export function registerAgentHandlers(ctx: AgentHandlersCtx): void {
             ? process.env.MOCK_CLAUDE_BIN
             : detectBinary('claude', ctx)
         if (!binary) {
-          senderSend(`agent:event:${req.sessionId}`, {
+          senderSend(IPC_CHANNELS.agent.event(req.sessionId), {
             type: 'error',
             sessionId: req.sessionId,
             code: 'AGENT_NOT_FOUND',

@@ -21,6 +21,7 @@ import { isNoisy, relPathIsNoisy } from '../noisyPaths.js'
 import { importExternal } from '../fs-import-external.js'
 import { searchContent } from '../search-content.js'
 import type { SnapshotTrigger } from '../snapshot.js'
+import { IPC_CHANNELS } from '../../src/shared/ipc-channels.js'
 
 export type Settings = {
   vaultPath?: string
@@ -109,19 +110,19 @@ export function closeVaultWatcher(): void {
 }
 
 export function registerVaultHandlers(ctx: VaultHandlersCtx): void {
-  ipcMain.handle('settings:get', () => readSettings())
+  ipcMain.handle(IPC_CHANNELS.settings.get, () => readSettings())
 
   // Read-modify-write so callers can update one key (e.g. iconTheme) without
   // having to know — or clobber — unrelated keys like vaultPath. Resolved
   // settings are returned so the renderer can sync its local cache.
-  ipcMain.handle('settings:set', async (_e, partial: Partial<Settings>) => {
+  ipcMain.handle(IPC_CHANNELS.settings.set, async (_e, partial: Partial<Settings>) => {
     const current = await readSettings()
     const next: Settings = { ...current, ...partial }
     await writeSettings(next)
     return next
   })
 
-  ipcMain.handle('file:pick', async () => {
+  ipcMain.handle(IPC_CHANNELS.file.pick, async () => {
     const activeVaultPath = ctx.getActiveVaultPath()
     if (!activeVaultPath) return null
     const result = await dialog.showOpenDialog({
@@ -182,7 +183,7 @@ export function registerVaultHandlers(ctx: VaultHandlersCtx): void {
     return resolvedChosen
   })
 
-  ipcMain.handle('vault:pick', async () => {
+  ipcMain.handle(IPC_CHANNELS.vault.pick, async () => {
     const result = await dialog.showOpenDialog({
       properties: ['openDirectory', 'createDirectory'],
       title: 'Select your folder',
@@ -202,15 +203,15 @@ export function registerVaultHandlers(ctx: VaultHandlersCtx): void {
     return resolvedVault
   })
 
-  ipcMain.handle('vault:current', () => ctx.getActiveVaultPath())
+  ipcMain.handle(IPC_CHANNELS.vault.current, () => ctx.getActiveVaultPath())
 
-  ipcMain.handle('vault:tree', async () => {
+  ipcMain.handle(IPC_CHANNELS.vault.tree, async () => {
     const activeVaultPath = ctx.getActiveVaultPath()
     if (!activeVaultPath || !existsSync(activeVaultPath)) return []
     return readVaultTree(activeVaultPath)
   })
 
-  ipcMain.handle('vault:watch', async (_e, vaultPath: string) => {
+  ipcMain.handle(IPC_CHANNELS.vault.watch, async (_e, vaultPath: string) => {
     if (!vaultPath) {
       await ctx.resetVaultSessionState()
       closeVaultWatcher()
@@ -242,7 +243,7 @@ export function registerVaultHandlers(ctx: VaultHandlersCtx): void {
       persistent: true,
     })
     const notifyFile = (filePath: string, source: 'agent' | 'external') =>
-      ctx.getWin()?.webContents.send('file:changed', filePath, source)
+      ctx.getWin()?.webContents.send(IPC_CHANNELS.file.changed, filePath, source)
 
     // Snapshot before notifying the renderer of an external change.
     // Uses the in-memory cache (last content served via file:read) as the
@@ -321,7 +322,7 @@ export function registerVaultHandlers(ctx: VaultHandlersCtx): void {
     return resolvedVault
   })
 
-  ipcMain.handle('folder:create', async (_e, parentDir: string, name: string) => {
+  ipcMain.handle(IPC_CHANNELS.folder.create, async (_e, parentDir: string, name: string) => {
     try {
       const full = path.join(parentDir, name)
       const safe = await ctx.assertInVault(full)
@@ -334,7 +335,7 @@ export function registerVaultHandlers(ctx: VaultHandlersCtx): void {
     }
   })
 
-  ipcMain.handle('fs:importExternal', async (_e, sources: string[], destDir: string) => {
+  ipcMain.handle(IPC_CHANNELS.fs.importExternal, async (_e, sources: string[], destDir: string) => {
     const activeVaultPath = ctx.getActiveVaultPath()
     if (!activeVaultPath) throw new Error('MARVIN_OUTSIDE_VAULT')
     const result = await importExternal(activeVaultPath, sources, destDir)
@@ -342,7 +343,7 @@ export function registerVaultHandlers(ctx: VaultHandlersCtx): void {
     return result
   })
 
-  ipcMain.handle('search:content', async (_e, query: string) => {
+  ipcMain.handle(IPC_CHANNELS.search.content, async (_e, query: string) => {
     const activeVaultPath = ctx.getActiveVaultPath()
     if (!activeVaultPath) return []
     return searchContent(activeVaultPath, query)

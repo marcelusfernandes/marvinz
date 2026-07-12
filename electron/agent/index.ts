@@ -17,6 +17,7 @@ import { collectProcessTree, signalPids } from '../proc-group.js'
 import { newTurnId } from '../snapshot.js'
 import type { AgentEvent, AgentRequest, Provider, PermissionMode } from './protocol.js'
 import type { AgentAdapter, AgentBinaries } from './adapter.js'
+import { IPC_CHANNELS } from '../../src/shared/ipc-channels.js'
 
 export type { AgentBinaries } from './adapter.js'
 
@@ -198,7 +199,7 @@ function flushDeltaBuffers(child: AgentChild, emit: EventEmitter): void {
       delta: coalesced,
       seq,
     }
-    emit(`agent:event:${child.sessionId}`, event)
+    emit(IPC_CHANNELS.agent.event(child.sessionId), event)
   }
 }
 
@@ -243,7 +244,7 @@ function dispatchEvent(child: AgentChild, event: AgentEvent, emit: EventEmitter)
     if (snapPromise) {
       child.snapshotResults.delete(event.toolUseId)
       void snapPromise.then((snap) => {
-        emit(`agent:event:${child.sessionId}`, {
+        emit(IPC_CHANNELS.agent.event(child.sessionId), {
           ...event,
           snapshotSaved: snap.saved,
           snapshotTurnId: snap.turnId,
@@ -253,7 +254,7 @@ function dispatchEvent(child: AgentChild, event: AgentEvent, emit: EventEmitter)
     }
   }
 
-  emit(`agent:event:${child.sessionId}`, event)
+  emit(IPC_CHANNELS.agent.event(child.sessionId), event)
 
   // After turn-result: snapshot touchedFiles/preEditStates and reset them
   // synchronously so this turn's diff can't race the next turn's edits, then
@@ -280,7 +281,7 @@ function dispatchEvent(child: AgentChild, event: AgentEvent, emit: EventEmitter)
 
     void diffTouchedFiles(vaultRoot, turnFiles, turnPreEditStates).then((fileNames) => {
       if (fileNames.length === 0) return
-      emit(`agent:event:${child.sessionId}`, {
+      emit(IPC_CHANNELS.agent.event(child.sessionId), {
         type: 'turn-snapshot-summary',
         sessionId: child.sessionId,
         turnId,
@@ -413,7 +414,7 @@ export async function spawnAgent(
     await approvalServer?.close()
     const message = err instanceof Error ? err.message : String(err)
     if (message.includes('ENOENT')) {
-      emit(`agent:event:${req.sessionId}`, {
+      emit(IPC_CHANNELS.agent.event(req.sessionId), {
         type: 'error',
         sessionId: req.sessionId,
         code: 'AGENT_NOT_FOUND',
@@ -462,7 +463,7 @@ export async function spawnAgent(
       malformedCount++
       await writeAgentLog(req.sessionId, `[MALFORMED] ${err.message}: ${line.slice(0, 200)}`)
       if (malformedCount < 3) {
-        emit(`agent:event:${req.sessionId}`, {
+        emit(IPC_CHANNELS.agent.event(req.sessionId), {
           type: 'error',
           sessionId: req.sessionId,
           code: 'AGENT_INVALID_STREAM',
@@ -477,7 +478,7 @@ export async function spawnAgent(
         clearTimeout(child.flushTimer)
         flushDeltaBuffers(child, emit)
       }
-      emit(`agent:event:${req.sessionId}`, {
+      emit(IPC_CHANNELS.agent.event(req.sessionId), {
         type: 'crashed',
         sessionId: req.sessionId,
         exitCode: null,
@@ -517,7 +518,7 @@ export async function spawnAgent(
     void child.approvalServer?.close()
 
     if (code !== 0 && code !== null) {
-      emit(`agent:event:${req.sessionId}`, {
+      emit(IPC_CHANNELS.agent.event(req.sessionId), {
         type: 'crashed',
         sessionId: req.sessionId,
         exitCode: code,

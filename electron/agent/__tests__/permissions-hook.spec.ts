@@ -24,6 +24,7 @@ import { fileURLToPath } from 'node:url'
 import { createApprovalServer } from '../approval-socket'
 import { resolveApproval, clearSessionRules } from '../permissions'
 import type { AgentEvent } from '../protocol'
+import { IPC_CHANNELS } from '../../../src/shared/ipc-channels'
 
 // ---------------------------------------------------------------------------
 // Bridge script path
@@ -325,7 +326,7 @@ describe('integration — bridge + socket + permission-request', () => {
       await vi.waitFor(
         () =>
           expect(emit).toHaveBeenCalledWith(
-            `agent:event:${SESSION}`,
+            IPC_CHANNELS.agent.event(SESSION),
             expect.objectContaining({
               type: 'permission-request',
               sessionId: SESSION,
@@ -361,7 +362,7 @@ describe('integration — bridge + socket + permission-request', () => {
       const { exitCode } = await bridgePromise
       expect(exitCode).toBe(2)
       expect(emit).toHaveBeenCalledWith(
-        `agent:event:${SESSION}`,
+        IPC_CHANNELS.agent.event(SESSION),
         expect.objectContaining({ type: 'permission-request' })
       )
     } finally {

@@ -21,6 +21,7 @@ import {
 } from './permissions.js'
 import { writeSnapshot } from '../snapshot.js'
 import type { AgentEvent, ApprovalDecision } from './protocol.js'
+import { IPC_CHANNELS } from '../../src/shared/ipc-channels.js'
 
 export type SocketEmitter = (channel: string, payload: AgentEvent) => void
 
@@ -259,12 +260,12 @@ async function handleConnection(
             timeoutMs: APPROVAL_TIMEOUT_MS,
             ...(isFileEditTool ? { snapshotSaved } : {}),
           }
-          emit(`agent:event:${sessionId}`, permReq)
+          emit(IPC_CHANNELS.agent.event(sessionId), permReq)
 
           // Emit snapshot-warning AFTER permission-request so event ordering is predictable.
           if (isFileEditTool && !snapshotSaved) {
             const rawPath = extractFilePath(msg.input)
-            emit(`agent:event:${sessionId}`, {
+            emit(IPC_CHANNELS.agent.event(sessionId), {
               type: 'snapshot-warning',
               sessionId,
               toolUseId: msg.toolUseId,
@@ -291,7 +292,7 @@ async function handleConnection(
             timeoutMs: APPROVAL_TIMEOUT_MS,
             ...(isFileEditTool ? { snapshotSaved: false } : {}),
           }
-          emit(`agent:event:${sessionId}`, permReq)
+          emit(IPC_CHANNELS.agent.event(sessionId), permReq)
         })
 
       // Await the renderer decision (resolveApproval resolves this promise).
@@ -324,7 +325,7 @@ async function handleConnection(
           socket.write(JSON.stringify(resp) + '\n')
           socket.end()
 
-          emit(`agent:event:${sessionId}`, {
+          emit(IPC_CHANNELS.agent.event(sessionId), {
             type: 'error',
             sessionId,
             code: 'AGENT_PERMISSION_TIMEOUT',
