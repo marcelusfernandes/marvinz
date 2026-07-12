@@ -41,6 +41,8 @@ type ChatStore = {
   setComposerDraft: (sid: SessionId, draft: string) => void
   setComposerMentions: (sid: SessionId, mentions: Mention[]) => void
   setPermissionMode: (sid: SessionId, mode: PermissionMode) => void
+  /** Mark whether a live CLI child is running for this session (C1-2). */
+  setSessionLive: (sid: SessionId, live: boolean) => void
 }
 
 function emptySession(id: SessionId, agentId: Provider, vaultPath: string): Session {
@@ -227,6 +229,9 @@ export const useChatStore = create<ChatStore>((set) => ({
         s.permissionMode === mode ? s : { ...s, permissionMode: mode }
       )
     ),
+
+  setSessionLive: (sid, live) =>
+    set((state) => withSession(state, sid, (s) => (s.live === live ? s : { ...s, live }))),
 }))
 
 // ---------- event reducer ----------
@@ -234,7 +239,11 @@ export const useChatStore = create<ChatStore>((set) => ({
 function applyEvent(s: Session, ev: ChatStreamEvent): Session {
   switch (ev.type) {
     case 'session-init':
-      return s.cliSessionId === ev.cliSessionId ? s : { ...s, cliSessionId: ev.cliSessionId }
+      // The CLI confirmed a live child. Record its id and mark the session live
+      // so follow-up sends continue it via `input` rather than respawning.
+      return s.cliSessionId === ev.cliSessionId && s.live
+        ? s
+        : { ...s, cliSessionId: ev.cliSessionId, live: true }
 
     case 'message-start': {
       if (ev.role !== 'assistant') return s
@@ -391,9 +400,14 @@ function applyEvent(s: Session, ev: ChatStreamEvent): Session {
         turnState: s.pendingApprovals.length > 0 ? 'awaiting_approval' : 'idle',
       }
 
-    case 'error':
     case 'crashed':
-      return { ...s, turnState: 'error' }
+      // The child is gone — the next send must spawn a fresh session.
+      return { ...s, turnState: 'error', live: false }
+
+    case 'error':
+      // Unrecoverable errors kill the child; recoverable ones (e.g. a single
+      // malformed stream line) leave the session live.
+      return { ...s, turnState: 'error', live: ev.recoverable ? s.live : false }
   }
 }
 

@@ -63,6 +63,76 @@ function getBlocks(sid: string, mid: string): AssistantBlock[] {
 // startSession / closeSession
 // ---------------------------------------------------------------------------
 
+describe('session live flag (C1-2)', () => {
+  beforeEach(resetStore)
+
+  function initEvent(sid: string, cliSessionId: string) {
+    dispatchStreamEvent({
+      type: 'session-init',
+      sessionId: sid,
+      provider: 'claude',
+      cliSessionId,
+      model: 'claude-sonnet-5',
+      cwd: '/vault',
+      startedAt: 0,
+    })
+  }
+
+  it('is undefined on a fresh session', () => {
+    getStore().startSession('s1', 'claude', '/vault')
+    expect(getSession('s1').live).toBeFalsy()
+  })
+
+  it('setSessionLive toggles the flag', () => {
+    getStore().startSession('s1', 'claude', '/vault')
+    getStore().setSessionLive('s1', true)
+    expect(getSession('s1').live).toBe(true)
+    getStore().setSessionLive('s1', false)
+    expect(getSession('s1').live).toBe(false)
+  })
+
+  it('session-init marks the session live and records the cli id', () => {
+    getStore().startSession('s1', 'claude', '/vault')
+    initEvent('s1', 'cli-1')
+    expect(getSession('s1').live).toBe(true)
+    expect(getSession('s1').cliSessionId).toBe('cli-1')
+  })
+
+  it('crashed clears live', () => {
+    getStore().startSession('s1', 'claude', '/vault')
+    initEvent('s1', 'cli-1')
+    dispatchStreamEvent({ type: 'crashed', sessionId: 's1', exitCode: 1, signal: null })
+    expect(getSession('s1').live).toBe(false)
+    expect(getSession('s1').turnState).toBe('error')
+  })
+
+  it('an unrecoverable error clears live', () => {
+    getStore().startSession('s1', 'claude', '/vault')
+    initEvent('s1', 'cli-1')
+    dispatchStreamEvent({
+      type: 'error',
+      sessionId: 's1',
+      code: 'AGENT_INTERNAL',
+      message: 'boom',
+      recoverable: false,
+    })
+    expect(getSession('s1').live).toBe(false)
+  })
+
+  it('a recoverable error keeps live intact', () => {
+    getStore().startSession('s1', 'claude', '/vault')
+    initEvent('s1', 'cli-1')
+    dispatchStreamEvent({
+      type: 'error',
+      sessionId: 's1',
+      code: 'AGENT_INVALID_STREAM',
+      message: 'malformed line',
+      recoverable: true,
+    })
+    expect(getSession('s1').live).toBe(true)
+  })
+})
+
 describe('startSession', () => {
   beforeEach(resetStore)
 
