@@ -11,21 +11,30 @@
 // (e.g. a "no vault open" scenario).
 //
 // `rerender` re-wraps automatically so callers can keep calling
-// `rerender(<Editor .../>)` exactly as before.
-
+// `rerender(<Editor .../>)` exactly as before. It also accepts an optional
+// second argument, `rerender(ui, { vaultPath })`, to change the CONTEXT value
+// on a rerender (e.g. simulating a vault switch on an already-mounted
+// component, #618) — sticky across subsequent calls that omit it, so a later
+// `rerender(ui)` keeps the last vaultPath rather than reverting to the
+// initial one.
 import { render, type RenderOptions, type RenderResult } from '@testing-library/react'
 import type { ReactElement, ReactNode } from 'react'
 import { AppProvider } from '../../context/AppContext'
 
+type RerenderWithVaultPath = (nextUi: ReactNode, next?: { vaultPath?: string | null }) => void
+
 export function renderWithAppContext(
   ui: ReactElement,
   options?: RenderOptions & { vaultPath?: string | null }
-): RenderResult {
+): Omit<RenderResult, 'rerender'> & { rerender: RerenderWithVaultPath } {
   const { vaultPath = '/vault', ...rtlOptions } = options ?? {}
-  const result = render(<AppProvider vaultPath={vaultPath}>{ui}</AppProvider>, rtlOptions)
+  let currentVaultPath = vaultPath
+  const result = render(<AppProvider vaultPath={currentVaultPath}>{ui}</AppProvider>, rtlOptions)
   return {
     ...result,
-    rerender: (nextUi: ReactNode) =>
-      result.rerender(<AppProvider vaultPath={vaultPath}>{nextUi}</AppProvider>),
+    rerender: (nextUi, next) => {
+      if (next && next.vaultPath !== undefined) currentVaultPath = next.vaultPath
+      result.rerender(<AppProvider vaultPath={currentVaultPath}>{nextUi}</AppProvider>)
+    },
   }
 }

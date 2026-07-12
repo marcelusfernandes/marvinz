@@ -7,6 +7,14 @@
 // so this net stays valid once they read useAppContext() instead, mirroring
 // the strategy used for the 4 components in #581.
 //
+// The switch tests (#2, #3, #4) pass the new vaultPath to BOTH the JSX prop
+// (still required today) and renderWithAppContext's rerender(ui, {vaultPath})
+// context override, kept in sync. Once ChatPanel/Composer drop the prop,
+// react-dev's mechanical JSX-prop-removal pass (the same edit applied to
+// every other call site) can strip the now-unwanted vaultPath="..." attribute
+// from these render/rerender calls too — the context override already
+// threaded through keeps the assertions valid without a test rewrite.
+//
 // Covers:
 //   1. A session captures the vaultPath current at its creation
 //      (ChatPanel's startSession effect is gated on `!exists`, so this only
@@ -118,9 +126,14 @@ describe('ChatPanel — startSession vaultPath capture (#618)', () => {
     await act(async () => {})
     expect(useChatStore.getState().sessions['s1']?.vaultPath).toBe('/vault-a')
 
-    // Vault switch + a NEW chat tab (new sessionId) opened after it.
+    // Vault switch + a NEW chat tab (new sessionId) opened after it. Passes
+    // vaultPath: '/vault-b' to BOTH the JSX prop (still required today) and
+    // rerender's context override, so this stays a real switch once
+    // ChatPanel drops the prop and only the context arg remains.
     await act(async () => {
-      rerender(<ChatPanel sessionId="s2" provider="claude" vaultPath="/vault-b" />)
+      rerender(<ChatPanel sessionId="s2" provider="claude" vaultPath="/vault-b" />, {
+        vaultPath: '/vault-b',
+      })
     })
 
     expect(useChatStore.getState().sessions['s2']?.vaultPath).toBe('/vault-b')
@@ -137,7 +150,9 @@ describe('ChatPanel — startSession vaultPath capture (#618)', () => {
     // Same session, vault switches underneath it — startSession is gated on
     // `!exists`, so the already-created session keeps its original vaultPath.
     await act(async () => {
-      rerender(<ChatPanel sessionId="s1" provider="claude" vaultPath="/vault-b" />)
+      rerender(<ChatPanel sessionId="s1" provider="claude" vaultPath="/vault-b" />, {
+        vaultPath: '/vault-b',
+      })
     })
 
     expect(useChatStore.getState().sessions['s1']?.vaultPath).toBe('/vault-a')
@@ -166,7 +181,9 @@ describe("ChatPanel -> Composer's drop handler — live vaultPath, no stale clos
     // asserting on the value live at THIS event, not the empty one captured
     // when the component first mounted.
     await act(async () => {
-      rerender(<ChatPanel sessionId="s1" provider="claude" vaultPath="/vault-b" />)
+      rerender(<ChatPanel sessionId="s1" provider="claude" vaultPath="/vault-b" />, {
+        vaultPath: '/vault-b',
+      })
     })
 
     await act(async () => {
@@ -184,7 +201,7 @@ describe("ChatPanel -> Composer's drop handler — live vaultPath, no stale clos
     await act(async () => {})
 
     await act(async () => {
-      rerender(<ChatPanel sessionId="s1" provider="claude" vaultPath="" />)
+      rerender(<ChatPanel sessionId="s1" provider="claude" vaultPath="" />, { vaultPath: null })
     })
 
     await act(async () => {
