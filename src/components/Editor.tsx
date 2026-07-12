@@ -50,6 +50,7 @@ import { Icon } from './Icon'
 import { useVisualStyle } from '../lib/visualStyle'
 import { mentionTrigger } from '../lib/cmMentionTrigger'
 import { MentionPicker } from './MentionPicker'
+import { useAppContext } from '../context/AppContext'
 import type { AgentKind } from '../lib/agent-drop-format'
 import { formatSelectionForAgent } from '../lib/agent-selection-format'
 import { clampToViewport } from '../lib/chipViewportClamp'
@@ -128,7 +129,6 @@ type Props = {
    * own (outside the tab stack) behaves as the active/visible one. */
   isActive?: boolean
   filePath: string
-  vaultPath: string
   initialContent: string
   /** Seeds the buffer at mount from the live in-memory value (falls back to
    * `initialContent`). Called only in the mount initializer, never on reset. */
@@ -196,7 +196,6 @@ function resolveLink(href: string, currentFile: string, vaultPath: string): stri
 export function Editor({
   isActive = true,
   filePath,
-  vaultPath,
   initialContent,
   seedContent,
   version,
@@ -219,6 +218,7 @@ export function Editor({
   onSendSelection,
   agentKind = 'codex',
 }: Props) {
+  const vaultPath = useAppContext().vaultPath ?? ''
   const visualStyle = useVisualStyle()
   const [value, setValue] = useState(() =>
     seedContent ? seedContent(filePath, initialContent) : initialContent
@@ -1081,7 +1081,6 @@ export function Editor({
                 onChange={handleBodyChange}
                 onLinkClick={handleLinkClick}
                 filePath={filePath}
-                vaultPath={vaultPath}
                 paletteItems={paletteItems}
                 remountKey={liveKey}
                 onOpenFind={openFind}

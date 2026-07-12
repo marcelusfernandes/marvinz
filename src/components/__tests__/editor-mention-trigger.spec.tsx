@@ -17,7 +17,8 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, act, screen } from '@testing-library/react'
+import { act, screen } from '@testing-library/react'
+import { renderWithAppContext as render } from './renderWithAppContext'
 import type { PaletteItem } from '../../lib/paletteRanker'
 
 // ---------------------------------------------------------------------------

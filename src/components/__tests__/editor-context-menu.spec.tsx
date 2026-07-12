@@ -16,7 +16,8 @@
 // @vitest-environment jsdom
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, fireEvent, act } from '@testing-library/react'
+import { fireEvent, act } from '@testing-library/react'
+import { renderWithAppContext as render } from './renderWithAppContext'
 
 // jsdom does not include ClipboardEvent — polyfill it so Editor.tsx can
 // construct one when dispatching cut/copy/paste actions.

@@ -27,7 +27,8 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, fireEvent, act } from '@testing-library/react'
+import { screen, fireEvent, act } from '@testing-library/react'
+import { renderWithAppContext as render } from './renderWithAppContext'
 import { formatSelectionForAgent } from '../../lib/agent-selection-format'
 
 // ---------------------------------------------------------------------------

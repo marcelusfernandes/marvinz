@@ -20,7 +20,8 @@
 // jsdom's lack of CodeMirror/contentEditable support.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, act } from '@testing-library/react'
+import { act } from '@testing-library/react'
+import { renderWithAppContext as render } from './renderWithAppContext'
 
 // ---------------------------------------------------------------------------
 // Module-level shared object — must NOT be vi.hoisted() (storing a React

@@ -15,7 +15,8 @@
 // @vitest-environment jsdom
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, fireEvent, act } from '@testing-library/react'
+import { fireEvent, act } from '@testing-library/react'
+import { renderWithAppContext as render } from './renderWithAppContext'
 import { misspelledWordRange } from '../LiveMarkdown'
 
 // ---------------------------------------------------------------------------
