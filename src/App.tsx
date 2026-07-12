@@ -1,5 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { FileChangeSource, FileNode, MenuItemSpec } from './types'
+import {
+  type Tab,
+  isNoteTab,
+  isBrowserTab,
+  isImageTab,
+  isPdfTab,
+  isDocxTab,
+  isXlsxTab,
+  isEmptyTab,
+} from './lib/tabs'
 import { FileTree } from './components/FileTree'
 import { Editor, type EditorHandle } from './components/Editor'
 import { AgentsPane } from './components/AgentsPane'
@@ -79,69 +89,6 @@ function clamp(n: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, n))
 }
 
-type PendingExternalChange = {
-  diskContent: string
-  diskChangedAt: number
-  source: FileChangeSource
-}
-
-type NoteTab = {
-  type: 'note'
-  id: string
-  path: string
-  content: string
-  version: number
-  back: string[]
-  forward: string[]
-  pendingExternalChange?: PendingExternalChange
-}
-
-type BrowserTabState = {
-  type: 'browser'
-  id: string
-  url: string
-  /** What's typed in the URL bar (may differ from `url` while editing). */
-  draftUrl: string
-  title: string
-  canBack: boolean
-  canForward: boolean
-  loading: boolean
-  /** True after the WebContentsView is created in the main process. */
-  ready: boolean
-}
-
-type ImageTab = {
-  type: 'image'
-  id: string
-  path: string
-}
-
-type PdfTab = {
-  type: 'pdf'
-  id: string
-  path: string
-}
-
-type DocxTab = {
-  type: 'docx'
-  id: string
-  path: string
-}
-
-type XlsxTab = {
-  type: 'xlsx'
-  id: string
-  path: string
-}
-
-export type EmptyTab = {
-  type: 'empty'
-  id: string
-  title: string
-}
-
-type Tab = NoteTab | BrowserTabState | ImageTab | PdfTab | DocxTab | XlsxTab | EmptyTab
-
 const DEFAULT_BROWSER_URL = 'https://www.google.com'
 
 // Cap on simultaneously-mounted note editors (#440). The hidden-stack keeps an
@@ -150,14 +97,6 @@ const DEFAULT_BROWSER_URL = 'https://www.google.com'
 // Six comfortably covers normal multi-file editing; older tabs unmount and
 // rebuild on activate (history resets at that edge).
 const MAX_MOUNTED_EDITORS = 6
-
-const isNoteTab = (t: Tab): t is NoteTab => t.type === 'note'
-const isBrowserTab = (t: Tab): t is BrowserTabState => t.type === 'browser'
-const isImageTab = (t: Tab): t is ImageTab => t.type === 'image'
-const isPdfTab = (t: Tab): t is PdfTab => t.type === 'pdf'
-const isDocxTab = (t: Tab): t is DocxTab => t.type === 'docx'
-const isXlsxTab = (t: Tab): t is XlsxTab => t.type === 'xlsx'
-const isEmptyTab = (t: Tab): t is EmptyTab => t.type === 'empty'
 
 type Dialog = { kind: 'rename'; target: string; isDir: boolean } | null
 

@@ -3,7 +3,7 @@ import { useHorizontalWheelScroll } from '../lib/useHorizontalWheelScroll'
 import { Icon } from './Icon'
 import { fileIconFor } from '../lib/fileIcons'
 import type { MenuItemSpec } from '../types'
-import type { EmptyTab } from '../App'
+import type { EmptyTab } from '../lib/tabs'
 import { MARVIN_PATH_MIME } from '../lib/dropAttachments'
 
 type NoteTab = {
