@@ -50,7 +50,10 @@ jobs:
           FANOUT=0
           if [ -n "$CHANGED" ]; then
             BASES=$(printf '%s\n' "$CHANGED" | xargs -n1 basename | sed -E 's/\.(ts|tsx)$//' | sort -u)
-            FANOUT=$(for b in $BASES; do grep -rl "from '.*${b}'" src electron 2>/dev/null || true; done | grep -v __tests__ | sort -u | wc -l | tr -d ' ')
+            # Errexit pitfall (#544): with no importers the `grep -v` stage exits 1,
+            # pipefail fails the substitution and errexit kills the step — guard it
+            # with `|| true` so the empty case yields FANOUT=0.
+            FANOUT=$({ for b in $BASES; do grep -rl "from '.*${b}'" src electron 2>/dev/null || true; done; } | { grep -v __tests__ || true; } | sort -u | wc -l | tr -d ' ')
           fi
           export HARNESS_FANOUT="$FANOUT"
 
