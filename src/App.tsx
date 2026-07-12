@@ -626,11 +626,14 @@ export default function App() {
   // Navigation reads disk (so lastDiskContentRef stays fresh for external-change
   // detection) but a pending unsaved buffer for the target wins the returned
   // content, so navigating to a file never silently discards an in-flight edit.
+  // "Unsaved edit" is buffer diverging from the last known disk baseline — not
+  // from the fresh read, so a clean buffer never masks an external change.
   const readForNavigation = useCallback(
     async (path: string): Promise<string> => {
       const buffered = bufferContentRef.current.get(path)
+      const baseline = lastDiskContentRef.current.get(path)
       const fresh = await readFreshContent(path)
-      if (buffered === undefined || buffered === fresh) return fresh
+      if (buffered === undefined || baseline === undefined || buffered === baseline) return fresh
       bufferContentRef.current.set(path, buffered)
       return buffered
     },
