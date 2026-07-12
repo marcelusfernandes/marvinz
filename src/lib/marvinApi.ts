@@ -73,6 +73,8 @@ const SNAPSHOT_ERROR_MESSAGES: Record<string, string> = {
   SNAPSHOT_FS_EISDIR: 'Path points to a directory.',
   MARVIN_INVALID_PATH: 'Invalid file path.',
   MARVIN_INVALID_TURN_ID: 'Invalid version identifier.',
+  MARVIN_INVALID_TRIGGER: 'Invalid operation.',
+  MARVIN_UNKNOWN_SNAPSHOT: 'Snapshot not found.',
 }
 
 export function friendlySnapshotError(code: string): string {

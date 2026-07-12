@@ -64,6 +64,11 @@ describe('friendlySnapshotError', () => {
     expect(friendlySnapshotError('SNAPSHOT_FS_EPERM')).toBe('Operation not permitted.')
   })
 
+  it('maps the electron/snapshot.ts trigger/lookup codes (MARVIN_INVALID_TRIGGER, MARVIN_UNKNOWN_SNAPSHOT)', () => {
+    expect(friendlySnapshotError('MARVIN_INVALID_TRIGGER')).toBe('Invalid operation.')
+    expect(friendlySnapshotError('MARVIN_UNKNOWN_SNAPSHOT')).toBe('Snapshot not found.')
+  })
+
   it('falls back to a generic "could not complete" message for unknown codes', () => {
     expect(friendlySnapshotError('SNAPSHOT_WEIRD_CODE')).toBe(
       'Could not complete the operation. (SNAPSHOT_WEIRD_CODE)'
