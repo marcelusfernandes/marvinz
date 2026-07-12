@@ -1462,6 +1462,13 @@ export default function App() {
     bufferContentRef.current.set(path, content)
   }, [])
 
+  // Passed to Editor and invoked in its mount initializer, so the ref read
+  // happens at mount, never during App render.
+  const getBufferSeed = useCallback(
+    (path: string, fallback: string) => bufferContentRef.current.get(path) ?? fallback,
+    []
+  )
+
   const clearPendingExternalChange = useCallback((filePath: string) => {
     setTabs((prev) =>
       prev.map((t) =>
@@ -2174,7 +2181,8 @@ export default function App() {
                     isActive={isActive}
                     filePath={noteTab.path}
                     vaultPath={vaultPath}
-                    initialContent={bufferContentRef.current.get(noteTab.path) ?? noteTab.content}
+                    initialContent={noteTab.content}
+                    seedContent={getBufferSeed}
                     version={noteTab.version}
                     geometryKey={`${layoutMode}#${sidebarWidth}#${agentsWidth}`}
                     paletteItems={paletteItemsWithMeta}

@@ -130,6 +130,9 @@ type Props = {
   filePath: string
   vaultPath: string
   initialContent: string
+  /** Seeds the buffer at mount from the live in-memory value (falls back to
+   * `initialContent`). Called only in the mount initializer, never on reset. */
+  seedContent?: (filePath: string, fallback: string) => string
   /** Cache-buster for surfaces that render the file via a URL (HtmlPreview).
    * Bumped by App.tsx whenever the file is saved or changes externally. */
   version: number
@@ -195,6 +198,7 @@ export function Editor({
   filePath,
   vaultPath,
   initialContent,
+  seedContent,
   version,
   geometryKey,
   paletteItems,
@@ -216,17 +220,19 @@ export function Editor({
   agentKind = 'codex',
 }: Props) {
   const visualStyle = useVisualStyle()
-  const [value, setValue] = useState(initialContent)
+  const [value, setValue] = useState(() =>
+    seedContent ? seedContent(filePath, initialContent) : initialContent
+  )
   const [mode, setMode] = useState<Mode>('preview')
   const [saving, setSaving] = useState(false)
   const [savedAt, setSavedAt] = useState<number | null>(null)
   const [langExt, setLangExt] = useState<Extension | null>(null)
   const timer = useRef<number | null>(null)
-  const latestValue = useRef(initialContent)
-  // Last content known to be on disk for this buffer. Seeded from
-  // initialContent and advanced after each successful save so dirty can be
-  // derived by comparison (undo back to this value clears dirty).
-  const savedContentRef = useRef(initialContent)
+  const latestValue = useRef(value)
+  // Last content known to be on disk for this buffer. Seeded from the mounted
+  // value and advanced after each successful save so dirty can be derived by
+  // comparison (undo back to this value clears dirty).
+  const savedContentRef = useRef(value)
   const viewRef = useRef<EditorView | null>(null)
   const isDirtyRef = useRef(false)
   const saveModeRef = useRef(saveMode)
