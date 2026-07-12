@@ -132,6 +132,24 @@ describe('importExternal — conflict resolution', () => {
     expect(names).toEqual(['note (1).md', 'note.md'])
   })
 
+  it('never overwrites an existing file that differs only in case (#552)', async () => {
+    // On case-insensitive filesystems (default APFS/NTFS), 'notes.md' and
+    // 'Notes.md' collide even though the exact strings differ.
+    await fs.writeFile(path.join(destDir, 'Notes.md'), 'existing', 'utf8')
+
+    const src = path.join(outside, 'notes.md')
+    await fs.writeFile(src, 'incoming', 'utf8')
+
+    const result = await importExternal(vault, [src], destDir)
+
+    expect(result.skipped).toHaveLength(0)
+    expect(result.imported).toHaveLength(1)
+    expect(path.basename(result.imported[0])).toBe('notes (1).md')
+
+    expect(await fs.readFile(path.join(destDir, 'Notes.md'), 'utf8')).toBe('existing')
+    expect(await fs.readFile(path.join(destDir, 'notes (1).md'), 'utf8')).toBe('incoming')
+  })
+
   it('detects conflict when existing file is NFD and incoming source is NFC', async () => {
     // macOS HFS+ often stores filenames in NFD; incoming sources may be NFC.
     // The implementation normalizes both to NFC before collision-checking.
