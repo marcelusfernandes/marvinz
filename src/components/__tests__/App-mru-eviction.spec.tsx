@@ -71,11 +71,20 @@ vi.mock('../TabBar', () => ({
   },
 }))
 
-// Editor stub tracks mount/unmount lifecycle for each filePath.
+// Editor stub tracks mount/unmount lifecycle for each filePath. Mirrors the
+// real Editor's lazy `useState(() => seedContent ? seedContent(...) :
+// initialContent)` mount initializer (issue #560) so `seededValue` reflects
+// exactly what a fresh mount would show — computed once per mount, not
+// recomputed on every re-render.
 vi.mock('../Editor', () => ({
   Editor: (props: Record<string, unknown>) => {
     const filePath = props.filePath as string
-    editorPropsByPath.set(filePath, props)
+    const seedContent = props.seedContent as ((fp: string, fallback: string) => string) | undefined
+    const initialContent = props.initialContent as string
+    const [seededValue] = React.useState(() =>
+      seedContent ? seedContent(filePath, initialContent) : initialContent
+    )
+    editorPropsByPath.set(filePath, { ...props, seededValue })
     React.useEffect(() => {
       editorLifecycle.push({ filePath, event: 'mount' })
       return () => {
@@ -287,10 +296,11 @@ function mountCount(filePath: string): number {
   return count
 }
 
-/** The `initialContent` prop the currently (re)mounted Editor for this
- * filePath was last rendered with — what a fresh mount seeds `value` from. */
+/** What the currently (re)mounted Editor for this filePath actually seeded
+ * `value` from at mount time (buffer-first via `seedContent`, falling back
+ * to `initialContent` — mirrors Editor.tsx's mount initializer, #560). */
 function latestInitialContent(filePath: string): string | undefined {
-  return editorPropsByPath.get(filePath)?.initialContent as string | undefined
+  return editorPropsByPath.get(filePath)?.seededValue as string | undefined
 }
 
 /** Simulates the real Editor's debounced autosave firing for a background
@@ -493,5 +503,36 @@ describe('Eviction must not revert saved content on reactivate (issue #560)', ()
     expect(isMounted('/vault/note-1.md')).toBe(true)
 
     expect(latestInitialContent('/vault/note-1.md')).toBe('second autosaved content')
+  })
+
+  it('a dirty buffer that is NEVER autosaved still survives evict → reactivate (mount-site bufferContentRef-first seed)', async () => {
+    // Distinct from the two tests above: no triggerSave/onSave call at all —
+    // only onBufferChange, mirroring a user mid-edit with the debounce
+    // window still open when eviction happens. Guards the mount-site seed
+    // in App.tsx (`initialContent={bufferContentRef.current.get(noteTab.path)
+    // ?? noteTab.content}`), which reads the live buffer directly rather
+    // than relying on a save having advanced NoteTab.content.
+    await renderBootstrapped()
+
+    await openNote(1)
+    act(() => {
+      const onBufferChange = editorPropsByPath.get('/vault/note-1.md')?.onBufferChange as
+        | ((c: string) => void)
+        | undefined
+      onBufferChange?.('unsaved dirty edit for note 1')
+    })
+
+    for (let n = 2; n <= 7; n++) {
+      await openNote(n)
+    }
+    expect(isMounted('/vault/note-1.md')).toBe(false)
+
+    const tab1Id = findTabId(1)
+    await switchToTab(tab1Id)
+    expect(isMounted('/vault/note-1.md')).toBe(true)
+
+    // Must seed from the live (never-saved) buffer, not the tab-open-time
+    // disk snapshot ('initial content', per the file.read mock).
+    expect(latestInitialContent('/vault/note-1.md')).toBe('unsaved dirty edit for note 1')
   })
 })
