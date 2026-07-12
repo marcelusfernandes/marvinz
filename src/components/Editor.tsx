@@ -52,9 +52,8 @@ import { mentionTrigger } from '../lib/cmMentionTrigger'
 import { MentionPicker } from './MentionPicker'
 import { useAppContext } from '../context/AppContext'
 import { useFindReplaceState } from '../hooks/useFindReplaceState'
+import { useSelectionChip } from '../hooks/useSelectionChip'
 import type { AgentKind } from '../lib/agent-drop-format'
-import { formatSelectionForAgent } from '../lib/agent-selection-format'
-import { clampToViewport } from '../lib/chipViewportClamp'
 import { EditorSelectionChip } from './EditorSelectionChip'
 
 const codeHighlightStyle = HighlightStyle.define([
@@ -286,15 +285,19 @@ export function Editor({
     query: string
     anchor: { x: number; y: number }
   } | null>(null)
-  // Selection chip state. Pinned to viewport coords of `sel.to` (caret end)
-  // and cleared when the selection becomes empty. Driven from CodeMirror's
-  // `onUpdate` callback below so a single render path covers both the
-  // production view and the test surface (which mocks ViewPlugin).
-  const [selectionChip, setSelectionChip] = useState<{
-    from: number
-    to: number
-    coords: { left: number; right: number; top: number; bottom: number }
-  } | null>(null)
+  // Selection chip. Driven from CodeMirror's `onUpdate` callback below via the
+  // shared hook's `onCmSelectionChange`; the hook owns positioning, scroll/
+  // resize reposition, and click-to-send.
+  const {
+    chip: selectionChip,
+    handleChipClick,
+    onCmSelectionChange,
+  } = useSelectionChip({
+    source: { kind: 'codemirror', viewRef, isActive },
+    filePath,
+    agentKind,
+    onSendSelection,
+  })
 
   useEffect(() => {
     setLangExt(null)
@@ -634,89 +637,10 @@ export function Editor({
       view: EditorView
     }) => {
       viewRef.current = update.view
-      if (!update.selectionSet) return
-      const sel = update.state.selection.main
-      if (sel.empty) {
-        setSelectionChip(null)
-        return
-      }
-      const c = update.view.coordsAtPos(sel.to)
-      if (!c) {
-        setSelectionChip(null)
-        return
-      }
-      setSelectionChip({
-        from: sel.from,
-        to: sel.to,
-        coords: clampToViewport({ left: c.left, right: c.right, top: c.top, bottom: c.bottom }),
-      })
+      onCmSelectionChange(update)
     },
-    []
+    [onCmSelectionChange]
   )
-
-  const handleChipClick = useCallback(() => {
-    const view = viewRef.current
-    if (!view || !selectionChip || !onSendSelection) return
-    const text = view.state.sliceDoc(selectionChip.from, selectionChip.to)
-    const formatted = formatSelectionForAgent(text, agentKind)
-    if (formatted === '') return
-    const startLine = view.state.doc.lineAt(selectionChip.from).number
-    const endLine = view.state.doc.lineAt(selectionChip.to).number
-    const range = startLine === endLine ? `${startLine}` : `${startLine}-${endLine}`
-    const prefix = agentKind === 'codex' ? `@${filePath}:${range}` : `${filePath}:${range}`
-    onSendSelection(`${prefix}\n\n${formatted}`)
-  }, [selectionChip, onSendSelection, agentKind, filePath])
-
-  // Reposition the chip when the editor scrolls or the viewport resizes.
-  // The chip's coords come from `view.coordsAtPos(to)` (viewport-relative),
-  // so the doc offsets stay stable but the screen position drifts as the
-  // user scrolls. rAF-throttle so a burst of wheel events collapses into
-  // one re-measure. Effect dep is the `to` offset only: re-measures
-  // inside the setState updater don't restart the effect, so attach /
-  // detach happens once per distinct selection range.
-  const chipActiveTo = selectionChip?.to ?? null
-  useEffect(() => {
-    // Hidden editors don't repaint and must not attach window-level (resize)
-    // listeners; only the active editor tracks its chip against the viewport.
-    if (!isActive || chipActiveTo === null) return
-    const view = viewRef.current
-    if (!view) return
-    let frame = 0
-    const reposition = () => {
-      if (frame) return
-      frame = window.requestAnimationFrame(() => {
-        frame = 0
-        const liveView = viewRef.current
-        if (!liveView) return
-        const c = liveView.coordsAtPos(chipActiveTo)
-        if (!c) {
-          setSelectionChip(null)
-          return
-        }
-        setSelectionChip((prev) =>
-          prev
-            ? {
-                ...prev,
-                coords: clampToViewport({
-                  left: c.left,
-                  right: c.right,
-                  top: c.top,
-                  bottom: c.bottom,
-                }),
-              }
-            : prev
-        )
-      })
-    }
-    const scrollEl = view.scrollDOM
-    scrollEl.addEventListener('scroll', reposition, { passive: true })
-    window.addEventListener('resize', reposition)
-    return () => {
-      if (frame) window.cancelAnimationFrame(frame)
-      scrollEl.removeEventListener('scroll', reposition)
-      window.removeEventListener('resize', reposition)
-    }
-  }, [chipActiveTo, isActive])
 
   const handleContextMenu = useCallback(async (e: React.MouseEvent<HTMLDivElement>) => {
     const view = viewRef.current
