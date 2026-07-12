@@ -12,24 +12,14 @@ import {
 } from './lib/tabs'
 import { useTabs } from './hooks/useTabs'
 import { AppProvider } from './context/AppContext'
-import { FileTree } from './components/FileTree'
-import { Editor, type EditorHandle } from './components/Editor'
-import { AgentsPane } from './components/AgentsPane'
+import type { EditorHandle } from './components/Editor'
 import type { AgentDef } from './components/AgentTerminal'
 import type { AgentKind } from './lib/agent-drop-format'
-import { BrowserPane } from './components/BrowserPane'
 import { Splitter } from './components/Splitter'
-import { ImageViewer } from './components/ImageViewer'
-import { PdfViewer } from './components/PdfViewer'
-import { DocxViewer } from './components/DocxViewer'
-import { XlsxViewer } from './components/XlsxViewer'
-import { InputDialog } from './components/InputDialog'
-import { FileTreeToolbar } from './components/FileTreeToolbar'
+import { AppSidebar } from './components/AppSidebar'
+import { AppPanels } from './components/AppPanels'
+import { AppEditorArea } from './components/AppEditorArea'
 import { Icon } from './components/Icon'
-import { TabBar } from './components/TabBar'
-import { EmptyTab } from './components/EmptyTab'
-import { CommandPalette } from './components/CommandPalette'
-import { SettingsModal } from './components/SettingsModal'
 import { marvin } from './lib/marvinApi'
 import { seedFromMain, useSetting } from './lib/settingsStore'
 import { resolveAppFindShortcut } from './lib/appFindShortcut'
@@ -41,11 +31,8 @@ import { getActivePanelContext, resolveUndoTarget } from './lib/panelContext'
 import { useVisualStyle } from './lib/visualStyle'
 import { useThemeFlavor } from './lib/themeFlavor'
 import { TopBar } from './components/TopBar'
-import { SnapshotPanel } from './components/SnapshotPanel'
-import { SnapshotToast } from './components/SnapshotToast'
-import { ImportToast, type ImportToastState } from './components/ImportToast'
+import type { ImportToastState } from './components/ImportToast'
 import type { CreatingIn, ImportOutcome, SelectModifiers } from './components/FileTree'
-import { ExternalChangeBanner } from './components/ExternalChangeBanner'
 import type { PaletteItem } from './lib/paletteRanker'
 import { flattenTree } from './lib/paletteItems'
 import { flattenVisibleTree } from './lib/flattenVisibleTree'
@@ -1829,16 +1816,6 @@ export default function App() {
     )
   }
 
-  const dialogConfig = (() => {
-    if (!dialog) return null
-    return {
-      title: dialog.isDir ? 'Rename folder' : 'Rename file',
-      placeholder: '',
-      submit: 'Rename',
-      initial: dialog.target.split('/').pop() ?? '',
-    }
-  })()
-
   const sidebarIconButtons = visualStyle === 'modern' && (
     <>
       <button
@@ -1884,327 +1861,120 @@ export default function App() {
             } as React.CSSProperties
           }
         >
-          <aside
-            className="sidebar"
-            onContextMenu={handleSidebarContextMenu}
-            onPaste={handleSidebarPaste}
-          >
-            <div className="sidebar-header">
-              {visualStyle === 'legacy' ? (
-                <span className="vault-name">{vaultPath.split('/').pop()}</span>
-              ) : (
-                <div className="sidebar-project-info">
-                  <div className="sidebar-project-text">
-                    <span className="sidebar-project-name">{vaultPath.split('/').pop()}</span>
-                  </div>
-                </div>
-              )}
-              <FileTreeToolbar
-                isAnyOpen={openPaths.size > 0}
-                onNewFile={() =>
-                  setCreatingIn({
-                    parentDir: currentFolderFromSelection(selectedPaths, tree, vaultPath),
-                    kind: 'file',
-                  })
-                }
-                onNewFolder={() =>
-                  setCreatingIn({
-                    parentDir: currentFolderFromSelection(selectedPaths, tree, vaultPath),
-                    kind: 'folder',
-                  })
-                }
-                onToggleAll={() =>
-                  setOpenPaths((prev) =>
-                    prev.size > 0 ? new Set() : new Set(collectDirPaths(tree))
-                  )
-                }
-              />
-            </div>
-            <FileTree
-              nodes={tree}
-              vaultPath={vaultPath}
-              selectedPaths={selectedPaths}
-              activeFilePath={activeTab && isNoteTab(activeTab) ? activeTab.path : null}
-              openPaths={openPaths}
-              creatingIn={creatingIn}
-              onToggleOpen={handleToggleOpen}
-              onSelect={handleTreeSelect}
-              onClearSelection={handleClearSelection}
-              onCreatingInChange={setCreatingIn}
-              onContextMenu={handleNodeContextMenu}
-              onMove={handleDropMove}
-              onImportResult={handleImportResult}
-            />
-            <div className="sidebar-footer">
-              {visualStyle === 'legacy' ? (
-                <button type="button" className="text-btn" onClick={handlePickVault}>
-                  Switch folder
-                </button>
-              ) : (
-                <>
-                  <button type="button" className="sidebar-footer-btn" onClick={handlePickVault}>
-                    <Icon name="folder" size={16} />
-                    <span>Switch Folder</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="sidebar-footer-btn"
-                    onClick={() => setSettingsOpen(true)}
-                  >
-                    <Icon name="gear" size={16} />
-                    <span>Settings</span>
-                  </button>
-                </>
-              )}
-            </div>
-          </aside>
+          <AppSidebar
+            visualStyle={visualStyle}
+            vaultPath={vaultPath}
+            tree={tree}
+            selectedPaths={selectedPaths}
+            activeFilePath={activeTab && isNoteTab(activeTab) ? activeTab.path : null}
+            openPaths={openPaths}
+            creatingIn={creatingIn}
+            isAnyOpen={openPaths.size > 0}
+            onNewFile={() =>
+              setCreatingIn({
+                parentDir: currentFolderFromSelection(selectedPaths, tree, vaultPath),
+                kind: 'file',
+              })
+            }
+            onNewFolder={() =>
+              setCreatingIn({
+                parentDir: currentFolderFromSelection(selectedPaths, tree, vaultPath),
+                kind: 'folder',
+              })
+            }
+            onToggleAll={() =>
+              setOpenPaths((prev) => (prev.size > 0 ? new Set() : new Set(collectDirPaths(tree))))
+            }
+            onSidebarContextMenu={handleSidebarContextMenu}
+            onSidebarPaste={handleSidebarPaste}
+            onToggleOpen={handleToggleOpen}
+            onSelect={handleTreeSelect}
+            onClearSelection={handleClearSelection}
+            onCreatingInChange={setCreatingIn}
+            onNodeContextMenu={handleNodeContextMenu}
+            onMove={handleDropMove}
+            onImportResult={handleImportResult}
+            onPickVault={handlePickVault}
+            onOpenSettings={() => setSettingsOpen(true)}
+          />
 
           <Splitter onDelta={handleSidebarDelta} ariaLabel="Resize sidebar" />
 
-          <main className="editor-pane">
-            <TabBar
-              tabs={tabs}
-              activeId={activeTabId}
-              dirtyTabId={isDirty ? activeTabId : null}
-              onActivate={setActiveTabId}
-              onClose={closeTab}
-              onNewTab={openEmptyTab}
-            />
-            <div className="editor-stack">
-              {/* Note/markdown editor tabs are rendered as a stack (all mounted,
-              inactive ones hidden) keyed by stable tab.id so switching tabs
-              does NOT unmount the CodeMirror instance — undo history, cursor,
-              and scroll survive the switch (#440). Mirrors the browser-tab
-              precedent below. The set of mounted tabs is bounded by an MRU
-              cap (see mountedNoteTabs). */}
-              {mountedNoteTabs.map((noteTab) => {
-                const isActive = noteTab.id === activeTabId
-                return (
-                  <div
-                    key={noteTab.id}
-                    className="note-tab-container"
-                    hidden={!isActive}
-                    data-tab-id={noteTab.id}
-                  >
-                    {isActive && noteTab.pendingExternalChange && (
-                      <ExternalChangeBanner
-                        filePath={noteTab.path}
-                        getCurrentBuffer={() =>
-                          bufferContentRef.current.get(noteTab.path) ?? noteTab.content
-                        }
-                        diskContent={noteTab.pendingExternalChange.diskContent}
-                        diskChangedAt={noteTab.pendingExternalChange.diskChangedAt}
-                        source={noteTab.pendingExternalChange.source}
-                        onAcceptDisk={() =>
-                          handleAcceptDisk(
-                            noteTab.path,
-                            noteTab.pendingExternalChange!.diskContent,
-                            bufferContentRef.current.get(noteTab.path) ?? noteTab.content
-                          )
-                        }
-                        onKeepMine={() =>
-                          handleKeepMine(
-                            noteTab.path,
-                            noteTab.pendingExternalChange!.source,
-                            noteTab.pendingExternalChange!.diskContent
-                          )
-                        }
-                        onDismiss={() => clearPendingExternalChange(noteTab.path)}
-                      />
-                    )}
-                    <Editor
-                      key={noteTab.id}
-                      isActive={isActive}
-                      filePath={noteTab.path}
-                      initialContent={noteTab.content}
-                      seedContent={getBufferSeed}
-                      version={noteTab.version}
-                      geometryKey={`${layoutMode}#${sidebarWidth}#${agentsWidth}`}
-                      paletteItems={paletteItemsWithMeta}
-                      onSave={(content) => handleSave(noteTab.path, content)}
-                      onBufferChange={(content) => handleBufferChange(noteTab.path, content)}
-                      onNavigate={navigateOrOpen}
-                      canBack={noteTab.back.length > 0}
-                      canForward={noteTab.forward.length > 0}
-                      onBack={goBack}
-                      onForward={goForward}
-                      openFindTick={openFindTick}
-                      openReplaceTick={openReplaceTick}
-                      onImportToast={setImportToast}
-                      saveMode={saveMode}
-                      // Only the active editor drives the global dirty indicator and
-                      // owns the single flush ref (Cmd+S / menu save target). Hidden
-                      // editors mustn't overwrite either — the last one to mount
-                      // would otherwise win. Background-tab saving still works: it
-                      // goes through the path-keyed closeTab → saveBuffer, not this
-                      // ref. Editor re-emits its dirty state when it becomes active.
-                      onDirtyChange={isActive ? setIsDirty : undefined}
-                      onFlushSave={
-                        isActive
-                          ? (fn) => {
-                              flushSaveRef.current = fn
-                            }
-                          : undefined
-                      }
-                      // Passed to every mounted editor; each self-gates on isActive
-                      // and clears the ref on going inactive/unmount, so the Cmd+Z
-                      // fallback always targets the visible editor (never a hidden one).
-                      onRegisterHandle={registerActiveEditorHandle}
-                      onSendSelection={focusedAgent ? handleSendSelectionToFocusedAgent : undefined}
-                      agentKind={focusedAgent?.agentKind}
-                    />
-                  </div>
-                )
-              })}
-              {activeTab && isImageTab(activeTab) && (
-                <ImageViewer
-                  key={activeTab.id}
-                  path={activeTab.path}
-                  onRevealInFinder={(p) => void window.marvin.shell.reveal(p)}
-                />
-              )}
-              {activeTab && isPdfTab(activeTab) && (
-                <PdfViewer
-                  key={activeTab.id}
-                  path={activeTab.path}
-                  onRevealInFinder={(p) => void window.marvin.shell.reveal(p)}
-                />
-              )}
-              {activeTab && isDocxTab(activeTab) && (
-                <DocxViewer
-                  key={activeTab.id}
-                  path={activeTab.path}
-                  onRevealInFinder={(p) => void window.marvin.shell.reveal(p)}
-                />
-              )}
-              {activeTab && isXlsxTab(activeTab) && <XlsxViewer path={activeTab.path} />}
-              {activeTab && isEmptyTab(activeTab) && (
-                <EmptyTab
-                  key={activeTab.id}
-                  onOpenBrowser={() => convertEmptyToBrowser(activeTab.id)}
-                  onCreateNote={() => startNoteFromEmpty(activeTab.id)}
-                  onChooseFile={() => void chooseFileFromEmpty(activeTab.id)}
-                  isVaultOpen={!!vaultPath}
-                />
-              )}
-              {!activeTab && <div className="empty-editor">Select a note or create a new one.</div>}
-              {/* Browser tabs are rendered as a stack (lazy mount, hidden when
-              inactive) so each WebContentsView keeps its session alive across
-              switches. */}
-              {tabs.filter(isBrowserTab).map((bt) => (
-                <BrowserPane
-                  key={bt.id}
-                  tab={bt}
-                  isActive={bt.id === activeTabId}
-                  onUrlBarChange={handleBrowserDraftChange}
-                  onNavigate={handleBrowserNavigate}
-                  onReady={handleBrowserReady}
-                  urlBarFocusTick={urlBarFocusTick}
-                  geometryKey={`${layoutMode}#${sidebarWidth}#${agentsWidth}`}
-                />
-              ))}
-            </div>
-          </main>
+          <AppEditorArea
+            vaultPath={vaultPath}
+            tabs={tabs}
+            activeTabId={activeTabId}
+            activeTab={activeTab}
+            isDirty={isDirty}
+            mountedNoteTabs={mountedNoteTabs}
+            onActivate={setActiveTabId}
+            onCloseTab={closeTab}
+            onNewTab={openEmptyTab}
+            bufferContentRef={bufferContentRef}
+            onAcceptDisk={handleAcceptDisk}
+            onKeepMine={handleKeepMine}
+            clearPendingExternalChange={clearPendingExternalChange}
+            getBufferSeed={getBufferSeed}
+            layoutMode={layoutMode}
+            sidebarWidth={sidebarWidth}
+            agentsWidth={agentsWidth}
+            paletteItemsWithMeta={paletteItemsWithMeta}
+            onSave={handleSave}
+            onBufferChange={handleBufferChange}
+            onNavigate={navigateOrOpen}
+            onBack={goBack}
+            onForward={goForward}
+            openFindTick={openFindTick}
+            openReplaceTick={openReplaceTick}
+            onImportToast={setImportToast}
+            saveMode={saveMode}
+            onDirtyChange={setIsDirty}
+            flushSaveRef={flushSaveRef}
+            onRegisterHandle={registerActiveEditorHandle}
+            focusedAgent={focusedAgent}
+            onSendSelection={handleSendSelectionToFocusedAgent}
+            onConvertEmptyToBrowser={convertEmptyToBrowser}
+            onCreateNoteFromEmpty={startNoteFromEmpty}
+            onChooseFileFromEmpty={chooseFileFromEmpty}
+            onBrowserUrlBarChange={handleBrowserDraftChange}
+            onBrowserNavigate={handleBrowserNavigate}
+            onBrowserReady={handleBrowserReady}
+            urlBarFocusTick={urlBarFocusTick}
+          />
 
           <Splitter onDelta={handleAgentsDelta} ariaLabel="Resize agents pane" />
 
-          <aside className="claude-pane">
-            <AgentsPane
-              agents={agents}
-              newTabTick={newAgentTabTick}
-              onRewind={handleRewindToTurn}
-              onTurnSummary={(summary) =>
-                setTurnToast({ turnId: summary.turnId, files: summary.fileNames })
-              }
-              onOpenFile={handleOpenFileFromTerminal}
-              onFocusChange={setFocusedAgent}
-            />
-          </aside>
-
-          {dialog && dialogConfig && (
-            <InputDialog
-              title={dialogConfig.title}
-              placeholder={dialogConfig.placeholder}
-              initialValue={dialogConfig.initial}
-              submitLabel={dialogConfig.submit}
-              onSubmit={handleCreate}
-              onCancel={() => setDialog(null)}
-            />
-          )}
-
-          {error && (
-            <div className="error-toast" onClick={() => setError(null)}>
-              {error}
-            </div>
-          )}
-
-          {paletteOpen && (
-            <CommandPalette
-              items={paletteItemsBase}
-              onPick={handlePalettePick}
-              onClose={() => setPaletteOpen(false)}
-              vaultPath={vaultPath ?? ''}
-            />
-          )}
-
-          {settingsOpen && (
-            <SettingsModal
-              onClose={() => setSettingsOpen(false)}
-              layoutMode={layoutMode}
-              onLayoutChange={setLayoutMode}
-            />
-          )}
-
-          {snapshotPanel && (
-            <SnapshotPanel
-              filePath={snapshotPanel.filePath}
-              relPath={snapshotPanel.relPath}
-              currentContent={snapshotPanel.currentContent}
-              initialTurnId={snapshotPanel.initialTurnId}
-              onClose={() => setSnapshotPanel(null)}
-              onRestored={handleSnapshotRestored}
-              onError={setError}
-            />
-          )}
-
-          {turnToast && vaultPath && (
-            <SnapshotToast
-              files={turnToast.files}
-              onOpenVersions={() => {
-                const firstRel = turnToast.files[0]
-                if (!firstRel) return
-                const absPath = `${vaultPath}/${firstRel}`
-                void openSnapshotPanel(absPath, turnToast.turnId)
-                setTurnToast(null)
-              }}
-              onDismiss={() => setTurnToast(null)}
-            />
-          )}
-
-          {externalToast && vaultPath && (
-            <SnapshotToast
-              files={[
-                externalToast.filePath.startsWith(vaultPath + '/')
-                  ? externalToast.filePath.slice(vaultPath.length + 1)
-                  : externalToast.filePath,
-              ]}
-              agentLabel="External change"
-              verb="updated"
-              onOpenVersions={() => {
-                void openSnapshotPanel(externalToast.filePath)
-                setExternalToast(null)
-              }}
-              onDismiss={() => setExternalToast(null)}
-            />
-          )}
-
-          {importToast && (
-            <ImportToast
-              state={importToast.state}
-              message={importToast.message}
-              onDismiss={() => setImportToast(null)}
-            />
-          )}
+          <AppPanels
+            vaultPath={vaultPath}
+            agents={agents}
+            newAgentTabTick={newAgentTabTick}
+            onRewind={handleRewindToTurn}
+            onOpenFile={handleOpenFileFromTerminal}
+            onFocusChange={setFocusedAgent}
+            setTurnToast={setTurnToast}
+            dialog={dialog}
+            onCreate={handleCreate}
+            setDialog={setDialog}
+            error={error}
+            setError={setError}
+            paletteOpen={paletteOpen}
+            paletteItemsBase={paletteItemsBase}
+            onPalettePick={handlePalettePick}
+            setPaletteOpen={setPaletteOpen}
+            settingsOpen={settingsOpen}
+            layoutMode={layoutMode}
+            onLayoutChange={setLayoutMode}
+            setSettingsOpen={setSettingsOpen}
+            snapshotPanel={snapshotPanel}
+            setSnapshotPanel={setSnapshotPanel}
+            onSnapshotRestored={handleSnapshotRestored}
+            turnToast={turnToast}
+            openSnapshotPanel={openSnapshotPanel}
+            externalToast={externalToast}
+            setExternalToast={setExternalToast}
+            importToast={importToast}
+            setImportToast={setImportToast}
+          />
         </div>
       </div>
     </AppProvider>
