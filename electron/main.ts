@@ -20,11 +20,6 @@ import {
   ensureVaultGitignore,
   completeTurn,
   listTurns,
-  listForFile,
-  readSnapshot,
-  restoreSnapshot,
-  captureUserSnapshot,
-  restoreUserSnapshot,
   type SnapshotTrigger,
 } from './snapshot.js'
 import { assertInsideVaultAsync } from './vault-boundary.js'
@@ -48,6 +43,7 @@ import { resolveConflict } from './conflictResolver.js'
 import { registerPtyHandlers, killAllPty } from './ipc/pty.js'
 import { registerFsHandlers } from './ipc/fs-handlers.js'
 import { registerBrowserHandlers } from './ipc/browser.js'
+import { registerSnapshotHandlers } from './ipc/snapshot-handlers.js'
 import type { MoveResult } from '../src/types.js'
 
 process.env.APP_ROOT = path.join(__dirname, '..')
@@ -1336,34 +1332,6 @@ registerPtyHandlers({
   sendToRenderer: safeBrowserSend,
 })
 
-// --- Snapshot IPC handlers ---------------------------------------------------
-
-// PRD format: <ISO-8601-compact>Z-<12-char-hex-salt>  e.g. 20250521T120345Z-abc123def456
-const TURN_ID_RE = /^\d{8}T\d{6}Z-[0-9a-f]{12}$/i
-
-function validateTurnId(turnId: unknown): string {
-  if (typeof turnId !== 'string' || !TURN_ID_RE.test(turnId)) {
-    throw new Error('SNAPSHOT_INVALID_TURN_ID')
-  }
-  return turnId
-}
-
-const MARVIN_DIR_PREFIX = '.marvin'
-
-function validateRelPath(relPath: unknown): string {
-  if (typeof relPath !== 'string' || !relPath) throw new Error('SNAPSHOT_INVALID_REL_PATH')
-  if (relPath.includes('\0')) throw new Error('SNAPSHOT_INVALID_REL_PATH') // L4: null byte
-  const normalized = path.normalize(relPath)
-  if (normalized.startsWith('..') || path.isAbsolute(normalized)) {
-    throw new Error('SNAPSHOT_INVALID_REL_PATH')
-  }
-  // L5: block access to .marvin/ internals via IPC
-  if (normalized === MARVIN_DIR_PREFIX || normalized.startsWith(MARVIN_DIR_PREFIX + path.sep)) {
-    throw new Error('SNAPSHOT_INVALID_REL_PATH')
-  }
-  return normalized
-}
-
 async function assertInVault(filePath: string): Promise<string> {
   if (!activeVaultPath) throw new Error('MARVIN_NO_VAULT')
   // Use the realpath-resolved path returned by assertInsideVaultAsync as the
@@ -1371,169 +1339,17 @@ async function assertInVault(filePath: string): Promise<string> {
   return assertInsideVaultAsync(activeVaultPath, filePath)
 }
 
-function requireVault(): string {
-  if (!activeVaultPath) throw new Error('SNAPSHOT_NO_VAULT')
-  return activeVaultPath
-}
-
-type SnapshotEnvelope<T> = { ok: true; data: T } | { ok: false; error: string }
-
-function ok<T>(data: T): SnapshotEnvelope<T> {
-  return { ok: true, data }
-}
-
-// M9: never leak absolute host paths or fs error details to the renderer.
-// Whitelist our own error codes; map fs errors to SNAPSHOT_FS_<CODE>;
-// everything else becomes SNAPSHOT_INTERNAL_ERROR.
-const KNOWN_CODE_RE = /^(MARVIN|SNAPSHOT)_[A-Z_]+$/
-function err(e: unknown): SnapshotEnvelope<never> {
-  const message = e instanceof Error ? e.message : ''
-  if (KNOWN_CODE_RE.test(message)) return { ok: false, error: message }
-  const fsCode = (e as NodeJS.ErrnoException)?.code
-  return { ok: false, error: fsCode ? `SNAPSHOT_FS_${fsCode}` : 'SNAPSHOT_INTERNAL_ERROR' }
-}
-
-ipcMain.handle('snapshot:listTurns', async () => {
-  try {
-    const vault = requireVault()
-    const turns = await listTurns(vault)
-    return ok(turns)
-  } catch (e) {
-    return err(e)
-  }
-})
-
-ipcMain.handle('snapshot:listForFile', async (_e, relPath: unknown) => {
-  try {
-    const vault = requireVault()
-    const rel = validateRelPath(relPath)
-    const turns = await listForFile(vault, rel)
-    return ok(turns)
-  } catch (e) {
-    return err(e)
-  }
-})
-
-ipcMain.handle('snapshot:read', async (_e, turnId: unknown, relPath: unknown) => {
-  try {
-    const vault = requireVault()
-    const tid = validateTurnId(turnId)
-    const rel = validateRelPath(relPath)
-    const content = await readSnapshot(vault, tid, rel)
-    return ok(content)
-  } catch (e) {
-    return err(e)
-  }
-})
-
-ipcMain.handle('snapshot:restore', async (_e, turnId: unknown, relPath: unknown) => {
-  try {
-    const vault = requireVault()
-    const tid = validateTurnId(turnId)
-    const rel = validateRelPath(relPath)
-    const preTurnId = await restoreSnapshot(vault, tid, rel)
-    // Invalidate cache so the next file:read picks up the restored content
-    const absPath = path.join(vault, rel)
-    fileContentCache.delete(absPath)
-    notifyTree()
-    return ok({ preTurnId })
-  } catch (e) {
-    return err(e)
-  }
-})
-
-const BUFFER_SAVE_MAX_BYTES = 50 * 1024 * 1024 // 50 MB hard cap
-
-ipcMain.handle('snapshot:saveBuffer', async (_e, relPath: unknown, content: unknown) => {
-  try {
-    if (typeof content !== 'string') throw new Error('SNAPSHOT_INVALID_CONTENT')
-    if (Buffer.byteLength(content, 'utf8') > BUFFER_SAVE_MAX_BYTES)
-      throw new Error('SNAPSHOT_BUFFER_TOO_LARGE')
-    const vault = requireVault()
-    const rel = validateRelPath(relPath)
-    const turnId = activeTurnId ?? newTurnId()
-    if (!activeTurnId) activeTurnId = turnId
-    const saved = await writeSnapshot(vault, turnId, rel, content, 'buffer-save')
-    return ok({ turnId, saved })
-  } catch (e) {
-    return err(e)
-  }
-})
-
-ipcMain.handle('snapshot:saveExternalChange', async (_e, relPath: unknown, content: unknown) => {
-  try {
-    const vault = requireVault()
-    const rel = validateRelPath(relPath)
-    if (typeof content !== 'string') throw new Error('SNAPSHOT_INVALID_CONTENT')
-    if (Buffer.byteLength(content, 'utf8') > BUFFER_SAVE_MAX_BYTES) {
-      throw new Error('SNAPSHOT_BUFFER_TOO_LARGE')
-    }
-    const turnId = activeTurnId ?? newTurnId()
-    if (!activeTurnId) activeTurnId = turnId
-    const saved = await writeSnapshot(vault, turnId, rel, content, 'external-rejected')
-    return ok({ turnId, saved })
-  } catch (e) {
-    return err(e)
-  }
-})
-
-// U2: user-driven snapshot capture/restore (no AI turn required)
-// Validate snapshotId is a UUID v4 to prevent path traversal via the id parameter
-const SNAPSHOT_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
-
-ipcMain.handle('snapshot:capture', async (_e, payload: unknown) => {
-  try {
-    if (!payload || typeof payload !== 'object') throw new Error('SNAPSHOT_INVALID_PAYLOAD')
-    const { paths, trigger } = payload as Record<string, unknown>
-
-    if (!Array.isArray(paths) || paths.length === 0) throw new Error('SNAPSHOT_INVALID_PATHS')
-    if (paths.some((p) => typeof p !== 'string')) throw new Error('SNAPSHOT_INVALID_PATHS')
-
-    if (typeof trigger !== 'string') throw new Error('MARVIN_INVALID_TRIGGER')
-
-    const vault = requireVault()
-
-    // assertInVault: realpath-resolves + TOCTOU-safe boundary check — same as path:trash.
-    // Renderer sends absolute paths; we derive vault-relative paths from the safe result.
-    const relPaths: string[] = await Promise.all(
-      (paths as string[]).map(async (rawPath) => {
-        const safe = await assertInVault(rawPath)
-        return path.relative(vault, safe)
-      })
-    )
-
-    const snapshotId = await captureUserSnapshot(
-      vault,
-      relPaths,
-      trigger as import('./snapshot.js').UserSnapshotTrigger
-    )
-    return ok({ snapshotId })
-  } catch (e) {
-    return err(e)
-  }
-})
-
-ipcMain.handle('snapshot:restoreOne', async (_e, payload: unknown) => {
-  try {
-    if (!payload || typeof payload !== 'object') throw new Error('SNAPSHOT_INVALID_PAYLOAD')
-    const { snapshotId } = payload as Record<string, unknown>
-
-    if (typeof snapshotId !== 'string' || !SNAPSHOT_ID_RE.test(snapshotId)) {
-      throw new Error('SNAPSHOT_INVALID_ID')
-    }
-
-    const vault = requireVault()
-    const restoredPaths = await restoreUserSnapshot(vault, snapshotId)
-
-    // Invalidate cache for each restored path — mirrors snapshot:restore behaviour
-    for (const relPath of restoredPaths) {
-      fileContentCache.delete(path.join(vault, relPath))
-    }
-    notifyTree()
-    return ok({})
-  } catch (e) {
-    return err(e)
-  }
+registerSnapshotHandlers({
+  getActiveVaultPath: () => activeVaultPath,
+  assertInVault,
+  getActiveTurnId: () => activeTurnId,
+  setActiveTurnId: (id) => {
+    activeTurnId = id
+  },
+  deleteFileCacheEntry: (key) => {
+    fileContentCache.delete(key)
+  },
+  notifyTree,
 })
 
 // --- Agent IPC handlers (agent namespace) ------------------------------------
