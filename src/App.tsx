@@ -1097,7 +1097,7 @@ export default function App() {
                     ...t,
                     path,
                     content,
-                    version: 0,
+                    version: t.version + 1,
                     back: [...t.back, t.path],
                     forward: [],
                   }
