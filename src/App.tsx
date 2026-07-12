@@ -2111,7 +2111,6 @@ export default function App() {
           <aside className="claude-pane">
             <AgentsPane
               agents={agents}
-              vaultPath={vaultPath}
               newTabTick={newAgentTabTick}
               onRewind={handleRewindToTurn}
               onTurnSummary={(summary) =>

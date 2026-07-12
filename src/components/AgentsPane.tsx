@@ -10,10 +10,10 @@ import { CHAT_UI_ENABLED, resolveTabMode, type TabMode } from '../lib/featureFla
 import { useHorizontalWheelScroll } from '../lib/useHorizontalWheelScroll'
 import type { AgentKind } from '../lib/agent-drop-format'
 import type { MenuItemSpec } from '../types'
+import { useAppContext } from '../context/AppContext'
 
 type Props = {
   agents: AgentDef[]
-  vaultPath: string
   /** Increments to request opening a new tab (Cmd+Shift+T from App). */
   newTabTick: number
   /** Open the SnapshotPanel pre-selected to this turn id (from UserBubble). */
@@ -59,13 +59,13 @@ function readStoredDefault(agents: AgentDef[]): string | null {
 
 export function AgentsPane({
   agents,
-  vaultPath,
   newTabTick,
   onRewind,
   onTurnSummary,
   onOpenFile,
   onFocusChange,
 }: Props) {
+  const vaultPath = useAppContext().vaultPath ?? ''
   const installed = useMemo(() => agents.filter((a) => a.binaryPath != null), [agents])
   const terminalModeDefault = useSetting('terminalModeEnabled') ?? false
   const [tabs, setTabs] = useState<AgentTab[]>([])
@@ -461,7 +461,6 @@ export function AgentsPane({
                 key={t.id}
                 agent={a}
                 ptyId={t.id}
-                vaultPath={vaultPath}
                 isActive={isActive}
                 onStatusChange={handleStatusChange}
                 onOpenFile={onOpenFile}

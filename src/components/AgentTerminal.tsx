@@ -8,6 +8,7 @@ import { useColorTheme } from '../lib/colorTheme'
 import { createTerminalLinkProvider, createOsc8LinkHandler } from '../lib/terminalLinkProvider'
 import { MARVIN_PATH_MIME, MARVIN_PATHS_MIME, readDraggedPaths } from '../lib/dropAttachments'
 import { formatPathsForAgent, type AgentKind } from '../lib/agent-drop-format'
+import { useAppContext } from '../context/AppContext'
 
 function readCssVar(name: string): string {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim()
@@ -42,7 +43,6 @@ type Props = {
   /** Unique PTY identifier for this terminal instance. Distinct per tab so
    * multiple tabs of the same agent each get their own backing process. */
   ptyId: string
-  vaultPath: string
   /** Whether this terminal is currently visible. Hidden terminals keep
    * their PTY and xterm instance alive in the background. */
   isActive: boolean
@@ -53,14 +53,8 @@ type Props = {
   onOpenFile?: (absolutePath: string) => void
 }
 
-export function AgentTerminal({
-  agent,
-  ptyId,
-  vaultPath,
-  isActive,
-  onStatusChange,
-  onOpenFile,
-}: Props) {
+export function AgentTerminal({ agent, ptyId, isActive, onStatusChange, onOpenFile }: Props) {
+  const vaultPath = useAppContext().vaultPath ?? ''
   const resolvedTheme = useColorTheme()
   // Keep the latest callback in a ref so changing its identity doesn't tear
   // down and rebuild the terminal (which would kill the PTY).

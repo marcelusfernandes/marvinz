@@ -86,7 +86,9 @@ function setupMarvinMock() {
 const VAULT = '/vault'
 const PTY_ID = 'test-pty-1'
 
-function defaultProps(overrides: Partial<Parameters<typeof AgentTerminal>[0]> = {}) {
+function defaultProps(
+  overrides: Partial<Parameters<typeof AgentTerminal>[0] & { vaultPath: string }> = {}
+) {
   return {
     agent: { id: 'codex', name: 'Codex', binaryPath: '/usr/bin/codex' },
     ptyId: PTY_ID,
