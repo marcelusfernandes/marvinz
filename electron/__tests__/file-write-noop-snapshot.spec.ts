@@ -169,4 +169,23 @@ describe('file:write — snapshot skip on no-op write during an AI turn (#535)',
 
     expect(await fs.readFile(absPath, 'utf8')).toBe('after content')
   })
+
+  it('CHARACTERIZATION (net for #569 refactor): a no-op write never calls fs.writeFile', async () => {
+    // The existing no-op test above only checks the file's final content,
+    // which reads the same whether fs.writeFile ran with identical content or
+    // was skipped entirely — it can't distinguish the two. This spies on the
+    // real fs.writeFile directly, pinning the "skip the write itself" half of
+    // the no-op contract that #569's refactor must not regress.
+    await writeVaultFile('note.md', 'stable content')
+    await stampAiTurnActive()
+
+    const absPath = path.join(vaultDir, 'note.md')
+    const writeFileSpy = vi.spyOn(fs, 'writeFile')
+    try {
+      await fileWrite(undefined, absPath, 'stable content')
+      expect(writeFileSpy).not.toHaveBeenCalled()
+    } finally {
+      writeFileSpy.mockRestore()
+    }
+  })
 })

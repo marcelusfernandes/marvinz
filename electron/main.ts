@@ -27,6 +27,7 @@ import {
   restoreSnapshot,
   captureUserSnapshot,
   restoreUserSnapshot,
+  type SnapshotTrigger,
 } from './snapshot.js'
 import { assertInsideVaultAsync } from './vault-boundary.js'
 import { assertAllowedVault } from './vault-allowlist.js'
@@ -154,6 +155,47 @@ function scheduleTurnEnd(vaultRoot: string, turnId: string) {
     activeTurnId = null
     finalizeTurn(vaultRoot, turnId).catch(() => {})
   }, TURN_END_MS)
+}
+
+// Centralizes the "AI turn active -> adopt/allocate activeTurnId -> snapshot
+// before mutating" invariant shared by file:write, path:rename, and the
+// watcher's snapshotExternalChange (#569).
+//
+// `precondition` covers each call site's extra gate (existsSync for
+// file:write/path:rename, the vault-relative path match for the watcher) —
+// checked, like the shared aiActive/activeVaultPath gate, BEFORE activeTurnId
+// is touched, so a call that doesn't qualify never starts a turn.
+//
+// `readBefore` resolves the pre-mutation content, or returns null to signal
+// "skip the snapshot" — file:write's no-op check (identical content) and the
+// watcher's cache-miss/no-change skips need to bypass the snapshot without
+// this helper knowing about their site-specific reasons, so they communicate
+// it via this return value rather than a thrown error.
+//
+// NOTE: activeTurnId adoption happens BEFORE readBefore() runs, matching
+// every original call site — an AI-active call that turns out to be a no-op
+// (e.g. file:write with identical content) still starts a turn if none was
+// active yet. This is pre-existing behavior, preserved deliberately here, not
+// a new decision made by this refactor.
+export async function snapshotBeforeMutation(
+  absPath: string,
+  source: SnapshotTrigger,
+  precondition: () => boolean,
+  readBefore: () => Promise<string | null>
+): Promise<void> {
+  const aiActive = Date.now() - lastPtyWriteAt < AI_TURN_WINDOW_MS
+  if (!aiActive || !activeVaultPath || !precondition()) return
+  const vaultRoot = activeVaultPath
+  const turnId = activeTurnId ?? newTurnId()
+  if (!activeTurnId) activeTurnId = turnId
+  const relPath = path.relative(vaultRoot, absPath)
+  try {
+    const before = await readBefore()
+    if (before == null) return
+    await writeSnapshot(vaultRoot, turnId, relPath, before, source)
+  } catch (err) {
+    console.error(`[snapshot] ${source} pre-mutation snapshot failed`, { relPath, turnId, err })
+  }
 }
 
 // Called from vault:watch before adopting a new vault (or closing the current
@@ -804,45 +846,41 @@ ipcMain.handle('vault:watch', async (_e, vaultPath: string) => {
   // - No content change (e.g. an editor re-save or mtime-only touch): skip
   //   the snapshot so it doesn't surface as a false "Claude modified" toast.
   const snapshotExternalChange = async (filePath: string): Promise<void> => {
-    const aiActive = Date.now() - lastPtyWriteAt < AI_TURN_WINDOW_MS
-    if (
-      !aiActive ||
-      !activeVaultPath ||
-      !(filePath === activeVaultPath || filePath.startsWith(activeVaultPath + path.sep))
+    await snapshotBeforeMutation(
+      filePath,
+      'watcher',
+      () =>
+        !!activeVaultPath &&
+        (filePath === activeVaultPath || filePath.startsWith(activeVaultPath + path.sep)),
+      async () => {
+        if (!activeVaultPath) return null // guarded by precondition above; narrows for TS
+        const relPath = path.relative(activeVaultPath, filePath)
+        const before = fileContentCache.get(filePath)
+
+        let after: string
+        try {
+          after = await fs.readFile(filePath, 'utf8')
+        } catch {
+          return null // file unreadable (deleted, permission) — skip
+        }
+
+        if (before == null) {
+          console.warn('[snapshot] watcher cache miss — skipping snapshot, seeding cache', {
+            relPath,
+          })
+          fileContentCache.set(filePath, after)
+          return null
+        }
+
+        if (before === after) {
+          fileContentCache.set(filePath, after)
+          return null
+        }
+
+        fileContentCache.set(filePath, after)
+        return before
+      }
     )
-      return
-    const turnId = activeTurnId ?? newTurnId()
-    if (!activeTurnId) activeTurnId = turnId
-    const relPath = path.relative(activeVaultPath, filePath)
-
-    const before = fileContentCache.get(filePath)
-
-    let after: string
-    try {
-      after = await fs.readFile(filePath, 'utf8')
-    } catch {
-      return // file unreadable (deleted, permission) — skip
-    }
-
-    if (before == null) {
-      console.warn('[snapshot] watcher cache miss — skipping snapshot, seeding cache', {
-        relPath,
-      })
-      fileContentCache.set(filePath, after)
-      return
-    }
-
-    if (before === after) {
-      fileContentCache.set(filePath, after)
-      return
-    }
-
-    try {
-      await writeSnapshot(activeVaultPath, turnId, relPath, before, 'watcher')
-    } catch (err) {
-      console.error('[snapshot] watcher pre-change snapshot failed', { filePath, turnId, err })
-    }
-    fileContentCache.set(filePath, after)
   }
 
   vaultWatcher
@@ -915,12 +953,16 @@ ipcMain.handle('file:read', async (_e, filePath: string) => {
 ipcMain.handle('file:write', async (_e, filePath: string, content: string) => {
   try {
     const safe = await assertInVault(filePath)
-    const aiActive = Date.now() - lastPtyWriteAt < AI_TURN_WINDOW_MS
-    if (aiActive && activeVaultPath && existsSync(safe)) {
-      const turnId = activeTurnId ?? newTurnId()
-      if (!activeTurnId) activeTurnId = turnId
-      const relPath = path.relative(activeVaultPath, safe)
-      try {
+    // Set by the readBefore resolver below when the write is a no-op (content
+    // identical to disk) — a Promise<void> helper can't itself distinguish
+    // "no AI turn active" (write must proceed) from "no-op during an AI turn"
+    // (write must be skipped), so the resolver signals it via this flag.
+    let isNoop = false
+    await snapshotBeforeMutation(
+      safe,
+      'file:write',
+      () => existsSync(safe),
+      async () => {
         const before = await fs.readFile(safe, 'utf8')
         // No-op write (content identical to disk): skip both the snapshot
         // and the redundant disk write — nothing actually changed, so
@@ -930,12 +972,14 @@ ipcMain.handle('file:write', async (_e, filePath: string, content: string) => {
         // bumps mtime, which would trigger chokidar's `change` event and let
         // the same spurious toast resurface via snapshotExternalChange (that
         // path has no content-equality guard until #536).
-        if (before === content) return
-        await writeSnapshot(activeVaultPath, turnId, relPath, before, 'file:write')
-      } catch (err) {
-        console.error('[snapshot] file:write pre-snapshot failed', { relPath, turnId, err })
+        if (before === content) {
+          isNoop = true
+          return null
+        }
+        return before
       }
-    }
+    )
+    if (isNoop) return
     await fs.writeFile(safe, content, 'utf8')
   } catch (e) {
     wrapFsError(e)
@@ -1330,19 +1374,17 @@ ipcMain.handle('path:rename', async (_e, oldPath: string, newPath: string) => {
     const safeNew = await assertInVault(newPath)
     await assertRenameTargetAvailable(safeOld, safeNew)
 
-    // Snapshot the source file before moving if AI turn is active
-    const aiActive = Date.now() - lastPtyWriteAt < AI_TURN_WINDOW_MS
-    if (aiActive && activeVaultPath && existsSync(safeOld)) {
-      const turnId = activeTurnId ?? newTurnId()
-      if (!activeTurnId) activeTurnId = turnId
-      const relPath = path.relative(activeVaultPath, safeOld)
-      try {
-        const content = await fs.readFile(safeOld, 'utf8')
-        await writeSnapshot(activeVaultPath, turnId, relPath, content, 'file:write')
-      } catch (err) {
-        console.error('[snapshot] path:rename pre-snapshot failed', { relPath, turnId, err })
-      }
-    }
+    // Snapshot the source file before moving if AI turn is active.
+    // Trigger is 'file:write', not a distinct 'path:rename' value — a
+    // pre-existing mislabel (#569), preserved deliberately here since fixing
+    // it changes on-disk manifest data and is a separate, deliberate decision
+    // out of scope for this refactor.
+    await snapshotBeforeMutation(
+      safeOld,
+      'file:write',
+      () => existsSync(safeOld),
+      () => fs.readFile(safeOld, 'utf8')
+    )
 
     await fs.mkdir(path.dirname(safeNew), { recursive: true })
     await fs.rename(safeOld, safeNew)
