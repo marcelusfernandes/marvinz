@@ -45,6 +45,14 @@ type ChatStore = {
   setSessionLive: (sid: SessionId, live: boolean) => void
   /** Clear the error banner and, if errored, re-enter streaming (C1-4 retry). */
   clearError: (sid: SessionId) => void
+  /** Queue a follow-up message to send when the current turn ends (C1-3). */
+  enqueueMessage: (sid: SessionId, text: string) => void
+  /** Remove and ignore the head of the queue (after it has been dispatched). */
+  dequeueMessage: (sid: SessionId) => void
+  /** Mark the turn as cancelling (drives the "Stopping…" state) (C1-5). */
+  setCancelling: (sid: SessionId, cancelling: boolean) => void
+  /** Force a hung turn back to idle if the terminating event never arrived (C1-5). */
+  forceIdle: (sid: SessionId) => void
 }
 
 function emptySession(id: SessionId, agentId: Provider, vaultPath: string): Session {
@@ -250,6 +258,28 @@ export const useChatStore = create<ChatStore>((set) => ({
             }
       )
     ),
+
+  enqueueMessage: (sid, text) =>
+    set((state) => withSession(state, sid, (s) => ({ ...s, queue: [...(s.queue ?? []), text] }))),
+
+  dequeueMessage: (sid) =>
+    set((state) =>
+      withSession(state, sid, (s) =>
+        s.queue && s.queue.length > 0 ? { ...s, queue: s.queue.slice(1) } : s
+      )
+    ),
+
+  setCancelling: (sid, cancelling) =>
+    set((state) =>
+      withSession(state, sid, (s) => (s.cancelling === cancelling ? s : { ...s, cancelling }))
+    ),
+
+  forceIdle: (sid) =>
+    set((state) =>
+      withSession(state, sid, (s) =>
+        s.turnState === 'idle' && !s.cancelling ? s : { ...s, turnState: 'idle', cancelling: false }
+      )
+    ),
 }))
 
 // ---------- event reducer ----------
@@ -391,6 +421,7 @@ function applyEvent(s: Session, ev: ChatStreamEvent): Session {
         ...s,
         messages: { ...s.messages, [ev.messageId]: { ...target, done: true } },
         turnState,
+        cancelling: false,
       }
     }
 
@@ -416,6 +447,7 @@ function applyEvent(s: Session, ev: ChatStreamEvent): Session {
           cacheWriteTokens: (s.tokenUsage.cacheWriteTokens ?? 0) + (ev.usage.cacheWriteTokens ?? 0),
         },
         turnState: s.pendingApprovals.length > 0 ? 'awaiting_approval' : 'idle',
+        cancelling: false,
       }
 
     case 'crashed':
@@ -424,6 +456,7 @@ function applyEvent(s: Session, ev: ChatStreamEvent): Session {
         ...s,
         turnState: 'error',
         live: false,
+        cancelling: false,
         lastError: {
           message:
             ev.exitCode != null
@@ -441,6 +474,7 @@ function applyEvent(s: Session, ev: ChatStreamEvent): Session {
         turnState: 'error',
         live: ev.recoverable ? s.live : false,
         lastError: { message: ev.message, recoverable: ev.recoverable, code: ev.code },
+        cancelling: false,
       }
   }
 }
