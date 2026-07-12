@@ -20,7 +20,7 @@ import React from 'react'
 // Hoisted capture refs
 // ---------------------------------------------------------------------------
 
-const { tabBarCapture, editorLifecycle } = vi.hoisted(() => {
+const { tabBarCapture, editorLifecycle, editorPropsByPath } = vi.hoisted(() => {
   const tabBarCapture: {
     onActivate: ((id: string) => void) | null
     onClose: ((id: string) => void) | null
@@ -30,7 +30,12 @@ const { tabBarCapture, editorLifecycle } = vi.hoisted(() => {
 
   const editorLifecycle: { filePath: string; event: 'mount' | 'unmount' }[] = []
 
-  return { tabBarCapture, editorLifecycle }
+  // Latest rendered props per filePath (issue #560) — lets tests read the
+  // `initialContent` a (re)mounted Editor was seeded with, and drive
+  // `onSave`/`onBufferChange` for a specific tab without it being active.
+  const editorPropsByPath = new Map<string, Record<string, unknown>>()
+
+  return { tabBarCapture, editorLifecycle, editorPropsByPath }
 })
 
 // ---------------------------------------------------------------------------
@@ -70,6 +75,7 @@ vi.mock('../TabBar', () => ({
 vi.mock('../Editor', () => ({
   Editor: (props: Record<string, unknown>) => {
     const filePath = props.filePath as string
+    editorPropsByPath.set(filePath, props)
     React.useEffect(() => {
       editorLifecycle.push({ filePath, event: 'mount' })
       return () => {
@@ -281,6 +287,25 @@ function mountCount(filePath: string): number {
   return count
 }
 
+/** The `initialContent` prop the currently (re)mounted Editor for this
+ * filePath was last rendered with — what a fresh mount seeds `value` from. */
+function latestInitialContent(filePath: string): string | undefined {
+  return editorPropsByPath.get(filePath)?.initialContent as string | undefined
+}
+
+/** Simulates the real Editor's debounced autosave firing for a background
+ * (possibly inactive/evicted) tab, exactly like `onSave` wired in App.tsx.
+ * `handleSave` is async (awaits `window.marvin.file.write`), so this awaits
+ * the act() callback to flush it deterministically before returning. */
+async function triggerSave(filePath: string, content: string) {
+  const onSave = editorPropsByPath.get(filePath)?.onSave as
+    | ((c: string) => void | Promise<void>)
+    | undefined
+  await act(async () => {
+    await onSave?.(content)
+  })
+}
+
 // ---------------------------------------------------------------------------
 // Setup / teardown
 // ---------------------------------------------------------------------------
@@ -288,6 +313,7 @@ function mountCount(filePath: string): number {
 beforeEach(() => {
   setupMarvin()
   editorLifecycle.length = 0
+  editorPropsByPath.clear()
 })
 
 afterEach(() => {
@@ -409,5 +435,63 @@ describe('MRU eviction cap — MAX_MOUNTED_EDITORS = 6 (AC#4, issue #440)', () =
     ).length
 
     expect(mountedCount).toBeLessThanOrEqual(6)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Regression: stale-content revert on evict → reactivate (issue #560)
+//
+// Coverage boundary: Editor is stubbed here, so these tests only observe
+// `initialContent` (= NoteTab.content) — they lock in the `handleSave`
+// setTabs-advancement fix. They do NOT exercise Editor.tsx:502-508's reset
+// effect or verify that autosave never writes reverted content back to
+// disk; that needs a real (non-stubbed) Editor and is out of scope here.
+// ---------------------------------------------------------------------------
+
+describe('Eviction must not revert saved content on reactivate (issue #560)', () => {
+  it('reactivating an evicted tab seeds the remounted Editor from the last saved content, not the open-time snapshot', async () => {
+    await renderBootstrapped()
+
+    // Open note 1 and autosave an edit for it (mirrors Editor's debounced
+    // onSave firing while note 1 is still mounted/active).
+    await openNote(1)
+    await triggerSave('/vault/note-1.md', 'edited and saved content for note 1')
+
+    // Open 6 more tabs so note 1 falls outside MAX_MOUNTED_EDITORS and its
+    // Editor unmounts (evicted, per the existing MRU coverage above).
+    for (let n = 2; n <= 7; n++) {
+      await openNote(n)
+    }
+    expect(isMounted('/vault/note-1.md')).toBe(false)
+
+    // Reactivate note 1 — its Editor remounts fresh.
+    const tab1Id = findTabId(1)
+    await switchToTab(tab1Id)
+    expect(isMounted('/vault/note-1.md')).toBe(true)
+
+    // The remounted Editor must seed from the saved content, not the
+    // tab-open-time disk snapshot ('initial content', per the file.read mock).
+    expect(latestInitialContent('/vault/note-1.md')).toBe('edited and saved content for note 1')
+  })
+
+  it('the latest of two autosaves wins and survives evict → reactivate (last-write, not first-write)', async () => {
+    await renderBootstrapped()
+
+    // Two successive autosaves for note 1 before it gets evicted — the
+    // remounted Editor must seed from the second (latest), not the first.
+    await openNote(1)
+    await triggerSave('/vault/note-1.md', 'first autosaved content')
+    await triggerSave('/vault/note-1.md', 'second autosaved content')
+
+    for (let n = 2; n <= 7; n++) {
+      await openNote(n)
+    }
+    expect(isMounted('/vault/note-1.md')).toBe(false)
+
+    const tab1Id = findTabId(1)
+    await switchToTab(tab1Id)
+    expect(isMounted('/vault/note-1.md')).toBe(true)
+
+    expect(latestInitialContent('/vault/note-1.md')).toBe('second autosaved content')
   })
 })
