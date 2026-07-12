@@ -1449,6 +1449,7 @@ export default function App() {
       await window.marvin.file.write(path, content)
       lastDiskContentRef.current.set(path, content)
       bufferContentRef.current.set(path, content)
+      setTabs((prev) => prev.map((t) => (isNoteTab(t) && t.path === path ? { ...t, content } : t)))
     } catch (err) {
       const name = basenameOf(path)
       const detail = err instanceof Error ? err.message : String(err)
@@ -1551,6 +1552,9 @@ export default function App() {
   }
 
   const renameInTabs = (oldPath: string, newPath: string) => {
+    // Snapshot keyed by old path — the remap loop below mutates the ref, so the
+    // updater must read buffers captured before that.
+    const liveBuffers = new Map(bufferContentRef.current)
     setTabs((prev) =>
       prev.map((t) => {
         if (!isNoteTab(t)) return t
@@ -1571,9 +1575,11 @@ export default function App() {
               ? newPath + p.slice(oldPath.length)
               : p
         )
-        return path === t.path && back === t.back && forward === t.forward
+        const buffered = liveBuffers.get(t.path)
+        const content = buffered !== undefined ? buffered : t.content
+        return path === t.path && back === t.back && forward === t.forward && content === t.content
           ? t
-          : { ...t, path, back, forward }
+          : { ...t, path, back, forward, content }
       })
     )
     // remap tracked content for both the on-disk and live buffer maps
@@ -2168,7 +2174,7 @@ export default function App() {
                     isActive={isActive}
                     filePath={noteTab.path}
                     vaultPath={vaultPath}
-                    initialContent={noteTab.content}
+                    initialContent={bufferContentRef.current.get(noteTab.path) ?? noteTab.content}
                     version={noteTab.version}
                     geometryKey={`${layoutMode}#${sidebarWidth}#${agentsWidth}`}
                     paletteItems={paletteItemsWithMeta}

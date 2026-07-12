@@ -499,13 +499,19 @@ export function Editor({
     return langExt ? [...base, langExt] : base
   }, [langExt, visualStyle, headerFindKeymap, dropExtension, mentionExt])
 
+  // Only a version bump is a hard reset (disk-accept / external-refresh /
+  // snapshot restore). Save-driven content advancement and path-only renames
+  // leave version untouched, so they must not reseed the live buffer.
+  const seededVersionRef = useRef(version)
   useEffect(() => {
+    if (seededVersionRef.current === version) return
+    seededVersionRef.current = version
     setValue(initialContent)
     latestValue.current = initialContent
     savedContentRef.current = initialContent
     setSavedAt(null)
     setDirty(false)
-  }, [filePath, initialContent, setDirty])
+  }, [version, initialContent, setDirty])
 
   useEffect(() => {
     return () => {
