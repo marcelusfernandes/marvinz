@@ -34,9 +34,12 @@ import React from 'react'
 // Hoisted capture refs
 // ---------------------------------------------------------------------------
 
-const { lastEditorProps } = vi.hoisted(() => {
+const { lastEditorProps, fileOnChangedCb } = vi.hoisted(() => {
   const lastEditorProps: { current: Record<string, unknown> | null } = { current: null }
-  return { lastEditorProps }
+  const fileOnChangedCb: {
+    fire: ((filePath: string, source: 'external' | 'agent') => void) | null
+  } = { fire: null }
+  return { lastEditorProps, fileOnChangedCb }
 })
 
 // ---------------------------------------------------------------------------
@@ -81,7 +84,12 @@ vi.mock('../TopBar', () => ({ TopBar: () => null }))
 vi.mock('../SnapshotPanel', () => ({ SnapshotPanel: () => null }))
 vi.mock('../SnapshotToast', () => ({ SnapshotToast: () => null }))
 vi.mock('../ImportToast', () => ({ ImportToast: () => null }))
-vi.mock('../ExternalChangeBanner', () => ({ ExternalChangeBanner: () => null }))
+// Renders a detectable marker (instead of null) so tests can observe
+// whether `noteTab.pendingExternalChange` got set — the App only mounts
+// this banner when it did (App.tsx: `isActive && noteTab.pendingExternalChange`).
+vi.mock('../ExternalChangeBanner', () => ({
+  ExternalChangeBanner: () => <div data-testid="external-change-banner" />,
+}))
 vi.mock('../BrowserPane', () => ({ BrowserPane: () => null }))
 vi.mock('../ImageViewer', () => ({ ImageViewer: () => null }))
 vi.mock('../PdfViewer', () => ({ PdfViewer: () => null }))
@@ -107,8 +115,9 @@ vi.mock('../../lib/paletteRanker', () => ({}))
 
 function noop() {}
 
-// Mutable so Scenario 4 can change B's disk content mid-test to simulate an
+// Mutable so Scenario 4/5 can change disk content mid-test to simulate an
 // external edit. Reset to the baseline in beforeEach.
+let noteADiskContent = 'content A'
 let noteBDiskContent = 'content B'
 
 function setupMarvin() {
@@ -131,16 +140,21 @@ function setupMarvin() {
       },
       file: {
         pick: vi.fn().mockResolvedValue(null),
-        // A's content is fixed. B's is mutable (see `noteBDiskContent`) so
-        // Scenario 4 can simulate an external disk change to a file whose
-        // buffer was never edited.
+        // Both mutable (see `noteADiskContent`/`noteBDiskContent`) so tests
+        // can simulate an external disk change mid-test — Scenario 4 uses
+        // B's, Scenario 5 uses A's.
         read: vi.fn(async (path: string) =>
-          path.includes('note-a') ? 'content A' : noteBDiskContent
+          path.includes('note-a') ? noteADiskContent : noteBDiskContent
         ),
         write: vi.fn().mockResolvedValue(undefined),
         create: vi.fn().mockResolvedValue('/vault/new.md'),
         writeBinary: vi.fn().mockResolvedValue(''),
-        onChanged: vi.fn().mockReturnValue(noop),
+        onChanged: vi.fn((cb: (filePath: string, source: 'external' | 'agent') => void) => {
+          fileOnChangedCb.fire = cb
+          return () => {
+            fileOnChangedCb.fire = null
+          }
+        }),
         exportPdf: vi.fn().mockResolvedValue(undefined),
       },
       folder: { create: vi.fn().mockResolvedValue(undefined) },
@@ -249,6 +263,8 @@ async function goForward() {
 beforeEach(() => {
   setupMarvin()
   lastEditorProps.current = null
+  fileOnChangedCb.fire = null
+  noteADiskContent = 'content A'
   noteBDiskContent = 'content B'
 })
 
@@ -332,5 +348,52 @@ describe('Scenario 4 — a clean (never-edited) buffer never masks a fresh exter
 
     expect(lastEditorProps.current?.filePath).toBe('/vault/note-b.md')
     expect(lastEditorProps.current?.initialContent).toBe('content B (changed on disk while away)')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Scenario 5 (follow-up promised to QA on #560) — the symmetric case to
+// Scenario 4: a DIRTY (genuinely edited, unsaved) buffer that ALSO has a
+// real external disk change land at the same time must surface the
+// conflict via the external-change banner, not silently resolve either
+// way. This exercises `window.marvin.file.onChanged`'s own isDirty branch
+// (App.tsx ~571-593), independent of navigation — a real filesystem watcher
+// event racing an in-progress edit.
+// ---------------------------------------------------------------------------
+
+describe('Scenario 5 — a dirty buffer plus a concurrent external disk change surfaces the conflict banner (#560 follow-up)', () => {
+  it('editing A, then an external change to A while the edit is unsaved, shows the banner and does not silently resolve either way', async () => {
+    await renderBootstrapped()
+    await openNote('open-note-a')
+    const versionBeforeConflict = lastEditorProps.current?.version
+
+    // Genuine pending edit — buffer diverges from the last known disk.
+    // (Only reaches bufferContentRef at the App level; the mocked Editor
+    // doesn't hold live CodeMirror state, so the real invariant to check
+    // here is that nothing forces a reseed — see below.)
+    typeInEditor('edited content for A (unsaved)')
+
+    // Simulate an external process changing A's file on disk while the
+    // edit is still unsaved (e.g. an agent or another editor).
+    noteADiskContent = 'content A (changed externally)'
+    await act(async () => {
+      fileOnChangedCb.fire?.('/vault/note-a.md', 'external')
+    })
+    await act(async () => {})
+
+    // Conflict must be surfaced, not silently resolved either way.
+    expect(screen.getByTestId('external-change-banner')).toBeTruthy()
+
+    // `version` must NOT bump — the dirty branch only sets
+    // `pendingExternalChange`, never touching `content`/`version`. A real
+    // (non-mocked) Editor only reseeds on a version bump, so this is what
+    // guarantees the live in-progress edit is never silently clobbered by
+    // either the user's stale buffer or the fresh external content.
+    expect(lastEditorProps.current?.version).toBe(versionBeforeConflict)
+
+    // `noteTab.content` (the tab-open-time snapshot) must also stay put —
+    // proving the external content was NOT silently auto-accepted.
+    expect(lastEditorProps.current?.initialContent).toBe('content A')
+    expect(lastEditorProps.current?.initialContent).not.toBe('content A (changed externally)')
   })
 })

@@ -506,13 +506,22 @@ export function Editor({
   }, [langExt, visualStyle, headerFindKeymap, dropExtension, mentionExt])
 
   // Only a version bump is a hard reset (disk-accept / external-refresh /
-  // snapshot restore). Save-driven content advancement and path-only renames
-  // leave version untouched, so they must not reseed the live buffer.
+  // snapshot restore / navigation). Save-driven content advancement and
+  // path-only renames leave version untouched, so they must not reseed.
+  // `value` is reset DURING render so the version-keyed CodeMirror below
+  // remounts straight onto the new content; a post-commit reset would let the
+  // fresh view record the doc swap into its history (cross-file undo bleed, #559).
+  const [seededVersion, setSeededVersion] = useState(version)
+  if (seededVersion !== version) {
+    setSeededVersion(version)
+    setValue(initialContent)
+  }
+  // Refs / savedAt / dirty don't seed the view, so they catch up post-commit;
+  // setDirty must be here anyway — it notifies the parent (onDirtyChange).
   const seededVersionRef = useRef(version)
   useEffect(() => {
     if (seededVersionRef.current === version) return
     seededVersionRef.current = version
-    setValue(initialContent)
     latestValue.current = initialContent
     savedContentRef.current = initialContent
     setSavedAt(null)
@@ -1011,6 +1020,7 @@ export function Editor({
         )}
         {effectiveMode === 'edit' ? (
           <CodeMirror
+            key={version}
             value={value}
             height="100%"
             theme="none"
