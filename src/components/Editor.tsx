@@ -17,7 +17,6 @@ import {
 import { redo, redoDepth, selectAll, undo, undoDepth } from '@codemirror/commands'
 import { tags as t } from '@lezer/highlight'
 import { EditorSelection, type Extension } from '@codemirror/state'
-import type { EditorView as PMView } from 'prosemirror-view'
 import { undo as pmUndo, redo as pmRedo } from 'prosemirror-history'
 import { languageIdFor, loadLanguage } from '../lib/cmLanguage'
 import {
@@ -52,9 +51,9 @@ import { useVisualStyle } from '../lib/visualStyle'
 import { mentionTrigger } from '../lib/cmMentionTrigger'
 import { MentionPicker } from './MentionPicker'
 import { useAppContext } from '../context/AppContext'
+import { useFindReplaceState } from '../hooks/useFindReplaceState'
+import { useSelectionChip } from '../hooks/useSelectionChip'
 import type { AgentKind } from '../lib/agent-drop-format'
-import { formatSelectionForAgent } from '../lib/agent-selection-format'
-import { clampToViewport } from '../lib/chipViewportClamp'
 import { EditorSelectionChip } from './EditorSelectionChip'
 
 const codeHighlightStyle = HighlightStyle.define([
@@ -262,17 +261,21 @@ export function Editor({
     onDirtyChangeRef.current?.(next)
   }, [])
 
-  // Find / Replace bar state. The bar itself owns the collapsed/expanded
-  // state of the Replace row (persisted to localStorage); `forceReplace`
-  // here is a one-shot signal from Cmd+Alt+F that overrides the persisted
-  // preference for the next open. `pmView` is set by LiveMarkdown via
-  // `onViewReady` so the bar can drive prosemirror-search commands; `cmView`
-  // mirrors the CodeMirror view from `viewRef` for the same purpose, kept as
-  // state so the bar re-renders when the view becomes available.
-  const [findOpen, setFindOpen] = useState(false)
-  const [forceReplace, setForceReplace] = useState(false)
-  const [pmView, setPmView] = useState<PMView | null>(null)
-  const [cmView, setCmView] = useState<EditorView | null>(null)
+  // Find / Replace bar state + replace-toast + window-level tick handling.
+  // Editor keeps only the rendering branch below (CodeMirrorFindBar vs
+  // FindReplaceOverlay); the state/effects live in the hook.
+  const {
+    findOpen,
+    forceReplace,
+    pmView,
+    cmView,
+    setPmView,
+    setCmView,
+    openFind,
+    closeFind,
+    replaceToast,
+    handleReplaced,
+  } = useFindReplaceState({ openFindTick, openReplaceTick, isActive })
   // `@`-mention picker state. `from` is the doc offset of the `@` sigil;
   // `query` is the text typed after it; `anchor` is the viewport coord the
   // picker pins to. `null` while inactive. The mentionTrigger extension
@@ -282,77 +285,19 @@ export function Editor({
     query: string
     anchor: { x: number; y: number }
   } | null>(null)
-  // Selection chip state. Pinned to viewport coords of `sel.to` (caret end)
-  // and cleared when the selection becomes empty. Driven from CodeMirror's
-  // `onUpdate` callback below so a single render path covers both the
-  // production view and the test surface (which mocks ViewPlugin).
-  const [selectionChip, setSelectionChip] = useState<{
-    from: number
-    to: number
-    coords: { left: number; right: number; top: number; bottom: number }
-  } | null>(null)
-  // Lightweight in-pane confirmation that floats over the editor body
-  // (top-center) after Replace / Replace All. Two-phase lifecycle:
-  //   'enter' — visible, after 2s flips to 'leave'
-  //   'leave' — fade-out class is applied; after the 200ms animation we
-  //             null out the toast so the DOM unmounts cleanly.
-  // The `nonce` key remounts the element on bursts so each successive
-  // replacement re-runs the enter animation from scratch.
-  const [replaceToast, setReplaceToast] = useState<{
-    count: number
-    nonce: number
-    phase: 'enter' | 'leave'
-  } | null>(null)
-  useEffect(() => {
-    if (!replaceToast || replaceToast.phase !== 'enter') return
-    const t = window.setTimeout(
-      () => setReplaceToast((prev) => (prev ? { ...prev, phase: 'leave' } : null)),
-      2000
-    )
-    return () => window.clearTimeout(t)
-  }, [replaceToast])
-  useEffect(() => {
-    if (!replaceToast || replaceToast.phase !== 'leave') return
-    const t = window.setTimeout(() => setReplaceToast(null), 200)
-    return () => window.clearTimeout(t)
-  }, [replaceToast])
-  const handleReplaced = useCallback((count: number) => {
-    setReplaceToast({ count, nonce: Date.now(), phase: 'enter' })
-  }, [])
-
-  // Convenience helpers wired into both editor keymaps and the LiveMarkdown
-  // `onOpenFind` callback. `openFind('replace')` mirrors the historical
-  // Cmd+Alt+F shortcut by forcing the Replace row open on the next mount.
-  const openFind = useCallback((variant: 'find' | 'replace') => {
-    setForceReplace(variant === 'replace')
-    setFindOpen(true)
-  }, [])
-  const closeFind = useCallback(() => {
-    setFindOpen(false)
-    setForceReplace(false)
-  }, [])
-
-  // Window-level Cmd+F / Cmd+Alt+F: App.tsx bumps these ticks when the
-  // shortcut fires outside the editor surface (sidebar / agents / tab bar).
-  // The local CM/PM keymaps still handle in-editor presses; the parent
-  // listener defers to them by inspecting the event target. Skip the first
-  // render (no tick change) so opening a tab doesn't auto-pop the bar.
-  // Hidden editors in the stack receive the same tick value as the active one,
-  // so gate on isActive: an inactive editor consumes the tick (advances its
-  // ref) without opening its find bar, so re-activating it later doesn't replay
-  // a tick fired while it was hidden.
-  const lastFindTickRef = useRef(openFindTick ?? 0)
-  useEffect(() => {
-    if (openFindTick === undefined || openFindTick === lastFindTickRef.current) return
-    lastFindTickRef.current = openFindTick
-    if (isActive) openFind('find')
-  }, [openFindTick, openFind, isActive])
-  const lastReplaceTickRef = useRef(openReplaceTick ?? 0)
-  useEffect(() => {
-    if (openReplaceTick === undefined || openReplaceTick === lastReplaceTickRef.current) return
-    lastReplaceTickRef.current = openReplaceTick
-    if (isActive) openFind('replace')
-  }, [openReplaceTick, openFind, isActive])
+  // Selection chip. Driven from CodeMirror's `onUpdate` callback below via the
+  // shared hook's `onCmSelectionChange`; the hook owns positioning, scroll/
+  // resize reposition, and click-to-send.
+  const {
+    chip: selectionChip,
+    handleChipClick,
+    onCmSelectionChange,
+  } = useSelectionChip({
+    source: { kind: 'codemirror', viewRef, isActive },
+    filePath,
+    agentKind,
+    onSendSelection,
+  })
 
   useEffect(() => {
     setLangExt(null)
@@ -692,89 +637,10 @@ export function Editor({
       view: EditorView
     }) => {
       viewRef.current = update.view
-      if (!update.selectionSet) return
-      const sel = update.state.selection.main
-      if (sel.empty) {
-        setSelectionChip(null)
-        return
-      }
-      const c = update.view.coordsAtPos(sel.to)
-      if (!c) {
-        setSelectionChip(null)
-        return
-      }
-      setSelectionChip({
-        from: sel.from,
-        to: sel.to,
-        coords: clampToViewport({ left: c.left, right: c.right, top: c.top, bottom: c.bottom }),
-      })
+      onCmSelectionChange(update)
     },
-    []
+    [onCmSelectionChange]
   )
-
-  const handleChipClick = useCallback(() => {
-    const view = viewRef.current
-    if (!view || !selectionChip || !onSendSelection) return
-    const text = view.state.sliceDoc(selectionChip.from, selectionChip.to)
-    const formatted = formatSelectionForAgent(text, agentKind)
-    if (formatted === '') return
-    const startLine = view.state.doc.lineAt(selectionChip.from).number
-    const endLine = view.state.doc.lineAt(selectionChip.to).number
-    const range = startLine === endLine ? `${startLine}` : `${startLine}-${endLine}`
-    const prefix = agentKind === 'codex' ? `@${filePath}:${range}` : `${filePath}:${range}`
-    onSendSelection(`${prefix}\n\n${formatted}`)
-  }, [selectionChip, onSendSelection, agentKind, filePath])
-
-  // Reposition the chip when the editor scrolls or the viewport resizes.
-  // The chip's coords come from `view.coordsAtPos(to)` (viewport-relative),
-  // so the doc offsets stay stable but the screen position drifts as the
-  // user scrolls. rAF-throttle so a burst of wheel events collapses into
-  // one re-measure. Effect dep is the `to` offset only: re-measures
-  // inside the setState updater don't restart the effect, so attach /
-  // detach happens once per distinct selection range.
-  const chipActiveTo = selectionChip?.to ?? null
-  useEffect(() => {
-    // Hidden editors don't repaint and must not attach window-level (resize)
-    // listeners; only the active editor tracks its chip against the viewport.
-    if (!isActive || chipActiveTo === null) return
-    const view = viewRef.current
-    if (!view) return
-    let frame = 0
-    const reposition = () => {
-      if (frame) return
-      frame = window.requestAnimationFrame(() => {
-        frame = 0
-        const liveView = viewRef.current
-        if (!liveView) return
-        const c = liveView.coordsAtPos(chipActiveTo)
-        if (!c) {
-          setSelectionChip(null)
-          return
-        }
-        setSelectionChip((prev) =>
-          prev
-            ? {
-                ...prev,
-                coords: clampToViewport({
-                  left: c.left,
-                  right: c.right,
-                  top: c.top,
-                  bottom: c.bottom,
-                }),
-              }
-            : prev
-        )
-      })
-    }
-    const scrollEl = view.scrollDOM
-    scrollEl.addEventListener('scroll', reposition, { passive: true })
-    window.addEventListener('resize', reposition)
-    return () => {
-      if (frame) window.cancelAnimationFrame(frame)
-      scrollEl.removeEventListener('scroll', reposition)
-      window.removeEventListener('resize', reposition)
-    }
-  }, [chipActiveTo, isActive])
 
   const handleContextMenu = useCallback(async (e: React.MouseEvent<HTMLDivElement>) => {
     const view = viewRef.current

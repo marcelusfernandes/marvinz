@@ -45,8 +45,7 @@ import {
 import type { ImportToastState } from './ImportToast'
 import type { AgentKind } from '../lib/agent-drop-format'
 import type { MenuItemSpec } from '../types'
-import { formatSelectionForAgent } from '../lib/agent-selection-format'
-import { clampToViewport } from '../lib/chipViewportClamp'
+import { useSelectionChip } from '../hooks/useSelectionChip'
 import { EditorSelectionChip } from './EditorSelectionChip'
 import { useAppContext } from '../context/AppContext'
 
@@ -87,22 +86,6 @@ type Props = {
 }
 
 type ParserCtxGetter = { get: (key: typeof parserCtx) => (text: string) => PMNode | null }
-
-// Locates the line range of a rendered selection inside the markdown source.
-// Returns "N" or "N-M" if an unambiguous match exists; null otherwise (caller
-// falls back to no range). Best-effort: rendered text equals source for plain
-// paragraphs, but markdown decorations (bold, headings, emphasis) strip on
-// render — those selections fail to match and gracefully degrade.
-export function findSelectionLineRange(selectedText: string, source: string): string | null {
-  const trimmed = selectedText.replace(/\s+$/, '')
-  if (!trimmed || !source) return null
-  const idx = source.indexOf(trimmed)
-  if (idx === -1) return null
-  if (source.indexOf(trimmed, idx + 1) !== -1) return null
-  const startLine = source.slice(0, idx).split('\n').length
-  const endLine = source.slice(0, idx + trimmed.length).split('\n').length
-  return startLine === endLine ? `${startLine}` : `${startLine}-${endLine}`
-}
 
 // Resolve the document range of a misspelled word so a suggestion can replace
 // it. The native context-menu event positions the caret inside the clicked
@@ -775,82 +758,14 @@ function LiveMarkdownInner({
     }
   }, [editorInfo])
 
-  // Selection chip — pinned to viewport coords from Range.getBoundingClientRect.
-  const [selectionRect, setSelectionRect] = useState<{
-    left: number
-    right: number
-    top: number
-    bottom: number
-  } | null>(null)
-  useEffect(() => {
-    if (!onSendSelection) return
-    let debounceId: number | null = null
-    const evaluate = () => {
-      debounceId = null
-      const root = containerRef.current
-      if (!root) {
-        setSelectionRect(null)
-        return
-      }
-      const sel = window.getSelection()
-      if (!sel || sel.rangeCount === 0 || sel.toString() === '') {
-        setSelectionRect(null)
-        return
-      }
-      const anchor = sel.anchorNode
-      if (!anchor || !root.contains(anchor)) {
-        setSelectionRect(null)
-        return
-      }
-      const range = sel.getRangeAt(0)
-      // Pick the last non-empty client rect (trailing edge of selection on its final line).
-      // Skips zero-width caret rects ProseMirror emits at paragraph boundaries — those
-      // collapse to the right edge of the formatting context, pulling the chip far off.
-      // Bounding rect would be the union of all lines, placing the chip past the longest line.
-      const rects = range.getClientRects()
-      let rect: DOMRect | null = null
-      for (let i = rects.length - 1; i >= 0; i--) {
-        if (rects[i].width > 0 && rects[i].height > 0) {
-          rect = rects[i]
-          break
-        }
-      }
-      if (!rect) rect = range.getBoundingClientRect()
-      setSelectionRect(
-        clampToViewport({
-          left: rect.left,
-          right: rect.right,
-          top: rect.top,
-          bottom: rect.bottom,
-        })
-      )
-    }
-    const onSelectionChange = () => {
-      if (debounceId !== null) window.clearTimeout(debounceId)
-      // ~50ms debounce keeps the chip steady during drag-to-extend selections.
-      debounceId = window.setTimeout(evaluate, 50)
-    }
-    document.addEventListener('selectionchange', onSelectionChange)
-    return () => {
-      document.removeEventListener('selectionchange', onSelectionChange)
-      if (debounceId !== null) window.clearTimeout(debounceId)
-    }
-  }, [onSendSelection])
-
-  const handleChipClick = useCallback(() => {
-    if (!onSendSelection) return
-    const text = window.getSelection()?.toString()
-    if (!text) return
-    const formatted = formatSelectionForAgent(text, agentKind)
-    if (formatted === '') return
-    // Best-effort: locate the rendered selection in the markdown source by substring
-    // match. Works for plain text; fails (gracefully → no range) for selections that
-    // include markdown decorations stripped during render (bold, headings, etc.).
-    const range = findSelectionLineRange(text, body)
-    const pathRef = range ? `${filePath}:${range}` : filePath
-    const prefix = agentKind === 'codex' ? `@${pathRef}` : pathRef
-    onSendSelection(`${prefix}\n\n${formatted}`)
-  }, [onSendSelection, agentKind, filePath, body])
+  // Selection chip — shared hook, DOM position source (selectionchange +
+  // Range.getClientRects). See useSelectionChip for the CodeMirror counterpart.
+  const { chip: selectionRect, handleChipClick } = useSelectionChip({
+    source: { kind: 'dom', containerRef, body },
+    filePath,
+    agentKind,
+    onSendSelection,
+  })
 
   return (
     <div ref={containerRef} className="live-md" onContextMenu={handleContextMenu}>
@@ -865,7 +780,7 @@ function LiveMarkdownInner({
         />
       )}
       {selectionRect && onSendSelection && (
-        <EditorSelectionChip coords={selectionRect} onClick={handleChipClick} />
+        <EditorSelectionChip coords={selectionRect.coords} onClick={handleChipClick} />
       )}
     </div>
   )
