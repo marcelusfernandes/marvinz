@@ -43,6 +43,7 @@ import {
 import type { AgentRequest, AgentEvent } from './agent/protocol.js'
 import { importExternal } from './fs-import-external.js'
 import { assertRenameTargetAvailable } from './fs-rename-guard.js'
+import { debounce } from './debounce.js'
 import { searchContent } from './search-content.js'
 import { killProcessTree } from './proc-group.js'
 import { resolveConflict } from './conflictResolver.js'
@@ -103,9 +104,17 @@ let activeVaultPath: string | null = null
 // Push a tree-refresh signal to the renderer. Mutation handlers call this
 // after their op so the UI doesn't depend on chokidar/fsevents catching a
 // rapid unlink+add sequence (which it sometimes coalesces on macOS).
-const notifyTree = (): void => {
+//
+// Debounced (trailing-edge): a burst of structural fs events (git checkout,
+// an agent turn creating many files, archive extraction) otherwise fires one
+// full recursive readVaultTree walk per event, almost all of them discarded
+// before the last one lands. Coalescing to a single emission after the burst
+// settles reflects live on-disk state regardless of intra-burst ordering, at
+// the cost of a bounded, imperceptible delay (#571).
+const NOTIFY_TREE_DEBOUNCE_MS = 200
+const notifyTree = debounce((): void => {
   win?.webContents.send('vault:changed')
-}
+}, NOTIFY_TREE_DEBOUNCE_MS)
 // Allowlist of vault paths that were opened via OS dialog (vault:pick) or loaded
 // from the persisted settings file. vault:watch only accepts paths in this set.
 const allowedVaultPaths = new Set<string>()
@@ -545,6 +554,7 @@ function teardownChildren(): Promise<void> {
   for (const p of ptyProcesses.values()) killProcessTree(p.pid, 'SIGKILL')
   ptyProcesses.clear()
   vaultWatcher?.close()
+  notifyTree.cancel()
   const done = killAllAgents()
   pendingTeardowns.add(done)
   done.finally(() => pendingTeardowns.delete(done))
@@ -712,6 +722,7 @@ ipcMain.handle('vault:tree', async () => {
 ipcMain.handle('vault:watch', async (_e, vaultPath: string) => {
   if (!vaultPath) {
     vaultWatcher?.close()
+    notifyTree.cancel()
     activeVaultPath = null
     return null
   }
@@ -723,6 +734,7 @@ ipcMain.handle('vault:watch', async (_e, vaultPath: string) => {
   }
   assertAllowedVault(resolvedVault, allowedVaultPaths)
   vaultWatcher?.close()
+  notifyTree.cancel()
   activeVaultPath = resolvedVault
   ensureVaultGitignore(resolvedVault).catch((err) =>
     console.error('[snapshot] ensureVaultGitignore failed', err)
