@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render } from '@testing-library/react'
+import { renderWithAppContext as render } from './renderWithAppContext'
 
 // ---------------------------------------------------------------------------
 // Hoisted symbols / refs — module-stable identities that vi.mock factories

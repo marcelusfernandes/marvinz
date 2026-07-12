@@ -18,7 +18,8 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, act } from '@testing-library/react'
+import { act } from '@testing-library/react'
+import { renderWithAppContext as render } from './renderWithAppContext'
 
 // ---------------------------------------------------------------------------
 // Hoisted symbols — module-stable identities shared between mock factories

@@ -7,7 +7,8 @@
 // We use filePath: '/vault/note.md' so hasPreview is true.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, act } from '@testing-library/react'
+import { screen, act } from '@testing-library/react'
+import { renderWithAppContext as render } from './renderWithAppContext'
 
 // ---------------------------------------------------------------------------
 // Mocks — must precede Editor import (same preamble as editor-save-mode.spec)

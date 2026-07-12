@@ -26,7 +26,8 @@
 // never called with the stale pre-navigation content.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, act } from '@testing-library/react'
+import { act } from '@testing-library/react'
+import { renderWithAppContext as render } from './renderWithAppContext'
 
 // ---------------------------------------------------------------------------
 // Module-level shared object — must NOT be vi.hoisted() (see Editor-drop.spec.tsx).
