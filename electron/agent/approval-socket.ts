@@ -10,6 +10,7 @@ import net from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
 import fs from 'node:fs/promises'
+import crypto from 'node:crypto'
 import {
   evaluatePermission,
   classifyToolRisk,
@@ -63,6 +64,15 @@ export function shouldTriggerSnapshot(toolName: string): boolean {
   return SNAPSHOT_TOOLS.has(toolName)
 }
 
+// A touched file's content state as read immediately before the edit tool ran,
+// captured regardless of whether the edit is ultimately approved. Consumed by
+// the post-turn content-change gate (#537) to tell a real edit from a no-op.
+export type PreEditState = { existed: true; hash: string } | { existed: false }
+
+function sha256(content: string): string {
+  return crypto.createHash('sha256').update(content, 'utf8').digest('hex')
+}
+
 function extractFilePath(input: unknown): string | null {
   if (!input || typeof input !== 'object') return null
   const obj = input as Record<string, unknown>
@@ -74,8 +84,9 @@ function extractFilePath(input: unknown): string | null {
 }
 
 // Take a pre-edit snapshot of the file before it is modified.
-// Returns true if snapshot was saved, false on failure or skip.
-// Non-blocking: logs on failure but never throws.
+// Returns whether the snapshot was saved, plus the file's pre-edit content
+// state (existed + hash, or "did not exist") for the post-turn content-change
+// gate (#537). Non-blocking: logs on failure but never throws.
 async function snapshotBeforeEdit(
   vaultRoot: string,
   turnId: string,
@@ -84,34 +95,42 @@ async function snapshotBeforeEdit(
   input: unknown,
   sessionId: string,
   _emit: SocketEmitter
-): Promise<boolean> {
+): Promise<{ saved: boolean; preEdit: PreEditState }> {
   const rawPath = extractFilePath(input)
-  if (!rawPath) return false
+  if (!rawPath) return { saved: false, preEdit: { existed: false } }
 
   const absPath = path.isAbsolute(rawPath) ? rawPath : path.resolve(vaultRoot, rawPath)
   const relPath = path.relative(vaultRoot, absPath)
 
   // Guard: only snapshot files inside the vault.
-  if (relPath.startsWith('..') || path.isAbsolute(relPath)) return false
+  if (relPath.startsWith('..') || path.isAbsolute(relPath)) {
+    return { saved: false, preEdit: { existed: false } }
+  }
 
-  // Read the current file content; use empty string for new files (Write creates them).
+  // Read the current file content; a missing file means the edit will create it.
   let content: string
+  let existed = true
   try {
     content = await fs.readFile(absPath, 'utf8')
   } catch {
     content = ''
+    existed = false
   }
+
+  const preEdit: PreEditState = existed
+    ? { existed: true, hash: sha256(content) }
+    : { existed: false }
 
   try {
     const saved = await writeSnapshot(vaultRoot, turnId, relPath, content, 'file:write', sessionId)
     if (saved === false) {
       // Binary/oversized — still report failure but don't emit yet; caller emits warning after permission-request.
-      return false
+      return { saved: false, preEdit }
     }
-    return true
+    return { saved: true, preEdit }
   } catch (err) {
     console.error('[snapshot] pre-edit snapshot failed', { toolName, relPath, turnId, err })
-    return false
+    return { saved: false, preEdit }
   }
 }
 
@@ -125,7 +144,8 @@ async function handleConnection(
   sessionId: string,
   agentTurnId: { current: string },
   touchedFiles: Set<string>,
-  snapshotResults: Map<string, Promise<{ saved: boolean; turnId: string }>>
+  snapshotResults: Map<string, Promise<{ saved: boolean; turnId: string }>>,
+  preEditStates: Map<string, PreEditState>
 ): Promise<void> {
   let buf = ''
 
@@ -153,7 +173,7 @@ async function handleConnection(
       const snapshotTurnId = agentTurnId.current
 
       // Snapshot BEFORE permission evaluation so even denied edits have a prior-state record.
-      const snapshotPromise: Promise<boolean> = isFileEditTool
+      const snapshotPromise: Promise<{ saved: boolean; preEdit: PreEditState }> = isFileEditTool
         ? snapshotBeforeEdit(
             ctx.vaultRoot,
             snapshotTurnId,
@@ -163,32 +183,47 @@ async function handleConnection(
             sessionId,
             emit
           )
-        : Promise.resolve(false)
+        : Promise.resolve({ saved: false, preEdit: { existed: false } })
 
       // Store the snapshot promise so dispatchEvent can augment the tool-use event.
       if (isFileEditTool) {
         snapshotResults.set(
           msg.toolUseId,
-          snapshotPromise.then((saved) => ({ saved, turnId: snapshotTurnId }))
+          snapshotPromise.then(({ saved }) => ({ saved, turnId: snapshotTurnId }))
         )
       }
 
-      // Track touched file for turn-snapshot-summary (fire-and-forget; resolved later).
+      // Vault-relative path of the touched file. Used for the post-turn content
+      // gate's pre-edit state (recorded below regardless of approval outcome)
+      // and for touchedFiles, which is only populated once the edit is actually
+      // approved — see the allow branches further down (#537).
+      let touchedRelPath: string | null = null
       if (isFileEditTool) {
         const rawPath = extractFilePath(msg.input)
         if (rawPath) {
           const absPath = path.isAbsolute(rawPath) ? rawPath : path.resolve(ctx.vaultRoot, rawPath)
           const relPath = path.relative(ctx.vaultRoot, absPath)
           if (!relPath.startsWith('..') && !path.isAbsolute(relPath)) {
-            touchedFiles.add(relPath)
+            touchedRelPath = relPath
           }
         }
+      }
+
+      // Record the pre-edit state (first write wins if the same file is touched
+      // more than once in a turn) regardless of approval outcome — kept for
+      // audit/recovery value alongside the pre-edit snapshot itself.
+      if (touchedRelPath) {
+        const relPath = touchedRelPath
+        void snapshotPromise.then(({ preEdit }) => {
+          if (!preEditStates.has(relPath)) preEditStates.set(relPath, preEdit)
+        })
       }
 
       const fullCtx: PermissionContext = { ...ctx, ...msg }
       const result = evaluatePermission(fullCtx)
 
       if (result.action === 'allow') {
+        if (touchedRelPath) touchedFiles.add(touchedRelPath)
         const resp: HookResponse = { decision: 'allow' }
         socket.write(JSON.stringify(resp) + '\n')
         socket.end()
@@ -212,7 +247,7 @@ async function handleConnection(
 
       // snapshotBeforeEdit always resolves (never rejects — errors are caught internally).
       snapshotPromise
-        .then((snapshotSaved) => {
+        .then(({ saved: snapshotSaved }) => {
           const permReq: AgentEvent = {
             type: 'permission-request',
             sessionId,
@@ -268,6 +303,10 @@ async function handleConnection(
 
           if (toolName) recordDecision(sessionId, toolName, decision)
 
+          // Only an approved edit counts as "touched" for the post-turn
+          // content gate — a denied edit never changed anything on disk (#537).
+          if (decision.kind === 'allow' && touchedRelPath) touchedFiles.add(touchedRelPath)
+
           const resp: HookResponse =
             decision.kind === 'deny'
               ? { decision: 'deny', reason: 'User denied execution' }
@@ -316,7 +355,8 @@ export async function createApprovalServer(
   emit: SocketEmitter,
   agentTurnId: { current: string } = { current: '' },
   touchedFiles: Set<string> = new Set(),
-  snapshotResults: Map<string, Promise<{ saved: boolean; turnId: string }>> = new Map()
+  snapshotResults: Map<string, Promise<{ saved: boolean; turnId: string }>> = new Map(),
+  preEditStates: Map<string, PreEditState> = new Map()
 ): Promise<ApprovalServer> {
   const socketPath = approvalSocketPath(sessionId)
 
@@ -337,7 +377,8 @@ export async function createApprovalServer(
       sessionId,
       agentTurnId,
       touchedFiles,
-      snapshotResults
+      snapshotResults,
+      preEditStates
     )
   })
 

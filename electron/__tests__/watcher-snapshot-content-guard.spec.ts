@@ -162,7 +162,7 @@ async function waitForSnapshotEntry(relPath: string, timeout = 2000) {
 
 // Proves NO manifest entry ever appears for relPath within a bounded window.
 async function expectNoSnapshotEntry(relPath: string, timeout = 400) {
-  let appeared = false
+  let appeared: boolean
   try {
     await vi.waitFor(
       async () => {
