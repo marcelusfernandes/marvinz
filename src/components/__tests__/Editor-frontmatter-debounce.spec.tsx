@@ -5,39 +5,44 @@
 // calls `splitFrontmatter`/`serializeFrontmatter` unconditionally on every
 // ProseMirror body-change callback — i.e. every keystroke in Page/Preview
 // mode — even though the frontmatter block only ever changes through the
-// Properties panel (`handlePropertiesChange`).
+// Properties panel (`handlePropertiesChange`). The separate `frontmatter`/
+// `previewBody` `useMemo` (~Editor.tsx:836) recomputes the same way, on
+// every `value` change (also every keystroke).
 //
-// Because this is a perf issue, "RED" here is a call-count/behavior
-// assertion, not a timing benchmark: with fake timers, N rapid body edits
-// must collapse into ~1 `serializeFrontmatter` call (not N) once the save
-// debounce window settles. Today it's called once per keystroke.
-// `serializeFrontmatter` is the cleanest discriminator — it's called ONLY
-// from `handleBodyChange` (the separate `frontmatter`/`previewBody`
-// `useMemo` that feeds the Properties panel calls `splitFrontmatter` on
-// every render regardless of this fix, out of scope per the issue, so
-// asserting on `splitFrontmatter`'s raw count would conflate the two).
+// Design decision (react-dev + team-lead, final): a CACHE/memoization, NOT
+// a debounce/deferral. Deferring the frontmatter reassembly to the save
+// timer was rejected — it would mean `onBufferChange`/the live buffer could
+// carry a body-only fragment during the deferred window, risking data loss
+// if a save/close/navigation happened mid-window. So there is NO debounce
+// window for this work: the full document (frontmatter + body) must reach
+// `onBufferChange`/save on every single call, immediately. Only the
+// (expensive) full split+YAML-parse / serialize+YAML-stringify calls
+// themselves are cached — keyed on the frontmatter block being unchanged
+// (a cheap check, e.g. a prefix/`startsWith` comparison) — and a real
+// frontmatter change (Properties panel) invalidates that cache and
+// recomputes immediately, no waiting window either.
 //
 // Coverage:
-//   1. RED: N rapid body edits collapse into ~1 serializeFrontmatter call
-//      after the debounce window settles.
-//   2. Guard: last-state-always-wins — the flushed/saved content reflects
-//      the FINAL body typed during the burst, never an intermediate one.
-//   3. Guard: flushSave() (blur/tab-close/manual-save path) forces an
-//      immediate, correctly-reassembled save even before the debounce
-//      window elapses — a deferred-reassembly fix must not skip the work
-//      when flushed early.
-//   4. Guard: editing frontmatter via the Properties panel is still
-//      correctly reflected in the next body edit's saved output (cache
-//      invalidated on `handlePropertiesChange`, per the issue's AC).
-// Guards 2-4 pass against today's code too (no caching yet, so nothing to
-// invalidate incorrectly) — they exist to catch the fix regressing them.
+//   1. RED: N rapid body-only edits collapse into O(1) full
+//      splitFrontmatter/serializeFrontmatter calls (spied GLOBALLY, across
+//      BOTH call sites: handleBodyChange and the previewBody useMemo) —
+//      today each scales linearly with N.
+//   2. Guard (data-loss): `onBufferChange` always receives the FULL
+//      reassembled document on every call, never a body-only fragment —
+//      the caching must never leak into what's buffered/saved.
+//   3. Guard (immediate invalidation): a real frontmatter change via the
+//      Properties panel is reflected immediately (same tick, no waiting) —
+//      both in the data the Properties panel itself renders, and in the
+//      very next body edit's reassembled output.
+//   4. Guard (pre-existing disk-write debounce unaffected): the actual
+//      disk save (SAVE_DEBOUNCE_MS, unrelated/out-of-scope per the issue)
+//      still eventually persists the correctly cached+reassembled content.
 //
 // Strategy: mount the real Editor in Page/Preview mode (.md file, default
-// mode state), reusing the LiveMarkdown/CodeMirror mocking pattern from
-// editor-livemarkdown-remount.spec.tsx and the fake-timers pattern from
-// editor-save-mode.spec.tsx. `../../lib/frontmatter` is mocked as a spy
-// wrapping the REAL implementation (not a dumb stub), so content-fidelity
-// assertions stay meaningful while call counts are observable.
+// mode state), reusing the LiveMarkdown mocking pattern from
+// editor-livemarkdown-remount.spec.tsx. `../../lib/frontmatter` is mocked
+// as a spy wrapping the REAL implementation (not a dumb stub), so content-
+// fidelity assertions stay meaningful while call counts are observable.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, act } from '@testing-library/react'
@@ -113,7 +118,9 @@ vi.mock('../../lib/cmJustInsertedHighlight', () => ({
 
 // Spy-wrap the REAL frontmatter module so content-fidelity assertions stay
 // meaningful (round-trips through the real yaml parse/stringify) while call
-// counts are observable — the crux of what #558 needs to exercise.
+// counts are observable — the crux of what #558 needs to exercise. This spy
+// is GLOBAL: it counts calls from BOTH real call sites (handleBodyChange and
+// the previewBody useMemo), matching the fix's single shared cache.
 vi.mock('../../lib/frontmatter', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../lib/frontmatter')>()
   return {
@@ -129,6 +136,7 @@ vi.mock('../Properties', () => ({
     onChange: (next: Record<string, unknown>) => void
   }) => {
     capturedPropertiesOnChange = props.onChange
+    lastPropertiesData = props.data
     return <div data-testid="properties" />
   },
 }))
@@ -147,11 +155,14 @@ vi.mock('../../lib/paletteRanker', () => ({}))
 
 // ---------------------------------------------------------------------------
 // LiveMarkdown mock — captures the body onChange callback (handleBodyChange).
-// Properties mock (above) captures its onChange (handlePropertiesChange).
+// Properties mock (above) captures its onChange (handlePropertiesChange) and
+// the `data` it's currently rendering, so tests can assert on it directly
+// without waiting for anything (the fix invalidates/recomputes immediately).
 // ---------------------------------------------------------------------------
 
 let capturedOnChange: ((body: string) => void) | null = null
 let capturedPropertiesOnChange: ((next: Record<string, unknown>) => void) | null = null
+let lastPropertiesData: Record<string, unknown> | null = null
 
 vi.mock('../LiveMarkdown', () => ({
   LiveMarkdown: (props: { onChange: (body: string) => void }) => {
@@ -219,14 +230,12 @@ beforeEach(() => {
   setupMarvin()
   capturedOnChange = null
   capturedPropertiesOnChange = null
+  lastPropertiesData = null
   splitFrontmatterMock.mockClear()
   serializeFrontmatterMock.mockClear()
-  vi.useFakeTimers()
 })
 
 afterEach(() => {
-  vi.runAllTimers()
-  vi.useRealTimers()
   vi.restoreAllMocks()
 })
 
@@ -240,8 +249,8 @@ function typeBody(text: string) {
 // Tests
 // ---------------------------------------------------------------------------
 
-describe('Frontmatter re-split/re-serialize must be debounced in Page/Preview mode (issue #558)', () => {
-  it('N rapid body-only edits collapse into ~1 serializeFrontmatter call after the debounce window settles', () => {
+describe('Frontmatter re-split/re-serialize must be cached, not recomputed per keystroke, in Page/Preview mode (issue #558)', () => {
+  it('N rapid body-only edits collapse into O(1) full split/serialize calls (no debounce window — recompute is immediate but cached)', () => {
     render(<Editor {...baseProps()} />)
 
     // Mount itself exercises the frontmatter/previewBody useMemo once;
@@ -255,80 +264,83 @@ describe('Frontmatter re-split/re-serialize must be debounced in Page/Preview mo
     typeBody('original body ABCD')
     typeBody('original body ABCDE')
 
-    act(() => {
-      vi.runAllTimers()
-    })
-
-    // FAILS today: handleBodyChange calls serializeFrontmatter on every
-    // invocation, so 5 body edits produce 5 calls, not ~1.
-    expect(serializeFrontmatterMock.mock.calls.length).toBeLessThanOrEqual(1)
+    // No timers/advance needed — the fix has no debounce window for this
+    // work at all; the assertion is purely about call count and content.
+    // FAILS today: handleBodyChange calls splitFrontmatter+serializeFrontmatter
+    // on every invocation, and the previewBody useMemo calls splitFrontmatter
+    // on every `value` change too — both scale linearly with the 5 edits.
+    expect(splitFrontmatterMock.mock.calls.length).toBeLessThanOrEqual(2)
+    expect(serializeFrontmatterMock.mock.calls.length).toBeLessThanOrEqual(2)
   })
 
-  it('the flushed save reflects the LAST body typed during the burst, never an intermediate one', async () => {
-    const onSave = vi.fn().mockResolvedValue(undefined)
-    render(<Editor {...baseProps({ onSave })} />)
+  it('onBufferChange always receives the FULL reassembled document, never a body-only fragment (no data loss from caching)', () => {
+    const onBufferChange = vi.fn()
+    render(<Editor {...baseProps({ onBufferChange })} />)
 
-    typeBody('final body wins A')
-    typeBody('final body wins AB')
-    typeBody('final body wins ABC')
+    typeBody('body only text one')
+    typeBody('body only text two')
+    typeBody('body only text three')
 
-    await act(async () => {
-      vi.runAllTimers()
-    })
-
-    expect(onSave).toHaveBeenCalledTimes(1)
-    const saved = onSave.mock.calls[0][0] as string
-    expect(saved).toContain('final body wins ABC')
-    expect(saved).not.toContain('final body wins A\n')
-    expect(saved).not.toContain('final body wins AB\n')
-    expect(saved).toMatch(/^---\ntitle: Test Note/)
+    expect(onBufferChange.mock.calls.length).toBeGreaterThan(0)
+    // Every single call, not just the last — the cache must never leak a
+    // body-only buffer state at any point in the sequence.
+    for (const call of onBufferChange.mock.calls) {
+      const buffered = call[0] as string
+      expect(buffered).toMatch(/^---\ntitle: Test Note/)
+    }
+    const lastBuffered = onBufferChange.mock.calls[
+      onBufferChange.mock.calls.length - 1
+    ][0] as string
+    expect(lastBuffered).toContain('body only text three')
   })
 
-  it('flushSave forces an immediate, correctly-reassembled save before the debounce window elapses', async () => {
-    const onSave = vi.fn().mockResolvedValue(undefined)
-    let flush: (() => Promise<void>) | null = null
+  it('a real frontmatter change via the Properties panel is reflected immediately — no waiting window', () => {
+    const onBufferChange = vi.fn()
+    render(<Editor {...baseProps({ onBufferChange })} />)
 
-    render(
-      <Editor
-        {...baseProps({ onSave })}
-        onFlushSave={(fn: () => Promise<void>) => {
-          flush = fn
-        }}
-      />
-    )
-
-    typeBody('flushed body change')
-
-    // Flush immediately — the debounce window has NOT elapsed.
-    await act(async () => {
-      await flush?.()
-    })
-
-    expect(onSave).toHaveBeenCalledTimes(1)
-    const saved = onSave.mock.calls[0][0] as string
-    expect(saved).toContain('flushed body change')
-    expect(saved).toMatch(/^---\ntitle: Test Note/)
-  })
-
-  it('editing frontmatter via the Properties panel is reflected in the next body edit (cache invalidated correctly)', async () => {
-    const onSave = vi.fn().mockResolvedValue(undefined)
-    render(<Editor {...baseProps({ onSave })} />)
-
-    // Change frontmatter through the Properties panel.
     act(() => {
       capturedPropertiesOnChange?.({ title: 'Updated Title', tags: ['alpha'] })
     })
 
-    // Then a body-only edit.
+    // Immediate — same tick, no timers/advance. Properties itself must
+    // already be rendering the new data...
+    expect(lastPropertiesData?.title).toBe('Updated Title')
+    // ...and the buffered document must already carry it too.
+    const lastBuffered = onBufferChange.mock.calls[
+      onBufferChange.mock.calls.length - 1
+    ][0] as string
+    expect(lastBuffered).toContain('title: Updated Title')
+
+    // The very next body edit must build on the NEW frontmatter, not a
+    // stale cached copy from before the Properties change.
     typeBody('body after properties edit')
+    const finalBuffered = onBufferChange.mock.calls[
+      onBufferChange.mock.calls.length - 1
+    ][0] as string
+    expect(finalBuffered).toContain('title: Updated Title')
+    expect(finalBuffered).toContain('body after properties edit')
+  })
 
-    await act(async () => {
+  it('the pre-existing disk-write debounce (unrelated, out of scope) still eventually persists the correctly cached+reassembled content', async () => {
+    vi.useFakeTimers()
+    try {
+      const onSave = vi.fn().mockResolvedValue(undefined)
+      render(<Editor {...baseProps({ onSave })} />)
+
+      typeBody('body before disk save A')
+      typeBody('body before disk save AB')
+
+      await act(async () => {
+        vi.runAllTimers()
+      })
+
+      expect(onSave).toHaveBeenCalledTimes(1)
+      const saved = onSave.mock.calls[0][0] as string
+      expect(saved).toMatch(/^---\ntitle: Test Note/)
+      expect(saved).toContain('body before disk save AB')
+    } finally {
       vi.runAllTimers()
-    })
-
-    expect(onSave).toHaveBeenCalled()
-    const saved = onSave.mock.calls[onSave.mock.calls.length - 1][0] as string
-    expect(saved).toContain('title: Updated Title')
-    expect(saved).toContain('body after properties edit')
+      vi.useRealTimers()
+    }
   })
 })
