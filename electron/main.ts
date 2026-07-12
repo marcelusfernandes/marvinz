@@ -588,7 +588,12 @@ function teardownChildren(): Promise<void> {
   ptyProcesses.clear()
   vaultWatcher?.close()
   notifyTree.cancel()
-  const done = killAllAgents()
+  // Waits for any in-flight fire-and-forget link rewrite (#566) too — mitigates
+  // a graceful quit racing a queued rewrite. linkRewriteQueue never rejects
+  // (see enqueueLinkRewrite), so this can't turn a clean quit into a hang or
+  // an unhandled rejection. A hard crash/force-kill bypasses this entirely
+  // (no JS runs), which is the accepted, unmitigable trade-off.
+  const done = Promise.all([killAllAgents(), linkRewriteQueue]).then(() => {})
   pendingTeardowns.add(done)
   done.finally(() => pendingTeardowns.delete(done))
   return done
@@ -1107,9 +1112,11 @@ ipcMain.handle(
       }
     }
     // Single vault walk for all successful moves — avoids O(N×M) listAllMarkdown calls.
+    // Serialized via enqueueLinkRewrite so this can't race path:rename's own
+    // fire-and-forget rewrite over the same files (#566).
     if (activeVaultPath && moved.length > 0) {
       try {
-        await rewriteLinksAfterMoveBatch(activeVaultPath, moved)
+        await enqueueLinkRewrite(activeVaultPath, moved)
       } catch (err) {
         console.error('[rewriteLinksAfterMove] move-batch failed', err)
       }
@@ -1118,6 +1125,28 @@ ipcMain.handle(
     return results
   }
 )
+
+// Serializes rewriteLinksAfterMoveBatch across concurrent path:rename/
+// file:move-batch calls: two overlapping full-vault walks could otherwise
+// race on the same file's read-then-conditionally-write, and whichever write
+// lands second would silently clobber the other's rewrite. Chaining every
+// call onto this queue guarantees at most one rewrite pass runs at a time,
+// in call order (#566).
+//
+// The queue chain itself must never reject — swallowing the error there (not
+// on `run`) keeps a failed rewrite from poisoning every rewrite queued after
+// it, while each caller's own `run` promise still rejects independently, so
+// callers that await/.catch() it keep seeing their own errors.
+let linkRewriteQueue: Promise<void> = Promise.resolve()
+
+function enqueueLinkRewrite(
+  vaultRoot: string,
+  moves: { src: string; dest: string }[]
+): Promise<void> {
+  const run = linkRewriteQueue.then(() => rewriteLinksAfterMoveBatch(vaultRoot, moves))
+  linkRewriteQueue = run.catch(() => {})
+  return run
+}
 
 async function rewriteLinksAfterMoveBatch(
   vaultRoot: string,
@@ -1295,34 +1324,6 @@ function rewriteWikilinksOneFile(
   })
 }
 
-async function rewriteLinksAfterMove(
-  vaultRoot: string,
-  oldPath: string,
-  newPath: string
-): Promise<void> {
-  const files = await listAllMarkdown(vaultRoot)
-  // One turn-id for all cascade snapshots in this rename operation
-  const cascadeTurnId = newTurnId()
-  await Promise.all(
-    files.map(async (file) => {
-      try {
-        const content = await fs.readFile(file, 'utf8')
-        let next = rewriteOneFile(file, vaultRoot, oldPath, newPath, content)
-        next = rewriteWikilinksOneFile(vaultRoot, oldPath, newPath, next)
-        if (next !== content) {
-          // Snapshot the file before rewriting its links — always, regardless of
-          // AI turn state, because the user did not edit this file directly.
-          const relPath = path.relative(vaultRoot, file)
-          await writeSnapshot(vaultRoot, cascadeTurnId, relPath, content, 'cascade')
-          await fs.writeFile(file, next, 'utf8')
-        }
-      } catch {
-        // best-effort; skip files that vanished mid-walk
-      }
-    })
-  )
-}
-
 ipcMain.handle('path:rename', async (_e, oldPath: string, newPath: string) => {
   try {
     const safeOld = await assertInVault(oldPath)
@@ -1345,14 +1346,22 @@ ipcMain.handle('path:rename', async (_e, oldPath: string, newPath: string) => {
 
     await fs.mkdir(path.dirname(safeNew), { recursive: true })
     await fs.rename(safeOld, safeNew)
-    if (activeVaultPath) {
-      try {
-        await rewriteLinksAfterMove(activeVaultPath, safeOld, safeNew)
-      } catch (err) {
-        console.error('[rewriteLinksAfterMove] failed', err)
-      }
-    }
     notifyTree()
+    if (activeVaultPath) {
+      // Fire-and-forget: the full-vault link-rewrite walk is O(vault size),
+      // so it must not hold up this handler's response — rename latency
+      // would otherwise scale with vault size instead of the renamed file
+      // (#566). Still serialized via enqueueLinkRewrite, so it can't race a
+      // concurrent file:move-batch/path:rename rewrite over the same files.
+      // Accepted trade-off: if the app crashes or is force-quit while this is
+      // in flight, some referencing files may be rewritten and others not,
+      // with no record beyond the console.error below — the same best-effort
+      // characteristic rewriteLinksAfterMoveBatch already has via file:move-batch's
+      // internal Promise.all. A graceful quit still waits for it (teardownChildren).
+      enqueueLinkRewrite(activeVaultPath, [{ src: safeOld, dest: safeNew }]).catch((err) => {
+        console.error('[rewriteLinksAfterMove] failed', err)
+      })
+    }
     return safeNew
   } catch (e) {
     wrapFsError(e)
