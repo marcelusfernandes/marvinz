@@ -15,12 +15,7 @@ import { tags as t } from '@lezer/highlight'
 import type { Extension } from '@codemirror/state'
 import { undo as pmUndo, redo as pmRedo } from 'prosemirror-history'
 import { languageIdFor, loadLanguage } from '../lib/cmLanguage'
-import {
-  replaceFrontmatter,
-  serializeFrontmatter,
-  splitFrontmatter,
-  type Frontmatter,
-} from '../lib/frontmatter'
+import { splitFrontmatter } from '../lib/frontmatter'
 import { Properties } from './Properties'
 import { LiveMarkdown } from './LiveMarkdown'
 import { CsvEditor } from './CsvEditor'
@@ -40,6 +35,7 @@ import { useFindReplaceState } from '../hooks/useFindReplaceState'
 import { useSelectionChip } from '../hooks/useSelectionChip'
 import { useDropExtension } from '../hooks/useDropExtension'
 import { useMentionPicker } from '../hooks/useMentionPicker'
+import { useFrontmatterEditing } from '../hooks/useFrontmatterEditing'
 import type { AgentKind } from '../lib/agent-drop-format'
 import { EditorSelectionChip } from './EditorSelectionChip'
 
@@ -426,50 +422,10 @@ export function Editor({
     [scheduleSave]
   )
 
-  // Cached frontmatter for Page/Preview body edits: the reconstructed block
-  // prefix `---\n<yaml>\n---\n\n`, the parsed data, and the serialized yaml.
-  // A body keystroke never changes the frontmatter block, so `startsWith`
-  // against the cached prefix is a cheap check that lets us skip the O(doc)
-  // split + YAML round-trip; a real block change (Properties/raw edit/reload)
-  // fails the check and recomputes. Null = no frontmatter. The ref is the
-  // synchronous source of truth for the body-change callback; the state mirror
-  // feeds the preview useMemo without reading a ref during render.
-  type FmCache = { prefix: string; data: Frontmatter; yaml: string }
-  const fmCacheRef = useRef<FmCache | null>(null)
-  const [fmCache, setFmCache] = useState<FmCache | null>(null)
-  const frontmatterFor = useCallback((content: string): FmCache | null => {
-    const cached = fmCacheRef.current
-    if (cached && content.startsWith(cached.prefix)) return cached
-    const { data } = splitFrontmatter(content)
-    if (!data) {
-      fmCacheRef.current = null
-      setFmCache(null)
-      return null
-    }
-    const yaml = serializeFrontmatter(data)
-    const next: FmCache = { prefix: `---\n${yaml}\n---\n\n`, data, yaml }
-    fmCacheRef.current = next
-    setFmCache(next)
-    return next
-  }, [])
-
-  // Live-preview body changes: keep the current frontmatter, replace the body.
-  const handleBodyChange = useCallback(
-    (newBody: string) => {
-      const fm = frontmatterFor(latestValue.current)
-      scheduleSave(fm ? `${fm.prefix}${newBody}` : newBody)
-    },
-    [frontmatterFor, scheduleSave]
-  )
-
-  // Properties changes: replace the frontmatter, keep the body untouched.
-  const handlePropertiesChange = useCallback(
-    (nextData: Frontmatter | null) => {
-      const next = replaceFrontmatter(latestValue.current, nextData)
-      scheduleSave(next)
-    },
-    [scheduleSave]
-  )
+  const { fmCache, handleBodyChange, handlePropertiesChange } = useFrontmatterEditing({
+    latestValue,
+    scheduleSave,
+  })
 
   const handleLinkClick = useCallback(
     (href: string, modifier: 'replace' | 'newTab') => {
