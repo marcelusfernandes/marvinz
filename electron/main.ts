@@ -15,7 +15,6 @@ import fs from 'node:fs/promises'
 import { existsSync, statSync } from 'node:fs'
 import { spawnSync, type SpawnSyncOptionsWithStringEncoding } from 'node:child_process'
 import chokidar, { type FSWatcher } from 'chokidar'
-import * as pty from 'node-pty'
 import {
   writeSnapshot,
   newTurnId,
@@ -32,7 +31,7 @@ import {
 import { assertInsideVaultAsync } from './vault-boundary.js'
 import { assertAllowedVault } from './vault-allowlist.js'
 import { isNoisy, relPathIsNoisy } from './noisyPaths.js'
-import { assertPtySpawnAllowed, registerDynamicShell } from './pty-spawn-guard.js'
+import { registerDynamicShell } from './pty-spawn-guard.js'
 import { assertAgentDetectAllowed, registerDetectedAgent } from './agent-detect-guard.js'
 import {
   spawnAgent,
@@ -47,8 +46,8 @@ import { assertRenameTargetAvailable } from './fs-rename-guard.js'
 import { debounce } from './debounce.js'
 import { BoundedCache } from './bounded-cache.js'
 import { searchContent } from './search-content.js'
-import { killProcessTree } from './proc-group.js'
 import { resolveConflict } from './conflictResolver.js'
+import { registerPtyHandlers, killAllPty } from './ipc/pty.js'
 import type { MoveResult } from '../src/types.js'
 
 process.env.APP_ROOT = path.join(__dirname, '..')
@@ -120,7 +119,6 @@ const notifyTree = debounce((): void => {
 // Allowlist of vault paths that were opened via OS dialog (vault:pick) or loaded
 // from the persisted settings file. vault:watch only accepts paths in this set.
 const allowedVaultPaths = new Set<string>()
-const ptyProcesses = new Map<string, pty.IPty>()
 
 // AI turn tracking — a PTY write stamps lastPtyWriteAt; file:write checks recency.
 // 2 s window (PRD: PTY_ACTIVE_THRESHOLD = 2000 ms): if PTY was active within 2 s, treat as AI turn.
@@ -155,6 +153,16 @@ function scheduleTurnEnd(vaultRoot: string, turnId: string) {
     activeTurnId = null
     finalizeTurn(vaultRoot, turnId).catch(() => {})
   }, TURN_END_MS)
+}
+
+// Cancels a pending scheduleTurnEnd timer without finalizing — used by the
+// pty:* handlers (electron/ipc/pty.ts) when the last pty exits and a turn end
+// fires immediately instead of waiting out the timer (#570).
+function cancelScheduledTurnEnd(): void {
+  if (turnEndTimer) {
+    clearTimeout(turnEndTimer)
+    turnEndTimer = null
+  }
 }
 
 // Centralizes the "AI turn active -> adopt/allocate activeTurnId -> snapshot
@@ -536,7 +544,7 @@ let menuHasNoteTab = false
 function buildAppMenu() {
   if (process.platform !== 'darwin') return
   // `?.` only guards null; a closed-but-non-null window throws "Object has been
-  // destroyed" on send — mirror the safeSend/safeBrowserSend idiom.
+  // destroyed" on send — mirror the safeBrowserSend idiom.
   const send = (action: string) => {
     if (win && !win.isDestroyed()) win.webContents.send('menu:action', action)
   }
@@ -626,8 +634,7 @@ app.whenReady().then(() => {
 // off and orphaning children.
 const pendingTeardowns = new Set<Promise<unknown>>()
 function teardownChildren(): Promise<void> {
-  for (const p of ptyProcesses.values()) killProcessTree(p.pid, 'SIGKILL')
-  ptyProcesses.clear()
+  killAllPty()
   vaultWatcher?.close()
   notifyTree.cancel()
   // Waits for any in-flight fire-and-forget link rewrite (#566) too — mitigates
@@ -1619,101 +1626,20 @@ ipcMain.handle('claude:detect', async () => {
   return detected
 })
 
-ipcMain.handle(
-  'pty:spawn',
-  async (
-    _e,
-    opts: { id: string; shell: string; cwd: string; cols: number; rows: number; args?: string[] }
-  ) => {
-    if (!activeVaultPath) throw new Error('MARVIN_OUTSIDE_VAULT')
-    const { shell: resolvedShell, cwd: safeCwd } = await assertPtySpawnAllowed(
-      activeVaultPath,
-      opts
-    )
-
-    const existing = ptyProcesses.get(opts.id)
-    if (existing) existing.kill()
-
-    const shellEnv = getShellEnv()
-    const env: Record<string, string> = {}
-    for (const [k, v] of Object.entries(shellEnv)) {
-      if (v != null) env[k] = v
-    }
-    delete env.ELECTRON_RUN_AS_NODE
-    env.TERM = 'xterm-256color'
-    env.COLORTERM = 'truecolor'
-    env.FORCE_COLOR = '1'
-
-    const cols = Math.max(opts.cols || 80, 20)
-    const rows = Math.max(opts.rows || 24, 5)
-
-    try {
-      const ptyProcess = pty.spawn(resolvedShell, opts.args ?? [], {
-        name: 'xterm-256color',
-        cols,
-        rows,
-        cwd: safeCwd,
-        env,
-      })
-      ptyProcesses.set(opts.id, ptyProcess)
-
-      const safeSend = (channel: string, payload: unknown) => {
-        try {
-          if (win && !win.isDestroyed()) {
-            win.webContents.send(channel, payload)
-          }
-        } catch {
-          // renderer being torn down (HMR) — ignore
-        }
-      }
-      ptyProcess.onData((data) => {
-        // Stamp AI turn activity on every data chunk — Claude streams output
-        // continuously, so the 2s window stays open while it's responding.
-        lastPtyWriteAt = Date.now()
-        if (!activeTurnId) activeTurnId = newTurnId()
-        if (activeVaultPath) scheduleTurnEnd(activeVaultPath, activeTurnId)
-        safeSend(`pty:data:${opts.id}`, data)
-      })
-      ptyProcess.onExit(({ exitCode }) => {
-        safeSend(`pty:exit:${opts.id}`, exitCode)
-        ptyProcesses.delete(opts.id)
-        // When last PTY exits, fire turn-end immediately rather than waiting the timer
-        if (ptyProcesses.size === 0 && activeTurnId && activeVaultPath) {
-          if (turnEndTimer) {
-            clearTimeout(turnEndTimer)
-            turnEndTimer = null
-          }
-          const tid = activeTurnId
-          activeTurnId = null
-          finalizeTurn(activeVaultPath, tid).catch(() => {})
-        } else if (ptyProcesses.size === 0) {
-          activeTurnId = null
-        }
-      })
-      return { pid: ptyProcess.pid }
-    } catch (err) {
-      const code = err instanceof Error ? err.message : String(err)
-      if (/^(MARVIN|SNAPSHOT)_[A-Z_]+$/.test(code)) throw err
-      console.error('[pty:spawn] spawn failed', { id: opts.id, shell: opts.shell, err })
-      throw new Error('MARVIN_PTY_SPAWN_FAILED', { cause: err })
-    }
-  }
-)
-
-ipcMain.handle('pty:write', (_e, id: string, data: string) => {
-  lastPtyWriteAt = Date.now()
-  if (!activeTurnId) activeTurnId = newTurnId()
-  if (activeVaultPath) scheduleTurnEnd(activeVaultPath, activeTurnId)
-  ptyProcesses.get(id)?.write(data)
-})
-
-ipcMain.handle('pty:resize', (_e, id: string, cols: number, rows: number) => {
-  ptyProcesses.get(id)?.resize(cols, rows)
-})
-
-ipcMain.handle('pty:kill', (_e, id: string) => {
-  ptyProcesses.get(id)?.kill()
-  ptyProcesses.delete(id)
+registerPtyHandlers({
+  getActiveVaultPath: () => activeVaultPath,
+  getShellEnv,
+  getActiveTurnId: () => activeTurnId,
+  setActiveTurnId: (id) => {
+    activeTurnId = id
+  },
+  setLastPtyWriteAt: (timestamp) => {
+    lastPtyWriteAt = timestamp
+  },
+  scheduleTurnEnd,
+  cancelScheduledTurnEnd,
+  finalizeTurn,
+  sendToRenderer: safeBrowserSend,
 })
 
 // --- In-app browser (WebContentsView) -----------------------------------
