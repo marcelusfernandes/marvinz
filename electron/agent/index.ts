@@ -16,6 +16,9 @@ import { diffTouchedFiles } from './turn-content-gate.js'
 import { collectProcessTree, signalPids } from '../proc-group.js'
 import { newTurnId } from '../snapshot.js'
 import type { AgentEvent, AgentRequest, Provider, PermissionMode } from './protocol.js'
+import type { AgentAdapter, AgentBinaries } from './adapter.js'
+
+export type { AgentBinaries } from './adapter.js'
 
 export type AgentChild = {
   sessionId: string
@@ -288,9 +291,67 @@ function dispatchEvent(child: AgentChild, event: AgentEvent, emit: EventEmitter)
   }
 }
 
-export type AgentBinaries = {
-  claude: string
-  codex?: string
+// Concrete per-provider adapters — wrap the existing buildClaudeArgs/
+// buildCodexArgs and adaptClaudeObj/adaptCodexObj unchanged; the interface
+// just groups them with the other per-provider concerns spawnAgent used to
+// branch on inline (#582). Live here rather than in adapter.ts to avoid a
+// circular import (they call the arg-builders defined above).
+const claudeAdapter: AgentAdapter = {
+  makeState(sessionId, req) {
+    const state = makeAdapterState(sessionId)
+    state.cwd = req.vaultRoot
+    return state
+  },
+  resolveBinary(bins) {
+    return bins.claude
+  },
+  buildArgs(req) {
+    return buildClaudeArgs(req)
+  },
+  usesApprovalSocket: true,
+  handleStdin(proc, req) {
+    // Prompt is sent as a stream-json input event on stdin.
+    if (!proc.stdin) return
+    const inputEvent =
+      JSON.stringify({
+        type: 'user',
+        message: { role: 'user', content: req.prompt },
+      }) + '\n'
+    proc.stdin.write(inputEvent)
+    proc.stdin.end()
+  },
+  adaptObj(obj, state) {
+    return adaptClaudeObj(obj, state as AdapterState)
+  },
+}
+
+const codexAdapter: AgentAdapter = {
+  makeState(sessionId) {
+    return makeCodexAdapterState(sessionId)
+  },
+  resolveBinary(bins) {
+    return bins.codex ?? 'codex'
+  },
+  buildArgs(req) {
+    return buildCodexArgs(req)
+  },
+  usesApprovalSocket: false,
+  handleStdin(proc) {
+    // Prompt is passed as argv to `codex exec --json` — no stdin writes needed.
+    if (!proc.stdin) return
+    proc.stdin.end()
+  },
+  adaptObj(obj, state) {
+    return adaptCodexObj(obj, state as CodexAdapterState)
+  },
+}
+
+// Record (not a plain object) so adding a Provider union member without a
+// matching entry here fails the TypeScript build — the compiler-enforced
+// checklist the AC asks for.
+export const adapters: Record<Provider, AgentAdapter> = {
+  claude: claudeAdapter,
+  codex: codexAdapter,
 }
 
 export async function spawnAgent(
@@ -307,17 +368,11 @@ export async function spawnAgent(
     agentChildren.delete(req.sessionId)
   }
 
-  const isCodex = req.provider === 'codex'
-  const adapterState = isCodex
-    ? makeCodexAdapterState(req.sessionId)
-    : makeAdapterState(req.sessionId)
+  const adapter = adapters[req.provider]
+  const adapterState = adapter.makeState(req.sessionId, req)
 
-  if (!isCodex) {
-    ;(adapterState as ReturnType<typeof makeAdapterState>).cwd = req.vaultRoot
-  }
-
-  const binary = isCodex ? (bins.codex ?? 'codex') : bins.claude
-  const args = isCodex ? buildCodexArgs(req) : buildClaudeArgs(req)
+  const binary = adapter.resolveBinary(bins)
+  const args = adapter.buildArgs(req)
 
   // Create approval socket server before spawning so the env var is ready.
   // Codex does not use the hook bridge — skip for Codex sessions.
@@ -329,7 +384,7 @@ export async function spawnAgent(
   const preEditStates = new Map<string, PreEditState>()
 
   let approvalServer: ApprovalServer | null = null
-  if (!isCodex) {
+  if (adapter.usesApprovalSocket) {
     approvalServer = await createApprovalServer(
       req.sessionId,
       { sessionId: req.sessionId, permissionMode: req.permissionMode, vaultRoot: req.vaultRoot },
@@ -362,7 +417,7 @@ export async function spawnAgent(
         type: 'error',
         sessionId: req.sessionId,
         code: 'AGENT_NOT_FOUND',
-        message: `${isCodex ? 'codex' : 'claude'} binary not found`,
+        message: `${req.provider} binary not found`,
         recoverable: false,
       })
       return
@@ -390,21 +445,13 @@ export async function spawnAgent(
   }
   agentChildren.set(req.sessionId, child)
 
-  // For Codex: prompt is passed as argv to `codex exec --json`.
-  // No stdin writes needed — leave stdin closed.
-  if (isCodex && proc.stdin) {
-    proc.stdin.end()
-  }
-
   let malformedCount = 0
 
   const ndjson = new NdjsonStream(
     (obj) => {
       malformedCount = 0
 
-      const events = isCodex
-        ? adaptCodexObj(obj, adapterState as ReturnType<typeof makeCodexAdapterState>)
-        : adaptClaudeObj(obj, adapterState as ReturnType<typeof makeAdapterState>)
+      const events = adapter.adaptObj(obj, adapterState)
       for (const event of events) {
         // tool-use events are forwarded as-is; the approval socket server is the
         // real gate. The hook bridge blocks the CLI until a decision is sent back.
@@ -440,16 +487,9 @@ export async function spawnAgent(
     }
   )
 
-  // For Claude: send the initial prompt as a stream-json input event on stdin.
-  if (!isCodex && proc.stdin) {
-    const inputEvent =
-      JSON.stringify({
-        type: 'user',
-        message: { role: 'user', content: req.prompt },
-      }) + '\n'
-    proc.stdin.write(inputEvent)
-    proc.stdin.end()
-  }
+  // Hand stdin off to the provider adapter — Codex passes the prompt as argv
+  // and just closes stdin; Claude writes the stream-json prompt event first.
+  adapter.handleStdin(proc, req)
 
   const stderrChunks: Buffer[] = []
 
