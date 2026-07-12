@@ -110,7 +110,7 @@ afterEach(() => {
 
 describe('ChatPanel — startSession vaultPath capture (#618)', () => {
   it('a new session captures the vaultPath current at creation', async () => {
-    renderWithAppContext(<ChatPanel sessionId="s1" provider="claude" vaultPath="/vault-a" />, {
+    renderWithAppContext(<ChatPanel sessionId="s1" provider="claude" />, {
       vaultPath: '/vault-a',
     })
     await act(async () => {})
@@ -119,10 +119,9 @@ describe('ChatPanel — startSession vaultPath capture (#618)', () => {
   })
 
   it('a new session opened after a vault switch picks up the new vaultPath', async () => {
-    const { rerender } = renderWithAppContext(
-      <ChatPanel sessionId="s1" provider="claude" vaultPath="/vault-a" />,
-      { vaultPath: '/vault-a' }
-    )
+    const { rerender } = renderWithAppContext(<ChatPanel sessionId="s1" provider="claude" />, {
+      vaultPath: '/vault-a',
+    })
     await act(async () => {})
     expect(useChatStore.getState().sessions['s1']?.vaultPath).toBe('/vault-a')
 
@@ -131,7 +130,7 @@ describe('ChatPanel — startSession vaultPath capture (#618)', () => {
     // rerender's context override, so this stays a real switch once
     // ChatPanel drops the prop and only the context arg remains.
     await act(async () => {
-      rerender(<ChatPanel sessionId="s2" provider="claude" vaultPath="/vault-b" />, {
+      rerender(<ChatPanel sessionId="s2" provider="claude" />, {
         vaultPath: '/vault-b',
       })
     })
@@ -140,17 +139,16 @@ describe('ChatPanel — startSession vaultPath capture (#618)', () => {
   })
 
   it("an existing session's stored vaultPath is untouched by a later switch (idempotent startSession)", async () => {
-    const { rerender } = renderWithAppContext(
-      <ChatPanel sessionId="s1" provider="claude" vaultPath="/vault-a" />,
-      { vaultPath: '/vault-a' }
-    )
+    const { rerender } = renderWithAppContext(<ChatPanel sessionId="s1" provider="claude" />, {
+      vaultPath: '/vault-a',
+    })
     await act(async () => {})
     expect(useChatStore.getState().sessions['s1']?.vaultPath).toBe('/vault-a')
 
     // Same session, vault switches underneath it — startSession is gated on
     // `!exists`, so the already-created session keeps its original vaultPath.
     await act(async () => {
-      rerender(<ChatPanel sessionId="s1" provider="claude" vaultPath="/vault-b" />, {
+      rerender(<ChatPanel sessionId="s1" provider="claude" />, {
         vaultPath: '/vault-b',
       })
     })
@@ -165,10 +163,9 @@ describe('ChatPanel — startSession vaultPath capture (#618)', () => {
 
 describe("ChatPanel -> Composer's drop handler — live vaultPath, no stale closure (#618)", () => {
   it('a drop that would no-op with no vault succeeds after switching to a real vault', async () => {
-    const { rerender } = renderWithAppContext(
-      <ChatPanel sessionId="s1" provider="claude" vaultPath="" />,
-      { vaultPath: null }
-    )
+    const { rerender } = renderWithAppContext(<ChatPanel sessionId="s1" provider="claude" />, {
+      vaultPath: null,
+    })
     await act(async () => {})
 
     await act(async () => {
@@ -181,7 +178,7 @@ describe("ChatPanel -> Composer's drop handler — live vaultPath, no stale clos
     // asserting on the value live at THIS event, not the empty one captured
     // when the component first mounted.
     await act(async () => {
-      rerender(<ChatPanel sessionId="s1" provider="claude" vaultPath="/vault-b" />, {
+      rerender(<ChatPanel sessionId="s1" provider="claude" />, {
         vaultPath: '/vault-b',
       })
     })
@@ -194,14 +191,13 @@ describe("ChatPanel -> Composer's drop handler — live vaultPath, no stale clos
   })
 
   it('a drop that would succeed with a vault open no-ops after switching to no vault', async () => {
-    const { rerender } = renderWithAppContext(
-      <ChatPanel sessionId="s1" provider="claude" vaultPath="/vault-a" />,
-      { vaultPath: '/vault-a' }
-    )
+    const { rerender } = renderWithAppContext(<ChatPanel sessionId="s1" provider="claude" />, {
+      vaultPath: '/vault-a',
+    })
     await act(async () => {})
 
     await act(async () => {
-      rerender(<ChatPanel sessionId="s1" provider="claude" vaultPath="" />, { vaultPath: null })
+      rerender(<ChatPanel sessionId="s1" provider="claude" />, { vaultPath: null })
     })
 
     await act(async () => {
