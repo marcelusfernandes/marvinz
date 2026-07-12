@@ -40,6 +40,24 @@ vi.mock('electron', () => ({
   WebContentsView: vi.fn(),
 }))
 
+// Chokidar is mocked so vault:watch registers listeners on an inert fake
+// watcher: these tests target the file:write handler only, and a REAL watcher
+// races with them — its 'change' event for the test's own write lands
+// asynchronously and (via snapshotExternalChange) can record a second,
+// post-write snapshot for the same file, flaking the regression assertion on
+// fast CI runners (observed on ubuntu-latest). Same pattern as
+// watcher-snapshot-content-guard.spec.ts (#536).
+vi.mock('chokidar', () => {
+  function makeWatcher() {
+    const watcher = {
+      on: vi.fn((_event: string, _cb: (p: string) => void) => watcher),
+      close: vi.fn(),
+    }
+    return watcher
+  }
+  return { default: { watch: vi.fn(() => makeWatcher()) } }
+})
+
 import { app, dialog, ipcMain } from 'electron'
 import { listTurns, listForFile, readSnapshot } from '../snapshot.js'
 import '../main.js' // side-effect import — registers the real ipcMain.handle callbacks
@@ -81,12 +99,12 @@ async function setup(): Promise<void> {
 
   // vault:pick adds vaultDir to the in-process allowlist (required by vault:watch).
   await vaultPick(undefined)
-  // vault:watch sets activeVaultPath and starts the real chokidar watcher.
+  // vault:watch sets activeVaultPath (the chokidar watcher is a mock — inert).
   await vaultWatch(undefined, vaultDir)
 }
 
 async function teardown(): Promise<void> {
-  // Closes the chokidar watcher started above and resets activeVaultPath.
+  // Closes the (mock) watcher started above and resets activeVaultPath.
   await vaultWatch(undefined, null)
   await fs.rm(vaultDir, { recursive: true, force: true })
   await fs.rm(userDataDir, { recursive: true, force: true })

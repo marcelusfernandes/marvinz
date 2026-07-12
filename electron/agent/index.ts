@@ -11,7 +11,8 @@ import { NdjsonStream } from './ndjson.js'
 import { adaptClaudeObj, makeAdapterState, type AdapterState } from './adapter-claude.js'
 import { adaptCodexObj, makeCodexAdapterState, type CodexAdapterState } from './adapter-codex.js'
 import { clearSessionRules, resolveApproval, cancelPendingApprovals } from './permissions.js'
-import { createApprovalServer, type ApprovalServer } from './approval-socket.js'
+import { createApprovalServer, type ApprovalServer, type PreEditState } from './approval-socket.js'
+import { diffTouchedFiles } from './turn-content-gate.js'
 import { collectProcessTree, signalPids } from '../proc-group.js'
 import { newTurnId } from '../snapshot.js'
 import type { AgentEvent, AgentRequest, Provider, PermissionMode } from './protocol.js'
@@ -35,10 +36,12 @@ export type AgentChild = {
   flushTimer: ReturnType<typeof setTimeout> | null
   // Mutable ref to the current agent turn ID, shared with approval-socket for snapshot tagging.
   agentTurnId: { current: string }
-  // Files touched (by file-edit tools) in the current turn, for turn-snapshot-summary.
+  // Files touched (by approved file-edit tool calls) in the current turn, for turn-snapshot-summary.
   touchedFiles: Set<string>
   // Snapshot result promises keyed by toolUseId — populated by approval-socket, consumed by dispatchEvent.
   snapshotResults: Map<string, Promise<{ saved: boolean; turnId: string }>>
+  // Pre-edit content state per touched file, for the post-turn content-change gate (#537).
+  preEditStates: Map<string, PreEditState>
 }
 
 // Emitter callback: main.ts passes win.webContents.send bound to the window.
@@ -249,18 +252,39 @@ function dispatchEvent(child: AgentChild, event: AgentEvent, emit: EventEmitter)
 
   emit(`agent:event:${child.sessionId}`, event)
 
-  // After turn-result: emit turn-snapshot-summary then reset per-turn state.
+  // After turn-result: snapshot touchedFiles/preEditStates and reset them
+  // synchronously so this turn's diff can't race the next turn's edits, then
+  // diff the just-finished turn's touched files against their pre-edit state
+  // and emit turn-snapshot-summary only for the files that really changed on
+  // disk (#537). The disk reads are async, so this happens without delaying
+  // turn-result or any other event above.
+  // Note: touchedFiles is populated synchronously (on approval), so this
+  // reset cleanly separates turn N from turn N+1 for it. preEditStates is
+  // filled by a fire-and-forget promise in approval-socket.ts that can in
+  // principle still be resolving when this reset runs, so in rare races a
+  // turn-N baseline could land in turn N+1's map (or first-write-wins could
+  // reflect promise-resolution order rather than edit order) — no worse than
+  // today's behavior, and not hardened here.
   if (event.type === 'turn-result' && child.touchedFiles.size > 0) {
-    const fileNames = [...child.touchedFiles]
-    emit(`agent:event:${child.sessionId}`, {
-      type: 'turn-snapshot-summary',
-      sessionId: child.sessionId,
-      turnId: child.agentTurnId.current,
-      fileCount: fileNames.length,
-      fileNames,
-    })
+    const turnId = child.agentTurnId.current
+    const turnFiles = [...child.touchedFiles]
+    const turnPreEditStates = new Map(child.preEditStates)
+    const vaultRoot = child.vaultRoot
+
     child.touchedFiles.clear()
+    child.preEditStates.clear()
     child.agentTurnId.current = newTurnId()
+
+    void diffTouchedFiles(vaultRoot, turnFiles, turnPreEditStates).then((fileNames) => {
+      if (fileNames.length === 0) return
+      emit(`agent:event:${child.sessionId}`, {
+        type: 'turn-snapshot-summary',
+        sessionId: child.sessionId,
+        turnId,
+        fileCount: fileNames.length,
+        fileNames,
+      })
+    })
   }
 }
 
@@ -302,6 +326,7 @@ export async function spawnAgent(
   const agentTurnId = { current: newTurnId() }
   const touchedFiles = new Set<string>()
   const snapshotResults = new Map<string, Promise<{ saved: boolean; turnId: string }>>()
+  const preEditStates = new Map<string, PreEditState>()
 
   let approvalServer: ApprovalServer | null = null
   if (!isCodex) {
@@ -313,7 +338,8 @@ export async function spawnAgent(
       emit,
       agentTurnId,
       touchedFiles,
-      snapshotResults
+      snapshotResults,
+      preEditStates
     )
   }
 
@@ -360,6 +386,7 @@ export async function spawnAgent(
     agentTurnId,
     touchedFiles,
     snapshotResults,
+    preEditStates,
   }
   agentChildren.set(req.sessionId, child)
 
