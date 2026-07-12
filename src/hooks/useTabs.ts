@@ -68,7 +68,14 @@ export function useTabs({ closeBrowserTab }: UseTabsDeps) {
     return noteTabs.filter((t) => keep.has(t.id))
   }, [tabs, editorMru, activeTabId])
 
-  // Removes the tab and its tracked buffer; no dirty checks. Callers gate the
+  // Single cleanup entry point for the two content maps so a close/rename path
+  // can never drop one and leave the other to drift (#578).
+  const forgetPath = useCallback((path: string) => {
+    lastDiskContentRef.current.delete(path)
+    bufferContentRef.current.delete(path)
+  }, [])
+
+  // Removes the tab and its tracked content; no dirty checks. Callers gate the
   // entry (see closeTab) so this stays a pure removal step.
   const performCloseTab = useCallback(
     (id: string) => {
@@ -81,10 +88,10 @@ export function useTabs({ closeBrowserTab }: UseTabsDeps) {
           closeBrowserTab(id)
         }
         if (closing && isNoteTab(closing)) {
-          // Drop tracked buffer/disk content for paths no tab still owns.
+          // Drop tracked content for paths no tab still owns (both maps).
           const stillOpen = next.some((t) => isNoteTab(t) && t.path === closing.path)
           if (!stillOpen) {
-            bufferContentRef.current.delete(closing.path)
+            forgetPath(closing.path)
           }
         }
         // pick neighbor as new active if we closed the active one
@@ -94,8 +101,10 @@ export function useTabs({ closeBrowserTab }: UseTabsDeps) {
         }
         return next
       })
+      // Prune the closed tab from the MRU so it never grows unbounded (#578).
+      setEditorMru((prev) => (prev.includes(id) ? prev.filter((mid) => mid !== id) : prev))
     },
-    [activeTabId, closeBrowserTab]
+    [activeTabId, closeBrowserTab, forgetPath]
   )
 
   const renameInTabs = (oldPath: string, newPath: string) => {
@@ -153,10 +162,13 @@ export function useTabs({ closeBrowserTab }: UseTabsDeps) {
       }
       return remaining
     })
-    const tracked = lastDiskContentRef.current
-    for (const k of Array.from(tracked.keys())) {
-      if (k === root || k.startsWith(`${root}/`)) tracked.delete(k)
+    const toForget = new Set<string>()
+    for (const map of [lastDiskContentRef.current, bufferContentRef.current]) {
+      for (const k of map.keys()) {
+        if (k === root || k.startsWith(`${root}/`)) toForget.add(k)
+      }
     }
+    toForget.forEach(forgetPath)
   }
 
   return {
@@ -171,6 +183,7 @@ export function useTabs({ closeBrowserTab }: UseTabsDeps) {
     editorMru,
     setEditorMru,
     mountedNoteTabs,
+    forgetPath,
     performCloseTab,
     renameInTabs,
     closeTabsUnder,
