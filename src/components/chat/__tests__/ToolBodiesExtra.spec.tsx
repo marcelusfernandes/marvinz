@@ -137,6 +137,33 @@ describe('WriteCard — subline', () => {
     )
     expect(container.querySelector('.chat-tool-subline')?.textContent).toBe('Denied')
   })
+
+  it('shows "Cancelled" subline on cancelled status', () => {
+    const { container } = render(
+      <WriteCard
+        toolUseId="tu1"
+        tool="Write"
+        input={{ file_path: '/vault/a.md' }}
+        status="cancelled"
+      />
+    )
+    expect(container.querySelector('.chat-tool-subline')?.textContent).toBe('Cancelled')
+  })
+
+  // Guards the #584 fix: WriteCard previously did NOT handle pending_approval,
+  // so a pending Write fell through to "Creating". It must route through
+  // toolStatusLabel like the other status states.
+  it('shows "Awaiting approval" subline on pending_approval status', () => {
+    const { container } = render(
+      <WriteCard
+        toolUseId="tu1"
+        tool="Write"
+        input={{ file_path: '/vault/a.md' }}
+        status="pending_approval"
+      />
+    )
+    expect(container.querySelector('.chat-tool-subline')?.textContent).toBe('Awaiting approval')
+  })
 })
 
 // ---------------------------------------------------------------------------

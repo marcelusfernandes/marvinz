@@ -1,7 +1,7 @@
 import { memo, useEffect, useState } from 'react'
 import { DiffCard } from '../DiffCard'
 import type { ToolBodyProps } from './types'
-import { basename, readPath, readString } from './types'
+import { basename, readPath, readString, toolStatusLabel } from './types'
 import { marvin } from '../../../lib/marvinApi'
 
 /**
@@ -129,10 +129,14 @@ function buildChangeSummary(
   oldContent: string | null,
   result: unknown
 ): string | null {
-  if (status === 'error') return 'Failed'
-  if (status === 'denied') return 'Denied'
-  if (status === 'cancelled') return 'Cancelled'
-  if (status === 'pending_approval') return 'Pending approval'
+  if (
+    status === 'error' ||
+    status === 'denied' ||
+    status === 'cancelled' ||
+    status === 'pending_approval'
+  ) {
+    return toolStatusLabel(status)
+  }
 
   const newLines = countLines(newContent)
   const oldLines = countLines(oldContent)

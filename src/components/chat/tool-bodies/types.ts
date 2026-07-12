@@ -22,6 +22,31 @@ export type ToolBodyProps = {
   onOpenFile?: (path: string) => void
 }
 
+/**
+ * Single source of truth for ToolStatus → human-readable label, shared by every
+ * tool-use surface (timeline dot, edit/write sublines) so the same status never
+ * renders divergent text. The trailing `never` assignment makes adding a
+ * ToolStatus value without a label a compile error.
+ */
+export function toolStatusLabel(status: ToolStatus): string {
+  switch (status) {
+    case 'pending_approval':
+      return 'Awaiting approval'
+    case 'running':
+      return 'Running'
+    case 'ok':
+      return 'Completed'
+    case 'error':
+      return 'Failed'
+    case 'denied':
+      return 'Denied'
+    case 'cancelled':
+      return 'Cancelled'
+  }
+  const exhaustive: never = status
+  return exhaustive
+}
+
 /** Heuristic: pull a primary "path-like" identifier from common tool inputs. */
 export function readPath(input: unknown): string | null {
   if (!input || typeof input !== 'object') return null
