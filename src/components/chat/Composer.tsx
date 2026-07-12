@@ -34,8 +34,11 @@ export function Composer({
 }: Props) {
   const draft = useChatStore((s) => s.sessions[sessionId]?.composer.draft ?? '')
   const permissionMode = useChatStore((s) => s.sessions[sessionId]?.permissionMode ?? 'default')
+  const queuedCount = useChatStore((s) => s.sessions[sessionId]?.queue?.length ?? 0)
+  const cancelling = useChatStore((s) => s.sessions[sessionId]?.cancelling ?? false)
   const setDraft = useChatStore((s) => s.setComposerDraft)
   const setPermissionMode = useChatStore((s) => s.setPermissionMode)
+  const enqueueMessage = useChatStore((s) => s.enqueueMessage)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const modePillRef = useRef<HTMLButtonElement>(null)
   const [composing, setComposing] = useState(false)
@@ -54,11 +57,17 @@ export function Composer({
     const text = draft.trim()
     if (!text || disabled) return
     setDraft(sessionId, '')
+    // While a turn is streaming, queue the message instead of starting a new
+    // turn — it auto-sends when the current turn finishes (C1-3).
+    if (isStreaming) {
+      enqueueMessage(sessionId, text)
+      return
+    }
     Promise.resolve(onSend(text)).catch(() => {
       // Restore the draft so the user doesn't lose their text on transport failure.
       setDraft(sessionId, text)
     })
-  }, [draft, disabled, onSend, sessionId, setDraft])
+  }, [draft, disabled, onSend, sessionId, setDraft, isStreaming, enqueueMessage])
 
   const cyclePermissionMode = useCallback(() => {
     const ix = MODE_OPTIONS.findIndex((m) => m.value === permissionMode)
@@ -209,19 +218,55 @@ export function Composer({
           </div>
         </div>
         <div className="right">
-          <button
-            type="button"
-            className="chat-composer-send"
-            aria-label={isStreaming ? 'Stop' : 'Send'}
-            title={isStreaming ? 'Stop' : 'Send'}
-            disabled={sendDisabled}
-            onClick={isStreaming ? () => onCancel?.() : submit}
-            data-state={isStreaming ? 'stop' : empty ? 'idle' : 'ready'}
-          >
-            <Icon name={isStreaming ? 'debug-stop' : 'arrow-up'} size={14} />
-          </button>
+          {queuedCount > 0 && (
+            <span className="chat-composer-queued" title="Queued — sends when the turn finishes">
+              {queuedCount} queued
+            </span>
+          )}
+          <SendStopButton
+            isStreaming={isStreaming}
+            cancelling={cancelling}
+            empty={empty}
+            disabled={sendDisabled || cancelling}
+            onSend={submit}
+            onStop={() => onCancel?.()}
+          />
         </div>
       </div>
     </div>
+  )
+}
+
+/** Primary composer action: Send when idle, Stop while streaming, disabled while
+ *  cancelling (shows "Stopping…"). Extracted so Composer stays under the
+ *  cyclomatic-complexity cap. */
+function SendStopButton({
+  isStreaming,
+  cancelling,
+  empty,
+  disabled,
+  onSend,
+  onStop,
+}: {
+  isStreaming: boolean
+  cancelling: boolean
+  empty: boolean
+  disabled: boolean
+  onSend: () => void
+  onStop: () => void
+}) {
+  const label = cancelling ? 'Stopping' : isStreaming ? 'Stop' : 'Send'
+  return (
+    <button
+      type="button"
+      className="chat-composer-send"
+      aria-label={label}
+      title={cancelling ? 'Stopping…' : label}
+      disabled={disabled}
+      onClick={isStreaming ? onStop : onSend}
+      data-state={isStreaming ? 'stop' : empty ? 'idle' : 'ready'}
+    >
+      <Icon name={isStreaming ? 'debug-stop' : 'arrow-up'} size={14} />
+    </button>
   )
 }

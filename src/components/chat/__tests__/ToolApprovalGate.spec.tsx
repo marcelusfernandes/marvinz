@@ -1,5 +1,5 @@
-import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { describe, it, expect, vi, afterEach } from 'vitest'
+import { render, screen, fireEvent, act } from '@testing-library/react'
 import { ToolApprovalGate, type ApprovalDecision } from '../ToolApprovalGate'
 
 // ---------------------------------------------------------------------------
@@ -208,5 +208,66 @@ describe('ToolApprovalGate — single call per action', () => {
     render(<ToolApprovalGate toolUseId="tu1" onDecide={onDecide} />)
     fireEvent.click(screen.getByRole('button', { name: /allow always/i }))
     expect(onDecide).toHaveBeenCalledTimes(1)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// deadlineAt countdown — exercises useRemainingMs + formatRemaining
+// ---------------------------------------------------------------------------
+
+describe('ToolApprovalGate — deadline countdown', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('renders no countdown when deadlineAt is omitted', () => {
+    const { container } = render(<ToolApprovalGate toolUseId="tu1" onDecide={makeDecide()} />)
+    expect(container.querySelector('[data-role="countdown"]')).not.toBeInTheDocument()
+  })
+
+  it('renders "Expires in m:ss" for a future deadline', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(1_000_000))
+    // 95s out → 1:35
+    render(
+      <ToolApprovalGate toolUseId="tu1" onDecide={makeDecide()} deadlineAt={1_000_000 + 95_000} />
+    )
+    const countdown = screen.getByText(/Expires in/)
+    expect(countdown).toHaveTextContent('Expires in 1:35')
+  })
+
+  it('ticks the countdown down as time advances', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(2_000_000))
+    render(
+      <ToolApprovalGate toolUseId="tu1" onDecide={makeDecide()} deadlineAt={2_000_000 + 10_000} />
+    )
+    expect(screen.getByText(/Expires in/)).toHaveTextContent('Expires in 0:10')
+    act(() => {
+      vi.advanceTimersByTime(3000)
+    })
+    expect(screen.getByText(/Expires in/)).toHaveTextContent('Expires in 0:07')
+  })
+
+  it('renders "Expired" once the deadline has passed', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(3_000_000))
+    render(<ToolApprovalGate toolUseId="tu1" onDecide={makeDecide()} deadlineAt={3_000_000 - 1} />)
+    expect(screen.getByText('Expired')).toBeInTheDocument()
+  })
+
+  it('renders both countdown and hint slots together', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(4_000_000))
+    render(
+      <ToolApprovalGate
+        toolUseId="tu1"
+        onDecide={makeDecide()}
+        deadlineAt={4_000_000 + 30_000}
+        hint={<span>view diff</span>}
+      />
+    )
+    expect(screen.getByText(/Expires in/)).toBeInTheDocument()
+    expect(screen.getByText('view diff')).toBeInTheDocument()
   })
 })

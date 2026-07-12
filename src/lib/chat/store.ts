@@ -41,6 +41,18 @@ type ChatStore = {
   setComposerDraft: (sid: SessionId, draft: string) => void
   setComposerMentions: (sid: SessionId, mentions: Mention[]) => void
   setPermissionMode: (sid: SessionId, mode: PermissionMode) => void
+  /** Mark whether a live CLI child is running for this session (C1-2). */
+  setSessionLive: (sid: SessionId, live: boolean) => void
+  /** Clear the error banner and, if errored, re-enter streaming (C1-4 retry). */
+  clearError: (sid: SessionId) => void
+  /** Queue a follow-up message to send when the current turn ends (C1-3). */
+  enqueueMessage: (sid: SessionId, text: string) => void
+  /** Remove and ignore the head of the queue (after it has been dispatched). */
+  dequeueMessage: (sid: SessionId) => void
+  /** Mark the turn as cancelling (drives the "Stopping…" state) (C1-5). */
+  setCancelling: (sid: SessionId, cancelling: boolean) => void
+  /** Force a hung turn back to idle if the terminating event never arrived (C1-5). */
+  forceIdle: (sid: SessionId) => void
 }
 
 function emptySession(id: SessionId, agentId: Provider, vaultPath: string): Session {
@@ -155,6 +167,8 @@ export const useChatStore = create<ChatStore>((set) => ({
         },
         ordering: [...s.ordering, messageId],
         turnState: 'streaming',
+        // A new turn clears any prior error banner (C1-4).
+        lastError: undefined,
       }))
     )
     return messageId
@@ -227,6 +241,45 @@ export const useChatStore = create<ChatStore>((set) => ({
         s.permissionMode === mode ? s : { ...s, permissionMode: mode }
       )
     ),
+
+  setSessionLive: (sid, live) =>
+    set((state) => withSession(state, sid, (s) => (s.live === live ? s : { ...s, live }))),
+
+  clearError: (sid) =>
+    set((state) =>
+      withSession(state, sid, (s) =>
+        s.lastError === undefined && s.turnState !== 'error'
+          ? s
+          : {
+              ...s,
+              lastError: undefined,
+              // A retry re-enters streaming; leave non-error states untouched.
+              turnState: s.turnState === 'error' ? 'streaming' : s.turnState,
+            }
+      )
+    ),
+
+  enqueueMessage: (sid, text) =>
+    set((state) => withSession(state, sid, (s) => ({ ...s, queue: [...(s.queue ?? []), text] }))),
+
+  dequeueMessage: (sid) =>
+    set((state) =>
+      withSession(state, sid, (s) =>
+        s.queue && s.queue.length > 0 ? { ...s, queue: s.queue.slice(1) } : s
+      )
+    ),
+
+  setCancelling: (sid, cancelling) =>
+    set((state) =>
+      withSession(state, sid, (s) => (s.cancelling === cancelling ? s : { ...s, cancelling }))
+    ),
+
+  forceIdle: (sid) =>
+    set((state) =>
+      withSession(state, sid, (s) =>
+        s.turnState === 'idle' && !s.cancelling ? s : { ...s, turnState: 'idle', cancelling: false }
+      )
+    ),
 }))
 
 // ---------- event reducer ----------
@@ -234,7 +287,11 @@ export const useChatStore = create<ChatStore>((set) => ({
 function applyEvent(s: Session, ev: ChatStreamEvent): Session {
   switch (ev.type) {
     case 'session-init':
-      return s.cliSessionId === ev.cliSessionId ? s : { ...s, cliSessionId: ev.cliSessionId }
+      // The CLI confirmed a live child. Record its id and mark the session live
+      // so follow-up sends continue it via `input` rather than respawning.
+      return s.cliSessionId === ev.cliSessionId && s.live
+        ? s
+        : { ...s, cliSessionId: ev.cliSessionId, live: true }
 
     case 'message-start': {
       if (ev.role !== 'assistant') return s
@@ -364,6 +421,7 @@ function applyEvent(s: Session, ev: ChatStreamEvent): Session {
         ...s,
         messages: { ...s.messages, [ev.messageId]: { ...target, done: true } },
         turnState,
+        cancelling: false,
       }
     }
 
@@ -389,11 +447,35 @@ function applyEvent(s: Session, ev: ChatStreamEvent): Session {
           cacheWriteTokens: (s.tokenUsage.cacheWriteTokens ?? 0) + (ev.usage.cacheWriteTokens ?? 0),
         },
         turnState: s.pendingApprovals.length > 0 ? 'awaiting_approval' : 'idle',
+        cancelling: false,
+      }
+
+    case 'crashed':
+      // The child is gone — the next send must spawn a fresh session.
+      return {
+        ...s,
+        turnState: 'error',
+        live: false,
+        cancelling: false,
+        lastError: {
+          message:
+            ev.exitCode != null
+              ? `The agent stopped unexpectedly (exit ${ev.exitCode}).`
+              : 'The agent stopped unexpectedly.',
+          recoverable: false,
+        },
       }
 
     case 'error':
-    case 'crashed':
-      return { ...s, turnState: 'error' }
+      // Unrecoverable errors kill the child; recoverable ones (e.g. a single
+      // malformed stream line) leave the session live. Surface both as a banner.
+      return {
+        ...s,
+        turnState: 'error',
+        live: ev.recoverable ? s.live : false,
+        lastError: { message: ev.message, recoverable: ev.recoverable, code: ev.code },
+        cancelling: false,
+      }
   }
 }
 

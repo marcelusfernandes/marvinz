@@ -63,6 +63,214 @@ function getBlocks(sid: string, mid: string): AssistantBlock[] {
 // startSession / closeSession
 // ---------------------------------------------------------------------------
 
+describe('session live flag (C1-2)', () => {
+  beforeEach(resetStore)
+
+  function initEvent(sid: string, cliSessionId: string) {
+    dispatchStreamEvent({
+      type: 'session-init',
+      sessionId: sid,
+      provider: 'claude',
+      cliSessionId,
+      model: 'claude-sonnet-5',
+      cwd: '/vault',
+      startedAt: 0,
+    })
+  }
+
+  it('is undefined on a fresh session', () => {
+    getStore().startSession('s1', 'claude', '/vault')
+    expect(getSession('s1').live).toBeFalsy()
+  })
+
+  it('setSessionLive toggles the flag', () => {
+    getStore().startSession('s1', 'claude', '/vault')
+    getStore().setSessionLive('s1', true)
+    expect(getSession('s1').live).toBe(true)
+    getStore().setSessionLive('s1', false)
+    expect(getSession('s1').live).toBe(false)
+  })
+
+  it('session-init marks the session live and records the cli id', () => {
+    getStore().startSession('s1', 'claude', '/vault')
+    initEvent('s1', 'cli-1')
+    expect(getSession('s1').live).toBe(true)
+    expect(getSession('s1').cliSessionId).toBe('cli-1')
+  })
+
+  it('crashed clears live', () => {
+    getStore().startSession('s1', 'claude', '/vault')
+    initEvent('s1', 'cli-1')
+    dispatchStreamEvent({ type: 'crashed', sessionId: 's1', exitCode: 1, signal: null })
+    expect(getSession('s1').live).toBe(false)
+    expect(getSession('s1').turnState).toBe('error')
+  })
+
+  it('an unrecoverable error clears live', () => {
+    getStore().startSession('s1', 'claude', '/vault')
+    initEvent('s1', 'cli-1')
+    dispatchStreamEvent({
+      type: 'error',
+      sessionId: 's1',
+      code: 'AGENT_INTERNAL',
+      message: 'boom',
+      recoverable: false,
+    })
+    expect(getSession('s1').live).toBe(false)
+  })
+
+  it('a recoverable error keeps live intact', () => {
+    getStore().startSession('s1', 'claude', '/vault')
+    initEvent('s1', 'cli-1')
+    dispatchStreamEvent({
+      type: 'error',
+      sessionId: 's1',
+      code: 'AGENT_INVALID_STREAM',
+      message: 'malformed line',
+      recoverable: true,
+    })
+    expect(getSession('s1').live).toBe(true)
+  })
+})
+
+describe('error banner state (C1-4)', () => {
+  beforeEach(resetStore)
+
+  it('an error records lastError with message + code', () => {
+    getStore().startSession('s1', 'claude', '/vault')
+    dispatchStreamEvent({
+      type: 'error',
+      sessionId: 's1',
+      code: 'AGENT_NOT_AUTHENTICATED',
+      message: 'Not logged in',
+      recoverable: false,
+    })
+    expect(getSession('s1').lastError).toEqual({
+      message: 'Not logged in',
+      recoverable: false,
+      code: 'AGENT_NOT_AUTHENTICATED',
+    })
+    expect(getSession('s1').turnState).toBe('error')
+  })
+
+  it('a crash records a lastError with the exit code', () => {
+    getStore().startSession('s1', 'claude', '/vault')
+    dispatchStreamEvent({ type: 'crashed', sessionId: 's1', exitCode: 137, signal: null })
+    expect(getSession('s1').lastError?.message).toContain('137')
+    expect(getSession('s1').lastError?.recoverable).toBe(false)
+  })
+
+  it('starting a new turn clears the error banner', () => {
+    getStore().startSession('s1', 'claude', '/vault')
+    dispatchStreamEvent({
+      type: 'error',
+      sessionId: 's1',
+      code: 'AGENT_INTERNAL',
+      message: 'boom',
+      recoverable: false,
+    })
+    getStore().appendUserMessage('s1', 'try again')
+    expect(getSession('s1').lastError).toBeUndefined()
+    expect(getSession('s1').turnState).toBe('streaming')
+  })
+
+  it('clearError drops the banner and re-enters streaming from error', () => {
+    getStore().startSession('s1', 'claude', '/vault')
+    dispatchStreamEvent({
+      type: 'error',
+      sessionId: 's1',
+      code: 'AGENT_INTERNAL',
+      message: 'boom',
+      recoverable: false,
+    })
+    getStore().clearError('s1')
+    expect(getSession('s1').lastError).toBeUndefined()
+    expect(getSession('s1').turnState).toBe('streaming')
+  })
+})
+
+describe('message queue (C1-3)', () => {
+  beforeEach(resetStore)
+
+  it('enqueues messages in FIFO order', () => {
+    getStore().startSession('s1', 'claude', '/vault')
+    getStore().enqueueMessage('s1', 'one')
+    getStore().enqueueMessage('s1', 'two')
+    expect(getSession('s1').queue).toEqual(['one', 'two'])
+  })
+
+  it('dequeue removes the head', () => {
+    getStore().startSession('s1', 'claude', '/vault')
+    getStore().enqueueMessage('s1', 'one')
+    getStore().enqueueMessage('s1', 'two')
+    getStore().dequeueMessage('s1')
+    expect(getSession('s1').queue).toEqual(['two'])
+  })
+
+  it('dequeue on an empty queue is a no-op', () => {
+    getStore().startSession('s1', 'claude', '/vault')
+    getStore().dequeueMessage('s1')
+    expect(getSession('s1').queue ?? []).toEqual([])
+  })
+})
+
+describe('cancelling state (C1-5)', () => {
+  beforeEach(resetStore)
+
+  function initEvent(sid: string) {
+    dispatchStreamEvent({
+      type: 'session-init',
+      sessionId: sid,
+      provider: 'claude',
+      cliSessionId: 'cli-1',
+      model: 'm',
+      cwd: '/vault',
+      startedAt: 0,
+    })
+  }
+
+  it('setCancelling toggles the flag', () => {
+    getStore().startSession('s1', 'claude', '/vault')
+    getStore().setCancelling('s1', true)
+    expect(getSession('s1').cancelling).toBe(true)
+  })
+
+  it('forceIdle resets a hung turn to idle and clears cancelling', () => {
+    getStore().startSession('s1', 'claude', '/vault')
+    getStore().appendUserMessage('s1', 'go') // turnState=streaming
+    getStore().setCancelling('s1', true)
+    getStore().forceIdle('s1')
+    expect(getSession('s1').turnState).toBe('idle')
+    expect(getSession('s1').cancelling).toBe(false)
+  })
+
+  it('message-end clears cancelling', () => {
+    getStore().startSession('s1', 'claude', '/vault')
+    initEvent('s1')
+    dispatchStreamEvent({
+      type: 'message-start',
+      sessionId: 's1',
+      messageId: 'a1',
+      role: 'assistant',
+    })
+    getStore().setCancelling('s1', true)
+    dispatchStreamEvent({
+      type: 'message-end',
+      sessionId: 's1',
+      messageId: 'a1',
+      stopReason: 'cancelled',
+    })
+    expect(getSession('s1').cancelling).toBe(false)
+  })
+
+  it('a crash clears cancelling', () => {
+    getStore().startSession('s1', 'claude', '/vault')
+    getStore().setCancelling('s1', true)
+    dispatchStreamEvent({ type: 'crashed', sessionId: 's1', exitCode: 1, signal: null })
+    expect(getSession('s1').cancelling).toBe(false)
+  })
+})
+
 describe('startSession', () => {
   beforeEach(resetStore)
 

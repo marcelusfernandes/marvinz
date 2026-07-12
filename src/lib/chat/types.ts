@@ -84,6 +84,30 @@ export type Session = {
   /** Currently-selected permission mode for the next turn (PRD AC6). */
   permissionMode: PermissionMode
   cliSessionId?: string
+  /**
+   * Whether a live CLI child is running for this session. Set optimistically
+   * when the first turn is started and cleared on crash / unrecoverable error /
+   * close. Drives whether the next send continues the session (`input`) or
+   * spawns a fresh one (`start`). See C1-2.
+   */
+  live?: boolean
+  /**
+   * The most recent error/crash, surfaced as a recoverable banner in ChatPanel
+   * (C1-4). Cleared when a new turn starts. `code` is the AgentEvent error code
+   * (e.g. AGENT_NOT_AUTHENTICATED) so the banner can offer re-auth.
+   */
+  lastError?: { message: string; recoverable: boolean; code?: string }
+  /**
+   * Follow-up messages typed while a turn is in flight, sent in order once the
+   * current turn finishes (C1-3). FIFO.
+   */
+  queue?: string[]
+  /**
+   * True between requesting a cancel and the turn actually ending — drives the
+   * "Stopping…" affordance and a fallback that clears a hung turn if the
+   * terminating event is dropped (C1-5).
+   */
+  cancelling?: boolean
 }
 
 // Subset of AgentEvent shapes the renderer cares about. Mirrors

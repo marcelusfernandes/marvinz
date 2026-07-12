@@ -5,6 +5,7 @@ import { InputDialog } from './InputDialog'
 import { ChatPanel, type TurnSummary } from './chat/ChatPanel'
 import { useSetting } from '../lib/settingsStore'
 import type { Provider } from '../lib/chat/types'
+import { useChatStore } from '../lib/chat/store'
 import { clearTabLabel, readTabLabels, writeTabLabels } from '../lib/chat/tabLabels'
 import { CHAT_UI_ENABLED, resolveTabMode, type TabMode } from '../lib/featureFlags'
 import { useHorizontalWheelScroll } from '../lib/useHorizontalWheelScroll'
@@ -191,8 +192,17 @@ export function AgentsPane({
     [findAgent, tabs, terminalModeDefault]
   )
 
+  // Close a tab's chat session and kill any live agent child so a closed tab
+  // doesn't leak Zustand state or an orphaned CLI process (C1-6). No-ops for
+  // terminal tabs — there is no chat session or agent child under their id.
+  const cleanupChatSession = useCallback((id: string) => {
+    useChatStore.getState().closeSession(id)
+    void window.marvin?.agent?.request({ type: 'kill', sessionId: id }).catch(() => {})
+  }, [])
+
   const removeTab = useCallback(
     (id: string) => {
+      cleanupChatSession(id)
       setTabs((prev) => {
         const idx = prev.findIndex((t) => t.id === id)
         if (idx === -1) return prev
@@ -211,7 +221,7 @@ export function AgentsPane({
       })
       clearTabLabel(id)
     },
-    [activeId]
+    [activeId, cleanupChatSession]
   )
 
   const pickAndOpen = useCallback(
@@ -270,30 +280,34 @@ export function AgentsPane({
     [removeTab, addTab]
   )
 
-  const closeOthers = useCallback((keepId: string) => {
-    const droppedIds = tabsRef.current.filter((t) => t.id !== keepId).map((t) => t.id)
-    setTabs((prev) => {
-      const keep = prev.find((t) => t.id === keepId)
-      if (!keep) return prev
-      return [keep]
-    })
-    setActiveId(keepId)
-    setStatuses((prev) => {
-      if (keepId in prev) return { [keepId]: prev[keepId] }
-      return {}
-    })
-    if (droppedIds.length > 0) {
-      const stored = readTabLabels()
-      let changed = false
-      for (const id of droppedIds) {
-        if (id in stored) {
-          delete stored[id]
-          changed = true
+  const closeOthers = useCallback(
+    (keepId: string) => {
+      const droppedIds = tabsRef.current.filter((t) => t.id !== keepId).map((t) => t.id)
+      droppedIds.forEach(cleanupChatSession)
+      setTabs((prev) => {
+        const keep = prev.find((t) => t.id === keepId)
+        if (!keep) return prev
+        return [keep]
+      })
+      setActiveId(keepId)
+      setStatuses((prev) => {
+        if (keepId in prev) return { [keepId]: prev[keepId] }
+        return {}
+      })
+      if (droppedIds.length > 0) {
+        const stored = readTabLabels()
+        let changed = false
+        for (const id of droppedIds) {
+          if (id in stored) {
+            delete stored[id]
+            changed = true
+          }
         }
+        if (changed) writeTabLabels(stored)
       }
-      if (changed) writeTabLabels(stored)
-    }
-  }, [])
+    },
+    [cleanupChatSession]
+  )
 
   const handleTabContextMenu = useCallback(
     async (e: React.MouseEvent, tabId: string) => {

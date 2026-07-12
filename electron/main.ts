@@ -35,6 +35,7 @@ import { assertPtySpawnAllowed, registerDynamicShell } from './pty-spawn-guard.j
 import { assertAgentDetectAllowed, registerDetectedAgent } from './agent-detect-guard.js'
 import {
   spawnAgent,
+  sendAgentInput,
   cancelAgent,
   killAgentSession,
   handleApproval,
@@ -1307,15 +1308,23 @@ ipcMain.handle('path:trash', async (_e, target: string) => {
 
 ipcMain.handle('file:exportPdf', async (_e, filePath: string) => {
   try {
-    const content = await fs.readFile(filePath, 'utf-8')
-    const dir = path.dirname(filePath)
+    // Every other file handler validates the path against the vault boundary;
+    // this one must too, or a compromised renderer could read arbitrary files
+    // (and drop a temp .html next to them). Use the realpath-resolved path.
+    const safe = await assertInVault(filePath)
+    const content = await fs.readFile(safe, 'utf-8')
 
     const { marked } = await import('marked')
     const bodyHtml = await marked(content)
 
+    // The markdown is rendered untrusted: `marked` does not sanitize, so a note
+    // may contain arbitrary HTML/script. A strict CSP (no script/connect/frame)
+    // plus a sandboxed window neutralizes `<script>` and `<img onerror=fetch()>`
+    // exfiltration while still letting local/remote images render for the PDF.
     const html = `<!DOCTYPE html>
 <html><head>
 <meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self' data: file: marvin: https:; style-src 'unsafe-inline'; font-src 'self' data:;">
 <style>
   body { font-family: system-ui, -apple-system, sans-serif; max-width: 800px; margin: 0 auto; padding: 2rem; line-height: 1.6; color: #1a1a1a; }
   h1, h2, h3, h4, h5, h6 { margin-top: 1.5em; }
@@ -1328,12 +1337,14 @@ ipcMain.handle('file:exportPdf', async (_e, filePath: string) => {
 </style>
 </head><body>${bodyHtml}</body></html>`
 
-    const tmpPath = path.join(dir, `._marvinz_export_${Date.now()}.html`)
+    // Write the temp file to the OS temp dir, not alongside the source — the
+    // source's directory may be read-only or outside our control.
+    const tmpPath = path.join(app.getPath('temp'), `._marvinz_export_${Date.now()}.html`)
     await fs.writeFile(tmpPath, html, 'utf-8')
 
     const exportWin = new BrowserWindow({
       show: false,
-      webPreferences: { nodeIntegration: false, contextIsolation: true },
+      webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true },
     })
 
     try {
@@ -2106,6 +2117,13 @@ ipcMain.handle('agent:request', async (e, raw: unknown): Promise<AgentResponse> 
     if (req.type === 'approval') {
       handleApproval(req.sessionId, req.toolUseId, req.decision)
       return { ok: true }
+    }
+
+    if (req.type === 'input') {
+      // Follow-up turn on a live session. Returns false when no live child
+      // exists (e.g. it crashed) so the renderer can fall back to a fresh start.
+      const delivered = sendAgentInput(req.sessionId, req.content)
+      return delivered ? { ok: true } : { ok: false, error: 'NO_LIVE_SESSION' }
     }
 
     return { ok: true }
