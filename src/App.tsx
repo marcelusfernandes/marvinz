@@ -234,9 +234,13 @@ export default function App() {
     setActiveTabId,
     lastDiskContentRef,
     bufferContentRef,
+    tabsRef,
     activeTab,
     mountedNoteTabs,
-  } = useTabs()
+    performCloseTab,
+    renameInTabs,
+    closeTabsUnder,
+  } = useTabs({ closeBrowserTab: (id) => void window.marvin.browser.close(id) })
   const [agents, setAgents] = useState<AgentDef[]>([])
   const [bootstrapped, setBootstrapped] = useState(false)
   const [dialog, setDialog] = useState<Dialog>(null)
@@ -372,11 +376,6 @@ export default function App() {
   // Tab ids with an in-flight close (awaiting flush or the confirm sheet) so a
   // rapid double-click can't spawn two close flows / stacked dialogs for one tab.
   const pendingCloseIds = useRef<Set<string>>(new Set())
-
-  // Latest tabs snapshot for handlers (closeTab) that must read current tab
-  // state without taking `tabs` as a dependency. Reassigned in the ref-hub
-  // effect below (matching the project's latest-ref pattern).
-  const tabsRef = useRef(tabs)
 
   // Monotonic counter that invalidates in-flight tree responses when a newer
   // load is started (e.g. rapid vault switching). Without this, a slow
@@ -810,34 +809,6 @@ export default function App() {
 
   // Removes the tab and its tracked buffer; no dirty checks. Callers gate the
   // entry (see closeTab) so this stays a pure removal step.
-  const performCloseTab = useCallback(
-    (id: string) => {
-      setTabs((prev) => {
-        const idx = prev.findIndex((t) => t.id === id)
-        if (idx === -1) return prev
-        const closing = prev[idx]
-        const next = prev.filter((t) => t.id !== id)
-        if (closing && isBrowserTab(closing)) {
-          void window.marvin.browser.close(id)
-        }
-        if (closing && isNoteTab(closing)) {
-          // Drop tracked buffer/disk content for paths no tab still owns.
-          const stillOpen = next.some((t) => isNoteTab(t) && t.path === closing.path)
-          if (!stillOpen) {
-            bufferContentRef.current.delete(closing.path)
-          }
-        }
-        // pick neighbor as new active if we closed the active one
-        if (activeTabId === id) {
-          const neighbor = next[idx] ?? next[idx - 1] ?? null
-          setActiveTabId(neighbor ? neighbor.id : null)
-        }
-        return next
-      })
-    },
-    [activeTabId]
-  )
-
   const closeTab = useCallback(
     (id: string) => {
       const tab = tabsRef.current.find((t) => t.id === id)
@@ -906,7 +877,6 @@ export default function App() {
     treeRef.current = tree
     openPathsRef.current = openPaths
     anchorPathRef.current = anchorPath
-    tabsRef.current = tabs
   })
 
   const handleTreeSelect = useCallback((node: FileNode, mods: SelectModifiers) => {
@@ -1444,67 +1414,6 @@ export default function App() {
     const raw = err instanceof Error ? err.message : String(err)
     if (/MARVIN_OUTSIDE_VAULT/.test(raw) && vaultPath) {
       void loadTree(vaultPath).catch(() => {})
-    }
-  }
-
-  const renameInTabs = (oldPath: string, newPath: string) => {
-    // Snapshot keyed by old path — the remap loop below mutates the ref, so the
-    // updater must read buffers captured before that.
-    const liveBuffers = new Map(bufferContentRef.current)
-    setTabs((prev) =>
-      prev.map((t) => {
-        if (!isNoteTab(t)) return t
-        let path = t.path
-        if (path === oldPath) path = newPath
-        else if (path.startsWith(`${oldPath}/`)) path = newPath + path.slice(oldPath.length)
-        const back = t.back.map((p) =>
-          p === oldPath
-            ? newPath
-            : p.startsWith(`${oldPath}/`)
-              ? newPath + p.slice(oldPath.length)
-              : p
-        )
-        const forward = t.forward.map((p) =>
-          p === oldPath
-            ? newPath
-            : p.startsWith(`${oldPath}/`)
-              ? newPath + p.slice(oldPath.length)
-              : p
-        )
-        const buffered = liveBuffers.get(t.path)
-        const content = buffered !== undefined ? buffered : t.content
-        return path === t.path && back === t.back && forward === t.forward && content === t.content
-          ? t
-          : { ...t, path, back, forward, content }
-      })
-    )
-    // remap tracked content for both the on-disk and live buffer maps
-    for (const tracked of [lastDiskContentRef.current, bufferContentRef.current]) {
-      for (const [k, v] of Array.from(tracked.entries())) {
-        if (k === oldPath) {
-          tracked.delete(k)
-          tracked.set(newPath, v)
-        } else if (k.startsWith(`${oldPath}/`)) {
-          tracked.delete(k)
-          tracked.set(newPath + k.slice(oldPath.length), v)
-        }
-      }
-    }
-  }
-
-  const closeTabsUnder = (root: string) => {
-    setTabs((prev) => {
-      const remaining = prev.filter(
-        (t) => !isNoteTab(t) || (t.path !== root && !t.path.startsWith(`${root}/`))
-      )
-      if (activeTabId && !remaining.find((t) => t.id === activeTabId)) {
-        setActiveTabId(remaining[0]?.id ?? null)
-      }
-      return remaining
-    })
-    const tracked = lastDiskContentRef.current
-    for (const k of Array.from(tracked.keys())) {
-      if (k === root || k.startsWith(`${root}/`)) tracked.delete(k)
     }
   }
 
