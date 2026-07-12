@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { FileChangeSource, FileNode, MenuItemSpec } from './types'
 import {
+  type NoteTab,
   isNoteTab,
   isBrowserTab,
   isImageTab,
@@ -721,6 +722,28 @@ export default function App() {
 
   // Navigate within the active tab (used by link clicks in markdown preview).
   // Pushes current path onto back stack, clears forward.
+  // Shared active-note swap for in-tab navigation (wikilink / back / forward /
+  // navigateOrOpen). Reads the target buffer-first (#560) and advances the
+  // active note tab's path/content/version; `history` supplies the per-caller
+  // back/forward stacks.
+  const swapActiveNote = useCallback(
+    async (
+      tabId: string,
+      target: string,
+      history: (t: NoteTab) => { back: string[]; forward: string[] }
+    ) => {
+      const content = await readForNavigation(target)
+      setTabs((prev) =>
+        prev.map((t) =>
+          isNoteTab(t) && t.id === tabId
+            ? { ...t, path: target, content, version: t.version + 1, ...history(t) }
+            : t
+        )
+      )
+    },
+    [readForNavigation, setTabs]
+  )
+
   const navigateInActiveTab = useCallback(
     async (path: string) => {
       if (!activeTab || !isNoteTab(activeTab)) {
@@ -731,26 +754,12 @@ export default function App() {
       if (path === activeTab.path) return
       const noteTab = activeTab
       try {
-        const content = await readForNavigation(path)
-        setTabs((prev) =>
-          prev.map((t) =>
-            isNoteTab(t) && t.id === noteTab.id
-              ? {
-                  ...t,
-                  path,
-                  content,
-                  version: t.version + 1,
-                  back: [...t.back, t.path],
-                  forward: [],
-                }
-              : t
-          )
-        )
+        await swapActiveNote(noteTab.id, path, (t) => ({ back: [...t.back, t.path], forward: [] }))
       } catch (err) {
         reportError(err)
       }
     },
-    [activeTab, openInTab, readForNavigation]
+    [activeTab, openInTab, swapActiveNote]
   )
 
   const goBack = useCallback(async () => {
@@ -758,50 +767,28 @@ export default function App() {
     const noteTab = activeTab
     const target = noteTab.back[noteTab.back.length - 1]
     try {
-      const content = await readForNavigation(target)
-      setTabs((prev) =>
-        prev.map((t) =>
-          isNoteTab(t) && t.id === noteTab.id
-            ? {
-                ...t,
-                path: target,
-                content,
-                version: t.version + 1,
-                back: t.back.slice(0, -1),
-                forward: [...t.forward, t.path],
-              }
-            : t
-        )
-      )
+      await swapActiveNote(noteTab.id, target, (t) => ({
+        back: t.back.slice(0, -1),
+        forward: [...t.forward, t.path],
+      }))
     } catch (err) {
       reportError(err)
     }
-  }, [activeTab, readForNavigation])
+  }, [activeTab, swapActiveNote])
 
   const goForward = useCallback(async () => {
     if (!activeTab || !isNoteTab(activeTab) || activeTab.forward.length === 0) return
     const noteTab = activeTab
     const target = noteTab.forward[noteTab.forward.length - 1]
     try {
-      const content = await readForNavigation(target)
-      setTabs((prev) =>
-        prev.map((t) =>
-          isNoteTab(t) && t.id === noteTab.id
-            ? {
-                ...t,
-                path: target,
-                content,
-                version: t.version + 1,
-                back: [...t.back, t.path],
-                forward: t.forward.slice(0, -1),
-              }
-            : t
-        )
-      )
+      await swapActiveNote(noteTab.id, target, (t) => ({
+        back: [...t.back, t.path],
+        forward: t.forward.slice(0, -1),
+      }))
     } catch (err) {
       reportError(err)
     }
-  }, [activeTab, readForNavigation])
+  }, [activeTab, swapActiveNote])
 
   // Writes the live buffer for a path straight to disk, path-keyed so it works
   // for any note tab (active or not — both refs are keyed by path, no mounted
@@ -1002,21 +989,10 @@ export default function App() {
       ) {
         const noteTab = activeTab
         try {
-          const content = await readForNavigation(path)
-          setTabs((prev) =>
-            prev.map((t) =>
-              isNoteTab(t) && t.id === noteTab.id
-                ? {
-                    ...t,
-                    path,
-                    content,
-                    version: t.version + 1,
-                    back: [...t.back, t.path],
-                    forward: [],
-                  }
-                : t
-            )
-          )
+          await swapActiveNote(noteTab.id, path, (t) => ({
+            back: [...t.back, t.path],
+            forward: [],
+          }))
           return
         } catch (err) {
           if (!isBinaryReadError(err) && !isTooLargeReadError(err) && !isDirectoryReadError(err)) {
@@ -1028,7 +1004,7 @@ export default function App() {
       }
       await openInTab(path)
     },
-    [activeTab, readForNavigation, openInTab]
+    [activeTab, swapActiveNote, openInTab]
   )
 
   // --- Browser tabs ----------------------------------------------------
