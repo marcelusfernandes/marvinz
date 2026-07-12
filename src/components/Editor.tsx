@@ -2,11 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import CodeMirror from '@uiw/react-codemirror'
 import { EditorView, keymap } from '@codemirror/view'
 import { search, searchKeymap } from '@codemirror/search'
-import {
-  clearInsertedFlashes,
-  flashInserted,
-  justInsertedField,
-} from '../lib/cmJustInsertedHighlight'
+import { justInsertedField } from '../lib/cmJustInsertedHighlight'
 import { justReplacedField } from '../lib/cmJustReplacedHighlight'
 import {
   bracketMatching,
@@ -16,15 +12,10 @@ import {
 } from '@codemirror/language'
 import { redo, redoDepth, selectAll, undo, undoDepth } from '@codemirror/commands'
 import { tags as t } from '@lezer/highlight'
-import { EditorSelection, type Extension } from '@codemirror/state'
+import type { Extension } from '@codemirror/state'
 import { undo as pmUndo, redo as pmRedo } from 'prosemirror-history'
 import { languageIdFor, loadLanguage } from '../lib/cmLanguage'
-import {
-  replaceFrontmatter,
-  serializeFrontmatter,
-  splitFrontmatter,
-  type Frontmatter,
-} from '../lib/frontmatter'
+import { splitFrontmatter } from '../lib/frontmatter'
 import { Properties } from './Properties'
 import { LiveMarkdown } from './LiveMarkdown'
 import { CsvEditor } from './CsvEditor'
@@ -34,25 +25,17 @@ import { FindReplaceOverlay } from './FindReplaceOverlay'
 import { CodeMirrorFindBar } from './CodeMirrorFindBar'
 import type { ImportToastState } from './ImportToast'
 import type { PaletteItem } from '../lib/paletteRanker'
-import {
-  MARVIN_PATH_MIME,
-  MARVIN_PATHS_MIME,
-  collectFiles,
-  emitSummaryToast,
-  internalDragMarkdown,
-  persistDroppedFiles,
-  readDraggedPaths,
-} from '../lib/dropAttachments'
 import { isWikilinkHref, resolveWikilink } from '../lib/wikilinks'
-import { mentionInsertText } from '../lib/mentionInsert'
 import { marvin } from '../lib/marvinApi'
 import { Icon } from './Icon'
 import { useVisualStyle } from '../lib/visualStyle'
-import { mentionTrigger } from '../lib/cmMentionTrigger'
 import { MentionPicker } from './MentionPicker'
 import { useAppContext } from '../context/AppContext'
 import { useFindReplaceState } from '../hooks/useFindReplaceState'
 import { useSelectionChip } from '../hooks/useSelectionChip'
+import { useDropExtension } from '../hooks/useDropExtension'
+import { useMentionPicker } from '../hooks/useMentionPicker'
+import { useFrontmatterEditing } from '../hooks/useFrontmatterEditing'
 import type { AgentKind } from '../lib/agent-drop-format'
 import { EditorSelectionChip } from './EditorSelectionChip'
 
@@ -276,15 +259,10 @@ export function Editor({
     replaceToast,
     handleReplaced,
   } = useFindReplaceState({ openFindTick, openReplaceTick, isActive })
-  // `@`-mention picker state. `from` is the doc offset of the `@` sigil;
-  // `query` is the text typed after it; `anchor` is the viewport coord the
-  // picker pins to. `null` while inactive. The mentionTrigger extension
-  // owns the lifecycle — it calls into refs (below) to mutate this state.
-  const [mention, setMention] = useState<{
-    from: number
-    query: string
-    anchor: { x: number; y: number }
-  } | null>(null)
+  const { mention, mentionExt, handleMentionSelect, handleMentionDismiss } = useMentionPicker({
+    filePath,
+    viewRef,
+  })
   // Selection chip. Driven from CodeMirror's `onUpdate` callback below via the
   // shared hook's `onCmSelectionChange`; the hook owns positioning, scroll/
   // resize reposition, and click-to-send.
@@ -339,99 +317,7 @@ export function Editor({
     [openFind]
   )
 
-  const dropExtension = useMemo(() => {
-    const insertAt = (view: EditorView, event: DragEvent, text: string): void => {
-      const pos =
-        view.posAtCoords({ x: event.clientX, y: event.clientY }) ?? view.state.selection.main.head
-      const to = pos + text.length
-      view.dispatch({
-        changes: { from: pos, insert: text },
-        selection: EditorSelection.cursor(to),
-        effects: flashInserted.of([{ from: pos, to }]),
-      })
-      // One-shot entrance animation; clear the decoration once it's done so
-      // subsequent drops re-trigger the animation cleanly.
-      setTimeout(() => {
-        view.dispatch({ effects: clearInsertedFlashes.of(null) })
-      }, 500)
-    }
-
-    const handleInternalDrop = (view: EditorView, event: DragEvent, paths: string[]): void => {
-      // Multi-drag: produce one markdown line per path and insert them all in
-      // a single dispatch so undo reverts the whole drop atomically.
-      const markdown = paths.map((p) => internalDragMarkdown(filePath, p)).join('\n')
-      insertAt(view, event, markdown)
-    }
-
-    const handleExternalDrop = async (
-      view: EditorView,
-      event: DragEvent,
-      files: File[]
-    ): Promise<void> => {
-      const outcome = await persistDroppedFiles({
-        files,
-        vaultPath,
-        notePath: filePath,
-        writeBinary: (p) => marvin.file.writeBinary(p),
-        onToast: onImportToast,
-      })
-      if (outcome.inserts.length > 0) insertAt(view, event, outcome.inserts.join('\n'))
-      emitSummaryToast(outcome, onImportToast)
-    }
-
-    return EditorView.domEventHandlers({
-      dragover(event) {
-        const types = event.dataTransfer?.types ?? []
-        if (
-          !types.includes('Files') &&
-          !types.includes(MARVIN_PATH_MIME) &&
-          !types.includes(MARVIN_PATHS_MIME)
-        )
-          return false
-        event.preventDefault()
-        // 'move' suppresses the macOS green-plus copy badge while staying
-        // compatible with the file tree's effectAllowed.
-        if (event.dataTransfer) event.dataTransfer.dropEffect = 'move'
-        return true
-      },
-      drop(event, view) {
-        const dt = event.dataTransfer
-        if (!dt) return false
-        const internalPaths = readDraggedPaths(dt)
-        const files = collectFiles(dt)
-        if (internalPaths.length > 0) {
-          event.preventDefault()
-          event.stopPropagation()
-          handleInternalDrop(view, event, internalPaths)
-          return true
-        }
-        if (files.length > 0) {
-          event.preventDefault()
-          event.stopPropagation()
-          void handleExternalDrop(view, event, files)
-          return true
-        }
-        return false
-      },
-    })
-  }, [vaultPath, filePath, onImportToast])
-
-  // The `@`-mention trigger extension is built once per Editor mount.
-  // Callbacks are stable setState invocations, so the extension never has
-  // to rebuild — that matters because rebuilding extensions tears the
-  // CodeMirror state down. The picker itself is rendered conditionally
-  // below from `mention` state, and a selection there dispatches the
-  // wikilink insertion back into the active view via `viewRef`.
-  const mentionExt = useMemo(
-    () =>
-      mentionTrigger({
-        onOpen: (from, anchor) => setMention({ from, query: '', anchor }),
-        onUpdate: (query, anchor) =>
-          setMention((prev) => (prev ? { ...prev, query, anchor } : prev)),
-        onClose: () => setMention(null),
-      }),
-    []
-  )
+  const dropExtension = useDropExtension({ vaultPath, filePath, onImportToast })
 
   const extensions = useMemo(() => {
     const style = visualStyle === 'legacy' ? legacyCodeHighlightStyle : codeHighlightStyle
@@ -536,50 +422,10 @@ export function Editor({
     [scheduleSave]
   )
 
-  // Cached frontmatter for Page/Preview body edits: the reconstructed block
-  // prefix `---\n<yaml>\n---\n\n`, the parsed data, and the serialized yaml.
-  // A body keystroke never changes the frontmatter block, so `startsWith`
-  // against the cached prefix is a cheap check that lets us skip the O(doc)
-  // split + YAML round-trip; a real block change (Properties/raw edit/reload)
-  // fails the check and recomputes. Null = no frontmatter. The ref is the
-  // synchronous source of truth for the body-change callback; the state mirror
-  // feeds the preview useMemo without reading a ref during render.
-  type FmCache = { prefix: string; data: Frontmatter; yaml: string }
-  const fmCacheRef = useRef<FmCache | null>(null)
-  const [fmCache, setFmCache] = useState<FmCache | null>(null)
-  const frontmatterFor = useCallback((content: string): FmCache | null => {
-    const cached = fmCacheRef.current
-    if (cached && content.startsWith(cached.prefix)) return cached
-    const { data } = splitFrontmatter(content)
-    if (!data) {
-      fmCacheRef.current = null
-      setFmCache(null)
-      return null
-    }
-    const yaml = serializeFrontmatter(data)
-    const next: FmCache = { prefix: `---\n${yaml}\n---\n\n`, data, yaml }
-    fmCacheRef.current = next
-    setFmCache(next)
-    return next
-  }, [])
-
-  // Live-preview body changes: keep the current frontmatter, replace the body.
-  const handleBodyChange = useCallback(
-    (newBody: string) => {
-      const fm = frontmatterFor(latestValue.current)
-      scheduleSave(fm ? `${fm.prefix}${newBody}` : newBody)
-    },
-    [frontmatterFor, scheduleSave]
-  )
-
-  // Properties changes: replace the frontmatter, keep the body untouched.
-  const handlePropertiesChange = useCallback(
-    (nextData: Frontmatter | null) => {
-      const next = replaceFrontmatter(latestValue.current, nextData)
-      scheduleSave(next)
-    },
-    [scheduleSave]
-  )
+  const { fmCache, handleBodyChange, handlePropertiesChange } = useFrontmatterEditing({
+    latestValue,
+    scheduleSave,
+  })
 
   const handleLinkClick = useCallback(
     (href: string, modifier: 'replace' | 'newTab') => {
@@ -602,32 +448,6 @@ export function Editor({
     },
     [filePath, vaultPath, paletteItems, onNavigate]
   )
-
-  // Mention selection: replace the `@`+query span with the type-specific
-  // insert text (wikilink, image embed, or markdown link). We use the
-  // current selection head as the upper bound because the user may have
-  // typed beyond what onUpdate last reported (CodeMirror state lags React
-  // state by one render tick). Clearing `mention` tears the picker down;
-  // the inserted text lives on as plain text in the document.
-  const handleMentionSelect = useCallback(
-    (item: PaletteItem) => {
-      const view = viewRef.current
-      if (!view || !mention) {
-        setMention(null)
-        return
-      }
-      const to = view.state.selection.main.head
-      const insert = mentionInsertText(item, filePath)
-      view.dispatch({
-        changes: { from: mention.from, to, insert },
-        selection: EditorSelection.cursor(mention.from + insert.length),
-      })
-      setMention(null)
-      view.focus()
-    },
-    [mention, filePath]
-  )
-  const handleMentionDismiss = useCallback(() => setMention(null), [])
 
   // mirrors view into viewRef each update so test mocks that skip onCreateEditor still see it
   const handleCmUpdate = useCallback(

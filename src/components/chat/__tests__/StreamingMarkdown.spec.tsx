@@ -298,4 +298,25 @@ describe('StreamingMarkdown — final output matches the pre-#591 single-pass re
     )
     expect(actual.innerHTML).toBe(expected.innerHTML)
   })
+
+  // Accepted limitation (#592, documented on splitMarkdownBlocks): a
+  // reference-style link whose definition lands in a later block than its
+  // usage won't resolve while a message streams — each block is its own
+  // independent remark parse. This confirms the limitation is confined to
+  // the streaming phase and self-corrects the moment streaming ends, since
+  // done-state uses the single-pass bypass, not per-block splitting.
+  const REFERENCE_LINK_DOC = [
+    'See [the docs][ref] for more context.',
+    '',
+    'A middle paragraph, unrelated to the link.',
+    '',
+    '[ref]: https://example.com',
+  ].join('\n')
+
+  it('resolves a reference-style link split across blocks once streaming is done', () => {
+    const { container } = render(<StreamingMarkdown text={REFERENCE_LINK_DOC} streaming={false} />)
+    const anchor = container.querySelector('a[href="https://example.com"]')
+    expect(anchor).toBeInTheDocument()
+    expect(anchor?.textContent).toBe('the docs')
+  })
 })
