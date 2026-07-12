@@ -2,7 +2,7 @@ import { memo } from 'react'
 import { TimelineItem, type TimelineDotState } from './TimelineItem'
 import { StreamingMarkdown } from './StreamingMarkdown'
 import { ToolBody } from './tool-bodies'
-import { basename, readPath } from './tool-bodies/types'
+import { basename, readPath, toolStatusLabel } from './tool-bodies/types'
 import { ToolApprovalGate, type ApprovalDecision } from './ToolApprovalGate'
 import { useToolApproval } from '../../lib/chat/useToolApproval'
 import { useChatStore } from '../../lib/chat/store'
@@ -33,23 +33,6 @@ function dotStateForTool(status: ToolStatus): TimelineDotState {
       return 'red'
     case 'cancelled':
       return 'outline'
-  }
-}
-
-function dotLabelForTool(status: ToolStatus): string {
-  switch (status) {
-    case 'pending_approval':
-      return 'Awaiting approval'
-    case 'running':
-      return 'Running'
-    case 'ok':
-      return 'Completed'
-    case 'error':
-      return 'Failed'
-    case 'denied':
-      return 'Denied'
-    case 'cancelled':
-      return 'Cancelled'
   }
 }
 
@@ -152,7 +135,7 @@ function AssistantMessageCardImpl({ sessionId, message }: Props) {
             key={block.id}
             kind="tool"
             dotState={dotStateForTool(block.status)}
-            dotLabel={dotLabelForTool(block.status)}
+            dotLabel={toolStatusLabel(block.status)}
             header={<ToolHeader block={block} />}
           >
             <ToolBody
