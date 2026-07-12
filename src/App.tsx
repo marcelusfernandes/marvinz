@@ -12,20 +12,14 @@ import {
 } from './lib/tabs'
 import { useTabs } from './hooks/useTabs'
 import { AppProvider } from './context/AppContext'
-import { Editor, type EditorHandle } from './components/Editor'
+import type { EditorHandle } from './components/Editor'
 import type { AgentDef } from './components/AgentTerminal'
 import type { AgentKind } from './lib/agent-drop-format'
-import { BrowserPane } from './components/BrowserPane'
 import { Splitter } from './components/Splitter'
-import { ImageViewer } from './components/ImageViewer'
-import { PdfViewer } from './components/PdfViewer'
-import { DocxViewer } from './components/DocxViewer'
-import { XlsxViewer } from './components/XlsxViewer'
 import { AppSidebar } from './components/AppSidebar'
 import { AppPanels } from './components/AppPanels'
+import { AppEditorArea } from './components/AppEditorArea'
 import { Icon } from './components/Icon'
-import { TabBar } from './components/TabBar'
-import { EmptyTab } from './components/EmptyTab'
 import { marvin } from './lib/marvinApi'
 import { seedFromMain, useSetting } from './lib/settingsStore'
 import { resolveAppFindShortcut } from './lib/appFindShortcut'
@@ -39,7 +33,6 @@ import { useThemeFlavor } from './lib/themeFlavor'
 import { TopBar } from './components/TopBar'
 import type { ImportToastState } from './components/ImportToast'
 import type { CreatingIn, ImportOutcome, SelectModifiers } from './components/FileTree'
-import { ExternalChangeBanner } from './components/ExternalChangeBanner'
 import type { PaletteItem } from './lib/paletteRanker'
 import { flattenTree } from './lib/paletteItems'
 import { flattenVisibleTree } from './lib/flattenVisibleTree'
@@ -1907,150 +1900,47 @@ export default function App() {
 
           <Splitter onDelta={handleSidebarDelta} ariaLabel="Resize sidebar" />
 
-          <main className="editor-pane">
-            <TabBar
-              tabs={tabs}
-              activeId={activeTabId}
-              dirtyTabId={isDirty ? activeTabId : null}
-              onActivate={setActiveTabId}
-              onClose={closeTab}
-              onNewTab={openEmptyTab}
-            />
-            <div className="editor-stack">
-              {/* Note/markdown editor tabs are rendered as a stack (all mounted,
-              inactive ones hidden) keyed by stable tab.id so switching tabs
-              does NOT unmount the CodeMirror instance — undo history, cursor,
-              and scroll survive the switch (#440). Mirrors the browser-tab
-              precedent below. The set of mounted tabs is bounded by an MRU
-              cap (see mountedNoteTabs). */}
-              {mountedNoteTabs.map((noteTab) => {
-                const isActive = noteTab.id === activeTabId
-                return (
-                  <div
-                    key={noteTab.id}
-                    className="note-tab-container"
-                    hidden={!isActive}
-                    data-tab-id={noteTab.id}
-                  >
-                    {isActive && noteTab.pendingExternalChange && (
-                      <ExternalChangeBanner
-                        filePath={noteTab.path}
-                        getCurrentBuffer={() =>
-                          bufferContentRef.current.get(noteTab.path) ?? noteTab.content
-                        }
-                        diskContent={noteTab.pendingExternalChange.diskContent}
-                        diskChangedAt={noteTab.pendingExternalChange.diskChangedAt}
-                        source={noteTab.pendingExternalChange.source}
-                        onAcceptDisk={() =>
-                          handleAcceptDisk(
-                            noteTab.path,
-                            noteTab.pendingExternalChange!.diskContent,
-                            bufferContentRef.current.get(noteTab.path) ?? noteTab.content
-                          )
-                        }
-                        onKeepMine={() =>
-                          handleKeepMine(
-                            noteTab.path,
-                            noteTab.pendingExternalChange!.source,
-                            noteTab.pendingExternalChange!.diskContent
-                          )
-                        }
-                        onDismiss={() => clearPendingExternalChange(noteTab.path)}
-                      />
-                    )}
-                    <Editor
-                      key={noteTab.id}
-                      isActive={isActive}
-                      filePath={noteTab.path}
-                      initialContent={noteTab.content}
-                      seedContent={getBufferSeed}
-                      version={noteTab.version}
-                      geometryKey={`${layoutMode}#${sidebarWidth}#${agentsWidth}`}
-                      paletteItems={paletteItemsWithMeta}
-                      onSave={(content) => handleSave(noteTab.path, content)}
-                      onBufferChange={(content) => handleBufferChange(noteTab.path, content)}
-                      onNavigate={navigateOrOpen}
-                      canBack={noteTab.back.length > 0}
-                      canForward={noteTab.forward.length > 0}
-                      onBack={goBack}
-                      onForward={goForward}
-                      openFindTick={openFindTick}
-                      openReplaceTick={openReplaceTick}
-                      onImportToast={setImportToast}
-                      saveMode={saveMode}
-                      // Only the active editor drives the global dirty indicator and
-                      // owns the single flush ref (Cmd+S / menu save target). Hidden
-                      // editors mustn't overwrite either — the last one to mount
-                      // would otherwise win. Background-tab saving still works: it
-                      // goes through the path-keyed closeTab → saveBuffer, not this
-                      // ref. Editor re-emits its dirty state when it becomes active.
-                      onDirtyChange={isActive ? setIsDirty : undefined}
-                      onFlushSave={
-                        isActive
-                          ? (fn) => {
-                              flushSaveRef.current = fn
-                            }
-                          : undefined
-                      }
-                      // Passed to every mounted editor; each self-gates on isActive
-                      // and clears the ref on going inactive/unmount, so the Cmd+Z
-                      // fallback always targets the visible editor (never a hidden one).
-                      onRegisterHandle={registerActiveEditorHandle}
-                      onSendSelection={focusedAgent ? handleSendSelectionToFocusedAgent : undefined}
-                      agentKind={focusedAgent?.agentKind}
-                    />
-                  </div>
-                )
-              })}
-              {activeTab && isImageTab(activeTab) && (
-                <ImageViewer
-                  key={activeTab.id}
-                  path={activeTab.path}
-                  onRevealInFinder={(p) => void window.marvin.shell.reveal(p)}
-                />
-              )}
-              {activeTab && isPdfTab(activeTab) && (
-                <PdfViewer
-                  key={activeTab.id}
-                  path={activeTab.path}
-                  onRevealInFinder={(p) => void window.marvin.shell.reveal(p)}
-                />
-              )}
-              {activeTab && isDocxTab(activeTab) && (
-                <DocxViewer
-                  key={activeTab.id}
-                  path={activeTab.path}
-                  onRevealInFinder={(p) => void window.marvin.shell.reveal(p)}
-                />
-              )}
-              {activeTab && isXlsxTab(activeTab) && <XlsxViewer path={activeTab.path} />}
-              {activeTab && isEmptyTab(activeTab) && (
-                <EmptyTab
-                  key={activeTab.id}
-                  onOpenBrowser={() => convertEmptyToBrowser(activeTab.id)}
-                  onCreateNote={() => startNoteFromEmpty(activeTab.id)}
-                  onChooseFile={() => void chooseFileFromEmpty(activeTab.id)}
-                  isVaultOpen={!!vaultPath}
-                />
-              )}
-              {!activeTab && <div className="empty-editor">Select a note or create a new one.</div>}
-              {/* Browser tabs are rendered as a stack (lazy mount, hidden when
-              inactive) so each WebContentsView keeps its session alive across
-              switches. */}
-              {tabs.filter(isBrowserTab).map((bt) => (
-                <BrowserPane
-                  key={bt.id}
-                  tab={bt}
-                  isActive={bt.id === activeTabId}
-                  onUrlBarChange={handleBrowserDraftChange}
-                  onNavigate={handleBrowserNavigate}
-                  onReady={handleBrowserReady}
-                  urlBarFocusTick={urlBarFocusTick}
-                  geometryKey={`${layoutMode}#${sidebarWidth}#${agentsWidth}`}
-                />
-              ))}
-            </div>
-          </main>
+          <AppEditorArea
+            vaultPath={vaultPath}
+            tabs={tabs}
+            activeTabId={activeTabId}
+            activeTab={activeTab}
+            isDirty={isDirty}
+            mountedNoteTabs={mountedNoteTabs}
+            onActivate={setActiveTabId}
+            onCloseTab={closeTab}
+            onNewTab={openEmptyTab}
+            bufferContentRef={bufferContentRef}
+            onAcceptDisk={handleAcceptDisk}
+            onKeepMine={handleKeepMine}
+            clearPendingExternalChange={clearPendingExternalChange}
+            getBufferSeed={getBufferSeed}
+            layoutMode={layoutMode}
+            sidebarWidth={sidebarWidth}
+            agentsWidth={agentsWidth}
+            paletteItemsWithMeta={paletteItemsWithMeta}
+            onSave={handleSave}
+            onBufferChange={handleBufferChange}
+            onNavigate={navigateOrOpen}
+            onBack={goBack}
+            onForward={goForward}
+            openFindTick={openFindTick}
+            openReplaceTick={openReplaceTick}
+            onImportToast={setImportToast}
+            saveMode={saveMode}
+            onDirtyChange={setIsDirty}
+            flushSaveRef={flushSaveRef}
+            onRegisterHandle={registerActiveEditorHandle}
+            focusedAgent={focusedAgent}
+            onSendSelection={handleSendSelectionToFocusedAgent}
+            onConvertEmptyToBrowser={convertEmptyToBrowser}
+            onCreateNoteFromEmpty={startNoteFromEmpty}
+            onChooseFileFromEmpty={chooseFileFromEmpty}
+            onBrowserUrlBarChange={handleBrowserDraftChange}
+            onBrowserNavigate={handleBrowserNavigate}
+            onBrowserReady={handleBrowserReady}
+            urlBarFocusTick={urlBarFocusTick}
+          />
 
           <Splitter onDelta={handleAgentsDelta} ariaLabel="Resize agents pane" />
 
