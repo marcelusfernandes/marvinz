@@ -89,7 +89,13 @@ vi.mock('./CsvEditor', () => ({ CsvEditor: () => null }))
 vi.mock('./HtmlPreview', () => ({ HtmlPreview: () => null }))
 vi.mock('./PathSuggest', () => ({ PathSuggest: () => null }))
 vi.mock('./Icon', () => ({ Icon: () => null }))
-vi.mock('./LiveMarkdown', () => ({ LiveMarkdown: () => <div /> }))
+// Resolved relative to THIS file (in __tests__/), so the sibling component is
+// '../LiveMarkdown' — a './LiveMarkdown' specifier would point at a
+// nonexistent module and silently never intercept (#533). The testid marker
+// matches editor-livemarkdown-remount.spec.tsx and proves interception.
+vi.mock('../LiveMarkdown', () => ({
+  LiveMarkdown: () => <div data-testid="live-markdown" />,
+}))
 vi.mock('./FindReplaceOverlay', () => ({ FindReplaceOverlay: () => null }))
 vi.mock('./CodeMirrorFindBar', () => ({ CodeMirrorFindBar: () => null }))
 vi.mock('../lib/visualStyle', () => ({ useVisualStyle: () => 'modern' }))
@@ -365,5 +371,22 @@ describe('isDirty transitions', () => {
     // dirty was set to true but never reset to false (save failed)
     expect(calls).toContain(true)
     expect(calls[calls.length - 1]).toBe(true)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// 4. Mock interception proof (#533)
+// ---------------------------------------------------------------------------
+
+describe('LiveMarkdown mock interception', () => {
+  it('renders the mocked LiveMarkdown for a markdown file, not the real Milkdown component (#533)', () => {
+    // .md filePath puts the Editor in Page mode by default, mounting
+    // LiveMarkdown. Only the mock renders this marker: if the vi.mock path
+    // regresses, the real component mounts and this fails loudly.
+    let result!: ReturnType<typeof render>
+    act(() => {
+      result = render(<Editor {...baseProps({ filePath: '/vault/note.md' })} />)
+    })
+    expect(result.getByTestId('live-markdown')).toBeInTheDocument()
   })
 })
