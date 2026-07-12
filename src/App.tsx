@@ -12,7 +12,6 @@ import {
 } from './lib/tabs'
 import { useTabs } from './hooks/useTabs'
 import { AppProvider } from './context/AppContext'
-import { FileTree } from './components/FileTree'
 import { Editor, type EditorHandle } from './components/Editor'
 import { AgentsPane } from './components/AgentsPane'
 import type { AgentDef } from './components/AgentTerminal'
@@ -24,7 +23,7 @@ import { PdfViewer } from './components/PdfViewer'
 import { DocxViewer } from './components/DocxViewer'
 import { XlsxViewer } from './components/XlsxViewer'
 import { InputDialog } from './components/InputDialog'
-import { FileTreeToolbar } from './components/FileTreeToolbar'
+import { AppSidebar } from './components/AppSidebar'
 import { Icon } from './components/Icon'
 import { TabBar } from './components/TabBar'
 import { EmptyTab } from './components/EmptyTab'
@@ -1884,80 +1883,42 @@ export default function App() {
             } as React.CSSProperties
           }
         >
-          <aside
-            className="sidebar"
-            onContextMenu={handleSidebarContextMenu}
-            onPaste={handleSidebarPaste}
-          >
-            <div className="sidebar-header">
-              {visualStyle === 'legacy' ? (
-                <span className="vault-name">{vaultPath.split('/').pop()}</span>
-              ) : (
-                <div className="sidebar-project-info">
-                  <div className="sidebar-project-text">
-                    <span className="sidebar-project-name">{vaultPath.split('/').pop()}</span>
-                  </div>
-                </div>
-              )}
-              <FileTreeToolbar
-                isAnyOpen={openPaths.size > 0}
-                onNewFile={() =>
-                  setCreatingIn({
-                    parentDir: currentFolderFromSelection(selectedPaths, tree, vaultPath),
-                    kind: 'file',
-                  })
-                }
-                onNewFolder={() =>
-                  setCreatingIn({
-                    parentDir: currentFolderFromSelection(selectedPaths, tree, vaultPath),
-                    kind: 'folder',
-                  })
-                }
-                onToggleAll={() =>
-                  setOpenPaths((prev) =>
-                    prev.size > 0 ? new Set() : new Set(collectDirPaths(tree))
-                  )
-                }
-              />
-            </div>
-            <FileTree
-              nodes={tree}
-              vaultPath={vaultPath}
-              selectedPaths={selectedPaths}
-              activeFilePath={activeTab && isNoteTab(activeTab) ? activeTab.path : null}
-              openPaths={openPaths}
-              creatingIn={creatingIn}
-              onToggleOpen={handleToggleOpen}
-              onSelect={handleTreeSelect}
-              onClearSelection={handleClearSelection}
-              onCreatingInChange={setCreatingIn}
-              onContextMenu={handleNodeContextMenu}
-              onMove={handleDropMove}
-              onImportResult={handleImportResult}
-            />
-            <div className="sidebar-footer">
-              {visualStyle === 'legacy' ? (
-                <button type="button" className="text-btn" onClick={handlePickVault}>
-                  Switch folder
-                </button>
-              ) : (
-                <>
-                  <button type="button" className="sidebar-footer-btn" onClick={handlePickVault}>
-                    <Icon name="folder" size={16} />
-                    <span>Switch Folder</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="sidebar-footer-btn"
-                    onClick={() => setSettingsOpen(true)}
-                  >
-                    <Icon name="gear" size={16} />
-                    <span>Settings</span>
-                  </button>
-                </>
-              )}
-            </div>
-          </aside>
+          <AppSidebar
+            visualStyle={visualStyle}
+            vaultPath={vaultPath}
+            tree={tree}
+            selectedPaths={selectedPaths}
+            activeFilePath={activeTab && isNoteTab(activeTab) ? activeTab.path : null}
+            openPaths={openPaths}
+            creatingIn={creatingIn}
+            isAnyOpen={openPaths.size > 0}
+            onNewFile={() =>
+              setCreatingIn({
+                parentDir: currentFolderFromSelection(selectedPaths, tree, vaultPath),
+                kind: 'file',
+              })
+            }
+            onNewFolder={() =>
+              setCreatingIn({
+                parentDir: currentFolderFromSelection(selectedPaths, tree, vaultPath),
+                kind: 'folder',
+              })
+            }
+            onToggleAll={() =>
+              setOpenPaths((prev) => (prev.size > 0 ? new Set() : new Set(collectDirPaths(tree))))
+            }
+            onSidebarContextMenu={handleSidebarContextMenu}
+            onSidebarPaste={handleSidebarPaste}
+            onToggleOpen={handleToggleOpen}
+            onSelect={handleTreeSelect}
+            onClearSelection={handleClearSelection}
+            onCreatingInChange={setCreatingIn}
+            onNodeContextMenu={handleNodeContextMenu}
+            onMove={handleDropMove}
+            onImportResult={handleImportResult}
+            onPickVault={handlePickVault}
+            onOpenSettings={() => setSettingsOpen(true)}
+          />
 
           <Splitter onDelta={handleSidebarDelta} ariaLabel="Resize sidebar" />
 
