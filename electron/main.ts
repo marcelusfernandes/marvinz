@@ -42,6 +42,9 @@ import {
 } from './agent/index.js'
 import type { AgentRequest, AgentEvent } from './agent/protocol.js'
 import { importExternal } from './fs-import-external.js'
+import { assertRenameTargetAvailable } from './fs-rename-guard.js'
+import { debounce } from './debounce.js'
+import { BoundedCache } from './bounded-cache.js'
 import { searchContent } from './search-content.js'
 import { killProcessTree } from './proc-group.js'
 import { resolveConflict } from './conflictResolver.js'
@@ -102,9 +105,17 @@ let activeVaultPath: string | null = null
 // Push a tree-refresh signal to the renderer. Mutation handlers call this
 // after their op so the UI doesn't depend on chokidar/fsevents catching a
 // rapid unlink+add sequence (which it sometimes coalesces on macOS).
-const notifyTree = (): void => {
+//
+// Debounced (trailing-edge): a burst of structural fs events (git checkout,
+// an agent turn creating many files, archive extraction) otherwise fires one
+// full recursive readVaultTree walk per event, almost all of them discarded
+// before the last one lands. Coalescing to a single emission after the burst
+// settles reflects live on-disk state regardless of intra-burst ordering, at
+// the cost of a bounded, imperceptible delay (#571).
+const NOTIFY_TREE_DEBOUNCE_MS = 200
+const notifyTree = debounce((): void => {
   win?.webContents.send('vault:changed')
-}
+}, NOTIFY_TREE_DEBOUNCE_MS)
 // Allowlist of vault paths that were opened via OS dialog (vault:pick) or loaded
 // from the persisted settings file. vault:watch only accepts paths in this set.
 const allowedVaultPaths = new Set<string>()
@@ -145,13 +156,45 @@ function scheduleTurnEnd(vaultRoot: string, turnId: string) {
   }, TURN_END_MS)
 }
 
+// Called from vault:watch before adopting a new vault (or closing the current
+// one), while `activeVaultPath` still holds the OLD vault root. Without this,
+// an in-flight turn started in the old vault survives the switch: its
+// turnId gets reused for the new vault's snapshots (writing fragments under a
+// manifest that lives in the old vault's .marvin folder, or under no manifest
+// at all), and the old vault's turn is abandoned without ever being finalized
+// (#568).
+async function resetVaultSessionState(): Promise<void> {
+  if (turnEndTimer) {
+    clearTimeout(turnEndTimer)
+    turnEndTimer = null
+  }
+  const turnId = activeTurnId
+  const vaultRoot = activeVaultPath
+  activeTurnId = null
+  lastPtyWriteAt = 0
+  fileContentCache.clear()
+  if (turnId && vaultRoot) {
+    try {
+      await finalizeTurn(vaultRoot, turnId)
+    } catch (err) {
+      console.error('[snapshot] finalizeTurn on vault switch failed', { vaultRoot, turnId, err })
+    }
+  }
+}
+
 // Last-read cache — populated by file:read, used by the watcher to obtain the
 // "before" content when an external change is detected.
 // Limitation: if the watcher fires for a file that was never read through the
 // app (e.g. edited externally before any app open), the cache misses and no
 // snapshot is taken. This is a known best-effort race between disk change
 // detection and in-process state.
-const fileContentCache = new Map<string, string>()
+//
+// Bounded (LRU) so a long session touching many files doesn't retain
+// unbounded memory: each entry holds up to FILE_SIZE_LIMIT (5 MB) of text, so
+// this cap is a soft heuristic on working-set size, not a strict byte-total
+// guarantee (#568).
+export const FILE_CONTENT_CACHE_MAX_ENTRIES = 100
+const fileContentCache = new BoundedCache<string, string>(FILE_CONTENT_CACHE_MAX_ENTRIES)
 
 // Geometry descriptor: insets from each contentView edge to the browser-host
 // element. Registered by the renderer once and reused by main on every resize.
@@ -544,6 +587,7 @@ function teardownChildren(): Promise<void> {
   for (const p of ptyProcesses.values()) killProcessTree(p.pid, 'SIGKILL')
   ptyProcesses.clear()
   vaultWatcher?.close()
+  notifyTree.cancel()
   const done = killAllAgents()
   pendingTeardowns.add(done)
   done.finally(() => pendingTeardowns.delete(done))
@@ -710,7 +754,9 @@ ipcMain.handle('vault:tree', async () => {
 
 ipcMain.handle('vault:watch', async (_e, vaultPath: string) => {
   if (!vaultPath) {
+    await resetVaultSessionState()
     vaultWatcher?.close()
+    notifyTree.cancel()
     activeVaultPath = null
     return null
   }
@@ -721,7 +767,9 @@ ipcMain.handle('vault:watch', async (_e, vaultPath: string) => {
     throw new Error('MARVIN_VAULT_NOT_ALLOWED')
   }
   assertAllowedVault(resolvedVault, allowedVaultPaths)
+  await resetVaultSessionState()
   vaultWatcher?.close()
+  notifyTree.cancel()
   activeVaultPath = resolvedVault
   ensureVaultGitignore(resolvedVault).catch((err) =>
     console.error('[snapshot] ensureVaultGitignore failed', err)
@@ -1279,7 +1327,7 @@ ipcMain.handle('path:rename', async (_e, oldPath: string, newPath: string) => {
   try {
     const safeOld = await assertInVault(oldPath)
     const safeNew = await assertInVault(newPath)
-    if (existsSync(safeNew)) throw new Error('MARVIN_FS_EEXIST')
+    await assertRenameTargetAvailable(safeOld, safeNew)
 
     // Snapshot the source file before moving if AI turn is active
     const aiActive = Date.now() - lastPtyWriteAt < AI_TURN_WINDOW_MS
