@@ -826,7 +826,7 @@ export default function App() {
                   ...t,
                   path,
                   content,
-                  version: 0,
+                  version: t.version + 1,
                   back: [...t.back, t.path],
                   forward: [],
                 }
@@ -853,7 +853,7 @@ export default function App() {
                 ...t,
                 path: target,
                 content,
-                version: 0,
+                version: t.version + 1,
                 back: t.back.slice(0, -1),
                 forward: [...t.forward, t.path],
               }
@@ -878,7 +878,7 @@ export default function App() {
                 ...t,
                 path: target,
                 content,
-                version: 0,
+                version: t.version + 1,
                 back: [...t.back, t.path],
                 forward: t.forward.slice(0, -1),
               }
