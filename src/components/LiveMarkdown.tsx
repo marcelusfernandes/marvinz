@@ -47,6 +47,7 @@ import type { MenuItemSpec } from '../types'
 import { formatSelectionForAgent } from '../lib/agent-selection-format'
 import { clampToViewport } from '../lib/chipViewportClamp'
 import { EditorSelectionChip } from './EditorSelectionChip'
+import { useAppContext } from '../context/AppContext'
 
 type Props = {
   /** Markdown body (without frontmatter) to render. */
@@ -57,8 +58,6 @@ type Props = {
   onLinkClick: (href: string, modifier: 'replace' | 'newTab') => void
   /** Absolute path of the file being edited — base for relative image resolution. */
   filePath: string
-  /** Vault root, used for `/`-prefix image paths and the inside-vault check. */
-  vaultPath: string
   /** Palette index used to resolve `![[name]]` embed wikilinks. */
   paletteItems: PaletteItem[]
   /**
@@ -295,7 +294,6 @@ function LiveMarkdownInner({
   onChange,
   onLinkClick,
   filePath,
-  vaultPath,
   paletteItems,
   onOpenFind,
   onViewReady,
@@ -303,6 +301,7 @@ function LiveMarkdownInner({
   onSendSelection,
   agentKind = 'codex',
 }: Props) {
+  const vaultPath = useAppContext().vaultPath ?? ''
   // Refs avoid re-creating the editor on every change of these props.
   const onChangeRef = useRef(onChange)
   const onLinkClickRef = useRef(onLinkClick)

@@ -2016,7 +2016,6 @@ export default function App() {
                       key={noteTab.id}
                       isActive={isActive}
                       filePath={noteTab.path}
-                      vaultPath={vaultPath}
                       initialContent={noteTab.content}
                       seedContent={getBufferSeed}
                       version={noteTab.version}
