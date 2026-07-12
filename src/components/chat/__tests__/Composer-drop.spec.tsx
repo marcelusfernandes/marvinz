@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, act } from '@testing-library/react'
+import { screen, act } from '@testing-library/react'
 import { forwardRef } from 'react'
+import { renderWithAppContext as render } from '../../__tests__/renderWithAppContext'
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -250,7 +251,11 @@ describe('Composer — drop target (issue #366)', () => {
   })
 
   it('drop with no vault (vaultPath empty): no setComposerDraft call', async () => {
-    render(<Composer {...defaultProps({ vaultPath: '' })} />)
+    // vaultPath: '' is this file's "no vault open" sentinel today; once
+    // Composer reads useAppContext() instead (issue #618), "no vault" is
+    // context's null — hence the explicit override here (every other call
+    // site in this file relies on the helper's '/vault' default).
+    render(<Composer {...defaultProps({ vaultPath: '' })} />, { vaultPath: null })
     await act(async () => {})
 
     await act(async () => {

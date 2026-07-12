@@ -5,6 +5,7 @@ import { ChatHeader } from './ChatHeader'
 import { MessageList } from './MessageList'
 import { Composer } from './Composer'
 import type { Provider, SessionId } from '../../lib/chat/types'
+import { useAppContext } from '../../context/AppContext'
 
 export type TurnSummary = {
   turnId: string
@@ -14,7 +15,6 @@ export type TurnSummary = {
 type Props = {
   sessionId: SessionId
   provider: Provider
-  vaultPath: string
   /** Open SnapshotPanel pre-selected to this turn id (from UserBubble). */
   onRewind?: (turnId: string) => void
   /** Fires when a chat turn finishes with >=1 Edit/Write (drives SnapshotToast). */
@@ -28,7 +28,8 @@ type Props = {
  * Designed to be embedded by AgentsPane as a tab body (replacing
  * AgentTerminal when the per-tab mode is "chat").
  */
-export function ChatPanel({ sessionId, provider, vaultPath, onRewind, onTurnSummary }: Props) {
+export function ChatPanel({ sessionId, provider, onRewind, onTurnSummary }: Props) {
+  const vaultPath = useAppContext().vaultPath ?? ''
   const exists = useChatStore((s) => !!s.sessions[sessionId])
   const startSession = useChatStore((s) => s.startSession)
 
@@ -88,13 +89,7 @@ export function ChatPanel({ sessionId, provider, vaultPath, onRewind, onTurnSumm
         <MessageList sessionId={sessionId} onRewind={onRewind} />
       </div>
       <div className="chat-panel-composer">
-        <Composer
-          sessionId={sessionId}
-          onSend={send}
-          onCancel={cancel}
-          isStreaming={isStreaming}
-          vaultPath={vaultPath}
-        />
+        <Composer sessionId={sessionId} onSend={send} onCancel={cancel} isStreaming={isStreaming} />
       </div>
     </div>
   )
