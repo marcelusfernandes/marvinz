@@ -43,8 +43,13 @@ jobs:
             || { echo "::error::gh issue list failed for milestone $MS"; exit 1; }
           # tsx exit 1 = milestone incomplete (expected) → capture so we can print the
           # list; exit 2 = usage/parse error. Both surface as a non-zero gate.
-          OUT=$(npx tsx scripts/ci/milestone-gate.ts "$MS" < issues.json)
-          CODE=$?
+          # Errexit pitfall (#544): GitHub runs steps with `bash -e {0}` and
+          # `set -uo pipefail` does not clear the inherited -e, so a bare
+          # `OUT=$(cmd); CODE=$?` dies at the assignment on exit 1 — capture via
+          # `|| CODE=$?` so the pending list and step summary still print before
+          # the `exit $CODE` below keeps the gate red.
+          CODE=0
+          OUT=$(npx tsx scripts/ci/milestone-gate.ts "$MS" < issues.json) || CODE=$?
           echo "$OUT"
           echo "$OUT" >> "$GITHUB_STEP_SUMMARY"
           exit $CODE
