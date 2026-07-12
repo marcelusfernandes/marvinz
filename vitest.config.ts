@@ -33,6 +33,7 @@ export default defineConfig({
             // src/lib/__tests__ convention: .spec.tsx → editor (jsdom); .spec.ts → electron (node).
             'src/lib/__tests__/**/*.spec.tsx',
             'src/hooks/__tests__/**/*.spec.{ts,tsx}',
+            'src/context/__tests__/**/*.spec.{ts,tsx}',
           ],
           setupFiles: ['src/lib/chat/__tests__/setup.ts'],
         },
