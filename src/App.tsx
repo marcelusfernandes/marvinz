@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { FileChangeSource, FileNode, MenuItemSpec } from './types'
 import {
-  type Tab,
   isNoteTab,
   isBrowserTab,
   isImageTab,
@@ -10,6 +9,7 @@ import {
   isXlsxTab,
   isEmptyTab,
 } from './lib/tabs'
+import { useTabs } from './hooks/useTabs'
 import { FileTree } from './components/FileTree'
 import { Editor, type EditorHandle } from './components/Editor'
 import { AgentsPane } from './components/AgentsPane'
@@ -90,13 +90,6 @@ function clamp(n: number, min: number, max: number): number {
 }
 
 const DEFAULT_BROWSER_URL = 'https://www.google.com'
-
-// Cap on simultaneously-mounted note editors (#440). The hidden-stack keeps an
-// editor mounted per open note tab to preserve undo/cursor/scroll across
-// switches; this bounds the memory cost to the K most-recently-active tabs.
-// Six comfortably covers normal multi-file editing; older tabs unmount and
-// rebuild on activate (history resets at that edge).
-const MAX_MOUNTED_EDITORS = 6
 
 type Dialog = { kind: 'rename'; target: string; isDir: boolean } | null
 
@@ -233,8 +226,16 @@ export default function App() {
   const saveMode = useSetting('saveMode') ?? 'auto'
   const [vaultPath, setVaultPath] = useState<string | null>(null)
   const [tree, setTree] = useState<FileNode[]>([])
-  const [tabs, setTabs] = useState<Tab[]>([])
-  const [activeTabId, setActiveTabId] = useState<string | null>(null)
+  const {
+    tabs,
+    setTabs,
+    activeTabId,
+    setActiveTabId,
+    lastDiskContentRef,
+    bufferContentRef,
+    activeTab,
+    mountedNoteTabs,
+  } = useTabs()
   const [agents, setAgents] = useState<AgentDef[]>([])
   const [bootstrapped, setBootstrapped] = useState(false)
   const [dialog, setDialog] = useState<Dialog>(null)
@@ -367,53 +368,9 @@ export default function App() {
     }
   }, [])
 
-  // Tracks last on-disk content per path that we have open. Lets us tell our
-  // own saves apart from external writes (claude editing the note).
-  const lastDiskContentRef = useRef<Map<string, string>>(new Map())
-  // Tracks the latest in-memory buffer per open note path. Diverges from
-  // lastDiskContentRef while the user is typing between debounced saves —
-  // used to detect "dirty" state when an external write lands.
-  const bufferContentRef = useRef<Map<string, string>>(new Map())
-
   // Tab ids with an in-flight close (awaiting flush or the confirm sheet) so a
   // rapid double-click can't spawn two close flows / stacked dialogs for one tab.
   const pendingCloseIds = useRef<Set<string>>(new Set())
-
-  const activeTab = tabs.find((t) => t.id === activeTabId) ?? null
-
-  // Bounded mounted-editor window (#440). Each open note tab keeps its own live
-  // CodeMirror instance so undo history / cursor / scroll survive tab switches,
-  // but every mounted editor costs DOM + EditorState — so only the
-  // MAX_MOUNTED_EDITORS most-recently-active note tabs stay mounted. Note tabs
-  // beyond that fall back to today's behavior (unmounted, rebuilt on activate
-  // with a fresh history). `editorMru` holds note-tab ids most-recent-first.
-  const [editorMru, setEditorMru] = useState<string[]>([])
-  useEffect(() => {
-    if (!activeTabId) return
-    setEditorMru((prev) =>
-      prev[0] === activeTabId ? prev : [activeTabId, ...prev.filter((id) => id !== activeTabId)]
-    )
-  }, [activeTabId])
-
-  const mountedNoteTabs = useMemo(() => {
-    const noteTabs = tabs.filter(isNoteTab)
-    const rank = new Map(editorMru.map((id, i) => [id, i] as const))
-    const ordered = [...noteTabs].sort(
-      (a, b) => (rank.get(a.id) ?? Infinity) - (rank.get(b.id) ?? Infinity)
-    )
-    const keep = new Set(ordered.slice(0, MAX_MOUNTED_EDITORS).map((t) => t.id))
-    // Always keep the active tab mounted even if the MRU effect hasn't run yet
-    // (a freshly opened tab renders before its effect updates `editorMru`).
-    if (activeTabId) keep.add(activeTabId)
-    const evicted = noteTabs.filter((t) => !keep.has(t.id))
-    if (evicted.length > 0) {
-      console.debug(
-        `[App] unmounting ${evicted.length} editor(s) beyond MAX_MOUNTED_EDITORS=${MAX_MOUNTED_EDITORS} (rebuild-on-activate):`,
-        evicted.map((t) => t.path)
-      )
-    }
-    return noteTabs.filter((t) => keep.has(t.id))
-  }, [tabs, editorMru, activeTabId])
 
   // Latest tabs snapshot for handlers (closeTab) that must read current tab
   // state without taking `tabs` as a dependency. Reassigned in the ref-hub
