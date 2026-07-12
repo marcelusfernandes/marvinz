@@ -1,5 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { FileChangeSource, FileNode, MenuItemSpec } from './types'
+import {
+  type NoteTab,
+  isNoteTab,
+  isBrowserTab,
+  isImageTab,
+  isPdfTab,
+  isDocxTab,
+  isXlsxTab,
+  isEmptyTab,
+} from './lib/tabs'
+import { useTabs } from './hooks/useTabs'
 import { FileTree } from './components/FileTree'
 import { Editor, type EditorHandle } from './components/Editor'
 import { AgentsPane } from './components/AgentsPane'
@@ -79,85 +90,7 @@ function clamp(n: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, n))
 }
 
-type PendingExternalChange = {
-  diskContent: string
-  diskChangedAt: number
-  source: FileChangeSource
-}
-
-type NoteTab = {
-  type: 'note'
-  id: string
-  path: string
-  content: string
-  version: number
-  back: string[]
-  forward: string[]
-  pendingExternalChange?: PendingExternalChange
-}
-
-type BrowserTabState = {
-  type: 'browser'
-  id: string
-  url: string
-  /** What's typed in the URL bar (may differ from `url` while editing). */
-  draftUrl: string
-  title: string
-  canBack: boolean
-  canForward: boolean
-  loading: boolean
-  /** True after the WebContentsView is created in the main process. */
-  ready: boolean
-}
-
-type ImageTab = {
-  type: 'image'
-  id: string
-  path: string
-}
-
-type PdfTab = {
-  type: 'pdf'
-  id: string
-  path: string
-}
-
-type DocxTab = {
-  type: 'docx'
-  id: string
-  path: string
-}
-
-type XlsxTab = {
-  type: 'xlsx'
-  id: string
-  path: string
-}
-
-export type EmptyTab = {
-  type: 'empty'
-  id: string
-  title: string
-}
-
-type Tab = NoteTab | BrowserTabState | ImageTab | PdfTab | DocxTab | XlsxTab | EmptyTab
-
 const DEFAULT_BROWSER_URL = 'https://www.google.com'
-
-// Cap on simultaneously-mounted note editors (#440). The hidden-stack keeps an
-// editor mounted per open note tab to preserve undo/cursor/scroll across
-// switches; this bounds the memory cost to the K most-recently-active tabs.
-// Six comfortably covers normal multi-file editing; older tabs unmount and
-// rebuild on activate (history resets at that edge).
-const MAX_MOUNTED_EDITORS = 6
-
-const isNoteTab = (t: Tab): t is NoteTab => t.type === 'note'
-const isBrowserTab = (t: Tab): t is BrowserTabState => t.type === 'browser'
-const isImageTab = (t: Tab): t is ImageTab => t.type === 'image'
-const isPdfTab = (t: Tab): t is PdfTab => t.type === 'pdf'
-const isDocxTab = (t: Tab): t is DocxTab => t.type === 'docx'
-const isXlsxTab = (t: Tab): t is XlsxTab => t.type === 'xlsx'
-const isEmptyTab = (t: Tab): t is EmptyTab => t.type === 'empty'
 
 type Dialog = { kind: 'rename'; target: string; isDir: boolean } | null
 
@@ -294,8 +227,20 @@ export default function App() {
   const saveMode = useSetting('saveMode') ?? 'auto'
   const [vaultPath, setVaultPath] = useState<string | null>(null)
   const [tree, setTree] = useState<FileNode[]>([])
-  const [tabs, setTabs] = useState<Tab[]>([])
-  const [activeTabId, setActiveTabId] = useState<string | null>(null)
+  const {
+    tabs,
+    setTabs,
+    activeTabId,
+    setActiveTabId,
+    lastDiskContentRef,
+    bufferContentRef,
+    tabsRef,
+    activeTab,
+    mountedNoteTabs,
+    performCloseTab,
+    renameInTabs,
+    closeTabsUnder,
+  } = useTabs({ closeBrowserTab: (id) => void window.marvin.browser.close(id) })
   const [agents, setAgents] = useState<AgentDef[]>([])
   const [bootstrapped, setBootstrapped] = useState(false)
   const [dialog, setDialog] = useState<Dialog>(null)
@@ -428,58 +373,9 @@ export default function App() {
     }
   }, [])
 
-  // Tracks last on-disk content per path that we have open. Lets us tell our
-  // own saves apart from external writes (claude editing the note).
-  const lastDiskContentRef = useRef<Map<string, string>>(new Map())
-  // Tracks the latest in-memory buffer per open note path. Diverges from
-  // lastDiskContentRef while the user is typing between debounced saves —
-  // used to detect "dirty" state when an external write lands.
-  const bufferContentRef = useRef<Map<string, string>>(new Map())
-
   // Tab ids with an in-flight close (awaiting flush or the confirm sheet) so a
   // rapid double-click can't spawn two close flows / stacked dialogs for one tab.
   const pendingCloseIds = useRef<Set<string>>(new Set())
-
-  const activeTab = tabs.find((t) => t.id === activeTabId) ?? null
-
-  // Bounded mounted-editor window (#440). Each open note tab keeps its own live
-  // CodeMirror instance so undo history / cursor / scroll survive tab switches,
-  // but every mounted editor costs DOM + EditorState — so only the
-  // MAX_MOUNTED_EDITORS most-recently-active note tabs stay mounted. Note tabs
-  // beyond that fall back to today's behavior (unmounted, rebuilt on activate
-  // with a fresh history). `editorMru` holds note-tab ids most-recent-first.
-  const [editorMru, setEditorMru] = useState<string[]>([])
-  useEffect(() => {
-    if (!activeTabId) return
-    setEditorMru((prev) =>
-      prev[0] === activeTabId ? prev : [activeTabId, ...prev.filter((id) => id !== activeTabId)]
-    )
-  }, [activeTabId])
-
-  const mountedNoteTabs = useMemo(() => {
-    const noteTabs = tabs.filter(isNoteTab)
-    const rank = new Map(editorMru.map((id, i) => [id, i] as const))
-    const ordered = [...noteTabs].sort(
-      (a, b) => (rank.get(a.id) ?? Infinity) - (rank.get(b.id) ?? Infinity)
-    )
-    const keep = new Set(ordered.slice(0, MAX_MOUNTED_EDITORS).map((t) => t.id))
-    // Always keep the active tab mounted even if the MRU effect hasn't run yet
-    // (a freshly opened tab renders before its effect updates `editorMru`).
-    if (activeTabId) keep.add(activeTabId)
-    const evicted = noteTabs.filter((t) => !keep.has(t.id))
-    if (evicted.length > 0) {
-      console.debug(
-        `[App] unmounting ${evicted.length} editor(s) beyond MAX_MOUNTED_EDITORS=${MAX_MOUNTED_EDITORS} (rebuild-on-activate):`,
-        evicted.map((t) => t.path)
-      )
-    }
-    return noteTabs.filter((t) => keep.has(t.id))
-  }, [tabs, editorMru, activeTabId])
-
-  // Latest tabs snapshot for handlers (closeTab) that must read current tab
-  // state without taking `tabs` as a dependency. Reassigned in the ref-hub
-  // effect below (matching the project's latest-ref pattern).
-  const tabsRef = useRef(tabs)
 
   // Monotonic counter that invalidates in-flight tree responses when a newer
   // load is started (e.g. rapid vault switching). Without this, a slow
@@ -614,14 +510,17 @@ export default function App() {
       }
     })
     return off
-  }, [])
+  }, [bufferContentRef, lastDiskContentRef, setTabs])
 
-  const readFreshContent = useCallback(async (path: string): Promise<string> => {
-    const content = await window.marvin.file.read(path)
-    lastDiskContentRef.current.set(path, content)
-    bufferContentRef.current.set(path, content)
-    return content
-  }, [])
+  const readFreshContent = useCallback(
+    async (path: string): Promise<string> => {
+      const content = await window.marvin.file.read(path)
+      lastDiskContentRef.current.set(path, content)
+      bufferContentRef.current.set(path, content)
+      return content
+    },
+    [bufferContentRef, lastDiskContentRef]
+  )
 
   // Navigation reads disk (so lastDiskContentRef stays fresh for external-change
   // detection) but a pending unsaved buffer for the target wins the returned
@@ -637,7 +536,7 @@ export default function App() {
       bufferContentRef.current.set(path, buffered)
       return buffered
     },
-    [readFreshContent]
+    [readFreshContent, bufferContentRef, lastDiskContentRef]
   )
 
   const openSnapshotPanel = useCallback(
@@ -700,7 +599,7 @@ export default function App() {
         setError(err instanceof Error ? err.message : 'Failed to reload file')
       }
     },
-    [readFreshContent]
+    [readFreshContent, setTabs]
   )
 
   const paletteItemsBase = useMemo<PaletteItem[]>(
@@ -820,11 +719,33 @@ export default function App() {
         reportError(err)
       }
     },
-    [tabs, readFreshContent]
+    [tabs, readFreshContent, setActiveTabId, setTabs]
   )
 
   // Navigate within the active tab (used by link clicks in markdown preview).
   // Pushes current path onto back stack, clears forward.
+  // Shared active-note swap for in-tab navigation (wikilink / back / forward /
+  // navigateOrOpen). Reads the target buffer-first (#560) and advances the
+  // active note tab's path/content/version; `history` supplies the per-caller
+  // back/forward stacks.
+  const swapActiveNote = useCallback(
+    async (
+      tabId: string,
+      target: string,
+      history: (t: NoteTab) => { back: string[]; forward: string[] }
+    ) => {
+      const content = await readForNavigation(target)
+      setTabs((prev) =>
+        prev.map((t) =>
+          isNoteTab(t) && t.id === tabId
+            ? { ...t, path: target, content, version: t.version + 1, ...history(t) }
+            : t
+        )
+      )
+    },
+    [readForNavigation, setTabs]
+  )
+
   const navigateInActiveTab = useCallback(
     async (path: string) => {
       if (!activeTab || !isNoteTab(activeTab)) {
@@ -835,26 +756,12 @@ export default function App() {
       if (path === activeTab.path) return
       const noteTab = activeTab
       try {
-        const content = await readForNavigation(path)
-        setTabs((prev) =>
-          prev.map((t) =>
-            isNoteTab(t) && t.id === noteTab.id
-              ? {
-                  ...t,
-                  path,
-                  content,
-                  version: t.version + 1,
-                  back: [...t.back, t.path],
-                  forward: [],
-                }
-              : t
-          )
-        )
+        await swapActiveNote(noteTab.id, path, (t) => ({ back: [...t.back, t.path], forward: [] }))
       } catch (err) {
         reportError(err)
       }
     },
-    [activeTab, openInTab, readForNavigation]
+    [activeTab, openInTab, swapActiveNote]
   )
 
   const goBack = useCallback(async () => {
@@ -862,99 +769,52 @@ export default function App() {
     const noteTab = activeTab
     const target = noteTab.back[noteTab.back.length - 1]
     try {
-      const content = await readForNavigation(target)
-      setTabs((prev) =>
-        prev.map((t) =>
-          isNoteTab(t) && t.id === noteTab.id
-            ? {
-                ...t,
-                path: target,
-                content,
-                version: t.version + 1,
-                back: t.back.slice(0, -1),
-                forward: [...t.forward, t.path],
-              }
-            : t
-        )
-      )
+      await swapActiveNote(noteTab.id, target, (t) => ({
+        back: t.back.slice(0, -1),
+        forward: [...t.forward, t.path],
+      }))
     } catch (err) {
       reportError(err)
     }
-  }, [activeTab, readForNavigation])
+  }, [activeTab, swapActiveNote])
 
   const goForward = useCallback(async () => {
     if (!activeTab || !isNoteTab(activeTab) || activeTab.forward.length === 0) return
     const noteTab = activeTab
     const target = noteTab.forward[noteTab.forward.length - 1]
     try {
-      const content = await readForNavigation(target)
-      setTabs((prev) =>
-        prev.map((t) =>
-          isNoteTab(t) && t.id === noteTab.id
-            ? {
-                ...t,
-                path: target,
-                content,
-                version: t.version + 1,
-                back: [...t.back, t.path],
-                forward: t.forward.slice(0, -1),
-              }
-            : t
-        )
-      )
+      await swapActiveNote(noteTab.id, target, (t) => ({
+        back: [...t.back, t.path],
+        forward: t.forward.slice(0, -1),
+      }))
     } catch (err) {
       reportError(err)
     }
-  }, [activeTab, readForNavigation])
+  }, [activeTab, swapActiveNote])
 
   // Writes the live buffer for a path straight to disk, path-keyed so it works
   // for any note tab (active or not — both refs are keyed by path, no mounted
   // editor required). Keeps lastDiskContentRef in sync so the path reads clean
   // afterwards. Returns false on write failure so callers can abort a close.
-  const saveBuffer = useCallback(async (path: string): Promise<boolean> => {
-    const buffer = bufferContentRef.current.get(path)
-    if (buffer == null) return true
-    try {
-      await window.marvin.file.write(path, buffer)
-      lastDiskContentRef.current.set(path, buffer)
-      return true
-    } catch (err) {
-      const detail = err instanceof Error ? err.message : String(err)
-      setError(`Failed to save ${basenameOf(path)}: ${detail}`)
-      return false
-    }
-  }, [])
+  const saveBuffer = useCallback(
+    async (path: string): Promise<boolean> => {
+      const buffer = bufferContentRef.current.get(path)
+      if (buffer == null) return true
+      try {
+        await window.marvin.file.write(path, buffer)
+        lastDiskContentRef.current.set(path, buffer)
+        return true
+      } catch (err) {
+        const detail = err instanceof Error ? err.message : String(err)
+        setError(`Failed to save ${basenameOf(path)}: ${detail}`)
+        return false
+      }
+    },
+    [bufferContentRef, lastDiskContentRef]
+  )
 
   // Removes the tab and its tracked buffer; no dirty checks. Callers gate the
   // entry (see closeTab) so this stays a pure removal step.
-  const performCloseTab = useCallback(
-    (id: string) => {
-      setTabs((prev) => {
-        const idx = prev.findIndex((t) => t.id === id)
-        if (idx === -1) return prev
-        const closing = prev[idx]
-        const next = prev.filter((t) => t.id !== id)
-        if (closing && isBrowserTab(closing)) {
-          void window.marvin.browser.close(id)
-        }
-        if (closing && isNoteTab(closing)) {
-          // Drop tracked buffer/disk content for paths no tab still owns.
-          const stillOpen = next.some((t) => isNoteTab(t) && t.path === closing.path)
-          if (!stillOpen) {
-            bufferContentRef.current.delete(closing.path)
-          }
-        }
-        // pick neighbor as new active if we closed the active one
-        if (activeTabId === id) {
-          const neighbor = next[idx] ?? next[idx - 1] ?? null
-          setActiveTabId(neighbor ? neighbor.id : null)
-        }
-        return next
-      })
-    },
-    [activeTabId]
-  )
-
   const closeTab = useCallback(
     (id: string) => {
       const tab = tabsRef.current.find((t) => t.id === id)
@@ -1008,7 +868,7 @@ export default function App() {
         }
       })()
     },
-    [saveMode, performCloseTab, saveBuffer]
+    [saveMode, performCloseTab, saveBuffer, bufferContentRef, lastDiskContentRef, tabsRef]
   )
 
   // Latest-ref hub for handlers passed to FileTree. We capture volatile
@@ -1023,7 +883,6 @@ export default function App() {
     treeRef.current = tree
     openPathsRef.current = openPaths
     anchorPathRef.current = anchorPath
-    tabsRef.current = tabs
   })
 
   const handleTreeSelect = useCallback((node: FileNode, mods: SelectModifiers) => {
@@ -1106,21 +965,10 @@ export default function App() {
       ) {
         const noteTab = activeTab
         try {
-          const content = await readForNavigation(path)
-          setTabs((prev) =>
-            prev.map((t) =>
-              isNoteTab(t) && t.id === noteTab.id
-                ? {
-                    ...t,
-                    path,
-                    content,
-                    version: t.version + 1,
-                    back: [...t.back, t.path],
-                    forward: [],
-                  }
-                : t
-            )
-          )
+          await swapActiveNote(noteTab.id, path, (t) => ({
+            back: [...t.back, t.path],
+            forward: [],
+          }))
           return
         } catch (err) {
           if (!isBinaryReadError(err) && !isTooLargeReadError(err) && !isDirectoryReadError(err)) {
@@ -1132,7 +980,7 @@ export default function App() {
       }
       await openInTab(path)
     },
-    [activeTab, readForNavigation, openInTab]
+    [activeTab, swapActiveNote, openInTab]
   )
 
   // --- Browser tabs ----------------------------------------------------
@@ -1157,35 +1005,38 @@ export default function App() {
     setActiveTabId(id)
     // Focus URL bar on open so the user can immediately type a different URL.
     setUrlBarFocusTick((t) => t + 1)
-  }, [])
+  }, [setActiveTabId, setTabs])
 
   const openEmptyTab = useCallback(() => {
     const id = newTabId()
     setTabs((prev) => [...prev, { type: 'empty', id, title: 'New tab' }])
     setActiveTabId(id)
-  }, [])
+  }, [setActiveTabId, setTabs])
 
-  const convertEmptyToBrowser = useCallback((emptyTabId: string) => {
-    const url = DEFAULT_BROWSER_URL
-    setTabs((prev) =>
-      prev.map((t) =>
-        isEmptyTab(t) && t.id === emptyTabId
-          ? {
-              type: 'browser',
-              id: t.id,
-              url,
-              draftUrl: url,
-              title: 'New tab',
-              canBack: false,
-              canForward: false,
-              loading: true,
-              ready: false,
-            }
-          : t
+  const convertEmptyToBrowser = useCallback(
+    (emptyTabId: string) => {
+      const url = DEFAULT_BROWSER_URL
+      setTabs((prev) =>
+        prev.map((t) =>
+          isEmptyTab(t) && t.id === emptyTabId
+            ? {
+                type: 'browser',
+                id: t.id,
+                url,
+                draftUrl: url,
+                title: 'New tab',
+                canBack: false,
+                canForward: false,
+                loading: true,
+                ready: false,
+              }
+            : t
+        )
       )
-    )
-    setUrlBarFocusTick((t) => t + 1)
-  }, [])
+      setUrlBarFocusTick((t) => t + 1)
+    },
+    [setTabs]
+  )
 
   const startNoteFromEmpty = useCallback(
     (emptyTabId: string) => {
@@ -1194,42 +1045,56 @@ export default function App() {
       setActiveTabId((id) => (id === emptyTabId ? null : id))
       setCreatingIn({ parentDir: vaultPath, kind: 'file' })
     },
-    [vaultPath]
+    [vaultPath, setActiveTabId, setTabs]
   )
 
-  const chooseFileFromEmpty = useCallback(async (emptyTabId: string) => {
-    const picked = await window.marvin.file.pick()
-    if (!picked) return
-    setTabs((prev) => prev.filter((t) => t.id !== emptyTabId))
-    setActiveTabId((id) => (id === emptyTabId ? null : id))
-    // If openInTab rejects, the empty tab is already gone; surface the
-    // error so the user isn't left staring at a blank pane silently.
-    void openInTabRef.current(picked).catch(console.error)
-  }, [])
+  const chooseFileFromEmpty = useCallback(
+    async (emptyTabId: string) => {
+      const picked = await window.marvin.file.pick()
+      if (!picked) return
+      setTabs((prev) => prev.filter((t) => t.id !== emptyTabId))
+      setActiveTabId((id) => (id === emptyTabId ? null : id))
+      // If openInTab rejects, the empty tab is already gone; surface the
+      // error so the user isn't left staring at a blank pane silently.
+      void openInTabRef.current(picked).catch(console.error)
+    },
+    [setActiveTabId, setTabs]
+  )
 
-  const handleBrowserDraftChange = useCallback((id: string, value: string) => {
-    setTabs((prev) =>
-      prev.map((t) => (isBrowserTab(t) && t.id === id ? { ...t, draftUrl: value } : t))
-    )
-  }, [])
-
-  const handleBrowserNavigate = useCallback(async (id: string, url: string) => {
-    const normalized = normalizeUrl(url)
-    setTabs((prev) =>
-      prev.map((t) =>
-        isBrowserTab(t) && t.id === id ? { ...t, draftUrl: normalized, loading: true } : t
+  const handleBrowserDraftChange = useCallback(
+    (id: string, value: string) => {
+      setTabs((prev) =>
+        prev.map((t) => (isBrowserTab(t) && t.id === id ? { ...t, draftUrl: value } : t))
       )
-    )
-    try {
-      await window.marvin.browser.navigate(id, normalized)
-    } catch {
-      // surfaced via load-error event
-    }
-  }, [])
+    },
+    [setTabs]
+  )
 
-  const handleBrowserReady = useCallback((id: string) => {
-    setTabs((prev) => prev.map((t) => (isBrowserTab(t) && t.id === id ? { ...t, ready: true } : t)))
-  }, [])
+  const handleBrowserNavigate = useCallback(
+    async (id: string, url: string) => {
+      const normalized = normalizeUrl(url)
+      setTabs((prev) =>
+        prev.map((t) =>
+          isBrowserTab(t) && t.id === id ? { ...t, draftUrl: normalized, loading: true } : t
+        )
+      )
+      try {
+        await window.marvin.browser.navigate(id, normalized)
+      } catch {
+        // surfaced via load-error event
+      }
+    },
+    [setTabs]
+  )
+
+  const handleBrowserReady = useCallback(
+    (id: string) => {
+      setTabs((prev) =>
+        prev.map((t) => (isBrowserTab(t) && t.id === id ? { ...t, ready: true } : t))
+      )
+    },
+    [setTabs]
+  )
 
   // Subscribe to browser events from the main process and reflect them on
   // the relevant tab's state.
@@ -1256,7 +1121,7 @@ export default function App() {
       )
     })
     return off
-  }, [])
+  }, [setTabs])
 
   // Tell main which browser is currently the active visible one (or null).
   // HtmlPreview also rides on the browser-view IPC, so when an HTML NoteTab
@@ -1461,38 +1326,49 @@ export default function App() {
 
   // Path-explicit so a hidden editor's debounced save writes to ITS OWN file,
   // not whatever tab is active (#440 — multiple editors are mounted at once).
-  const handleSave = useCallback(async (path: string, content: string) => {
-    try {
-      await window.marvin.file.write(path, content)
-      lastDiskContentRef.current.set(path, content)
-      bufferContentRef.current.set(path, content)
-      setTabs((prev) => prev.map((t) => (isNoteTab(t) && t.path === path ? { ...t, content } : t)))
-    } catch (err) {
-      const name = basenameOf(path)
-      const detail = err instanceof Error ? err.message : String(err)
-      setError(`Failed to save ${name}: ${detail}`)
-      throw err
-    }
-  }, [])
+  const handleSave = useCallback(
+    async (path: string, content: string) => {
+      try {
+        await window.marvin.file.write(path, content)
+        lastDiskContentRef.current.set(path, content)
+        bufferContentRef.current.set(path, content)
+        setTabs((prev) =>
+          prev.map((t) => (isNoteTab(t) && t.path === path ? { ...t, content } : t))
+        )
+      } catch (err) {
+        const name = basenameOf(path)
+        const detail = err instanceof Error ? err.message : String(err)
+        setError(`Failed to save ${name}: ${detail}`)
+        throw err
+      }
+    },
+    [bufferContentRef, lastDiskContentRef, setTabs]
+  )
 
-  const handleBufferChange = useCallback((path: string, content: string) => {
-    bufferContentRef.current.set(path, content)
-  }, [])
+  const handleBufferChange = useCallback(
+    (path: string, content: string) => {
+      bufferContentRef.current.set(path, content)
+    },
+    [bufferContentRef]
+  )
 
   // Passed to Editor and invoked in its mount initializer, so the ref read
   // happens at mount, never during App render.
   const getBufferSeed = useCallback(
     (path: string, fallback: string) => bufferContentRef.current.get(path) ?? fallback,
-    []
+    [bufferContentRef]
   )
 
-  const clearPendingExternalChange = useCallback((filePath: string) => {
-    setTabs((prev) =>
-      prev.map((t) =>
-        isNoteTab(t) && t.path === filePath ? { ...t, pendingExternalChange: undefined } : t
+  const clearPendingExternalChange = useCallback(
+    (filePath: string) => {
+      setTabs((prev) =>
+        prev.map((t) =>
+          isNoteTab(t) && t.path === filePath ? { ...t, pendingExternalChange: undefined } : t
+        )
       )
-    )
-  }, [])
+    },
+    [setTabs]
+  )
 
   // "Reload": snapshot the user's current buffer (so they can recover it) and
   // then swap the buffer to whatever's on disk now. If the buffer can't be
@@ -1536,7 +1412,7 @@ export default function App() {
         )
       )
     },
-    [vaultPath]
+    [vaultPath, bufferContentRef, lastDiskContentRef, setTabs]
   )
 
   // "Keep my version": dismiss the banner without touching the buffer. The
@@ -1572,67 +1448,6 @@ export default function App() {
     const raw = err instanceof Error ? err.message : String(err)
     if (/MARVIN_OUTSIDE_VAULT/.test(raw) && vaultPath) {
       void loadTree(vaultPath).catch(() => {})
-    }
-  }
-
-  const renameInTabs = (oldPath: string, newPath: string) => {
-    // Snapshot keyed by old path — the remap loop below mutates the ref, so the
-    // updater must read buffers captured before that.
-    const liveBuffers = new Map(bufferContentRef.current)
-    setTabs((prev) =>
-      prev.map((t) => {
-        if (!isNoteTab(t)) return t
-        let path = t.path
-        if (path === oldPath) path = newPath
-        else if (path.startsWith(`${oldPath}/`)) path = newPath + path.slice(oldPath.length)
-        const back = t.back.map((p) =>
-          p === oldPath
-            ? newPath
-            : p.startsWith(`${oldPath}/`)
-              ? newPath + p.slice(oldPath.length)
-              : p
-        )
-        const forward = t.forward.map((p) =>
-          p === oldPath
-            ? newPath
-            : p.startsWith(`${oldPath}/`)
-              ? newPath + p.slice(oldPath.length)
-              : p
-        )
-        const buffered = liveBuffers.get(t.path)
-        const content = buffered !== undefined ? buffered : t.content
-        return path === t.path && back === t.back && forward === t.forward && content === t.content
-          ? t
-          : { ...t, path, back, forward, content }
-      })
-    )
-    // remap tracked content for both the on-disk and live buffer maps
-    for (const tracked of [lastDiskContentRef.current, bufferContentRef.current]) {
-      for (const [k, v] of Array.from(tracked.entries())) {
-        if (k === oldPath) {
-          tracked.delete(k)
-          tracked.set(newPath, v)
-        } else if (k.startsWith(`${oldPath}/`)) {
-          tracked.delete(k)
-          tracked.set(newPath + k.slice(oldPath.length), v)
-        }
-      }
-    }
-  }
-
-  const closeTabsUnder = (root: string) => {
-    setTabs((prev) => {
-      const remaining = prev.filter(
-        (t) => !isNoteTab(t) || (t.path !== root && !t.path.startsWith(`${root}/`))
-      )
-      if (activeTabId && !remaining.find((t) => t.id === activeTabId)) {
-        setActiveTabId(remaining[0]?.id ?? null)
-      }
-      return remaining
-    })
-    const tracked = lastDiskContentRef.current
-    for (const k of Array.from(tracked.keys())) {
-      if (k === root || k.startsWith(`${root}/`)) tracked.delete(k)
     }
   }
 
