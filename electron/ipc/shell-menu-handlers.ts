@@ -9,6 +9,7 @@
 // lastSpellcheck; app.whenReady()'s bootstrap calls buildAppMenu directly) —
 // threaded via `setMenuNoteContext`/`getSpellcheckContext`.
 import { ipcMain, BrowserWindow, dialog, shell, Menu, MenuItem, clipboard } from 'electron'
+import { IPC_CHANNELS } from '../../src/shared/ipc-channels.js'
 
 export type ShellMenuHandlersCtx = {
   assertInVault: (filePath: string) => Promise<string>
@@ -49,28 +50,31 @@ function showContextMenu(
 }
 
 export function registerShellMenuHandlers(ctx: ShellMenuHandlersCtx): void {
-  ipcMain.handle('shell:openExternal', async (_e, url: string) => {
+  ipcMain.handle(IPC_CHANNELS.shell.openExternal, async (_e, url: string) => {
     if (!/^(https?|mailto):/i.test(url)) return
     await shell.openExternal(url)
   })
 
-  ipcMain.handle('shell:reveal', async (_e, target: string) => {
+  ipcMain.handle(IPC_CHANNELS.shell.reveal, async (_e, target: string) => {
     const safe = await ctx.assertInVault(target)
     shell.showItemInFolder(safe)
   })
 
-  ipcMain.handle('app:show-context-menu', (e, items: MenuItemSpec[]): Promise<string | null> => {
-    return showContextMenu(e, items)
-  })
+  ipcMain.handle(
+    IPC_CHANNELS.app.showContextMenu,
+    (e, items: MenuItemSpec[]): Promise<string | null> => {
+      return showContextMenu(e, items)
+    }
+  )
 
-  ipcMain.handle('app:can-paste', (): boolean =>
+  ipcMain.handle(IPC_CHANNELS.app.canPaste, (): boolean =>
     clipboard.availableFormats().some((f) => f.startsWith('text/') || f === 'text')
   )
 
   // Native "unsaved changes" confirmation. Window-modal sheet on macOS so it
   // reads as a system prompt rather than an in-app modal.
   ipcMain.handle(
-    'app:confirm-unsaved',
+    IPC_CHANNELS.app.confirmUnsavedChanges,
     async (e, fileName: string): Promise<'save' | 'discard' | 'cancel'> => {
       const w = BrowserWindow.fromWebContents(e.sender)
       const opts: Electron.MessageBoxOptions = {
@@ -92,29 +96,29 @@ export function registerShellMenuHandlers(ctx: ShellMenuHandlersCtx): void {
 
   // Renderer reports whether a note tab is active so the app menu can disable
   // the note-only items (Export PDF, Reveal in Finder). Rebuilds the menu.
-  ipcMain.on('app:menu-note-context', (_e, hasNoteTab: boolean) => {
+  ipcMain.on(IPC_CHANNELS.app.menuNoteContext, (_e, hasNoteTab: boolean) => {
     if (typeof hasNoteTab !== 'boolean') return
     ctx.setMenuNoteContext(hasNoteTab)
   })
 
-  ipcMain.handle('editor:clipboard-read', (): string => {
+  ipcMain.handle(IPC_CHANNELS.editor.clipboardRead, (): string => {
     return clipboard.readText()
   })
 
-  ipcMain.handle('editor:clipboard-write', (_e, text: string): void => {
+  ipcMain.handle(IPC_CHANNELS.editor.clipboardWrite, (_e, text: string): void => {
     clipboard.writeText(text)
   })
 
   ipcMain.handle(
-    'editor:clipboard-write-rich',
+    IPC_CHANNELS.editor.clipboardWriteRich,
     (_e, payload: { html: string; text: string }): void => {
       clipboard.write({ html: payload.html, text: payload.text })
     }
   )
 
-  ipcMain.handle('editor:clipboard-read-rich', (): { html: string; text: string } => {
+  ipcMain.handle(IPC_CHANNELS.editor.clipboardReadRich, (): { html: string; text: string } => {
     return { html: clipboard.readHTML(), text: clipboard.readText() }
   })
 
-  ipcMain.handle('editor:spellcheck-context', () => ctx.getSpellcheckContext())
+  ipcMain.handle(IPC_CHANNELS.editor.spellcheckContext, () => ctx.getSpellcheckContext())
 }

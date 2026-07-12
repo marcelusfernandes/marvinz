@@ -18,6 +18,7 @@ import { resolveConflict } from '../conflictResolver.js'
 import { writeSnapshot, newTurnId, type SnapshotTrigger } from '../snapshot.js'
 import { isNoisy } from '../noisyPaths.js'
 import type { MoveResult } from '../../src/types.js'
+import { IPC_CHANNELS } from '../../src/shared/ipc-channels.js'
 
 export type FsHandlersCtx = {
   getActiveVaultPath: () => string | null
@@ -248,7 +249,7 @@ function rewriteWikilinksOneFile(
 }
 
 export function registerFsHandlers(ctx: FsHandlersCtx): void {
-  ipcMain.handle('file:read', async (_e, filePath: string) => {
+  ipcMain.handle(IPC_CHANNELS.file.read, async (_e, filePath: string) => {
     try {
       const safe = await ctx.assertInVault(filePath)
       const stats = await fs.stat(safe)
@@ -279,7 +280,7 @@ export function registerFsHandlers(ctx: FsHandlersCtx): void {
     }
   })
 
-  ipcMain.handle('file:write', async (_e, filePath: string, content: string) => {
+  ipcMain.handle(IPC_CHANNELS.file.write, async (_e, filePath: string, content: string) => {
     try {
       const safe = await ctx.assertInVault(filePath)
       // Set by the readBefore resolver below when the write is a no-op (content
@@ -315,7 +316,7 @@ export function registerFsHandlers(ctx: FsHandlersCtx): void {
     }
   })
 
-  ipcMain.handle('office:readDocx', async (_e, filePath: string) => {
+  ipcMain.handle(IPC_CHANNELS.office.readDocx, async (_e, filePath: string) => {
     const mammoth = await import('mammoth')
     const safe = await ctx.assertInVault(filePath)
     const stats = await fs.stat(safe)
@@ -325,7 +326,7 @@ export function registerFsHandlers(ctx: FsHandlersCtx): void {
     return { html: result.value, messages: result.messages }
   })
 
-  ipcMain.handle('office:writeDocx', async (_e, filePath: string, plainText: string) => {
+  ipcMain.handle(IPC_CHANNELS.office.writeDocx, async (_e, filePath: string, plainText: string) => {
     if (plainText.length > 10 * 1024 * 1024) throw new Error('MARVIN_TOO_LARGE')
     const { Document, Paragraph, TextRun, Packer } = await import('docx')
     const safe = await ctx.assertInVault(filePath)
@@ -337,7 +338,7 @@ export function registerFsHandlers(ctx: FsHandlersCtx): void {
     await fs.writeFile(safe, buf)
   })
 
-  ipcMain.handle('office:readXlsx', async (_e, filePath: string, sheetName?: string) => {
+  ipcMain.handle(IPC_CHANNELS.office.readXlsx, async (_e, filePath: string, sheetName?: string) => {
     const XLSX = await import('xlsx')
     const safe = await ctx.assertInVault(filePath)
     const stats = await fs.stat(safe)
@@ -354,7 +355,7 @@ export function registerFsHandlers(ctx: FsHandlersCtx): void {
   })
 
   ipcMain.handle(
-    'office:writeXlsx',
+    IPC_CHANNELS.office.writeXlsx,
     async (_e, filePath: string, rows: unknown, sheetName: unknown) => {
       if (
         !Array.isArray(rows) ||
@@ -389,7 +390,7 @@ export function registerFsHandlers(ctx: FsHandlersCtx): void {
     }
   )
 
-  ipcMain.handle('file:create', async (_e, parentDir: string, name: string) => {
+  ipcMain.handle(IPC_CHANNELS.file.create, async (_e, parentDir: string, name: string) => {
     try {
       const safeName = name.endsWith('.md') ? name : `${name}.md`
       const full = path.join(parentDir, safeName)
@@ -405,16 +406,19 @@ export function registerFsHandlers(ctx: FsHandlersCtx): void {
     }
   })
 
-  ipcMain.handle('file:copy', async (_e, srcPath: string, destDir: string): Promise<string> => {
-    const safeSrc = await ctx.assertInVault(srcPath)
-    const safeDir = await ctx.assertInVault(destDir)
-    const destPath = await resolveConflict(safeDir, path.basename(safeSrc), 'copy')
-    await fs.cp(safeSrc, destPath, { recursive: true, errorOnExist: false })
-    ctx.notifyTree()
-    return destPath
-  })
+  ipcMain.handle(
+    IPC_CHANNELS.file.copy,
+    async (_e, srcPath: string, destDir: string): Promise<string> => {
+      const safeSrc = await ctx.assertInVault(srcPath)
+      const safeDir = await ctx.assertInVault(destDir)
+      const destPath = await resolveConflict(safeDir, path.basename(safeSrc), 'copy')
+      await fs.cp(safeSrc, destPath, { recursive: true, errorOnExist: false })
+      ctx.notifyTree()
+      return destPath
+    }
+  )
 
-  ipcMain.handle('path:rename', async (_e, oldPath: string, newPath: string) => {
+  ipcMain.handle(IPC_CHANNELS.path.rename, async (_e, oldPath: string, newPath: string) => {
     try {
       const safeOld = await ctx.assertInVault(oldPath)
       const safeNew = await ctx.assertInVault(newPath)
@@ -457,7 +461,7 @@ export function registerFsHandlers(ctx: FsHandlersCtx): void {
     }
   })
 
-  ipcMain.handle('path:trash', async (_e, target: string) => {
+  ipcMain.handle(IPC_CHANNELS.path.trash, async (_e, target: string) => {
     try {
       const safe = await ctx.assertInVault(target)
       await shell.trashItem(safe)
@@ -467,7 +471,7 @@ export function registerFsHandlers(ctx: FsHandlersCtx): void {
     }
   })
 
-  ipcMain.handle('file:exportPdf', async (_e, filePath: string) => {
+  ipcMain.handle(IPC_CHANNELS.file.exportPdf, async (_e, filePath: string) => {
     try {
       // No assertInVault here — pre-existing gap (out of scope for this pure
       // move, tracked separately if ever fixed; see the issue's "Out of scope").
@@ -522,7 +526,7 @@ export function registerFsHandlers(ctx: FsHandlersCtx): void {
   })
 
   ipcMain.handle(
-    'file:writeBinary',
+    IPC_CHANNELS.file.writeBinary,
     async (
       _e,
       payload: { vaultPath: string; relPath: string; base64Bytes: string; maxBytes?: number }
@@ -551,7 +555,7 @@ export function registerFsHandlers(ctx: FsHandlersCtx): void {
   )
 
   ipcMain.handle(
-    'file:move-batch',
+    IPC_CHANNELS.file.moveBatch,
     async (_e, srcs: string[], destDir: string): Promise<MoveResult[]> => {
       const safeDir = await ctx.assertInVault(destDir)
       const results: MoveResult[] = []

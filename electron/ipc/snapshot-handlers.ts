@@ -19,6 +19,7 @@ import {
   restoreUserSnapshot,
   type UserSnapshotTrigger,
 } from '../snapshot.js'
+import { IPC_CHANNELS } from '../../src/shared/ipc-channels.js'
 
 export type SnapshotHandlersCtx = {
   getActiveVaultPath: () => string | null
@@ -85,7 +86,7 @@ export function registerSnapshotHandlers(ctx: SnapshotHandlersCtx): void {
     return vault
   }
 
-  ipcMain.handle('snapshot:listTurns', async () => {
+  ipcMain.handle(IPC_CHANNELS.snapshot.listTurns, async () => {
     try {
       const vault = requireVault()
       const turns = await listTurns(vault)
@@ -95,7 +96,7 @@ export function registerSnapshotHandlers(ctx: SnapshotHandlersCtx): void {
     }
   })
 
-  ipcMain.handle('snapshot:listForFile', async (_e, relPath: unknown) => {
+  ipcMain.handle(IPC_CHANNELS.snapshot.listForFile, async (_e, relPath: unknown) => {
     try {
       const vault = requireVault()
       const rel = validateRelPath(relPath)
@@ -106,7 +107,7 @@ export function registerSnapshotHandlers(ctx: SnapshotHandlersCtx): void {
     }
   })
 
-  ipcMain.handle('snapshot:read', async (_e, turnId: unknown, relPath: unknown) => {
+  ipcMain.handle(IPC_CHANNELS.snapshot.read, async (_e, turnId: unknown, relPath: unknown) => {
     try {
       const vault = requireVault()
       const tid = validateTurnId(turnId)
@@ -118,7 +119,7 @@ export function registerSnapshotHandlers(ctx: SnapshotHandlersCtx): void {
     }
   })
 
-  ipcMain.handle('snapshot:restore', async (_e, turnId: unknown, relPath: unknown) => {
+  ipcMain.handle(IPC_CHANNELS.snapshot.restore, async (_e, turnId: unknown, relPath: unknown) => {
     try {
       const vault = requireVault()
       const tid = validateTurnId(turnId)
@@ -134,46 +135,52 @@ export function registerSnapshotHandlers(ctx: SnapshotHandlersCtx): void {
     }
   })
 
-  ipcMain.handle('snapshot:saveBuffer', async (_e, relPath: unknown, content: unknown) => {
-    try {
-      if (typeof content !== 'string') throw new Error('SNAPSHOT_INVALID_CONTENT')
-      if (Buffer.byteLength(content, 'utf8') > BUFFER_SAVE_MAX_BYTES)
-        throw new Error('SNAPSHOT_BUFFER_TOO_LARGE')
-      const vault = requireVault()
-      const rel = validateRelPath(relPath)
-      let turnId = ctx.getActiveTurnId()
-      if (!turnId) {
-        turnId = newTurnId()
-        ctx.setActiveTurnId(turnId)
+  ipcMain.handle(
+    IPC_CHANNELS.snapshot.saveBuffer,
+    async (_e, relPath: unknown, content: unknown) => {
+      try {
+        if (typeof content !== 'string') throw new Error('SNAPSHOT_INVALID_CONTENT')
+        if (Buffer.byteLength(content, 'utf8') > BUFFER_SAVE_MAX_BYTES)
+          throw new Error('SNAPSHOT_BUFFER_TOO_LARGE')
+        const vault = requireVault()
+        const rel = validateRelPath(relPath)
+        let turnId = ctx.getActiveTurnId()
+        if (!turnId) {
+          turnId = newTurnId()
+          ctx.setActiveTurnId(turnId)
+        }
+        const saved = await writeSnapshot(vault, turnId, rel, content, 'buffer-save')
+        return ok({ turnId, saved })
+      } catch (e) {
+        return err(e)
       }
-      const saved = await writeSnapshot(vault, turnId, rel, content, 'buffer-save')
-      return ok({ turnId, saved })
-    } catch (e) {
-      return err(e)
     }
-  })
+  )
 
-  ipcMain.handle('snapshot:saveExternalChange', async (_e, relPath: unknown, content: unknown) => {
-    try {
-      const vault = requireVault()
-      const rel = validateRelPath(relPath)
-      if (typeof content !== 'string') throw new Error('SNAPSHOT_INVALID_CONTENT')
-      if (Buffer.byteLength(content, 'utf8') > BUFFER_SAVE_MAX_BYTES) {
-        throw new Error('SNAPSHOT_BUFFER_TOO_LARGE')
+  ipcMain.handle(
+    IPC_CHANNELS.snapshot.saveExternalChange,
+    async (_e, relPath: unknown, content: unknown) => {
+      try {
+        const vault = requireVault()
+        const rel = validateRelPath(relPath)
+        if (typeof content !== 'string') throw new Error('SNAPSHOT_INVALID_CONTENT')
+        if (Buffer.byteLength(content, 'utf8') > BUFFER_SAVE_MAX_BYTES) {
+          throw new Error('SNAPSHOT_BUFFER_TOO_LARGE')
+        }
+        let turnId = ctx.getActiveTurnId()
+        if (!turnId) {
+          turnId = newTurnId()
+          ctx.setActiveTurnId(turnId)
+        }
+        const saved = await writeSnapshot(vault, turnId, rel, content, 'external-rejected')
+        return ok({ turnId, saved })
+      } catch (e) {
+        return err(e)
       }
-      let turnId = ctx.getActiveTurnId()
-      if (!turnId) {
-        turnId = newTurnId()
-        ctx.setActiveTurnId(turnId)
-      }
-      const saved = await writeSnapshot(vault, turnId, rel, content, 'external-rejected')
-      return ok({ turnId, saved })
-    } catch (e) {
-      return err(e)
     }
-  })
+  )
 
-  ipcMain.handle('snapshot:capture', async (_e, payload: unknown) => {
+  ipcMain.handle(IPC_CHANNELS.snapshot.capture, async (_e, payload: unknown) => {
     try {
       if (!payload || typeof payload !== 'object') throw new Error('SNAPSHOT_INVALID_PAYLOAD')
       const { paths, trigger } = payload as Record<string, unknown>
@@ -201,7 +208,7 @@ export function registerSnapshotHandlers(ctx: SnapshotHandlersCtx): void {
     }
   })
 
-  ipcMain.handle('snapshot:restoreOne', async (_e, payload: unknown) => {
+  ipcMain.handle(IPC_CHANNELS.snapshot.restoreOne, async (_e, payload: unknown) => {
     try {
       if (!payload || typeof payload !== 'object') throw new Error('SNAPSHOT_INVALID_PAYLOAD')
       const { snapshotId } = payload as Record<string, unknown>

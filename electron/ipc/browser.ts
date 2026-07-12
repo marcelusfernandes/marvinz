@@ -6,6 +6,7 @@
 // (it's also used as the pty ctx's `sendToRenderer`, wired in #570) and is
 // threaded here the same way, as `ctx.sendToRenderer`.
 import { ipcMain, WebContentsView, shell, type BrowserWindow } from 'electron'
+import { IPC_CHANNELS } from '../../src/shared/ipc-channels.js'
 
 export type BrowserCtx = {
   getWin: () => BrowserWindow | null
@@ -82,7 +83,7 @@ export function registerBrowserHandlers(ctx: BrowserCtx): { reapplyAllWithGeomet
   }
 
   ipcMain.handle(
-    'browser:create',
+    IPC_CHANNELS.browser.create,
     async (_e, opts: { id: string; url: string; bounds: BrowserBounds }) => {
       const win = ctx.getWin()
       if (!win) throw new Error('No window available')
@@ -144,7 +145,7 @@ export function registerBrowserHandlers(ctx: BrowserCtx): { reapplyAllWithGeomet
       })
 
       const sendNavState = () => {
-        ctx.sendToRenderer('browser:event', {
+        ctx.sendToRenderer(IPC_CHANNELS.browser.event, {
           id: opts.id,
           kind: 'nav-state',
           canBack: webContents.navigationHistory.canGoBack(),
@@ -153,27 +154,35 @@ export function registerBrowserHandlers(ctx: BrowserCtx): { reapplyAllWithGeomet
       }
 
       webContents.on('page-title-updated', (_evt, title) => {
-        ctx.sendToRenderer('browser:event', { id: opts.id, kind: 'title', title })
+        ctx.sendToRenderer(IPC_CHANNELS.browser.event, { id: opts.id, kind: 'title', title })
       })
       webContents.on('did-navigate', (_evt, url) => {
-        ctx.sendToRenderer('browser:event', { id: opts.id, kind: 'url', url })
+        ctx.sendToRenderer(IPC_CHANNELS.browser.event, { id: opts.id, kind: 'url', url })
         sendNavState()
       })
       webContents.on('did-navigate-in-page', (_evt, url) => {
-        ctx.sendToRenderer('browser:event', { id: opts.id, kind: 'url', url })
+        ctx.sendToRenderer(IPC_CHANNELS.browser.event, { id: opts.id, kind: 'url', url })
         sendNavState()
       })
       webContents.on('did-start-loading', () => {
-        ctx.sendToRenderer('browser:event', { id: opts.id, kind: 'loading', loading: true })
+        ctx.sendToRenderer(IPC_CHANNELS.browser.event, {
+          id: opts.id,
+          kind: 'loading',
+          loading: true,
+        })
       })
       webContents.on('did-stop-loading', () => {
-        ctx.sendToRenderer('browser:event', { id: opts.id, kind: 'loading', loading: false })
+        ctx.sendToRenderer(IPC_CHANNELS.browser.event, {
+          id: opts.id,
+          kind: 'loading',
+          loading: false,
+        })
         sendNavState()
       })
       webContents.on('did-fail-load', (_evt, errorCode, errorDesc, validatedURL) => {
         // Sub-frame failures emit too; only surface main-frame failures.
         if (_evt && (_evt as unknown as { isMainFrame?: boolean }).isMainFrame === false) return
-        ctx.sendToRenderer('browser:event', {
+        ctx.sendToRenderer(IPC_CHANNELS.browser.event, {
           id: opts.id,
           kind: 'load-error',
           url: validatedURL,
@@ -197,7 +206,7 @@ export function registerBrowserHandlers(ctx: BrowserCtx): { reapplyAllWithGeomet
     }
   )
 
-  ipcMain.handle('browser:navigate', async (_e, id: string, url: string) => {
+  ipcMain.handle(IPC_CHANNELS.browser.navigate, async (_e, id: string, url: string) => {
     const entry = browserViews.get(id)
     if (!entry) return
     try {
@@ -207,29 +216,29 @@ export function registerBrowserHandlers(ctx: BrowserCtx): { reapplyAllWithGeomet
     }
   })
 
-  ipcMain.handle('browser:back', (_e, id: string) => {
+  ipcMain.handle(IPC_CHANNELS.browser.back, (_e, id: string) => {
     const entry = browserViews.get(id)
     if (entry?.view.webContents.navigationHistory.canGoBack()) {
       entry.view.webContents.navigationHistory.goBack()
     }
   })
 
-  ipcMain.handle('browser:forward', (_e, id: string) => {
+  ipcMain.handle(IPC_CHANNELS.browser.forward, (_e, id: string) => {
     const entry = browserViews.get(id)
     if (entry?.view.webContents.navigationHistory.canGoForward()) {
       entry.view.webContents.navigationHistory.goForward()
     }
   })
 
-  ipcMain.handle('browser:reload', (_e, id: string) => {
+  ipcMain.handle(IPC_CHANNELS.browser.reload, (_e, id: string) => {
     browserViews.get(id)?.view.webContents.reload()
   })
 
-  ipcMain.handle('browser:stop', (_e, id: string) => {
+  ipcMain.handle(IPC_CHANNELS.browser.stop, (_e, id: string) => {
     browserViews.get(id)?.view.webContents.stop()
   })
 
-  ipcMain.handle('browser:setBounds', (_e, id: string, bounds: BrowserBounds) => {
+  ipcMain.handle(IPC_CHANNELS.browser.setBounds, (_e, id: string, bounds: BrowserBounds) => {
     const entry = browserViews.get(id)
     if (!entry) return
     entry.lastBounds = bounds
@@ -240,7 +249,7 @@ export function registerBrowserHandlers(ctx: BrowserCtx): { reapplyAllWithGeomet
   // (and on panel layout changes). Main recomputes absolute bounds synchronously
   // on every win.on('resize') without a renderer round-trip — eliminates the
   // "wait then snap" on macOS maximize/restore.
-  ipcMain.handle('browser:setGeometry', (_e, id: string, geometry: BrowserGeometry) => {
+  ipcMain.handle(IPC_CHANNELS.browser.setGeometry, (_e, id: string, geometry: BrowserGeometry) => {
     const entry = browserViews.get(id)
     const win = ctx.getWin()
     if (!entry || !win || win.isDestroyed()) return
@@ -251,14 +260,14 @@ export function registerBrowserHandlers(ctx: BrowserCtx): { reapplyAllWithGeomet
     applyBounds(entry)
   })
 
-  ipcMain.handle('browser:setActive', (_e, activeId: string | null) => {
+  ipcMain.handle(IPC_CHANNELS.browser.setActive, (_e, activeId: string | null) => {
     for (const [id, entry] of browserViews.entries()) {
       entry.active = id === activeId
       applyBounds(entry)
     }
   })
 
-  ipcMain.handle('browser:setAllHidden', (_e, hidden: boolean) => {
+  ipcMain.handle(IPC_CHANNELS.browser.setAllHidden, (_e, hidden: boolean) => {
     browsersGloballyHidden = hidden
     for (const entry of browserViews.values()) {
       entry.globallyHidden = hidden
@@ -266,7 +275,7 @@ export function registerBrowserHandlers(ctx: BrowserCtx): { reapplyAllWithGeomet
     }
   })
 
-  ipcMain.handle('browser:close', (_e, id: string) => {
+  ipcMain.handle(IPC_CHANNELS.browser.close, (_e, id: string) => {
     const entry = browserViews.get(id)
     if (!entry) return
     const win = ctx.getWin()

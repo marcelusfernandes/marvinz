@@ -20,6 +20,7 @@ import { registerSnapshotHandlers } from './ipc/snapshot-handlers.js'
 import { registerAgentHandlers } from './ipc/agent.js'
 import { registerVaultHandlers, readSettings, closeVaultWatcher } from './ipc/vault-handlers.js'
 import { registerShellMenuHandlers } from './ipc/shell-menu-handlers.js'
+import { IPC_CHANNELS } from '../src/shared/ipc-channels.js'
 
 process.env.APP_ROOT = path.join(__dirname, '..')
 
@@ -84,7 +85,7 @@ let activeVaultPath: string | null = null
 // the cost of a bounded, imperceptible delay (#571).
 const NOTIFY_TREE_DEBOUNCE_MS = 200
 const notifyTree = debounce((): void => {
-  win?.webContents.send('vault:changed')
+  win?.webContents.send(IPC_CHANNELS.vault.changed)
 }, NOTIFY_TREE_DEBOUNCE_MS)
 // Allowlist of vault paths that were opened via OS dialog (vault:pick) or loaded
 // from the persisted settings file. vault:watch only accepts paths in this set.
@@ -105,7 +106,7 @@ async function finalizeTurn(vaultRoot: string, turnId: string): Promise<void> {
     const turns = await listTurns(vaultRoot)
     const manifest = turns.find((t) => t.turnId === turnId)
     if (manifest && win && !win.isDestroyed()) {
-      win.webContents.send('snapshot:turn-completed', {
+      win.webContents.send(IPC_CHANNELS.snapshot.turnCompleted, {
         turnId,
         timestamp: manifest.timestamp,
         files: manifest.files.map((f) => f.relPath),
@@ -445,7 +446,7 @@ function buildAppMenu() {
   // `?.` only guards null; a closed-but-non-null window throws "Object has been
   // destroyed" on send — mirror the safeBrowserSend idiom.
   const send = (action: string) => {
-    if (win && !win.isDestroyed()) win.webContents.send('menu:action', action)
+    if (win && !win.isDestroyed()) win.webContents.send(IPC_CHANNELS.app.menuAction, action)
   }
   Menu.setApplicationMenu(Menu.buildFromTemplate(buildMenuTemplate(send, menuHasNoteTab)))
 }
