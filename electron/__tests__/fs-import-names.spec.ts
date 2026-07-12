@@ -69,3 +69,17 @@ describe('resolveImportName — accepts Set or array', () => {
     expect(fromSet).toBe('note (2).md')
   })
 })
+
+describe('resolveImportName — case-insensitive collision (#552)', () => {
+  it('detects a collision that differs only in case and suffixes it', () => {
+    // 'Notes.md' exists; incoming 'notes.md' collides on a case-insensitive
+    // filesystem (APFS/NTFS) even though the strings are not identical.
+    expect(resolveImportName('notes.md', new Set(['Notes.md']))).toBe('notes (1).md')
+  })
+
+  it('preserves the incoming basename case in the returned name', () => {
+    // Detection is case-insensitive, but the returned name keeps the
+    // caller's original casing — it must not be forced to lowercase.
+    expect(resolveImportName('Notes.md', new Set(['notes.md']))).toBe('Notes (1).md')
+  })
+})
