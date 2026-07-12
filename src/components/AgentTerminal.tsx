@@ -9,6 +9,7 @@ import { createTerminalLinkProvider, createOsc8LinkHandler } from '../lib/termin
 import { MARVIN_PATH_MIME, MARVIN_PATHS_MIME, readDraggedPaths } from '../lib/dropAttachments'
 import { formatPathsForAgent, type AgentKind } from '../lib/agent-drop-format'
 import { useAppContext } from '../context/AppContext'
+import { marvin } from '../lib/marvinApi'
 
 function readCssVar(name: string): string {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim()
@@ -139,10 +140,10 @@ export function AgentTerminal({ agent, ptyId, isActive, onStatusChange, onOpenFi
         // ignore — may not have dims yet
       }
 
-      const offData = window.marvin.pty.onData(ptyId, (data) => {
+      const offData = marvin.pty.onData(ptyId, (data) => {
         term.write(data)
       })
-      const offExit = window.marvin.pty.onExit(ptyId, (code) => {
+      const offExit = marvin.pty.onExit(ptyId, (code) => {
         term.writeln(`\r\n\x1b[33m[${agent.name} exited with code ${code}]\x1b[0m`)
         setStatus('exited')
         setExitCode(code)
@@ -151,7 +152,7 @@ export function AgentTerminal({ agent, ptyId, isActive, onStatusChange, onOpenFi
 
       try {
         const { cols, rows } = term
-        await window.marvin.pty.spawn({
+        await marvin.pty.spawn({
           id: ptyId,
           shell: agent.binaryPath,
           cwd: vaultPath,
@@ -169,10 +170,10 @@ export function AgentTerminal({ agent, ptyId, isActive, onStatusChange, onOpenFi
       }
 
       const onTermData = term.onData((data) => {
-        window.marvin.pty.write(ptyId, data)
+        marvin.pty.write(ptyId, data)
       })
       const onResize = term.onResize(({ cols, rows }) => {
-        window.marvin.pty.resize(ptyId, cols, rows)
+        marvin.pty.resize(ptyId, cols, rows)
       })
       disposers.push(
         () => onTermData.dispose(),
@@ -196,7 +197,7 @@ export function AgentTerminal({ agent, ptyId, isActive, onStatusChange, onOpenFi
       killed = true
       observer.disconnect()
       for (const dispose of disposers) dispose()
-      window.marvin.pty.kill(ptyId)
+      marvin.pty.kill(ptyId)
       term.dispose()
     }
   }, [vaultPath, agent.binaryPath, agent.name, agent.installInstructions, ptyId, restartTick])
@@ -257,7 +258,7 @@ export function AgentTerminal({ agent, ptyId, isActive, onStatusChange, onOpenFi
       // different cwd than the vault root, so the agent needs the full path
       // to actually find the file.
       const text = formatPathsForAgent(paths, agentKind, '') + ' '
-      void window.marvin.pty.write(ptyId, text)
+      void marvin.pty.write(ptyId, text)
       // Focus xterm so the user can keep typing immediately after the drop
       // without an extra click.
       termRef.current?.focus()

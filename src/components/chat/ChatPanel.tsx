@@ -6,6 +6,7 @@ import { MessageList } from './MessageList'
 import { Composer } from './Composer'
 import type { Provider, SessionId } from '../../lib/chat/types'
 import { useAppContext } from '../../context/AppContext'
+import { marvin } from '../../lib/marvinApi'
 
 export type TurnSummary = {
   turnId: string
@@ -45,19 +46,11 @@ export function ChatPanel({ sessionId, provider, onRewind, onTurnSummary }: Prop
   // emits the same event to every active onEvent subscriber.
   useEffect(() => {
     if (!onTurnSummary) return
-    const w = window as unknown as {
-      marvin?: {
-        agent?: {
-          onEvent?: (
-            sid: string,
-            cb: (ev: { type: string; turnId?: string; fileNames?: string[] }) => void
-          ) => () => void
-        }
-      }
-    }
-    const api = w.marvin?.agent
-    if (!api?.onEvent) return
-    const unsub = api.onEvent(sessionId, (ev) => {
+    // Existence check preserved (not just an onEvent presence check on the
+    // typed facade) so this stays a no-op against an older preload build,
+    // same as useChatSession's and useToolApproval's getAgentApi() guards.
+    if (!window.marvin?.agent?.onEvent) return
+    const unsub = marvin.agent.onEvent(sessionId, (ev) => {
       if (
         ev.type === 'turn-snapshot-summary' &&
         typeof ev.turnId === 'string' &&

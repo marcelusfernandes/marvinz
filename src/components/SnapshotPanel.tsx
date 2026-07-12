@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { SnapshotManifest } from '../types'
 import { DiffViewer } from './DiffViewer'
 import { formatAbsoluteTime, formatRelativeTime } from '../lib/relativeTime'
+import { marvin, friendlySnapshotError } from '../lib/marvinApi'
 
 type Props = {
   filePath: string
@@ -44,9 +45,9 @@ export function SnapshotPanel({
   const loadVersions = useCallback(async () => {
     setState({ kind: 'loading' })
     try {
-      const res = await window.marvin.snapshot.listForFile(relPath)
+      const res = await marvin.snapshot.listForFile(relPath)
       if (!res.ok) {
-        setState({ kind: 'error', message: friendlyError(res.error) })
+        setState({ kind: 'error', message: friendlySnapshotError(res.error) })
         return
       }
       const versions = res.data
@@ -75,12 +76,12 @@ export function SnapshotPanel({
     const turnId = selected.turnId
     ;(async () => {
       try {
-        const res = await window.marvin.snapshot.read(turnId, relPath)
+        const res = await marvin.snapshot.read(turnId, relPath)
         if (cancelled) return
         if (!res.ok) {
           setSelected((prev) =>
             prev && prev.turnId === turnId
-              ? { ...prev, loading: false, error: friendlyError(res.error) }
+              ? { ...prev, loading: false, error: friendlySnapshotError(res.error) }
               : prev
           )
           return
@@ -121,10 +122,10 @@ export function SnapshotPanel({
     if (!selected || selected.content === null || restoring) return
     setRestoring(true)
     try {
-      const res = await window.marvin.snapshot.restore(selected.turnId, relPath)
+      const res = await marvin.snapshot.restore(selected.turnId, relPath)
       setRestoring(false)
       if (!res.ok) {
-        onError(friendlyError(res.error))
+        onError(friendlySnapshotError(res.error))
         return
       }
       onRestored(filePath)
@@ -260,26 +261,4 @@ function labelForTrigger(trigger: SnapshotManifest['trigger']): string {
   if (trigger === 'restore') return 'restore'
   if (trigger === 'cascade') return 'link rewrite'
   return trigger
-}
-
-const ERROR_MESSAGES: Record<string, string> = {
-  SNAPSHOT_NO_VAULT: 'No folder is open.',
-  SNAPSHOT_INVALID_TURN_ID: 'Invalid version identifier.',
-  SNAPSHOT_INVALID_REL_PATH: 'Invalid file path.',
-  SNAPSHOT_INTERNAL_ERROR: 'Internal snapshot error. Please try again.',
-  SNAPSHOT_FS_ENOENT: 'File or version not found.',
-  SNAPSHOT_FS_EACCES: 'No permission to access the file.',
-  SNAPSHOT_FS_EPERM: 'Operation not permitted.',
-  SNAPSHOT_FS_EISDIR: 'Path points to a directory.',
-  MARVIN_INVALID_PATH: 'Invalid file path.',
-  MARVIN_INVALID_TURN_ID: 'Invalid version identifier.',
-}
-
-function friendlyError(code: string): string {
-  const mapped = ERROR_MESSAGES[code]
-  if (mapped) return mapped
-  if (code.startsWith('SNAPSHOT_FS_')) {
-    return `Disk error (${code.slice('SNAPSHOT_FS_'.length)}).`
-  }
-  return `Could not complete the operation. (${code})`
 }

@@ -2,6 +2,7 @@ import { memo, useEffect, useState } from 'react'
 import { DiffCard } from '../DiffCard'
 import type { ToolBodyProps } from './types'
 import { basename, readPath, readString } from './types'
+import { marvin } from '../../../lib/marvinApi'
 
 /**
  * Edit tool card (PRD §6.2, AC1). Compact by default: filename pill +
@@ -39,7 +40,7 @@ function EditCardImpl({
         if (cancelled) return
         const relPath = toRelPath(path, vaultRoot)
         if (!relPath) return
-        const res = await window.marvin.snapshot.read(snapshotTurnId, relPath)
+        const res = await marvin.snapshot.read(snapshotTurnId, relPath)
         if (cancelled) return
         if (res.ok) setSnapshotOldText(res.data)
       } catch {
