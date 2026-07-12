@@ -12,6 +12,10 @@ function getAgentApi() {
   return window.marvin?.agent ?? null
 }
 
+// How long to wait after a cancel request before force-clearing a turn whose
+// terminating event never arrived (C1-5).
+const CANCEL_FALLBACK_MS = 4000
+
 // ---------------------------------------------------------------------------
 // useChatSession
 // ---------------------------------------------------------------------------
@@ -116,7 +120,16 @@ export function useChatSession(sessionId: SessionId): UseChatSessionResult {
   const cancel = useCallback<UseChatSessionResult['cancel']>(async () => {
     const api = getAgentApi()
     if (!api?.request) return
+    // Optimistically enter the "Stopping…" state so the composer reflects the
+    // request immediately, and schedule a fallback that forces the turn idle if
+    // the terminating event is dropped by main (C1-5).
+    useChatStore.getState().setCancelling(sessionId, true)
     await api.request({ type: 'cancel', sessionId })
+    setTimeout(() => {
+      if (useChatStore.getState().sessions[sessionId]?.cancelling) {
+        useChatStore.getState().forceIdle(sessionId)
+      }
+    }, CANCEL_FALLBACK_MS)
   }, [sessionId])
 
   const retry = useCallback<UseChatSessionResult['retry']>(async () => {
@@ -130,6 +143,16 @@ export function useChatSession(sessionId: SessionId): UseChatSessionResult {
     store.clearError(sessionId)
     await dispatchTurn(sessionId, current, text)
   }, [sessionId])
+
+  // Auto-send the next queued message once the turn is idle (C1-3). Sending
+  // flips turnState back to 'streaming', so the guard prevents a double flush.
+  const turnState = session?.turnState
+  const nextQueued = session?.queue?.[0]
+  useEffect(() => {
+    if (turnState !== 'idle' || nextQueued === undefined) return
+    useChatStore.getState().dequeueMessage(sessionId)
+    void send(nextQueued)
+  }, [turnState, nextQueued, sessionId, send])
 
   return useMemo(() => ({ session, send, cancel, retry }), [session, send, cancel, retry])
 }

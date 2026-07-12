@@ -97,6 +97,17 @@ export type Session = {
    * (e.g. AGENT_NOT_AUTHENTICATED) so the banner can offer re-auth.
    */
   lastError?: { message: string; recoverable: boolean; code?: string }
+  /**
+   * Follow-up messages typed while a turn is in flight, sent in order once the
+   * current turn finishes (C1-3). FIFO.
+   */
+  queue?: string[]
+  /**
+   * True between requesting a cancel and the turn actually ending — drives the
+   * "Stopping…" affordance and a fallback that clears a hung turn if the
+   * terminating event is dropped (C1-5).
+   */
+  cancelling?: boolean
 }
 
 // Subset of AgentEvent shapes the renderer cares about. Mirrors

@@ -6074,6 +6074,12 @@ button.prop-bool {
   display: inline-flex;
 }
 
+.chat-composer-queued {
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
 .chat-composer-send {
   width: 28px;
   height: 28px;

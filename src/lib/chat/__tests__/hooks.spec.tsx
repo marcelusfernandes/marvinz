@@ -379,6 +379,54 @@ describe('useChatSession — retry', () => {
 })
 
 // ---------------------------------------------------------------------------
+// useChatSession — message queue (C1-3)
+// ---------------------------------------------------------------------------
+
+describe('useChatSession — message queue', () => {
+  it('auto-sends the queued message once the turn goes idle', async () => {
+    ipc.request.mockResolvedValue({ ok: true })
+    useChatStore.getState().startSession('s1', 'claude', '/vault')
+    const { result } = renderHook(() => useChatSession('s1'))
+    await act(async () => {
+      await result.current.send('first')
+    })
+    // User queues a follow-up while streaming.
+    act(() => {
+      useChatStore.getState().enqueueMessage('s1', 'second')
+    })
+    ipc.request.mockClear()
+    // The turn finishes.
+    await act(async () => {
+      ipc._emit('s1', {
+        type: 'turn-result',
+        sessionId: 's1',
+        usage: { inputTokens: 1, outputTokens: 1 },
+        costUSD: 0,
+        durationMs: 5,
+      })
+    })
+    expect(ipc.request).toHaveBeenCalledWith(expect.objectContaining({ content: 'second' }))
+    expect(useChatStore.getState().sessions['s1'].queue ?? []).toHaveLength(0)
+  })
+
+  it('does not flush the queue while the turn is still streaming', async () => {
+    ipc.request.mockResolvedValue({ ok: true })
+    useChatStore.getState().startSession('s1', 'claude', '/vault')
+    const { result } = renderHook(() => useChatSession('s1'))
+    await act(async () => {
+      await result.current.send('first')
+    })
+    ipc.request.mockClear()
+    act(() => {
+      useChatStore.getState().enqueueMessage('s1', 'second')
+    })
+    // Still streaming — nothing sent yet.
+    expect(ipc.request).not.toHaveBeenCalled()
+    expect(useChatStore.getState().sessions['s1'].queue).toEqual(['second'])
+  })
+})
+
+// ---------------------------------------------------------------------------
 // useChatSession — cancel
 // ---------------------------------------------------------------------------
 
@@ -405,6 +453,38 @@ describe('useChatSession — cancel', () => {
         await result.current.cancel()
       })
     ).resolves.not.toThrow()
+  })
+
+  it('optimistically enters the cancelling state (C1-5)', async () => {
+    useChatStore.getState().startSession('s1', 'claude', '/vault')
+    const { result } = renderHook(() => useChatSession('s1'))
+    await act(async () => {
+      await result.current.cancel()
+    })
+    expect(useChatStore.getState().sessions['s1'].cancelling).toBe(true)
+  })
+
+  it('forces the turn idle if the terminating event is dropped', async () => {
+    vi.useFakeTimers()
+    try {
+      useChatStore.getState().startSession('s1', 'claude', '/vault')
+      const { result } = renderHook(() => useChatSession('s1'))
+      await act(async () => {
+        await result.current.send('go')
+      })
+      await act(async () => {
+        await result.current.cancel()
+      })
+      expect(useChatStore.getState().sessions['s1'].cancelling).toBe(true)
+      // No message-end/cancelled arrives; the fallback clears the hung turn.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(4000)
+      })
+      expect(useChatStore.getState().sessions['s1'].cancelling).toBe(false)
+      expect(useChatStore.getState().sessions['s1'].turnState).toBe('idle')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
 
