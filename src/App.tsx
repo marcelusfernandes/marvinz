@@ -510,14 +510,17 @@ export default function App() {
       }
     })
     return off
-  }, [])
+  }, [bufferContentRef, lastDiskContentRef, setTabs])
 
-  const readFreshContent = useCallback(async (path: string): Promise<string> => {
-    const content = await window.marvin.file.read(path)
-    lastDiskContentRef.current.set(path, content)
-    bufferContentRef.current.set(path, content)
-    return content
-  }, [])
+  const readFreshContent = useCallback(
+    async (path: string): Promise<string> => {
+      const content = await window.marvin.file.read(path)
+      lastDiskContentRef.current.set(path, content)
+      bufferContentRef.current.set(path, content)
+      return content
+    },
+    [bufferContentRef, lastDiskContentRef]
+  )
 
   // Navigation reads disk (so lastDiskContentRef stays fresh for external-change
   // detection) but a pending unsaved buffer for the target wins the returned
@@ -533,7 +536,7 @@ export default function App() {
       bufferContentRef.current.set(path, buffered)
       return buffered
     },
-    [readFreshContent]
+    [readFreshContent, bufferContentRef, lastDiskContentRef]
   )
 
   const openSnapshotPanel = useCallback(
@@ -596,7 +599,7 @@ export default function App() {
         setError(err instanceof Error ? err.message : 'Failed to reload file')
       }
     },
-    [readFreshContent]
+    [readFreshContent, setTabs]
   )
 
   const paletteItemsBase = useMemo<PaletteItem[]>(
@@ -716,7 +719,7 @@ export default function App() {
         reportError(err)
       }
     },
-    [tabs, readFreshContent]
+    [tabs, readFreshContent, setActiveTabId, setTabs]
   )
 
   // Navigate within the active tab (used by link clicks in markdown preview).
@@ -793,19 +796,22 @@ export default function App() {
   // for any note tab (active or not — both refs are keyed by path, no mounted
   // editor required). Keeps lastDiskContentRef in sync so the path reads clean
   // afterwards. Returns false on write failure so callers can abort a close.
-  const saveBuffer = useCallback(async (path: string): Promise<boolean> => {
-    const buffer = bufferContentRef.current.get(path)
-    if (buffer == null) return true
-    try {
-      await window.marvin.file.write(path, buffer)
-      lastDiskContentRef.current.set(path, buffer)
-      return true
-    } catch (err) {
-      const detail = err instanceof Error ? err.message : String(err)
-      setError(`Failed to save ${basenameOf(path)}: ${detail}`)
-      return false
-    }
-  }, [])
+  const saveBuffer = useCallback(
+    async (path: string): Promise<boolean> => {
+      const buffer = bufferContentRef.current.get(path)
+      if (buffer == null) return true
+      try {
+        await window.marvin.file.write(path, buffer)
+        lastDiskContentRef.current.set(path, buffer)
+        return true
+      } catch (err) {
+        const detail = err instanceof Error ? err.message : String(err)
+        setError(`Failed to save ${basenameOf(path)}: ${detail}`)
+        return false
+      }
+    },
+    [bufferContentRef, lastDiskContentRef]
+  )
 
   // Removes the tab and its tracked buffer; no dirty checks. Callers gate the
   // entry (see closeTab) so this stays a pure removal step.
@@ -862,7 +868,7 @@ export default function App() {
         }
       })()
     },
-    [saveMode, performCloseTab, saveBuffer]
+    [saveMode, performCloseTab, saveBuffer, bufferContentRef, lastDiskContentRef, tabsRef]
   )
 
   // Latest-ref hub for handlers passed to FileTree. We capture volatile
@@ -999,35 +1005,38 @@ export default function App() {
     setActiveTabId(id)
     // Focus URL bar on open so the user can immediately type a different URL.
     setUrlBarFocusTick((t) => t + 1)
-  }, [])
+  }, [setActiveTabId, setTabs])
 
   const openEmptyTab = useCallback(() => {
     const id = newTabId()
     setTabs((prev) => [...prev, { type: 'empty', id, title: 'New tab' }])
     setActiveTabId(id)
-  }, [])
+  }, [setActiveTabId, setTabs])
 
-  const convertEmptyToBrowser = useCallback((emptyTabId: string) => {
-    const url = DEFAULT_BROWSER_URL
-    setTabs((prev) =>
-      prev.map((t) =>
-        isEmptyTab(t) && t.id === emptyTabId
-          ? {
-              type: 'browser',
-              id: t.id,
-              url,
-              draftUrl: url,
-              title: 'New tab',
-              canBack: false,
-              canForward: false,
-              loading: true,
-              ready: false,
-            }
-          : t
+  const convertEmptyToBrowser = useCallback(
+    (emptyTabId: string) => {
+      const url = DEFAULT_BROWSER_URL
+      setTabs((prev) =>
+        prev.map((t) =>
+          isEmptyTab(t) && t.id === emptyTabId
+            ? {
+                type: 'browser',
+                id: t.id,
+                url,
+                draftUrl: url,
+                title: 'New tab',
+                canBack: false,
+                canForward: false,
+                loading: true,
+                ready: false,
+              }
+            : t
+        )
       )
-    )
-    setUrlBarFocusTick((t) => t + 1)
-  }, [])
+      setUrlBarFocusTick((t) => t + 1)
+    },
+    [setTabs]
+  )
 
   const startNoteFromEmpty = useCallback(
     (emptyTabId: string) => {
@@ -1036,42 +1045,56 @@ export default function App() {
       setActiveTabId((id) => (id === emptyTabId ? null : id))
       setCreatingIn({ parentDir: vaultPath, kind: 'file' })
     },
-    [vaultPath]
+    [vaultPath, setActiveTabId, setTabs]
   )
 
-  const chooseFileFromEmpty = useCallback(async (emptyTabId: string) => {
-    const picked = await window.marvin.file.pick()
-    if (!picked) return
-    setTabs((prev) => prev.filter((t) => t.id !== emptyTabId))
-    setActiveTabId((id) => (id === emptyTabId ? null : id))
-    // If openInTab rejects, the empty tab is already gone; surface the
-    // error so the user isn't left staring at a blank pane silently.
-    void openInTabRef.current(picked).catch(console.error)
-  }, [])
+  const chooseFileFromEmpty = useCallback(
+    async (emptyTabId: string) => {
+      const picked = await window.marvin.file.pick()
+      if (!picked) return
+      setTabs((prev) => prev.filter((t) => t.id !== emptyTabId))
+      setActiveTabId((id) => (id === emptyTabId ? null : id))
+      // If openInTab rejects, the empty tab is already gone; surface the
+      // error so the user isn't left staring at a blank pane silently.
+      void openInTabRef.current(picked).catch(console.error)
+    },
+    [setActiveTabId, setTabs]
+  )
 
-  const handleBrowserDraftChange = useCallback((id: string, value: string) => {
-    setTabs((prev) =>
-      prev.map((t) => (isBrowserTab(t) && t.id === id ? { ...t, draftUrl: value } : t))
-    )
-  }, [])
-
-  const handleBrowserNavigate = useCallback(async (id: string, url: string) => {
-    const normalized = normalizeUrl(url)
-    setTabs((prev) =>
-      prev.map((t) =>
-        isBrowserTab(t) && t.id === id ? { ...t, draftUrl: normalized, loading: true } : t
+  const handleBrowserDraftChange = useCallback(
+    (id: string, value: string) => {
+      setTabs((prev) =>
+        prev.map((t) => (isBrowserTab(t) && t.id === id ? { ...t, draftUrl: value } : t))
       )
-    )
-    try {
-      await window.marvin.browser.navigate(id, normalized)
-    } catch {
-      // surfaced via load-error event
-    }
-  }, [])
+    },
+    [setTabs]
+  )
 
-  const handleBrowserReady = useCallback((id: string) => {
-    setTabs((prev) => prev.map((t) => (isBrowserTab(t) && t.id === id ? { ...t, ready: true } : t)))
-  }, [])
+  const handleBrowserNavigate = useCallback(
+    async (id: string, url: string) => {
+      const normalized = normalizeUrl(url)
+      setTabs((prev) =>
+        prev.map((t) =>
+          isBrowserTab(t) && t.id === id ? { ...t, draftUrl: normalized, loading: true } : t
+        )
+      )
+      try {
+        await window.marvin.browser.navigate(id, normalized)
+      } catch {
+        // surfaced via load-error event
+      }
+    },
+    [setTabs]
+  )
+
+  const handleBrowserReady = useCallback(
+    (id: string) => {
+      setTabs((prev) =>
+        prev.map((t) => (isBrowserTab(t) && t.id === id ? { ...t, ready: true } : t))
+      )
+    },
+    [setTabs]
+  )
 
   // Subscribe to browser events from the main process and reflect them on
   // the relevant tab's state.
@@ -1098,7 +1121,7 @@ export default function App() {
       )
     })
     return off
-  }, [])
+  }, [setTabs])
 
   // Tell main which browser is currently the active visible one (or null).
   // HtmlPreview also rides on the browser-view IPC, so when an HTML NoteTab
@@ -1303,38 +1326,49 @@ export default function App() {
 
   // Path-explicit so a hidden editor's debounced save writes to ITS OWN file,
   // not whatever tab is active (#440 — multiple editors are mounted at once).
-  const handleSave = useCallback(async (path: string, content: string) => {
-    try {
-      await window.marvin.file.write(path, content)
-      lastDiskContentRef.current.set(path, content)
-      bufferContentRef.current.set(path, content)
-      setTabs((prev) => prev.map((t) => (isNoteTab(t) && t.path === path ? { ...t, content } : t)))
-    } catch (err) {
-      const name = basenameOf(path)
-      const detail = err instanceof Error ? err.message : String(err)
-      setError(`Failed to save ${name}: ${detail}`)
-      throw err
-    }
-  }, [])
+  const handleSave = useCallback(
+    async (path: string, content: string) => {
+      try {
+        await window.marvin.file.write(path, content)
+        lastDiskContentRef.current.set(path, content)
+        bufferContentRef.current.set(path, content)
+        setTabs((prev) =>
+          prev.map((t) => (isNoteTab(t) && t.path === path ? { ...t, content } : t))
+        )
+      } catch (err) {
+        const name = basenameOf(path)
+        const detail = err instanceof Error ? err.message : String(err)
+        setError(`Failed to save ${name}: ${detail}`)
+        throw err
+      }
+    },
+    [bufferContentRef, lastDiskContentRef, setTabs]
+  )
 
-  const handleBufferChange = useCallback((path: string, content: string) => {
-    bufferContentRef.current.set(path, content)
-  }, [])
+  const handleBufferChange = useCallback(
+    (path: string, content: string) => {
+      bufferContentRef.current.set(path, content)
+    },
+    [bufferContentRef]
+  )
 
   // Passed to Editor and invoked in its mount initializer, so the ref read
   // happens at mount, never during App render.
   const getBufferSeed = useCallback(
     (path: string, fallback: string) => bufferContentRef.current.get(path) ?? fallback,
-    []
+    [bufferContentRef]
   )
 
-  const clearPendingExternalChange = useCallback((filePath: string) => {
-    setTabs((prev) =>
-      prev.map((t) =>
-        isNoteTab(t) && t.path === filePath ? { ...t, pendingExternalChange: undefined } : t
+  const clearPendingExternalChange = useCallback(
+    (filePath: string) => {
+      setTabs((prev) =>
+        prev.map((t) =>
+          isNoteTab(t) && t.path === filePath ? { ...t, pendingExternalChange: undefined } : t
+        )
       )
-    )
-  }, [])
+    },
+    [setTabs]
+  )
 
   // "Reload": snapshot the user's current buffer (so they can recover it) and
   // then swap the buffer to whatever's on disk now. If the buffer can't be
@@ -1378,7 +1412,7 @@ export default function App() {
         )
       )
     },
-    [vaultPath]
+    [vaultPath, bufferContentRef, lastDiskContentRef, setTabs]
   )
 
   // "Keep my version": dismiss the banner without touching the buffer. The
