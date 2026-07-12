@@ -133,6 +133,62 @@ describe('session live flag (C1-2)', () => {
   })
 })
 
+describe('error banner state (C1-4)', () => {
+  beforeEach(resetStore)
+
+  it('an error records lastError with message + code', () => {
+    getStore().startSession('s1', 'claude', '/vault')
+    dispatchStreamEvent({
+      type: 'error',
+      sessionId: 's1',
+      code: 'AGENT_NOT_AUTHENTICATED',
+      message: 'Not logged in',
+      recoverable: false,
+    })
+    expect(getSession('s1').lastError).toEqual({
+      message: 'Not logged in',
+      recoverable: false,
+      code: 'AGENT_NOT_AUTHENTICATED',
+    })
+    expect(getSession('s1').turnState).toBe('error')
+  })
+
+  it('a crash records a lastError with the exit code', () => {
+    getStore().startSession('s1', 'claude', '/vault')
+    dispatchStreamEvent({ type: 'crashed', sessionId: 's1', exitCode: 137, signal: null })
+    expect(getSession('s1').lastError?.message).toContain('137')
+    expect(getSession('s1').lastError?.recoverable).toBe(false)
+  })
+
+  it('starting a new turn clears the error banner', () => {
+    getStore().startSession('s1', 'claude', '/vault')
+    dispatchStreamEvent({
+      type: 'error',
+      sessionId: 's1',
+      code: 'AGENT_INTERNAL',
+      message: 'boom',
+      recoverable: false,
+    })
+    getStore().appendUserMessage('s1', 'try again')
+    expect(getSession('s1').lastError).toBeUndefined()
+    expect(getSession('s1').turnState).toBe('streaming')
+  })
+
+  it('clearError drops the banner and re-enters streaming from error', () => {
+    getStore().startSession('s1', 'claude', '/vault')
+    dispatchStreamEvent({
+      type: 'error',
+      sessionId: 's1',
+      code: 'AGENT_INTERNAL',
+      message: 'boom',
+      recoverable: false,
+    })
+    getStore().clearError('s1')
+    expect(getSession('s1').lastError).toBeUndefined()
+    expect(getSession('s1').turnState).toBe('streaming')
+  })
+})
+
 describe('startSession', () => {
   beforeEach(resetStore)
 

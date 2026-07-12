@@ -43,6 +43,8 @@ type ChatStore = {
   setPermissionMode: (sid: SessionId, mode: PermissionMode) => void
   /** Mark whether a live CLI child is running for this session (C1-2). */
   setSessionLive: (sid: SessionId, live: boolean) => void
+  /** Clear the error banner and, if errored, re-enter streaming (C1-4 retry). */
+  clearError: (sid: SessionId) => void
 }
 
 function emptySession(id: SessionId, agentId: Provider, vaultPath: string): Session {
@@ -157,6 +159,8 @@ export const useChatStore = create<ChatStore>((set) => ({
         },
         ordering: [...s.ordering, messageId],
         turnState: 'streaming',
+        // A new turn clears any prior error banner (C1-4).
+        lastError: undefined,
       }))
     )
     return messageId
@@ -232,6 +236,20 @@ export const useChatStore = create<ChatStore>((set) => ({
 
   setSessionLive: (sid, live) =>
     set((state) => withSession(state, sid, (s) => (s.live === live ? s : { ...s, live }))),
+
+  clearError: (sid) =>
+    set((state) =>
+      withSession(state, sid, (s) =>
+        s.lastError === undefined && s.turnState !== 'error'
+          ? s
+          : {
+              ...s,
+              lastError: undefined,
+              // A retry re-enters streaming; leave non-error states untouched.
+              turnState: s.turnState === 'error' ? 'streaming' : s.turnState,
+            }
+      )
+    ),
 }))
 
 // ---------- event reducer ----------
@@ -402,12 +420,28 @@ function applyEvent(s: Session, ev: ChatStreamEvent): Session {
 
     case 'crashed':
       // The child is gone — the next send must spawn a fresh session.
-      return { ...s, turnState: 'error', live: false }
+      return {
+        ...s,
+        turnState: 'error',
+        live: false,
+        lastError: {
+          message:
+            ev.exitCode != null
+              ? `The agent stopped unexpectedly (exit ${ev.exitCode}).`
+              : 'The agent stopped unexpectedly.',
+          recoverable: false,
+        },
+      }
 
     case 'error':
       // Unrecoverable errors kill the child; recoverable ones (e.g. a single
-      // malformed stream line) leave the session live.
-      return { ...s, turnState: 'error', live: ev.recoverable ? s.live : false }
+      // malformed stream line) leave the session live. Surface both as a banner.
+      return {
+        ...s,
+        turnState: 'error',
+        live: ev.recoverable ? s.live : false,
+        lastError: { message: ev.message, recoverable: ev.recoverable, code: ev.code },
+      }
   }
 }
 

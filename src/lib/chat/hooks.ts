@@ -25,6 +25,51 @@ export type UseChatSessionResult = {
   session: Session | undefined
   send: (text: string, opts?: SendOptions) => Promise<void>
   cancel: () => Promise<void>
+  /** Re-run the last user turn after an error, without duplicating the bubble (C1-4). */
+  retry: () => Promise<void>
+}
+
+/**
+ * Issue one turn to the agent: continue a live Claude session via `input`, or
+ * spawn a fresh `start` on the first turn / after the child died (resuming the
+ * prior cli session for context). Shared by send (which appends the user bubble
+ * first) and retry (which reuses the existing last user message). See C1-2.
+ */
+async function dispatchTurn(
+  sessionId: SessionId,
+  current: Session,
+  trimmed: string,
+  opts?: SendOptions
+): Promise<void> {
+  const api = getAgentApi()
+  if (!api?.request) return
+  const store = useChatStore.getState()
+
+  if (current.live && current.agentId !== 'codex') {
+    const res = await api.request({ type: 'input', sessionId, content: trimmed })
+    if (res && res.ok) return
+    store.setSessionLive(sessionId, false)
+  }
+
+  store.setSessionLive(sessionId, true)
+  const startRes = await api.request({
+    type: 'start',
+    sessionId,
+    provider: current.agentId,
+    prompt: trimmed,
+    vaultRoot: current.vaultPath,
+    permissionMode: opts?.permissionMode ?? current.permissionMode,
+    resumeFromSessionId: current.cliSessionId,
+  })
+  if (startRes && !startRes.ok) store.setSessionLive(sessionId, false)
+}
+
+function lastUserText(session: Session): string | undefined {
+  for (let i = session.ordering.length - 1; i >= 0; i--) {
+    const m = session.messages[session.ordering[i]]
+    if (m?.role === 'user') return m.text
+  }
+  return undefined
 }
 
 /**
@@ -62,35 +107,8 @@ export function useChatSession(sessionId: SessionId): UseChatSessionResult {
       const current = store.sessions[sessionId]
       if (!current) return
       store.appendUserMessage(sessionId, trimmed)
-      const api = getAgentApi()
-      if (!api?.request) return
-
-      // Continue a live Claude session with an incremental turn so context is
-      // preserved (C1-2). Codex is one-shot per turn, so it always spawns.
-      if (current.live && current.agentId !== 'codex') {
-        const res = await api.request({ type: 'input', sessionId, content: trimmed })
-        if (res && res.ok) return
-        // The child was gone (NO_LIVE_SESSION) — fall through to a fresh start,
-        // resuming the prior CLI session id to recover context where possible.
-        store.setSessionLive(sessionId, false)
-      }
-
-      // Optimistically mark live so a rapid second send (before session-init
-      // arrives) takes the input path instead of killing the just-spawned child.
-      store.setSessionLive(sessionId, true)
-      // PRD AC6: each turn uses the mode that was active at send time. The
-      // session.permissionMode is the source of truth; opts.permissionMode
-      // exists as an override for explicit per-call control.
-      const startRes = await api.request({
-        type: 'start',
-        sessionId,
-        provider: current.agentId,
-        prompt: trimmed,
-        vaultRoot: current.vaultPath,
-        permissionMode: opts?.permissionMode ?? current.permissionMode,
-        resumeFromSessionId: current.cliSessionId,
-      })
-      if (startRes && !startRes.ok) store.setSessionLive(sessionId, false)
+      // PRD AC6: each turn uses the mode that was active at send time.
+      await dispatchTurn(sessionId, current, trimmed, opts)
     },
     [sessionId]
   )
@@ -101,7 +119,19 @@ export function useChatSession(sessionId: SessionId): UseChatSessionResult {
     await api.request({ type: 'cancel', sessionId })
   }, [sessionId])
 
-  return useMemo(() => ({ session, send, cancel }), [session, send, cancel])
+  const retry = useCallback<UseChatSessionResult['retry']>(async () => {
+    const store = useChatStore.getState()
+    const current = store.sessions[sessionId]
+    if (!current) return
+    const text = lastUserText(current)
+    if (!text) return
+    // Clear the error banner and re-run the last turn without re-appending the
+    // user bubble (it is already in the transcript).
+    store.clearError(sessionId)
+    await dispatchTurn(sessionId, current, text)
+  }, [sessionId])
+
+  return useMemo(() => ({ session, send, cancel, retry }), [session, send, cancel, retry])
 }
 
 // ---------------------------------------------------------------------------

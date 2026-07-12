@@ -5044,6 +5044,71 @@ button.prop-bool {
   padding: var(--space-2) var(--space-3) var(--space-3);
 }
 
+/* Error banner (C1-4) ---------------------------------------------- */
+
+.chat-error-banner {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin: 0 var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  background: var(--bg-error-subtle);
+  border: 1px solid var(--border-error);
+  border-radius: var(--radius-md);
+  color: var(--text-error);
+}
+
+.chat-error-banner-body {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.chat-error-banner-icon {
+  flex: none;
+  line-height: var(--line-height-normal);
+}
+
+.chat-error-banner-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.chat-error-banner-message {
+  font-size: var(--font-size-md);
+  overflow-wrap: anywhere;
+}
+
+.chat-error-banner-hint {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+
+.chat-error-banner-retry {
+  flex: none;
+  padding: var(--space-1) var(--space-3);
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+}
+
+.chat-error-banner-retry:hover {
+  background: var(--bg-hover);
+}
+
+.chat-error-banner-retry:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+
 /* Header ----------------------------------------------------------- */
 
 .chat-header {

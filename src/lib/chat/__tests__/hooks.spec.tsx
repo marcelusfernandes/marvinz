@@ -335,6 +335,50 @@ describe('useChatSession — multi-turn continuity', () => {
 })
 
 // ---------------------------------------------------------------------------
+// useChatSession — retry (C1-4)
+// ---------------------------------------------------------------------------
+
+describe('useChatSession — retry', () => {
+  it('re-sends the last user turn without appending a new bubble', async () => {
+    ipc.request.mockResolvedValue({ ok: true })
+    useChatStore.getState().startSession('s1', 'claude', '/vault')
+    const { result } = renderHook(() => useChatSession('s1'))
+    await act(async () => {
+      await result.current.send('do the thing')
+    })
+    // Simulate a crash.
+    act(() => {
+      ipc._emit('s1', { type: 'crashed', sessionId: 's1', exitCode: 1, signal: null })
+    })
+    const bubblesBefore = Object.values(useChatStore.getState().sessions['s1'].messages).filter(
+      (m) => m.role === 'user'
+    ).length
+    ipc.request.mockClear()
+    await act(async () => {
+      await result.current.retry()
+    })
+    const bubblesAfter = Object.values(useChatStore.getState().sessions['s1'].messages).filter(
+      (m) => m.role === 'user'
+    ).length
+    expect(bubblesAfter).toBe(bubblesBefore) // no duplicate user bubble
+    expect(ipc.request).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'start', prompt: 'do the thing' })
+    )
+    expect(useChatStore.getState().sessions['s1'].lastError).toBeUndefined()
+  })
+
+  it('is a no-op when there is no prior user message', async () => {
+    ipc.request.mockResolvedValue({ ok: true })
+    useChatStore.getState().startSession('s1', 'claude', '/vault')
+    const { result } = renderHook(() => useChatSession('s1'))
+    await act(async () => {
+      await result.current.retry()
+    })
+    expect(ipc.request).not.toHaveBeenCalled()
+  })
+})
+
+// ---------------------------------------------------------------------------
 // useChatSession — cancel
 // ---------------------------------------------------------------------------
 
