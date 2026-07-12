@@ -13,7 +13,6 @@ import {
 import { useTabs } from './hooks/useTabs'
 import { AppProvider } from './context/AppContext'
 import { Editor, type EditorHandle } from './components/Editor'
-import { AgentsPane } from './components/AgentsPane'
 import type { AgentDef } from './components/AgentTerminal'
 import type { AgentKind } from './lib/agent-drop-format'
 import { BrowserPane } from './components/BrowserPane'
@@ -22,13 +21,11 @@ import { ImageViewer } from './components/ImageViewer'
 import { PdfViewer } from './components/PdfViewer'
 import { DocxViewer } from './components/DocxViewer'
 import { XlsxViewer } from './components/XlsxViewer'
-import { InputDialog } from './components/InputDialog'
 import { AppSidebar } from './components/AppSidebar'
+import { AppPanels } from './components/AppPanels'
 import { Icon } from './components/Icon'
 import { TabBar } from './components/TabBar'
 import { EmptyTab } from './components/EmptyTab'
-import { CommandPalette } from './components/CommandPalette'
-import { SettingsModal } from './components/SettingsModal'
 import { marvin } from './lib/marvinApi'
 import { seedFromMain, useSetting } from './lib/settingsStore'
 import { resolveAppFindShortcut } from './lib/appFindShortcut'
@@ -40,9 +37,7 @@ import { getActivePanelContext, resolveUndoTarget } from './lib/panelContext'
 import { useVisualStyle } from './lib/visualStyle'
 import { useThemeFlavor } from './lib/themeFlavor'
 import { TopBar } from './components/TopBar'
-import { SnapshotPanel } from './components/SnapshotPanel'
-import { SnapshotToast } from './components/SnapshotToast'
-import { ImportToast, type ImportToastState } from './components/ImportToast'
+import type { ImportToastState } from './components/ImportToast'
 import type { CreatingIn, ImportOutcome, SelectModifiers } from './components/FileTree'
 import { ExternalChangeBanner } from './components/ExternalChangeBanner'
 import type { PaletteItem } from './lib/paletteRanker'
@@ -1828,16 +1823,6 @@ export default function App() {
     )
   }
 
-  const dialogConfig = (() => {
-    if (!dialog) return null
-    return {
-      title: dialog.isDir ? 'Rename folder' : 'Rename file',
-      placeholder: '',
-      submit: 'Rename',
-      initial: dialog.target.split('/').pop() ?? '',
-    }
-  })()
-
   const sidebarIconButtons = visualStyle === 'modern' && (
     <>
       <button
@@ -2069,103 +2054,37 @@ export default function App() {
 
           <Splitter onDelta={handleAgentsDelta} ariaLabel="Resize agents pane" />
 
-          <aside className="claude-pane">
-            <AgentsPane
-              agents={agents}
-              newTabTick={newAgentTabTick}
-              onRewind={handleRewindToTurn}
-              onTurnSummary={(summary) =>
-                setTurnToast({ turnId: summary.turnId, files: summary.fileNames })
-              }
-              onOpenFile={handleOpenFileFromTerminal}
-              onFocusChange={setFocusedAgent}
-            />
-          </aside>
-
-          {dialog && dialogConfig && (
-            <InputDialog
-              title={dialogConfig.title}
-              placeholder={dialogConfig.placeholder}
-              initialValue={dialogConfig.initial}
-              submitLabel={dialogConfig.submit}
-              onSubmit={handleCreate}
-              onCancel={() => setDialog(null)}
-            />
-          )}
-
-          {error && (
-            <div className="error-toast" onClick={() => setError(null)}>
-              {error}
-            </div>
-          )}
-
-          {paletteOpen && (
-            <CommandPalette
-              items={paletteItemsBase}
-              onPick={handlePalettePick}
-              onClose={() => setPaletteOpen(false)}
-              vaultPath={vaultPath ?? ''}
-            />
-          )}
-
-          {settingsOpen && (
-            <SettingsModal
-              onClose={() => setSettingsOpen(false)}
-              layoutMode={layoutMode}
-              onLayoutChange={setLayoutMode}
-            />
-          )}
-
-          {snapshotPanel && (
-            <SnapshotPanel
-              filePath={snapshotPanel.filePath}
-              relPath={snapshotPanel.relPath}
-              currentContent={snapshotPanel.currentContent}
-              initialTurnId={snapshotPanel.initialTurnId}
-              onClose={() => setSnapshotPanel(null)}
-              onRestored={handleSnapshotRestored}
-              onError={setError}
-            />
-          )}
-
-          {turnToast && vaultPath && (
-            <SnapshotToast
-              files={turnToast.files}
-              onOpenVersions={() => {
-                const firstRel = turnToast.files[0]
-                if (!firstRel) return
-                const absPath = `${vaultPath}/${firstRel}`
-                void openSnapshotPanel(absPath, turnToast.turnId)
-                setTurnToast(null)
-              }}
-              onDismiss={() => setTurnToast(null)}
-            />
-          )}
-
-          {externalToast && vaultPath && (
-            <SnapshotToast
-              files={[
-                externalToast.filePath.startsWith(vaultPath + '/')
-                  ? externalToast.filePath.slice(vaultPath.length + 1)
-                  : externalToast.filePath,
-              ]}
-              agentLabel="External change"
-              verb="updated"
-              onOpenVersions={() => {
-                void openSnapshotPanel(externalToast.filePath)
-                setExternalToast(null)
-              }}
-              onDismiss={() => setExternalToast(null)}
-            />
-          )}
-
-          {importToast && (
-            <ImportToast
-              state={importToast.state}
-              message={importToast.message}
-              onDismiss={() => setImportToast(null)}
-            />
-          )}
+          <AppPanels
+            vaultPath={vaultPath}
+            agents={agents}
+            newAgentTabTick={newAgentTabTick}
+            onRewind={handleRewindToTurn}
+            onOpenFile={handleOpenFileFromTerminal}
+            onFocusChange={setFocusedAgent}
+            setTurnToast={setTurnToast}
+            dialog={dialog}
+            onCreate={handleCreate}
+            setDialog={setDialog}
+            error={error}
+            setError={setError}
+            paletteOpen={paletteOpen}
+            paletteItemsBase={paletteItemsBase}
+            onPalettePick={handlePalettePick}
+            setPaletteOpen={setPaletteOpen}
+            settingsOpen={settingsOpen}
+            layoutMode={layoutMode}
+            onLayoutChange={setLayoutMode}
+            setSettingsOpen={setSettingsOpen}
+            snapshotPanel={snapshotPanel}
+            setSnapshotPanel={setSnapshotPanel}
+            onSnapshotRestored={handleSnapshotRestored}
+            turnToast={turnToast}
+            openSnapshotPanel={openSnapshotPanel}
+            externalToast={externalToast}
+            setExternalToast={setExternalToast}
+            importToast={importToast}
+            setImportToast={setImportToast}
+          />
         </div>
       </div>
     </AppProvider>
