@@ -1,42 +1,25 @@
-import {
-  app,
-  BrowserWindow,
-  ipcMain,
-  dialog,
-  protocol,
-  shell,
-  Menu,
-  MenuItem,
-  clipboard,
-} from 'electron'
+import { app, BrowserWindow, protocol, shell, Menu } from 'electron'
 import path from 'node:path'
 import fs from 'node:fs/promises'
-import { existsSync } from 'node:fs'
 import { spawnSync, type SpawnSyncOptionsWithStringEncoding } from 'node:child_process'
-import chokidar, { type FSWatcher } from 'chokidar'
 import {
   writeSnapshot,
   newTurnId,
-  ensureVaultGitignore,
   completeTurn,
   listTurns,
   type SnapshotTrigger,
 } from './snapshot.js'
 import { assertInsideVaultAsync } from './vault-boundary.js'
-import { assertAllowedVault } from './vault-allowlist.js'
-import { isNoisy, relPathIsNoisy } from './noisyPaths.js'
 import { killAllAgents } from './agent/index.js'
-import { importExternal } from './fs-import-external.js'
 import { debounce } from './debounce.js'
 import { BoundedCache } from './bounded-cache.js'
-import { searchContent } from './search-content.js'
-import { resolveConflict } from './conflictResolver.js'
 import { registerPtyHandlers, killAllPty } from './ipc/pty.js'
-import { registerFsHandlers } from './ipc/fs-handlers.js'
+import { registerFsHandlers, getLinkRewriteQueue } from './ipc/fs-handlers.js'
 import { registerBrowserHandlers } from './ipc/browser.js'
 import { registerSnapshotHandlers } from './ipc/snapshot-handlers.js'
 import { registerAgentHandlers } from './ipc/agent.js'
-import type { MoveResult } from '../src/types.js'
+import { registerVaultHandlers, readSettings, closeVaultWatcher } from './ipc/vault-handlers.js'
+import { registerShellMenuHandlers } from './ipc/shell-menu-handlers.js'
 
 process.env.APP_ROOT = path.join(__dirname, '..')
 
@@ -87,7 +70,6 @@ let lastSpellcheck: { misspelledWord: string; suggestions: string[] } = {
   misspelledWord: '',
   suggestions: [],
 }
-let vaultWatcher: FSWatcher | null = null
 let activeVaultPath: string | null = null
 
 // Push a tree-refresh signal to the renderer. Mutation handlers call this
@@ -251,31 +233,6 @@ const { reapplyAllWithGeometry } = registerBrowserHandlers({
   getWin: () => win,
   sendToRenderer: safeBrowserSend,
 })
-
-const SETTINGS_FILE = () => path.join(app.getPath('userData'), 'settings.json')
-
-type Settings = {
-  vaultPath?: string
-  iconTheme?: 'codicon' | 'material'
-  colorTheme?: 'light' | 'dark' | 'system'
-  visualStyle?: 'modern' | 'legacy'
-  terminalModeEnabled?: boolean
-  saveMode?: 'auto' | 'manual'
-}
-
-async function readSettings(): Promise<Settings> {
-  try {
-    const raw = await fs.readFile(SETTINGS_FILE(), 'utf8')
-    return JSON.parse(raw)
-  } catch {
-    return {}
-  }
-}
-
-async function writeSettings(s: Settings): Promise<void> {
-  await fs.mkdir(path.dirname(SETTINGS_FILE()), { recursive: true })
-  await fs.writeFile(SETTINGS_FILE(), JSON.stringify(s, null, 2))
-}
 
 function createWindow() {
   win = new BrowserWindow({
@@ -577,14 +534,15 @@ app.whenReady().then(() => {
 const pendingTeardowns = new Set<Promise<unknown>>()
 function teardownChildren(): Promise<void> {
   killAllPty()
-  vaultWatcher?.close()
+  closeVaultWatcher()
   notifyTree.cancel()
   // Waits for any in-flight fire-and-forget link rewrite (#566) too — mitigates
-  // a graceful quit racing a queued rewrite. linkRewriteQueue never rejects
-  // (see enqueueLinkRewrite), so this can't turn a clean quit into a hang or
-  // an unhandled rejection. A hard crash/force-kill bypasses this entirely
-  // (no JS runs), which is the accepted, unmitigable trade-off.
-  const done = Promise.all([killAllAgents(), linkRewriteQueue]).then(() => {})
+  // a graceful quit racing a queued rewrite. getLinkRewriteQueue() never
+  // rejects (see electron/ipc/fs-handlers.ts's enqueueLinkRewrite), so this
+  // can't turn a clean quit into a hang or an unhandled rejection. A hard
+  // crash/force-kill bypasses this entirely (no JS runs), which is the
+  // accepted, unmitigable trade-off.
+  const done = Promise.all([killAllAgents(), getLinkRewriteQueue()]).then(() => {})
   pendingTeardowns.add(done)
   done.finally(() => pendingTeardowns.delete(done))
   return done
@@ -621,247 +579,13 @@ app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) createWindow()
 })
 
-ipcMain.handle('settings:get', () => readSettings())
-
-// Read-modify-write so callers can update one key (e.g. iconTheme) without
-// having to know — or clobber — unrelated keys like vaultPath. Resolved
-// settings are returned so the renderer can sync its local cache.
-ipcMain.handle('settings:set', async (_e, partial: Partial<Settings>) => {
-  const current = await readSettings()
-  const next: Settings = { ...current, ...partial }
-  await writeSettings(next)
-  return next
-})
-
-ipcMain.handle('shell:openExternal', async (_e, url: string) => {
-  if (!/^(https?|mailto):/i.test(url)) return
-  await shell.openExternal(url)
-})
-
-ipcMain.handle('file:pick', async () => {
-  if (!activeVaultPath) return null
-  const result = await dialog.showOpenDialog({
-    properties: ['openFile'],
-    defaultPath: activeVaultPath,
-    filters: [
-      { name: 'Markdown', extensions: ['md', 'markdown'] },
-      {
-        name: 'Code',
-        extensions: [
-          'ts',
-          'tsx',
-          'js',
-          'jsx',
-          'json',
-          'yaml',
-          'yml',
-          'toml',
-          'sh',
-          'py',
-          'rb',
-          'go',
-          'rs',
-          'css',
-          'html',
-        ],
-      },
-      { name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp'] },
-      { name: 'Documents', extensions: ['pdf', 'docx'] },
-      { name: 'All Files', extensions: ['*'] },
-    ],
-  })
-  if (result.canceled || result.filePaths.length === 0) return null
-  const chosen = result.filePaths[0]
-  // Compare realpath-to-realpath so macOS symlink prefixes (e.g. /tmp →
-  // /private/tmp) on either side don't reject otherwise-valid files inside
-  // the vault.
-  let resolvedChosen: string
-  let resolvedVault: string
-  try {
-    resolvedChosen = await fs.realpath(path.resolve(chosen))
-    resolvedVault = await fs.realpath(activeVaultPath)
-  } catch {
-    return null
-  }
-  if (!resolvedChosen.startsWith(resolvedVault + path.sep) && resolvedChosen !== resolvedVault) {
-    console.warn('[file:pick] path outside vault allowlist, rejecting:', resolvedChosen)
-    return null
-  }
-  return resolvedChosen
-})
-
-ipcMain.handle('vault:pick', async () => {
-  const result = await dialog.showOpenDialog({
-    properties: ['openDirectory', 'createDirectory'],
-    title: 'Select your folder',
-  })
-  if (result.canceled || result.filePaths.length === 0) return null
-  const vaultPath = result.filePaths[0]
-  let resolvedVault: string
-  try {
-    resolvedVault = await fs.realpath(path.resolve(vaultPath))
-  } catch {
-    // ENOENT/EACCES: skip — don't add a symlink or removed path to allowlist
-    return null
-  }
-  allowedVaultPaths.add(resolvedVault)
-  const settings = await readSettings()
-  await writeSettings({ ...settings, vaultPath })
-  return resolvedVault
-})
-
-type FileNode = {
-  name: string
-  path: string
-  isDir: boolean
-  children?: FileNode[]
-}
-
-async function readVaultTree(root: string, current = root): Promise<FileNode[]> {
-  const entries = await fs.readdir(current, { withFileTypes: true })
-  const nodes: FileNode[] = []
-  for (const entry of entries) {
-    if (isNoisy(entry.name, entry.isDirectory())) continue
-    const full = path.join(current, entry.name)
-    if (entry.isDirectory()) {
-      nodes.push({
-        name: entry.name,
-        path: full,
-        isDir: true,
-        children: await readVaultTree(root, full),
-      })
-    } else if (entry.isFile()) {
-      nodes.push({ name: entry.name, path: full, isDir: false })
-    }
-  }
-  nodes.sort((a, b) => {
-    if (a.isDir !== b.isDir) return a.isDir ? -1 : 1
-    return a.name.localeCompare(b.name)
-  })
-  return nodes
-}
-
-ipcMain.handle('vault:current', () => activeVaultPath)
-
-ipcMain.handle('vault:tree', async () => {
-  if (!activeVaultPath || !existsSync(activeVaultPath)) return []
-  return readVaultTree(activeVaultPath)
-})
-
-ipcMain.handle('vault:watch', async (_e, vaultPath: string) => {
-  if (!vaultPath) {
-    await resetVaultSessionState()
-    vaultWatcher?.close()
-    notifyTree.cancel()
-    activeVaultPath = null
-    return null
-  }
-  let resolvedVault: string
-  try {
-    resolvedVault = await fs.realpath(path.resolve(vaultPath))
-  } catch {
-    throw new Error('MARVIN_VAULT_NOT_ALLOWED')
-  }
-  assertAllowedVault(resolvedVault, allowedVaultPaths)
-  await resetVaultSessionState()
-  vaultWatcher?.close()
-  notifyTree.cancel()
-  activeVaultPath = resolvedVault
-  ensureVaultGitignore(resolvedVault).catch((err) =>
-    console.error('[snapshot] ensureVaultGitignore failed', err)
-  )
-  vaultWatcher = chokidar.watch(resolvedVault, {
-    // Test every vault-relative path segment, not just the basename: under the
-    // macOS fsevents backend the watcher receives deep paths, and a basename-only
-    // check let internal files leak (.marvin/.../_manifest.json,
-    // .obsidian/workspace.json) into snapshots and the turn's modified-files list.
-    ignored: (p) => relPathIsNoisy(path.relative(resolvedVault, p)),
-    ignoreInitial: true,
-    persistent: true,
-  })
-  const notifyFile = (filePath: string, source: 'agent' | 'external') =>
-    win?.webContents.send('file:changed', filePath, source)
-
-  // Snapshot before notifying the renderer of an external change.
-  // Uses the in-memory cache (last content served via file:read) as the
-  // "before" value, then does a single disk read to get the post-change
-  // content — reused both to decide whether to snapshot and to refresh the
-  // cache, so there's no second read and no torn-content window.
-  // - Cache miss (file never opened in the editor, e.g. Claude created and
-  //   wrote it entirely via PTY): the watcher fires after the write lands, so
-  //   a disk read here would already be post-change — treating it as "before"
-  //   would be misleading history. Skip the snapshot (no turn-toast evidence)
-  //   and just seed the cache for next time.
-  // - No content change (e.g. an editor re-save or mtime-only touch): skip
-  //   the snapshot so it doesn't surface as a false "Claude modified" toast.
-  const snapshotExternalChange = async (filePath: string): Promise<void> => {
-    await snapshotBeforeMutation(
-      filePath,
-      'watcher',
-      () =>
-        !!activeVaultPath &&
-        (filePath === activeVaultPath || filePath.startsWith(activeVaultPath + path.sep)),
-      async () => {
-        if (!activeVaultPath) return null // guarded by precondition above; narrows for TS
-        const relPath = path.relative(activeVaultPath, filePath)
-        const before = fileContentCache.get(filePath)
-
-        let after: string
-        try {
-          after = await fs.readFile(filePath, 'utf8')
-        } catch {
-          return null // file unreadable (deleted, permission) — skip
-        }
-
-        if (before == null) {
-          console.warn('[snapshot] watcher cache miss — skipping snapshot, seeding cache', {
-            relPath,
-          })
-          fileContentCache.set(filePath, after)
-          return null
-        }
-
-        if (before === after) {
-          fileContentCache.set(filePath, after)
-          return null
-        }
-
-        fileContentCache.set(filePath, after)
-        return before
-      }
-    )
-  }
-
-  vaultWatcher
-    .on('add', (p) => {
-      notifyTree()
-      notifyFile(p, Date.now() - lastPtyWriteAt < AI_TURN_WINDOW_MS ? 'agent' : 'external')
-    })
-    .on('change', (p) => {
-      const source: 'agent' | 'external' =
-        Date.now() - lastPtyWriteAt < AI_TURN_WINDOW_MS ? 'agent' : 'external'
-      snapshotExternalChange(p).catch((err) =>
-        console.error('[snapshot] snapshotExternalChange unhandled', err)
-      )
-      notifyFile(p, source)
-    })
-    .on('unlink', (p) => {
-      fileContentCache.delete(p)
-      notifyTree()
-    })
-    .on('addDir', notifyTree)
-    .on('unlinkDir', notifyTree)
-
-  return resolvedVault
-})
-
 // Re-throw fs errors as MARVIN_FS_<CODE> so raw host paths never reach the
 // renderer (e.g. "EACCES: ... '/Users/lipe/vault/foo.md'"). Our own MARVIN_*/
 // SNAPSHOT_* codes pass through untouched. Mirrors the snapshot err() envelope.
 //
 // Stays here (not moved into fs-handlers.ts with the handlers that use it)
-// because file:writeBinary, folder:create, and file:move-batch — all
-// out of scope for #574 — also call it; threaded into fs-handlers.ts via ctx.
+// because vault-handlers.ts's folder:create and shell-menu-handlers.ts's
+// shell:reveal also call it; threaded into each module via ctx.
 export function wrapFsError(e: unknown): never {
   const msg = e instanceof Error ? e.message : ''
   if (/^(MARVIN|SNAPSHOT)_[A-Z_]+/.test(msg)) throw e
@@ -874,401 +598,44 @@ registerFsHandlers({
   assertInVault,
   wrapFsError,
   snapshotBeforeMutation,
-  enqueueLinkRewrite,
   notifyTree,
   setFileCacheEntry: (key, value) => {
     fileContentCache.set(key, value)
   },
 })
 
-ipcMain.handle(
-  'file:writeBinary',
-  async (
-    _e,
-    payload: { vaultPath: string; relPath: string; base64Bytes: string; maxBytes?: number }
-  ) => {
-    try {
-      const { vaultPath, relPath, base64Bytes, maxBytes } = payload
-      const absolute = path.join(vaultPath, relPath)
-      const safe = await assertInVault(absolute)
-      const limit = maxBytes ?? 25 * 1024 * 1024
-      // Cheap raw-length gate BEFORE decoding: base64 packs 3 bytes per 4 chars, so a
-      // string longer than (limit * 4 / 3) + 4 always decodes past the cap. Rejecting
-      // here avoids allocating a huge Buffer in main-process RAM for a hostile renderer.
-      if (base64Bytes.length > Math.floor((limit * 4) / 3) + 4) {
-        throw new Error('MARVIN_TOO_LARGE: payload')
-      }
-      // Exact check on decoded length catches adversarial padding under the raw gate.
-      const decoded = Buffer.from(base64Bytes, 'base64')
-      if (decoded.length > limit) throw new Error(`MARVIN_TOO_LARGE: ${decoded.length}`)
-      await fs.mkdir(path.dirname(safe), { recursive: true })
-      await fs.writeFile(safe, decoded)
-      return path.relative(vaultPath, safe)
-    } catch (e) {
-      wrapFsError(e)
-    }
-  }
-)
-
-ipcMain.handle('folder:create', async (_e, parentDir: string, name: string) => {
-  try {
-    const full = path.join(parentDir, name)
-    const safe = await assertInVault(full)
-    if (existsSync(safe)) throw new Error('MARVIN_FS_EEXIST')
-    await fs.mkdir(safe, { recursive: false })
-    notifyTree()
-    return safe
-  } catch (e) {
-    wrapFsError(e)
-  }
+registerVaultHandlers({
+  getActiveVaultPath: () => activeVaultPath,
+  setActiveVaultPath: (path) => {
+    activeVaultPath = path
+  },
+  getAllowedVaultPaths: () => allowedVaultPaths,
+  assertInVault,
+  wrapFsError,
+  snapshotBeforeMutation,
+  resetVaultSessionState,
+  notifyTree,
+  cancelNotifyTree: () => notifyTree.cancel(),
+  getFileCacheEntry: (key) => fileContentCache.get(key),
+  setFileCacheEntry: (key, value) => {
+    fileContentCache.set(key, value)
+  },
+  deleteFileCacheEntry: (key) => {
+    fileContentCache.delete(key)
+  },
+  isAiTurnActive: () => Date.now() - lastPtyWriteAt < AI_TURN_WINDOW_MS,
+  getWin: () => win,
 })
 
-ipcMain.handle(
-  'file:move-batch',
-  async (_e, srcs: string[], destDir: string): Promise<MoveResult[]> => {
-    const safeDir = await assertInVault(destDir)
-    const results: MoveResult[] = []
-    const moved: { src: string; dest: string }[] = []
-    for (const src of srcs) {
-      try {
-        const safeSrc = await assertInVault(src)
-        const destPath = await resolveConflict(safeDir, path.basename(safeSrc), 'move')
-        await fs.mkdir(path.dirname(destPath), { recursive: true })
-        try {
-          await fs.rename(safeSrc, destPath)
-        } catch (err) {
-          // EXDEV: src and dest on different filesystems (e.g., USB vault → internal disk).
-          if ((err as NodeJS.ErrnoException).code !== 'EXDEV') throw err
-          await fs.cp(safeSrc, destPath, { recursive: true })
-          await fs.rm(safeSrc, { recursive: true, force: true })
-        }
-        moved.push({ src: safeSrc, dest: destPath })
-        results.push({ src, dest: destPath, ok: true })
-      } catch (err) {
-        results.push({ src, dest: '', ok: false, error: (err as Error).message })
-      }
-    }
-    // Single vault walk for all successful moves — avoids O(N×M) listAllMarkdown calls.
-    // Serialized via enqueueLinkRewrite so this can't race path:rename's own
-    // fire-and-forget rewrite over the same files (#566).
-    if (activeVaultPath && moved.length > 0) {
-      try {
-        await enqueueLinkRewrite(activeVaultPath, moved)
-      } catch (err) {
-        console.error('[rewriteLinksAfterMove] move-batch failed', err)
-      }
-    }
-    notifyTree()
-    return results
-  }
-)
-
-// Serializes rewriteLinksAfterMoveBatch across concurrent path:rename/
-// file:move-batch calls: two overlapping full-vault walks could otherwise
-// race on the same file's read-then-conditionally-write, and whichever write
-// lands second would silently clobber the other's rewrite. Chaining every
-// call onto this queue guarantees at most one rewrite pass runs at a time,
-// in call order (#566).
-//
-// The queue chain itself must never reject — swallowing the error there (not
-// on `run`) keeps a failed rewrite from poisoning every rewrite queued after
-// it, while each caller's own `run` promise still rejects independently, so
-// callers that await/.catch() it keep seeing their own errors.
-let linkRewriteQueue: Promise<void> = Promise.resolve()
-
-function enqueueLinkRewrite(
-  vaultRoot: string,
-  moves: { src: string; dest: string }[]
-): Promise<void> {
-  const run = linkRewriteQueue.then(() => rewriteLinksAfterMoveBatch(vaultRoot, moves))
-  linkRewriteQueue = run.catch(() => {})
-  return run
-}
-
-async function rewriteLinksAfterMoveBatch(
-  vaultRoot: string,
-  moves: { src: string; dest: string }[]
-): Promise<void> {
-  const files = await listAllMarkdown(vaultRoot)
-  const cascadeTurnId = newTurnId()
-  await Promise.all(
-    files.map(async (file) => {
-      try {
-        const original = await fs.readFile(file, 'utf8')
-        let content = original
-        for (const { src, dest } of moves) {
-          content = rewriteOneFile(file, vaultRoot, src, dest, content)
-          content = rewriteWikilinksOneFile(vaultRoot, src, dest, content)
-        }
-        if (content !== original) {
-          const relPath = path.relative(vaultRoot, file)
-          await writeSnapshot(vaultRoot, cascadeTurnId, relPath, original, 'cascade')
-          await fs.writeFile(file, content, 'utf8')
-        }
-      } catch (err) {
-        // Tolerate files that vanished mid-walk; surface anything else.
-        if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
-          console.error('[rewriteLinksAfterMoveBatch] skipping file', file, err)
-        }
-      }
-    })
-  )
-}
-
-async function listAllMarkdown(root: string, current = root): Promise<string[]> {
-  const out: string[] = []
-  let entries: import('node:fs').Dirent[]
-  try {
-    entries = await fs.readdir(current, { withFileTypes: true })
-  } catch {
-    return out
-  }
-  for (const entry of entries) {
-    if (isNoisy(entry.name, entry.isDirectory())) continue
-    const full = path.join(current, entry.name)
-    if (entry.isDirectory()) {
-      out.push(...(await listAllMarkdown(root, full)))
-    } else if (entry.isFile() && /\.(md|markdown)$/i.test(entry.name)) {
-      out.push(full)
-    }
-  }
-  return out
-}
-
-// Markdown link patterns we touch:
-//   [text](href)         standard link
-//   ![alt](href)         image
-//   [text](href "title") with title (preserved)
-//   [[Name]] / [[Name|Display]] / [[folder/Name]] / [[Name#section]] — wikilinks
-const MD_LINK_RE = /(!?)\[((?:\\.|[^\]\\])*)\]\(\s*([^\s)]+)(\s+"[^"]*")?\s*\)/g
-const WIKILINK_RE = /\[\[([^[\]\n|]+)(?:\|([^[\]\n]+))?\]\]/g
-
-function rewriteOneFile(
-  fileAbsPath: string,
-  vaultRoot: string,
-  oldPath: string,
-  newPath: string,
-  content: string
-): string {
-  // If THIS file IS the moved one (or lives inside a moved folder), its absolute
-  // location changed — but its outgoing links were authored relative to its OLD
-  // location. So compute "what did href point to before?" using oldDir; then
-  // rewrite the link relative to the file's NEW directory.
-  // remappedPath maps OLD → NEW; for the inverse (NEW current path → OLD origin)
-  // we swap the args.
-  const fileOldLocation = remappedPath(fileAbsPath, newPath, oldPath)
-  const oldFileDir = path.dirname(fileOldLocation ?? fileAbsPath)
-  const newFileDir = path.dirname(fileAbsPath)
-
-  return content.replace(MD_LINK_RE, (match, bang, label, href, title) => {
-    if (!href) return match
-    if (/^(https?|mailto|data):/i.test(href) || href.startsWith('#')) return match
-
-    const suffixIdx = href.search(/[?#]/)
-    const purePath = suffixIdx >= 0 ? href.slice(0, suffixIdx) : href
-    const suffix = suffixIdx >= 0 ? href.slice(suffixIdx) : ''
-    if (!purePath) return match
-
-    const decoded = safeDecode(purePath)
-    // `/`-prefix → vault-root-relative; else → file-relative.
-    const isVaultRootRel = decoded.startsWith('/')
-    const oldAbsTarget = isVaultRootRel
-      ? path.join(vaultRoot, decoded)
-      : path.resolve(oldFileDir, decoded)
-
-    // Where does this absolute path live AFTER the rename?
-    const newAbsTarget = remappedPath(oldAbsTarget, oldPath, newPath) ?? oldAbsTarget
-
-    // If this file didn't move AND the target didn't move, nothing to do.
-    if (!fileOldLocation && newAbsTarget === oldAbsTarget) return match
-
-    // Preserve the form: vault-root-relative stays vault-root-relative.
-    const newRel = isVaultRootRel
-      ? '/' + path.relative(vaultRoot, newAbsTarget)
-      : path.relative(newFileDir, newAbsTarget) || '.'
-    const newHref = encodePath(newRel) + suffix
-    if (newHref === purePath + suffix) return match
-
-    return `${bang}[${label}](${newHref}${title ?? ''})`
-  })
-}
-
-function safeDecode(s: string): string {
-  try {
-    return decodeURI(s)
-  } catch {
-    return s
-  }
-}
-
-function encodePath(s: string): string {
-  // Encode spaces and a few other chars markdown-safely; preserve / and .
-  return s
-    .split('/')
-    .map((seg) => encodeURIComponent(seg).replace(/%2F/g, '/'))
-    .join('/')
-}
-
-// If `target` equals `oldPath` or lives inside `oldPath` (treated as a directory),
-// returns the equivalent location after rename. Otherwise returns null.
-function remappedPath(target: string, oldPath: string, newPath: string): string | null {
-  if (target === oldPath) return newPath
-  if (target.startsWith(`${oldPath}/`)) return newPath + target.slice(oldPath.length)
-  return null
-}
-
-function stripMdExt(s: string): string {
-  return s.replace(/\.(md|markdown)$/i, '')
-}
-
-/**
- * Rewrite `[[wikilinks]]` so they keep resolving after a rename or move.
- *
- * - `[[Foo]]` / `[[Foo|Bar]]` / `[[Foo#sec]]` — rewritten only when a
- *   markdown file is renamed (folder renames don't change basenames).
- * - `[[folder/Foo]]` — rewritten when the resolved path either matches
- *   the renamed file or lives inside a renamed folder.
- */
-function rewriteWikilinksOneFile(
-  vaultRoot: string,
-  oldPath: string,
-  newPath: string,
-  content: string
-): string {
-  const oldIsMd = /\.(md|markdown)$/i.test(oldPath)
-  const oldBase = oldIsMd ? stripMdExt(path.basename(oldPath)) : ''
-  const newBase = oldIsMd ? stripMdExt(path.basename(newPath)) : ''
-
-  return content.replace(WIKILINK_RE, (match, rawName, rawDisplay) => {
-    const name = String(rawName)
-    const hashIdx = name.indexOf('#')
-    const target = hashIdx >= 0 ? name.slice(0, hashIdx) : name
-    const fragment = hashIdx >= 0 ? name.slice(hashIdx) : ''
-    const displaySuffix = rawDisplay ? `|${rawDisplay}` : ''
-
-    if (target.includes('/')) {
-      const withExt = /\.(md|markdown)$/i.test(target) ? target : `${target}.md`
-      const abs = path.join(vaultRoot, withExt)
-      const remapped = remappedPath(abs, oldPath, newPath)
-      if (!remapped) return match
-      const newRel = path.relative(vaultRoot, remapped)
-      return `[[${stripMdExt(newRel)}${fragment}${displaySuffix}]]`
-    }
-
-    if (!oldIsMd) return match
-    if (stripMdExt(target) !== oldBase) return match
-    return `[[${newBase}${fragment}${displaySuffix}]]`
-  })
-}
-
-ipcMain.handle('fs:importExternal', async (_e, sources: string[], destDir: string) => {
-  if (!activeVaultPath) throw new Error('MARVIN_OUTSIDE_VAULT')
-  const result = await importExternal(activeVaultPath, sources, destDir)
-  notifyTree()
-  return result
+registerShellMenuHandlers({
+  assertInVault,
+  setMenuNoteContext: (hasNoteTab) => {
+    if (hasNoteTab === menuHasNoteTab) return
+    menuHasNoteTab = hasNoteTab
+    buildAppMenu()
+  },
+  getSpellcheckContext: () => lastSpellcheck,
 })
-
-ipcMain.handle('search:content', async (_e, query: string) => {
-  if (!activeVaultPath) return []
-  return searchContent(activeVaultPath, query)
-})
-
-ipcMain.handle('shell:reveal', async (_e, target: string) => {
-  const safe = await assertInVault(target)
-  shell.showItemInFolder(safe)
-})
-
-type MenuItemSpec =
-  | { kind: 'item'; id: string; label: string; accelerator?: string; enabled?: boolean }
-  | { kind: 'separator' }
-
-function showContextMenu(
-  e: Electron.IpcMainInvokeEvent,
-  items: MenuItemSpec[]
-): Promise<string | null> {
-  return new Promise<string | null>((resolve) => {
-    let chosen: string | null = null
-    const menu = new Menu()
-    for (const spec of items) {
-      if (spec.kind === 'separator') {
-        menu.append(new MenuItem({ type: 'separator' }))
-      } else {
-        menu.append(
-          new MenuItem({
-            label: spec.label,
-            accelerator: spec.accelerator,
-            enabled: spec.enabled ?? true,
-            click: () => {
-              chosen = spec.id
-            },
-          })
-        )
-      }
-    }
-    const win = BrowserWindow.fromWebContents(e.sender)
-    menu.popup({ window: win ?? undefined, callback: () => resolve(chosen) })
-  })
-}
-
-ipcMain.handle('app:show-context-menu', (e, items: MenuItemSpec[]): Promise<string | null> => {
-  return showContextMenu(e, items)
-})
-
-ipcMain.handle('app:can-paste', (): boolean =>
-  clipboard.availableFormats().some((f) => f.startsWith('text/') || f === 'text')
-)
-
-// Native "unsaved changes" confirmation. Window-modal sheet on macOS so it
-// reads as a system prompt rather than an in-app modal.
-ipcMain.handle(
-  'app:confirm-unsaved',
-  async (e, fileName: string): Promise<'save' | 'discard' | 'cancel'> => {
-    const w = BrowserWindow.fromWebContents(e.sender)
-    const opts: Electron.MessageBoxOptions = {
-      type: 'warning',
-      message: `Do you want to save the changes you made to “${fileName}”?`,
-      detail: "Your changes will be lost if you don't save them.",
-      buttons: ['Save', "Don't Save", 'Cancel'],
-      defaultId: 0,
-      cancelId: 2,
-    }
-    // w is null only when the sender has no host window (effectively never
-    // from the renderer); the modeless fallback is intentional, not a bug.
-    const { response } = w
-      ? await dialog.showMessageBox(w, opts)
-      : await dialog.showMessageBox(opts)
-    return response === 0 ? 'save' : response === 1 ? 'discard' : 'cancel'
-  }
-)
-
-// Renderer reports whether a note tab is active so the app menu can disable
-// the note-only items (Export PDF, Reveal in Finder). Rebuilds the menu.
-ipcMain.on('app:menu-note-context', (_e, hasNoteTab: boolean) => {
-  if (typeof hasNoteTab !== 'boolean' || hasNoteTab === menuHasNoteTab) return
-  menuHasNoteTab = hasNoteTab
-  buildAppMenu()
-})
-
-ipcMain.handle('editor:clipboard-read', (): string => {
-  return clipboard.readText()
-})
-
-ipcMain.handle('editor:clipboard-write', (_e, text: string): void => {
-  clipboard.writeText(text)
-})
-
-ipcMain.handle(
-  'editor:clipboard-write-rich',
-  (_e, payload: { html: string; text: string }): void => {
-    clipboard.write({ html: payload.html, text: payload.text })
-  }
-)
-
-ipcMain.handle('editor:clipboard-read-rich', (): { html: string; text: string } => {
-  return { html: clipboard.readHTML(), text: clipboard.readText() }
-})
-
-ipcMain.handle('editor:spellcheck-context', () => lastSpellcheck)
 
 registerPtyHandlers({
   getActiveVaultPath: () => activeVaultPath,

@@ -109,17 +109,16 @@ export default defineConfig([
       'max-lines': 'off',
     },
   },
-  // electron/main.ts (#573/#580): reduced from 2116 to 1312 raw lines (1003
-  // counted by this rule's skipBlankLines/skipComments) by extracting
-  // pty/fs/browser/snapshot/agent IPC handlers into electron/ipc/*. Remaining
-  // surface (vault/settings/misc handlers, window lifecycle, app bootstrap)
-  // is still above the 500-line default, so a numeric cap (measured count +
-  // small headroom) replaces the blanket grandfather 'off' — tight enough to
-  // catch further growth, unlike an unconditional 'off'.
+  // electron/main.ts (#573/#580/#613): reduced from 2116 to 679 raw lines (501
+  // counted by this rule's skipBlankLines/skipComments) after extracting
+  // every ipcMain.handle/on call into electron/ipc/*. 1 line over the 500
+  // default (prettier wraps one import list across multiple lines) — a small
+  // numeric cap replaces the #580 grandfather entry rather than force an
+  // unrelated code change just to dodge the threshold.
   {
     files: ['electron/main.ts'],
     rules: {
-      'max-lines': ['error', { max: 1050, skipBlankLines: true, skipComments: true }],
+      'max-lines': ['error', { max: 520, skipBlankLines: true, skipComments: true }],
     },
   },
 ])
