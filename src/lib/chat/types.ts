@@ -91,6 +91,12 @@ export type Session = {
    * spawns a fresh one (`start`). See C1-2.
    */
   live?: boolean
+  /**
+   * The most recent error/crash, surfaced as a recoverable banner in ChatPanel
+   * (C1-4). Cleared when a new turn starts. `code` is the AgentEvent error code
+   * (e.g. AGENT_NOT_AUTHENTICATED) so the banner can offer re-auth.
+   */
+  lastError?: { message: string; recoverable: boolean; code?: string }
 }
 
 // Subset of AgentEvent shapes the renderer cares about. Mirrors

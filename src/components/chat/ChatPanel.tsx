@@ -4,6 +4,7 @@ import { useChatSession } from '../../lib/chat/hooks'
 import { ChatHeader } from './ChatHeader'
 import { MessageList } from './MessageList'
 import { Composer } from './Composer'
+import { ChatErrorBanner } from './ChatErrorBanner'
 import type { Provider, SessionId } from '../../lib/chat/types'
 import { useAppContext } from '../../context/AppContext'
 import { marvin } from '../../lib/marvinApi'
@@ -69,11 +70,12 @@ export function ChatPanel({ sessionId, provider, onRewind, onTurnSummary }: Prop
     }
   }, [sessionId, onTurnSummary])
 
-  const { session, send, cancel } = useChatSession(sessionId)
+  const { session, send, cancel, retry } = useChatSession(sessionId)
 
   if (!session) return null
 
   const isStreaming = session.turnState === 'streaming'
+  const error = session.turnState === 'error' ? session.lastError : undefined
 
   return (
     <div className="chat-panel">
@@ -81,6 +83,9 @@ export function ChatPanel({ sessionId, provider, onRewind, onTurnSummary }: Prop
       <div className="chat-panel-body">
         <MessageList sessionId={sessionId} onRewind={onRewind} />
       </div>
+      {error && (
+        <ChatErrorBanner message={error.message} code={error.code} onRetry={() => void retry()} />
+      )}
       <div className="chat-panel-composer">
         <Composer sessionId={sessionId} onSend={send} onCancel={cancel} isStreaming={isStreaming} />
       </div>
