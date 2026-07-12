@@ -44,6 +44,7 @@ import type { AgentRequest, AgentEvent } from './agent/protocol.js'
 import { importExternal } from './fs-import-external.js'
 import { assertRenameTargetAvailable } from './fs-rename-guard.js'
 import { debounce } from './debounce.js'
+import { BoundedCache } from './bounded-cache.js'
 import { searchContent } from './search-content.js'
 import { killProcessTree } from './proc-group.js'
 import { resolveConflict } from './conflictResolver.js'
@@ -155,13 +156,45 @@ function scheduleTurnEnd(vaultRoot: string, turnId: string) {
   }, TURN_END_MS)
 }
 
+// Called from vault:watch before adopting a new vault (or closing the current
+// one), while `activeVaultPath` still holds the OLD vault root. Without this,
+// an in-flight turn started in the old vault survives the switch: its
+// turnId gets reused for the new vault's snapshots (writing fragments under a
+// manifest that lives in the old vault's .marvin folder, or under no manifest
+// at all), and the old vault's turn is abandoned without ever being finalized
+// (#568).
+async function resetVaultSessionState(): Promise<void> {
+  if (turnEndTimer) {
+    clearTimeout(turnEndTimer)
+    turnEndTimer = null
+  }
+  const turnId = activeTurnId
+  const vaultRoot = activeVaultPath
+  activeTurnId = null
+  lastPtyWriteAt = 0
+  fileContentCache.clear()
+  if (turnId && vaultRoot) {
+    try {
+      await finalizeTurn(vaultRoot, turnId)
+    } catch (err) {
+      console.error('[snapshot] finalizeTurn on vault switch failed', { vaultRoot, turnId, err })
+    }
+  }
+}
+
 // Last-read cache — populated by file:read, used by the watcher to obtain the
 // "before" content when an external change is detected.
 // Limitation: if the watcher fires for a file that was never read through the
 // app (e.g. edited externally before any app open), the cache misses and no
 // snapshot is taken. This is a known best-effort race between disk change
 // detection and in-process state.
-const fileContentCache = new Map<string, string>()
+//
+// Bounded (LRU) so a long session touching many files doesn't retain
+// unbounded memory: each entry holds up to FILE_SIZE_LIMIT (5 MB) of text, so
+// this cap is a soft heuristic on working-set size, not a strict byte-total
+// guarantee (#568).
+export const FILE_CONTENT_CACHE_MAX_ENTRIES = 100
+const fileContentCache = new BoundedCache<string, string>(FILE_CONTENT_CACHE_MAX_ENTRIES)
 
 // Geometry descriptor: insets from each contentView edge to the browser-host
 // element. Registered by the renderer once and reused by main on every resize.
@@ -721,6 +754,7 @@ ipcMain.handle('vault:tree', async () => {
 
 ipcMain.handle('vault:watch', async (_e, vaultPath: string) => {
   if (!vaultPath) {
+    await resetVaultSessionState()
     vaultWatcher?.close()
     notifyTree.cancel()
     activeVaultPath = null
@@ -733,6 +767,7 @@ ipcMain.handle('vault:watch', async (_e, vaultPath: string) => {
     throw new Error('MARVIN_VAULT_NOT_ALLOWED')
   }
   assertAllowedVault(resolvedVault, allowedVaultPaths)
+  await resetVaultSessionState()
   vaultWatcher?.close()
   notifyTree.cancel()
   activeVaultPath = resolvedVault
