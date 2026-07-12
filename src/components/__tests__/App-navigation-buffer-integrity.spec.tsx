@@ -107,6 +107,10 @@ vi.mock('../../lib/paletteRanker', () => ({}))
 
 function noop() {}
 
+// Mutable so Scenario 4 can change B's disk content mid-test to simulate an
+// external edit. Reset to the baseline in beforeEach.
+let noteBDiskContent = 'content B'
+
 function setupMarvin() {
   Object.assign(window, {
     marvin: {
@@ -127,9 +131,12 @@ function setupMarvin() {
       },
       file: {
         pick: vi.fn().mockResolvedValue(null),
-        // Distinct, stable content per path — never changed by these tests,
-        // so any divergence from an edited buffer is always visible.
-        read: vi.fn(async (path: string) => (path.includes('note-a') ? 'content A' : 'content B')),
+        // A's content is fixed. B's is mutable (see `noteBDiskContent`) so
+        // Scenario 4 can simulate an external disk change to a file whose
+        // buffer was never edited.
+        read: vi.fn(async (path: string) =>
+          path.includes('note-a') ? 'content A' : noteBDiskContent
+        ),
         write: vi.fn().mockResolvedValue(undefined),
         create: vi.fn().mockResolvedValue('/vault/new.md'),
         writeBinary: vi.fn().mockResolvedValue(''),
@@ -232,9 +239,17 @@ async function goBack() {
   })
 }
 
+async function goForward() {
+  const onForward = lastEditorProps.current?.onForward as (() => Promise<void>) | undefined
+  await act(async () => {
+    await onForward?.()
+  })
+}
+
 beforeEach(() => {
   setupMarvin()
   lastEditorProps.current = null
+  noteBDiskContent = 'content B'
 })
 
 afterEach(() => {
@@ -285,5 +300,37 @@ describe('Scenario 2 — goBack to a file with an unsaved edited buffer shows th
 
     expect(lastEditorProps.current?.filePath).toBe('/vault/note-a.md')
     expect(lastEditorProps.current?.initialContent).toBe('edited content for A')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Scenario 4 (team-lead follow-up) — a file with NO pending edit still seeds
+// from a fresh disk read, even if that fresh read diverges from the last
+// cached buffer. Discriminates the correct "diverged from last known disk"
+// dirty check from a naive "diverged from this fresh read" one: a clean,
+// never-edited buffer must never mask a real external disk change.
+// ---------------------------------------------------------------------------
+
+describe('Scenario 4 — a clean (never-edited) buffer never masks a fresh external disk change (#560)', () => {
+  it('going back to a file that was never edited shows the new disk content, not the stale cached buffer', async () => {
+    await renderBootstrapped()
+    await openNote('open-note-a')
+
+    // Navigate to B without ever editing it — its buffer is "clean" (equal
+    // to the disk content it was seeded from).
+    await navigateOrOpenReplaceCurrent('/vault/note-b.md')
+    expect(lastEditorProps.current?.initialContent).toBe('content B')
+
+    // Go back to A, then simulate B's file changing on disk while it's not
+    // displayed (e.g. an external process/agent edit).
+    await goBack()
+    noteBDiskContent = 'content B (changed on disk while away)'
+
+    // Forward to B again: B's buffer was never edited, so the fresh disk
+    // content must win — it must NOT show the stale pre-change buffer.
+    await goForward()
+
+    expect(lastEditorProps.current?.filePath).toBe('/vault/note-b.md')
+    expect(lastEditorProps.current?.initialContent).toBe('content B (changed on disk while away)')
   })
 })
