@@ -101,6 +101,12 @@ vi.mock('../Icon', () => ({ Icon: () => null }))
 vi.mock('../LiveMarkdown', () => ({
   LiveMarkdown: () => <div data-testid="live-markdown" />,
 }))
+// Editor.tsx lazy-loads Milkdown/ProseMirror via this wrapper's default
+// export (#583) instead of importing LiveMarkdown directly — mock it too so
+// the Suspense boundary resolves to the same interception marker.
+vi.mock('../LiveMarkdownLazy', () => ({
+  default: () => <div data-testid="live-markdown" />,
+}))
 vi.mock('../FindReplaceOverlay', () => ({ FindReplaceOverlay: () => null }))
 vi.mock('../CodeMirrorFindBar', () => ({ CodeMirrorFindBar: () => null }))
 vi.mock('../../lib/visualStyle', () => ({ useVisualStyle: () => 'modern' }))
@@ -392,7 +398,7 @@ describe('isDirty transitions', () => {
 // ---------------------------------------------------------------------------
 
 describe('LiveMarkdown mock interception', () => {
-  it('renders the mocked LiveMarkdown for a markdown file, not the real Milkdown component (#533)', () => {
+  it('renders the mocked LiveMarkdown for a markdown file, not the real Milkdown component (#533)', async () => {
     // .md filePath puts the Editor in Page mode by default, mounting
     // LiveMarkdown. Only the mock renders this marker: if the vi.mock path
     // regresses, the real component mounts and this fails loudly.
@@ -400,6 +406,12 @@ describe('LiveMarkdown mock interception', () => {
     act(() => {
       result = render(<Editor {...baseProps({ filePath: '/vault/note.md' })} />)
     })
+    // Editor.tsx now lazy-loads this behind a Suspense boundary (#583), so
+    // even a mocked module resolves on a microtask, not synchronously within
+    // the render() above — flush it. Not findByTestId: its setTimeout-based
+    // polling would hang under this file's vi.useFakeTimers() (beforeEach),
+    // but the underlying lazy() promise resolves via microtask, unaffected.
+    await act(async () => {})
     expect(result.getByTestId('live-markdown')).toBeInTheDocument()
   })
 })
