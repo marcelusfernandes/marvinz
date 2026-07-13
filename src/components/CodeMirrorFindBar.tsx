@@ -9,8 +9,7 @@ import {
   replaceNext,
   setSearchQuery,
 } from '@codemirror/search'
-import { Icon } from './Icon'
-import { readReplaceExpanded, writeReplaceExpanded } from '../lib/findBarPrefs'
+import { FindBarShell } from './FindBarShell'
 import { clearReplacedFlashes, flashReplaced } from '../lib/cmJustReplacedHighlight'
 
 /** Anchors the current main selection in view with 80px of breathing room
@@ -93,11 +92,6 @@ type Props = {
 export function CodeMirrorFindBar({ view, onClose, initialReplaceExpanded, onReplaced }: Props) {
   const [query, setQuery] = useState('')
   const [replace, setReplace] = useState('')
-  // Replace row visibility. Initial value: the prop (when Cmd+Alt+F forced
-  // it open) or the persisted preference, falling back to collapsed.
-  const [replaceExpanded, setReplaceExpanded] = useState<boolean>(
-    () => initialReplaceExpanded ?? readReplaceExpanded()
-  )
   // Bumped after every navigation command so the match-count readout
   // recomputes once the new selection has been applied.
   const [navTick, setNavTick] = useState(0)
@@ -105,20 +99,6 @@ export function CodeMirrorFindBar({ view, onClose, initialReplaceExpanded, onRep
     total: 0,
     current: null,
   })
-  const findInputRef = useRef<HTMLInputElement>(null)
-
-  useEffect(() => {
-    findInputRef.current?.focus()
-    findInputRef.current?.select()
-  }, [])
-
-  const toggleReplace = () => {
-    setReplaceExpanded((prev) => {
-      const next = !prev
-      writeReplaceExpanded(next)
-      return next
-    })
-  }
 
   // Push the typed query/replace into the @codemirror/search state. The
   // auto-navigation to the first match only fires when the QUERY changes —
@@ -220,121 +200,21 @@ export function CodeMirrorFindBar({ view, onClose, initialReplaceExpanded, onRep
     setNavTick((n) => n + 1)
   }
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-    if (e.key === 'Escape') {
-      e.preventDefault()
-      onClose()
-      view.focus()
-      return
-    }
-    if (e.key === 'Enter') {
-      e.preventDefault()
-      if (e.shiftKey) runFindPrev()
-      else runFindNext()
-    }
-  }
-
   return (
-    <div className="md-find" role="search" data-testid="cm-search-panel" onKeyDown={handleKeyDown}>
-      <div className="md-find-row">
-        <button
-          type="button"
-          className={`icon-btn md-find-toggle${replaceExpanded ? ' md-find-toggle--active' : ''}`}
-          onClick={toggleReplace}
-          title={replaceExpanded ? 'Hide replace' : 'Show replace'}
-          aria-label={replaceExpanded ? 'Hide replace row' : 'Show replace row'}
-          aria-expanded={replaceExpanded}
-          data-testid="cm-replace-toggle"
-        >
-          <Icon name="replace" size={16} />
-        </button>
-        <input
-          ref={findInputRef}
-          type="text"
-          className="md-find-input"
-          placeholder="Find"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          aria-label="Find"
-          data-testid="cm-search-input"
-        />
-        <span
-          className={`md-find-count${
-            !query || matchInfo.total === 0 ? ' md-find-count--empty' : ''
-          }`}
-          aria-live="polite"
-          data-testid="cm-search-count"
-        >
-          {!query || matchInfo.total === 0
-            ? 'No results'
-            : matchInfo.current !== null
-              ? `${matchInfo.current} of ${matchInfo.total}`
-              : `${matchInfo.total} ${matchInfo.total === 1 ? 'match' : 'matches'}`}
-        </span>
-        <button
-          type="button"
-          className="icon-btn"
-          onClick={runFindPrev}
-          title="Previous match (Shift+Enter)"
-          aria-label="Previous match"
-          data-testid="cm-search-prev"
-        >
-          <Icon name="chevron-up" size={16} />
-        </button>
-        <button
-          type="button"
-          className="icon-btn"
-          onClick={runFindNext}
-          title="Next match (Enter)"
-          aria-label="Next match"
-          data-testid="cm-search-next"
-        >
-          <Icon name="chevron-down" size={16} />
-        </button>
-        <button
-          type="button"
-          className="icon-btn md-find-close"
-          onClick={onClose}
-          title="Close (Esc)"
-          aria-label="Close find panel"
-          data-testid="cm-search-close"
-        >
-          <Icon name="close" size={16} />
-        </button>
-      </div>
-      {replaceExpanded && (
-        <div className="md-find-row md-find-row--replace">
-          <input
-            type="text"
-            className="md-find-input md-find-input--bare"
-            placeholder="Replace with..."
-            value={replace}
-            onChange={(e) => setReplace(e.target.value)}
-            aria-label="Replace"
-            data-testid="cm-replace-input"
-          />
-          <button
-            type="button"
-            className="icon-btn"
-            onClick={runReplaceAll}
-            title="Replace all"
-            aria-label="Replace all"
-            data-testid="cm-replace-all"
-          >
-            <Icon name="replace-all" size={16} />
-          </button>
-          <button
-            type="button"
-            className="icon-btn"
-            onClick={runReplaceNext}
-            title="Replace (Enter)"
-            aria-label="Replace"
-            data-testid="cm-replace-next"
-          >
-            <Icon name="replace" size={16} />
-          </button>
-        </div>
-      )}
-    </div>
+    <FindBarShell
+      testIdPrefix="cm"
+      query={query}
+      onQueryChange={setQuery}
+      replace={replace}
+      onReplaceChange={setReplace}
+      matchInfo={matchInfo}
+      onFindNext={runFindNext}
+      onFindPrev={runFindPrev}
+      onReplaceNext={runReplaceNext}
+      onReplaceAll={runReplaceAll}
+      onClose={onClose}
+      focusEditor={() => view.focus()}
+      initialReplaceExpanded={initialReplaceExpanded}
+    />
   )
 }
