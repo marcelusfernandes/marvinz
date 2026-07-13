@@ -3413,6 +3413,14 @@ button {
   color: var(--text-primary);
 }
 
+/* Suspense fallback while the Milkdown/ProseMirror chunk loads (#583) —
+   sits inside .md-preview-inner so it inherits the same padding/max-width,
+   avoiding a layout jump once the real editor replaces it. */
+.md-preview-loading {
+  font-size: var(--font-size-md);
+  color: var(--text-tertiary);
+}
+
 .md-preview-inner h1,
 .md-preview-inner h2,
 .md-preview-inner h3,

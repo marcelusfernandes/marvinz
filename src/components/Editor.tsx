@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import CodeMirror from '@uiw/react-codemirror'
 import { EditorView, keymap } from '@codemirror/view'
 import { search, searchKeymap } from '@codemirror/search'
@@ -17,7 +17,6 @@ import { undo as pmUndo, redo as pmRedo } from 'prosemirror-history'
 import { languageIdFor, loadLanguage } from '../lib/cmLanguage'
 import { splitFrontmatter } from '../lib/frontmatter'
 import { Properties } from './Properties'
-import { LiveMarkdown } from './LiveMarkdown'
 import { CsvEditor } from './CsvEditor'
 import { HtmlPreview } from './HtmlPreview'
 import { PathSuggest } from './PathSuggest'
@@ -38,6 +37,16 @@ import { useMentionPicker } from '../hooks/useMentionPicker'
 import { useFrontmatterEditing } from '../hooks/useFrontmatterEditing'
 import type { AgentKind } from '../lib/agent-drop-format'
 import { EditorSelectionChip } from './EditorSelectionChip'
+
+// Code-split the Milkdown/ProseMirror stack (#583) — only fetched/evaluated
+// the first time a file actually needs Page mode, not on every app start.
+// Declared once at module scope (not inside the component) so React.lazy's
+// internal promise cache is stable across renders/remounts/file switches;
+// only the very first mount in the session suspends, everything after
+// resolves from the cached module. The wrapper module (LiveMarkdownLazy)
+// exists only to give lazy() a default export to import(); LiveMarkdown's
+// own remountKey-driven internal remount logic is untouched by this.
+const LiveMarkdown = lazy(() => import('./LiveMarkdownLazy'))
 
 // Shared language-token rules (TS/JS/JSON/etc.) — identical across the modern
 // and legacy markdown highlight styles; only the markdown-specific rules below
@@ -754,19 +763,21 @@ export function Editor({
           <div className="md-preview">
             <div className="md-preview-inner">
               {frontmatter && <Properties data={frontmatter} onChange={handlePropertiesChange} />}
-              <LiveMarkdown
-                body={previewBody}
-                onChange={handleBodyChange}
-                onLinkClick={handleLinkClick}
-                filePath={filePath}
-                paletteItems={paletteItems}
-                remountKey={liveKey}
-                onOpenFind={openFind}
-                onViewReady={setPmView}
-                onImportToast={onImportToast}
-                onSendSelection={onSendSelection}
-                agentKind={agentKind}
-              />
+              <Suspense fallback={<div className="md-preview-loading">Loading editor…</div>}>
+                <LiveMarkdown
+                  body={previewBody}
+                  onChange={handleBodyChange}
+                  onLinkClick={handleLinkClick}
+                  filePath={filePath}
+                  paletteItems={paletteItems}
+                  remountKey={liveKey}
+                  onOpenFind={openFind}
+                  onViewReady={setPmView}
+                  onImportToast={onImportToast}
+                  onSendSelection={onSendSelection}
+                  agentKind={agentKind}
+                />
+              </Suspense>
             </div>
           </div>
         )}
