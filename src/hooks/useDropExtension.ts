@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { EditorView } from '@codemirror/view'
 import { EditorSelection, type Extension } from '@codemirror/state'
 import { clearInsertedFlashes, flashInserted } from '../lib/cmJustInsertedHighlight'
@@ -30,6 +30,17 @@ export function useDropExtension({
   filePath: string
   onImportToast?: (toast: { state: ImportToastState; message: string }) => void
 }): Extension {
+  // Tracks the pending flash-clear timer so it can be cancelled before a fresh
+  // drop reschedules it, and on unmount/file-swap so the delayed dispatch never
+  // lands on a torn-down view (#594).
+  const flashTimerRef = useRef<number | null>(null)
+  useEffect(
+    () => () => {
+      if (flashTimerRef.current !== null) window.clearTimeout(flashTimerRef.current)
+    },
+    []
+  )
+
   return useMemo(() => {
     const insertAt = (view: EditorView, event: DragEvent, text: string): void => {
       const pos =
@@ -42,7 +53,9 @@ export function useDropExtension({
       })
       // One-shot entrance animation; clear the decoration once it's done so
       // subsequent drops re-trigger the animation cleanly.
-      setTimeout(() => {
+      if (flashTimerRef.current !== null) window.clearTimeout(flashTimerRef.current)
+      flashTimerRef.current = window.setTimeout(() => {
+        flashTimerRef.current = null
         view.dispatch({ effects: clearInsertedFlashes.of(null) })
       }, 500)
     }
