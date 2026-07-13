@@ -39,8 +39,10 @@ import { useFrontmatterEditing } from '../hooks/useFrontmatterEditing'
 import type { AgentKind } from '../lib/agent-drop-format'
 import { EditorSelectionChip } from './EditorSelectionChip'
 
-const codeHighlightStyle = HighlightStyle.define([
-  // Language tokens (TS/JS/JSON/etc.)
+// Shared language-token rules (TS/JS/JSON/etc.) — identical across the modern
+// and legacy markdown highlight styles; only the markdown-specific rules below
+// diverge. Edit a token color here once instead of in both tables.
+const baseTokenStyles = [
   { tag: t.keyword, color: 'var(--code-keyword)' },
   { tag: [t.controlKeyword, t.moduleKeyword, t.definitionKeyword], color: 'var(--code-keyword)' },
   { tag: [t.string, t.special(t.string)], color: 'var(--code-string)' },
@@ -54,7 +56,10 @@ const codeHighlightStyle = HighlightStyle.define([
   },
   { tag: [t.tagName, t.attributeName], color: 'var(--code-tag)' },
   { tag: t.operator, color: 'var(--code-operator)' },
+]
 
+const codeHighlightStyle = HighlightStyle.define([
+  ...baseTokenStyles,
   // Markdown-specific — heading scale mirrors a typical editor (Obsidian/Bear).
   { tag: t.heading1, fontWeight: '700', fontSize: '1.428em', color: 'var(--text-primary)' },
   { tag: t.heading2, fontWeight: '700', fontSize: '1.143em', color: 'var(--text-primary)' },
@@ -75,21 +80,7 @@ const codeHighlightStyle = HighlightStyle.define([
 ])
 
 const legacyCodeHighlightStyle = HighlightStyle.define([
-  // Language tokens (TS/JS/JSON/etc.)
-  { tag: t.keyword, color: 'var(--code-keyword)' },
-  { tag: [t.controlKeyword, t.moduleKeyword, t.definitionKeyword], color: 'var(--code-keyword)' },
-  { tag: [t.string, t.special(t.string)], color: 'var(--code-string)' },
-  { tag: [t.number, t.bool, t.null, t.atom], color: 'var(--code-number)' },
-  { tag: [t.function(t.variableName), t.function(t.propertyName)], color: 'var(--code-function)' },
-  { tag: [t.propertyName, t.definition(t.propertyName)], color: 'var(--code-property)' },
-  {
-    tag: [t.comment, t.lineComment, t.blockComment],
-    color: 'var(--code-comment)',
-    fontStyle: 'italic',
-  },
-  { tag: [t.tagName, t.attributeName], color: 'var(--code-tag)' },
-  { tag: t.operator, color: 'var(--code-operator)' },
-
+  ...baseTokenStyles,
   // Markdown-specific — single t.heading rule (legacy style, no per-level sizes).
   { tag: t.heading, fontWeight: 'bold', color: 'var(--text-primary)' },
   { tag: t.strong, fontWeight: 'bold' },
