@@ -181,7 +181,8 @@ function insertMarkdownAt(
   view: EditorView,
   event: DragEvent,
   markdown: string,
-  ctx: ParserCtxGetter
+  ctx: ParserCtxGetter,
+  flashTimerRef: { current: number | null }
 ): void {
   let parsed: PMNode | null
   try {
@@ -259,8 +260,12 @@ function insertMarkdownAt(
   tr.setStoredMarks([])
   view.dispatch(tr)
   // Clear the decoration after the animation completes so highlights don't
-  // accumulate when the user drops multiple files in sequence.
-  setTimeout(() => {
+  // accumulate when the user drops multiple files in sequence. Tracked so it
+  // can be cancelled before a fresh drop reschedules it, and on unmount/
+  // file-swap so the dispatch never lands on a torn-down view (#594).
+  if (flashTimerRef.current !== null) window.clearTimeout(flashTimerRef.current)
+  flashTimerRef.current = window.setTimeout(() => {
+    flashTimerRef.current = null
     view.dispatch(view.state.tr.setMeta(justInsertedPluginKey, { type: 'clear' }))
   }, 500)
 }
@@ -294,6 +299,15 @@ function LiveMarkdownInner({
   const filePathRef = useRef(filePath)
   const vaultPathRef = useRef(vaultPath)
   const onImportToastRef = useRef(onImportToast)
+  // Pending drop-insert flash-clear timer; cancelled on unmount so the delayed
+  // dispatch never lands on a torn-down view (#594).
+  const flashTimerRef = useRef<number | null>(null)
+  useEffect(
+    () => () => {
+      if (flashTimerRef.current !== null) window.clearTimeout(flashTimerRef.current)
+    },
+    []
+  )
   useEffect(() => {
     onChangeRef.current = onChange
   }, [onChange])
@@ -445,7 +459,7 @@ function LiveMarkdownInner({
                   const md = internalPaths
                     .map((p) => internalDragMarkdown(filePathRef.current, p))
                     .join('\n')
-                  insertMarkdownAt(view, event, md, ctx)
+                  insertMarkdownAt(view, event, md, ctx, flashTimerRef)
                   return true
                 }
                 if (files.length > 0) {
@@ -460,7 +474,13 @@ function LiveMarkdownInner({
                       onToast: onImportToastRef.current,
                     })
                     if (outcome.inserts.length > 0) {
-                      insertMarkdownAt(view, event, outcome.inserts.join('\n\n'), ctx)
+                      insertMarkdownAt(
+                        view,
+                        event,
+                        outcome.inserts.join('\n\n'),
+                        ctx,
+                        flashTimerRef
+                      )
                     }
                     emitSummaryToast(outcome, onImportToastRef.current)
                   })()
