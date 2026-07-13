@@ -80,6 +80,13 @@ export default defineConfig({
           include: ['scripts/ci/__tests__/**/*.spec.ts'],
         },
       },
+      {
+        test: {
+          name: 'scripts',
+          environment: 'node',
+          include: ['scripts/__tests__/**/*.spec.ts'],
+        },
+      },
     ],
   },
 })
