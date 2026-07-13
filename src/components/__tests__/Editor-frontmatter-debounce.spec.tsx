@@ -171,6 +171,15 @@ vi.mock('../LiveMarkdown', () => ({
     return <div data-testid="live-markdown" />
   },
 }))
+// Editor.tsx lazy-loads Milkdown/ProseMirror via this wrapper's default
+// export (#583) instead of importing LiveMarkdown directly — mock it too so
+// capturedOnChange still gets set through the Suspense boundary.
+vi.mock('../LiveMarkdownLazy', () => ({
+  default: (props: { onChange: (body: string) => void }) => {
+    capturedOnChange = props.onChange
+    return <div data-testid="live-markdown" />
+  },
+}))
 
 // ---------------------------------------------------------------------------
 // Import Editor (+ the spied frontmatter fns) after mocks
@@ -251,8 +260,12 @@ function typeBody(text: string) {
 // ---------------------------------------------------------------------------
 
 describe('Frontmatter re-split/re-serialize must be cached, not recomputed per keystroke, in Page/Preview mode (issue #558)', () => {
-  it('N rapid body-only edits collapse into O(1) full split/serialize calls (no debounce window — recompute is immediate but cached)', () => {
-    render(<Editor {...baseProps()} />)
+  it('N rapid body-only edits collapse into O(1) full split/serialize calls (no debounce window — recompute is immediate but cached)', async () => {
+    const result = render(<Editor {...baseProps()} />)
+    // Editor.tsx now lazy-loads LiveMarkdown behind a Suspense boundary
+    // (#583) — capturedOnChange is only set once the mock resolves, which
+    // happens on a microtask, not synchronously within render() above.
+    await result.findByTestId('live-markdown')
 
     // Mount itself exercises the frontmatter/previewBody useMemo once;
     // isolate the burst's own call count from that baseline.
@@ -274,9 +287,10 @@ describe('Frontmatter re-split/re-serialize must be cached, not recomputed per k
     expect(serializeFrontmatterMock.mock.calls.length).toBeLessThanOrEqual(2)
   })
 
-  it('onBufferChange always receives the FULL reassembled document, never a body-only fragment (no data loss from caching)', () => {
+  it('onBufferChange always receives the FULL reassembled document, never a body-only fragment (no data loss from caching)', async () => {
     const onBufferChange = vi.fn()
-    render(<Editor {...baseProps({ onBufferChange })} />)
+    const result = render(<Editor {...baseProps({ onBufferChange })} />)
+    await result.findByTestId('live-markdown')
 
     typeBody('body only text one')
     typeBody('body only text two')
@@ -295,9 +309,10 @@ describe('Frontmatter re-split/re-serialize must be cached, not recomputed per k
     expect(lastBuffered).toContain('body only text three')
   })
 
-  it('a real frontmatter change via the Properties panel is reflected immediately — no waiting window', () => {
+  it('a real frontmatter change via the Properties panel is reflected immediately — no waiting window', async () => {
     const onBufferChange = vi.fn()
-    render(<Editor {...baseProps({ onBufferChange })} />)
+    const result = render(<Editor {...baseProps({ onBufferChange })} />)
+    await result.findByTestId('live-markdown')
 
     act(() => {
       capturedPropertiesOnChange?.({ title: 'Updated Title', tags: ['alpha'] })
@@ -327,6 +342,12 @@ describe('Frontmatter re-split/re-serialize must be cached, not recomputed per k
     try {
       const onSave = vi.fn().mockResolvedValue(undefined)
       render(<Editor {...baseProps({ onSave })} />)
+      // Editor.tsx now lazy-loads LiveMarkdown behind a Suspense boundary
+      // (#583) — flush the microtask it resolves on before typing. Not
+      // findByTestId: its setTimeout-based polling would hang under fake
+      // timers, but the underlying lazy() promise resolves via microtask,
+      // unaffected by vi.useFakeTimers() (which only fakes macrotasks).
+      await act(async () => {})
 
       typeBody('body before disk save A')
       typeBody('body before disk save AB')

@@ -139,6 +139,17 @@ vi.mock('../LiveMarkdown', () => ({
     return <LiveMarkdownMockInner key={key} remountKey={key} />
   },
 }))
+// Editor.tsx lazy-loads Milkdown/ProseMirror via this wrapper's default
+// export (#583) instead of importing LiveMarkdown directly — mock it too,
+// with the same mount/unmount-tracking body, so the remount contract this
+// spec pins still observes real React lifecycle through the Suspense boundary.
+vi.mock('../LiveMarkdownLazy', () => ({
+  default: (props: { remountKey: string | number; onChange: (body: string) => void }) => {
+    capturedOnChange = props.onChange
+    const key = String(props.remountKey)
+    return <LiveMarkdownMockInner key={key} remountKey={key} />
+  },
+}))
 
 // ---------------------------------------------------------------------------
 // Import Editor after mocks
@@ -205,9 +216,13 @@ afterEach(() => {
 // ---------------------------------------------------------------------------
 
 describe('Editor (Page mode) — LiveMarkdown remount contract (#532)', () => {
-  it('remounts LiveMarkdown when version changes on an external clean reload, same filePath', () => {
+  // Editor.tsx now lazy-loads LiveMarkdown behind a Suspense boundary
+  // (#583) — even a mocked module resolves on a microtask, not
+  // synchronously, so the mount effect needs an async act tick before the
+  // mountKeys/unmountKeys assertions below can observe it.
+  it('remounts LiveMarkdown when version changes on an external clean reload, same filePath', async () => {
     let rerender!: (ui: React.ReactElement) => void
-    act(() => {
+    await act(async () => {
       const result = render(<Editor {...baseProps({ initialContent: 'first', version: 1 })} />)
       rerender = result.rerender
     })
@@ -217,7 +232,7 @@ describe('Editor (Page mode) — LiveMarkdown remount contract (#532)', () => {
 
     // Simulates App.tsx's clean-buffer branch (App.tsx:596-609): same filePath,
     // new initialContent from disk, version bumped.
-    act(() => {
+    await act(async () => {
       rerender(<Editor {...baseProps({ initialContent: 'second (external edit)', version: 2 })} />)
     })
 
@@ -228,8 +243,8 @@ describe('Editor (Page mode) — LiveMarkdown remount contract (#532)', () => {
     expect(mountKeys[0]).not.toBe(mountKeys[1])
   })
 
-  it('does NOT remount LiveMarkdown while typing (onChange path), version unchanged', () => {
-    act(() => {
+  it('does NOT remount LiveMarkdown while typing (onChange path), version unchanged', async () => {
+    await act(async () => {
       render(<Editor {...baseProps({ initialContent: 'first', version: 1 })} />)
     })
 
