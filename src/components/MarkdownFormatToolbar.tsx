@@ -21,13 +21,30 @@ const SELECTION_DEBOUNCE_MS = 50
 
 /**
  * The EditorView is a stable object reference, so React never re-renders when
- * its internal state changes. This returns a `repaint` callback and also keeps
- * the bar in sync with the caret.
+ * its internal state changes. This returns a `repaint` callback and subscribes
+ * to the three ways the active format can change out from under us. All three
+ * are needed; each covers a case the others miss.
  *
- * BOTH triggers are needed. `selectionchange` covers the user moving the caret,
- * but it cannot cover our own clicks: `onMouseDown` calls `preventDefault`, so
- * the DOM selection never moves on a button press and the event may not fire at
- * all — and the debounce would land after the user stopped looking anyway.
+ *  1. `selectionchange` — the caret moving, and any command that mutates the
+ *     document. Verified in Chromium: a `setBlockType` from Mod-Alt-2 does fire
+ *     it, because PM replaces the block element and restores the selection into
+ *     the new one. Note the dispatch is async — it can land a tick later.
+ *
+ *  2. `keydown` on the editor element — a collapsed-caret `toggleMark` (Mod-b,
+ *     Mod-i, Mod-e, Mod-Alt-x with nothing selected) writes ONLY
+ *     `state.storedMarks`: no document change, no DOM mutation, no selection
+ *     movement, therefore no `selectionchange` at all. Measured: zero events at
+ *     0ms, 100ms and 300ms. Without this the user presses Mod-b to stop bolding
+ *     and the button stays lit. Registered after the view exists, so it runs
+ *     after ProseMirror's own handler and observes post-command state.
+ *
+ *  3. The returned `repaint`, called by the toolbar's own click handler —
+ *     `onMouseDown` calls `preventDefault`, so a button press moves nothing and
+ *     emits no event, and the debounce would land after the user looked away.
+ *
+ * Polling a fingerprint of [from, to, storedMarks] instead of (2) looks
+ * equivalent and is not: turning a mark OFF replaces `null` with `[]`, which
+ * serialises identically, so the un-bold case is silently missed.
  */
 function useRepaint(view: EditorView | null): () => void {
   const [, setTick] = useState(0)
@@ -36,16 +53,19 @@ function useRepaint(view: EditorView | null): () => void {
   useEffect(() => {
     if (!view) return
     let timer: number | null = null
-    const onSelectionChange = () => {
+    const schedule = () => {
       if (timer !== null) window.clearTimeout(timer)
       timer = window.setTimeout(() => {
         timer = null
         repaint()
       }, SELECTION_DEBOUNCE_MS)
     }
-    document.addEventListener('selectionchange', onSelectionChange)
+    const editorDom = view.dom
+    document.addEventListener('selectionchange', schedule)
+    editorDom.addEventListener('keydown', schedule)
     return () => {
-      document.removeEventListener('selectionchange', onSelectionChange)
+      document.removeEventListener('selectionchange', schedule)
+      editorDom.removeEventListener('keydown', schedule)
       if (timer !== null) window.clearTimeout(timer)
     }
   }, [view, repaint])

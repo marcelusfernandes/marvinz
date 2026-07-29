@@ -23,7 +23,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, act } from '@testing-library/react'
 import { Schema, type Node as PMNode } from '@milkdown/prose/model'
 import { EditorState, TextSelection } from '@milkdown/prose/state'
 import type { EditorView } from '@milkdown/prose/view'
@@ -95,12 +95,18 @@ function fakeView(initial: EditorState) {
   const focus = vi.fn()
   const view = {
     state: initial,
+    // The real view owns a contentEditable element; the toolbar listens on it
+    // for keyboard-driven changes that emit no selectionchange.
+    dom: document.createElement('div'),
     focus,
     dispatch: vi.fn((tr) => {
       view.state = view.state.apply(tr)
     }),
   }
-  return view as unknown as EditorView & { focus: ReturnType<typeof vi.fn> }
+  return view as unknown as EditorView & {
+    focus: ReturnType<typeof vi.fn>
+    dom: HTMLElement
+  }
 }
 
 function itemById(id: string): ToolbarItem {
@@ -430,6 +436,52 @@ describe('MarkdownFormatToolbar', () => {
     expect(screen.queryByTestId('md-toolbar-link-dialog')).toBeNull()
     expect(view.dispatch).toHaveBeenCalledTimes(1)
     expect(isMarkActive(view.state, 'link')).toBe(false)
+  })
+
+  // Verified in real Chromium: a collapsed-caret Cmd+B writes only
+  // state.storedMarks — no doc change, no DOM mutation, no selection movement —
+  // so 'selectionchange' NEVER fires (0 events at 0/100/300ms). Without a
+  // keydown trigger on the editor element the highlight goes stale: the user
+  // presses Cmd+B to stop bolding and the button stays lit.
+  it('repaints after a keyboard mark toggle that only changed storedMarks', () => {
+    vi.useFakeTimers()
+    try {
+      const view = fakeView(stateWith(doc(paragraph(text('body'))), 3))
+      render(<MarkdownFormatToolbar view={view} />)
+      expect(screen.getByTestId('md-toolbar-btn-strong').getAttribute('aria-pressed')).toBe('false')
+
+      // What toggleMark does at a collapsed caret — storedMarks only.
+      view.state = view.state.apply(view.state.tr.addStoredMark(schema.mark('strong')))
+      view.dom.dispatchEvent(new KeyboardEvent('keydown', { key: 'b', metaKey: true }))
+      act(() => {
+        vi.advanceTimersByTime(60)
+      })
+
+      expect(screen.getByTestId('md-toolbar-btn-strong').getAttribute('aria-pressed')).toBe('true')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('repaints when the caret moves by keyboard into differently formatted text', () => {
+    vi.useFakeTimers()
+    try {
+      const view = fakeView(stateWith(doc(heading(2, text('Title')), paragraph(text('body'))), 2))
+      render(<MarkdownFormatToolbar view={view} />)
+      expect(screen.getByTestId('md-toolbar-btn-h2').getAttribute('aria-pressed')).toBe('true')
+
+      view.state = view.state.apply(
+        view.state.tr.setSelection(TextSelection.create(view.state.doc, 10))
+      )
+      view.dom.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown' }))
+      act(() => {
+        vi.advanceTimersByTime(60)
+      })
+
+      expect(screen.getByTestId('md-toolbar-btn-h2').getAttribute('aria-pressed')).toBe('false')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('marks block-type buttons as applying to the whole block in their title', () => {
