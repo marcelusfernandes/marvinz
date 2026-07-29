@@ -2188,6 +2188,61 @@ button {
   box-shadow: var(--shadow-sm), var(--focus-ring);
 }
 
+/* Formatting bar — markdown in Rendered mode only (#636). In flow between the
+   header and the editor body, so it never competes with the floating selection
+   chip for an anchor. Button geometry mirrors .mode-btn above. */
+.md-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  background: var(--surface-1);
+  border-bottom: 1px solid var(--border);
+}
+.md-toolbar__btn {
+  min-width: 26px;
+  height: 26px;
+  padding: 0 var(--space-2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: transparent;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    color var(--duration-fast) var(--ease-out),
+    background-color var(--duration-fast) var(--ease-out);
+}
+.md-toolbar__btn:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.md-toolbar__btn.is-on {
+  background: var(--accent-bg);
+  color: var(--accent-text);
+}
+.md-toolbar__btn:disabled {
+  color: var(--text-tertiary);
+  cursor: default;
+}
+.md-toolbar__btn:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+.md-toolbar__sep {
+  width: 1px;
+  align-self: stretch;
+  margin: var(--space-0) var(--space-1);
+  background: var(--border);
+}
+
 .cm-host {
   flex: 1;
   overflow: auto;

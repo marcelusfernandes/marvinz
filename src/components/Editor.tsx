@@ -37,6 +37,7 @@ import { useMentionPicker } from '../hooks/useMentionPicker'
 import { useFrontmatterEditing } from '../hooks/useFrontmatterEditing'
 import type { AgentKind } from '../lib/agent-drop-format'
 import { EditorSelectionChip } from './EditorSelectionChip'
+import { MarkdownFormatToolbar } from './MarkdownFormatToolbar'
 
 // Code-split the Milkdown/ProseMirror stack (#583) — only fetched/evaluated
 // the first time a file actually needs Page mode, not on every app start.
@@ -680,6 +681,12 @@ export function Editor({
           )}
         </div>
       </div>
+      {/* Formatting bar — markdown in Rendered mode only. Driven by `pmView`,
+          which LiveMarkdown already publishes through `onViewReady` for the
+          find bar; `key` remounts it per file so no stale view is read. */}
+      {isMd && effectiveMode === 'preview' && (
+        <MarkdownFormatToolbar key={filePath} view={pmView} />
+      )}
       <div className="editor-body">
         {/* Floating Find / Replace bar sits as an overlay just below the
             header. Driven by the active surface (CodeMirror in raw edit
