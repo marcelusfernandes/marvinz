@@ -1,7 +1,14 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { Command } from '@milkdown/prose/state'
 import type { EditorView } from '@milkdown/prose/view'
-import { ITEMS, commandFor, isItemActive, titleFor } from '../lib/markdownFormatCommands'
+import {
+  ITEMS,
+  commandFor,
+  isItemActive,
+  isToggleKind,
+  titleFor,
+  type ToolbarButton,
+} from '../lib/markdownFormatCommands'
 import { InputDialog } from './InputDialog'
 
 /**
@@ -97,6 +104,25 @@ export function MarkdownFormatToolbar({ view }: Props) {
     [view, repaint]
   )
 
+  /**
+   * Resolve the command from the LIVE state, not from whatever the last render
+   * captured. The repaint is debounced 50ms, so a keyboard shortcut followed by
+   * a fast click was dispatching the pre-flip command — turning a just-created
+   * H2 into another H2 instead of back into a paragraph.
+   */
+  const runItem = useCallback(
+    (item: ToolbarButton) => {
+      if (!view) return
+      const liveActive = isItemActive(view.state, item)
+      if (item.kind === 'link' && !liveActive) {
+        setLinkDialogOpen(true)
+        return
+      }
+      run(commandFor(view.state, item, liveActive))
+    },
+    [view, run]
+  )
+
   const applyLink = useCallback(
     (href: string) => {
       setLinkDialogOpen(false)
@@ -121,28 +147,29 @@ export function MarkdownFormatToolbar({ view }: Props) {
         // "would this apply?" check — surface it as a disabled button rather
         // than a click that silently does nothing.
         const enabled = Boolean(view && state && command && command(state))
+        // Never both pressed and disabled: `.is-on` and `:disabled` have equal
+        // CSS specificity, so that combination shipped an accent-washed grey
+        // button, and it is contradictory for screen readers besides. The
+        // highlight only ever means "clicking un-applies this".
+        const pressed = active && enabled
 
         return (
           <button
             key={item.id}
             type="button"
             data-testid={`md-toolbar-btn-${item.id}`}
-            className={`md-toolbar__btn${active ? ' is-on' : ''}`}
+            className={`md-toolbar__btn${pressed ? ' is-on' : ''}`}
             title={titleFor(item)}
             aria-label={titleFor(item)}
-            aria-pressed={active}
+            // Insertions have no pressed state; a permanent aria-pressed="false"
+            // would announce them as toggles they are not.
+            aria-pressed={isToggleKind(item) ? pressed : undefined}
             disabled={!enabled}
             // Without this, mousedown blurs the EditorView and collapses the
             // selection BEFORE onClick runs, so the command lands on an empty
             // cursor. Has to be per-button: focus events do not delegate.
             onMouseDown={(event) => event.preventDefault()}
-            onClick={() => {
-              if (item.kind === 'link' && !active) {
-                setLinkDialogOpen(true)
-                return
-              }
-              run(command)
-            }}
+            onClick={() => runItem(item)}
           >
             {item.label}
           </button>

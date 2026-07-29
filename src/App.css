@@ -2201,8 +2201,10 @@ button {
   border-bottom: 1px solid var(--border);
 }
 .md-toolbar__btn {
-  min-width: 26px;
-  height: 26px;
+  /* 28px matches the .mode-toggle control height above, so the two rows of
+     editor chrome read as one system. */
+  min-width: 28px;
+  height: 28px;
   padding: 0 var(--space-2);
   display: inline-flex;
   align-items: center;

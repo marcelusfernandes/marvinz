@@ -25,7 +25,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, act } from '@testing-library/react'
 import { Schema, type Node as PMNode } from '@milkdown/prose/model'
-import { EditorState, TextSelection } from '@milkdown/prose/state'
+import { EditorState, TextSelection, type Command } from '@milkdown/prose/state'
 import type { EditorView } from '@milkdown/prose/view'
 import { MarkdownFormatToolbar } from '../MarkdownFormatToolbar'
 import {
@@ -107,6 +107,34 @@ function fakeView(initial: EditorState) {
     focus: ReturnType<typeof vi.fn>
     dom: HTMLElement
   }
+}
+
+const listItem = (checked: boolean | null, ...children: PMNode[]) =>
+  schema.node('list_item', { checked }, children)
+const bulletList = (...items: PMNode[]) => schema.node('bullet_list', null, items)
+const orderedList = (...items: PMNode[]) => schema.node('ordered_list', null, items)
+const blockquote = (...children: PMNode[]) => schema.node('blockquote', null, children)
+
+/**
+ * Start position of the named text node — avoids brittle hardcoded offsets.
+ * `pos + needle.length` is its end, so a full-text selection is [pos, pos+len].
+ */
+function posOfText(node: PMNode, needle: string): number {
+  let found = -1
+  node.descendants((child, pos) => {
+    if (found !== -1) return false
+    if (child.isText && child.text === needle) found = pos
+    return true
+  })
+  if (found === -1) throw new Error(`text "${needle}" not found in doc`)
+  return found
+}
+
+/** Runs a command and returns the resulting state, plus whether it applied. */
+function apply(state: EditorState, command: Command | null) {
+  let next = state
+  const applied = command ? command(state, (tr) => (next = state.apply(tr))) : false
+  return { applied, next }
 }
 
 function itemById(id: string): ToolbarItem {
@@ -324,6 +352,200 @@ describe('commandFor', () => {
 })
 
 // ---------------------------------------------------------------------------
+// 1b. Regressions found by adversarial review. Every one of these produced a
+//     wrong document or a dead button on a path the issue lists as a headline
+//     benefit, and none was covered before.
+// ---------------------------------------------------------------------------
+
+describe('every button applies to a non-empty selection', () => {
+  // The AC says "each of the ~14 buttons applies its format". Six had no
+  // dispatch coverage at all, which is what hid the list and quote defects.
+  const cases: { id: string; assert: (next: EditorState) => void }[] = [
+    { id: 'emphasis', assert: (n) => expectMark(n, 'emphasis') },
+    { id: 'strike', assert: (n) => expectMark(n, 'strike_through') },
+    { id: 'code', assert: (n) => expectMark(n, 'inlineCode') },
+    { id: 'strong', assert: (n) => expectMark(n, 'strong') },
+    { id: 'bullet_list', assert: (n) => expect(n.doc.firstChild?.type.name).toBe('bullet_list') },
+    { id: 'ordered_list', assert: (n) => expect(n.doc.firstChild?.type.name).toBe('ordered_list') },
+    { id: 'blockquote', assert: (n) => expect(n.doc.firstChild?.type.name).toBe('blockquote') },
+    { id: 'h1', assert: (n) => expect(n.doc.firstChild?.type.name).toBe('heading') },
+  ]
+
+  function expectMark(state: EditorState, name: string) {
+    const marks = state.doc.firstChild?.firstChild?.marks ?? []
+    expect(marks.map((m) => m.type.name)).toContain(name)
+  }
+
+  for (const { id, assert } of cases) {
+    it(`${id} changes the document`, () => {
+      const base = doc(paragraph(text('body')))
+      const state = stateWith(base, posOfText(base, 'body'), posOfText(base, 'body') + 4)
+      const item = itemById(id)
+      const { applied, next } = apply(state, commandFor(state, item, isItemActive(state, item)))
+      expect(applied).toBe(true)
+      assert(next)
+    })
+  }
+})
+
+describe('task list (D1, D9)', () => {
+  it('turns an existing bullet item into a task instead of reporting disabled', () => {
+    const base = doc(bulletList(listItem(null, paragraph(text('coffee')))))
+    const state = stateWith(base, posOfText(base, 'coffee'))
+    const item = itemById('task')
+    const command = commandFor(state, item, isItemActive(state, item))
+
+    // Was: findWrapping rejects a bullet_list at index 0 of `paragraph block*`,
+    // so the command reported false and the button rendered greyed.
+    expect(command?.(state)).toBe(true)
+
+    const { next } = apply(state, command)
+    const list = next.doc.firstChild
+    expect(list?.type.name).toBe('bullet_list')
+    expect(list?.childCount).toBe(1)
+    expect(list?.firstChild?.attrs.checked).toBe(false)
+  })
+
+  it('wraps every block of a multi-block selection, like the list buttons do', () => {
+    const base = doc(paragraph(text('one')), paragraph(text('two')), paragraph(text('three')))
+    const state = stateWith(base, posOfText(base, 'one'), posOfText(base, 'three') + 5)
+    const item = itemById('task')
+    const { next } = apply(state, commandFor(state, item, isItemActive(state, item)))
+    expect(next.doc.firstChild?.childCount).toBe(3)
+  })
+})
+
+describe('toggling off a wrapping format (D2)', () => {
+  it('lifts out of a blockquote instead of nesting another one', () => {
+    const base = doc(blockquote(paragraph(text('quoted'))))
+    const state = stateWith(base, posOfText(base, 'quoted'))
+    const item = itemById('blockquote')
+    expect(isItemActive(state, item)).toBe(true)
+
+    const { next } = apply(state, commandFor(state, item, true))
+    // Was: blockquote > blockquote > paragraph, i.e. "> quoted" became "> > quoted".
+    expect(next.doc.firstChild?.type.name).toBe('paragraph')
+  })
+
+  it('lifts a list item out instead of nesting a sublist', () => {
+    const base = doc(
+      bulletList(listItem(null, paragraph(text('one'))), listItem(null, paragraph(text('two'))))
+    )
+    const state = stateWith(base, posOfText(base, 'two'))
+    const item = itemById('bullet_list')
+    expect(isItemActive(state, item)).toBe(true)
+
+    const { applied, next } = apply(state, commandFor(state, item, true))
+    expect(applied).toBe(true)
+    let nested = false
+    next.doc.descendants((node) => {
+      if (node.type.name === 'list_item') {
+        node.descendants((inner) => {
+          if (inner.type.name === 'bullet_list') nested = true
+          return true
+        })
+      }
+      return true
+    })
+    expect(nested).toBe(false)
+  })
+})
+
+describe('bullet <-> ordered conversion (D3)', () => {
+  it('retypes the list in place rather than nesting a sublist', () => {
+    const base = doc(
+      bulletList(listItem(null, paragraph(text('one'))), listItem(null, paragraph(text('two'))))
+    )
+    const state = stateWith(base, posOfText(base, 'one'))
+    const item = itemById('ordered_list')
+    const command = commandFor(state, item, isItemActive(state, item))
+    expect(command?.(state)).toBe(true)
+
+    const { next } = apply(state, command)
+    expect(next.doc.childCount).toBe(1)
+    expect(next.doc.firstChild?.type.name).toBe('ordered_list')
+    // Both items survive at the top level — no sublist was created.
+    expect(next.doc.firstChild?.childCount).toBe(2)
+  })
+
+  it('lights only the nearest list ancestor in a nested list (D12)', () => {
+    const inner = orderedList(listItem(null, paragraph(text('deep'))))
+    const base = doc(bulletList(listItem(null, paragraph(text('outer')), inner)))
+    const state = stateWith(base, posOfText(base, 'deep'))
+    expect(isItemActive(state, itemById('ordered_list'))).toBe(true)
+    expect(isItemActive(state, itemById('bullet_list'))).toBe(false)
+  })
+})
+
+describe('horizontal rule (D4)', () => {
+  it('leaves a textblock after the rule with the caret in it', () => {
+    const base = doc(paragraph(text('body')))
+    const state = stateWith(base, posOfText(base, 'body') + 4)
+    const { next } = apply(state, commandFor(state, itemById('hr'), false))
+
+    const names: string[] = []
+    next.doc.forEach((node) => names.push(node.type.name))
+    expect(names).toContain('hr')
+    // Was: doc ended at the hr with a NodeSelection over it, so the next
+    // keystroke replaced the rule the user had just inserted.
+    expect(names[names.length - 1]).not.toBe('hr')
+    expect(next.selection instanceof TextSelection).toBe(true)
+  })
+
+  it('never consumes the document down to zero textblocks', () => {
+    const base = doc(paragraph())
+    const state = stateWith(base, 1)
+    const { next } = apply(state, commandFor(state, itemById('hr'), false))
+    let textblocks = 0
+    next.doc.forEach((node) => {
+      if (node.isTextblock) textblocks += 1
+    })
+    expect(textblocks).toBeGreaterThan(0)
+  })
+})
+
+describe('inline code parity with Mod-e (D6)', () => {
+  it('does not apply to an empty selection, matching toggleInlineCodeCommand', () => {
+    const base = doc(paragraph(text('body')))
+    const state = stateWith(base, posOfText(base, 'body'))
+    expect(commandFor(state, itemById('code'), false)?.(state)).toBe(false)
+  })
+
+  it('strips other marks over the range, matching toggleInlineCodeCommand', () => {
+    const base = doc(paragraph(text('bold', [schema.mark('strong')])))
+    const state = stateWith(base, posOfText(base, 'bold'), posOfText(base, 'bold') + 4)
+    const { next } = apply(state, commandFor(state, itemById('code'), false))
+    const marks = next.doc.firstChild?.firstChild?.marks ?? []
+    expect(marks.map((m) => m.type.name)).toEqual(['inlineCode'])
+  })
+})
+
+describe('honest active state (D5, D7)', () => {
+  it('does not light the paragraph button inside a list item', () => {
+    const base = doc(bulletList(listItem(null, paragraph(text('item')))))
+    const state = stateWith(base, posOfText(base, 'item'))
+    expect(isItemActive(state, itemById('bullet_list'))).toBe(true)
+    expect(isItemActive(state, itemById('paragraph'))).toBe(false)
+  })
+
+  it('does not light the paragraph button in a plain paragraph either', () => {
+    // Nothing to un-apply, and setBlockType(paragraph) on a paragraph is a
+    // no-op — claiming "pressed" for a dead button misleads screen readers.
+    const base = doc(paragraph(text('body')))
+    const state = stateWith(base, posOfText(base, 'body'))
+    expect(isItemActive(state, itemById('paragraph'))).toBe(false)
+  })
+
+  it('refuses a link on a collapsed caret', () => {
+    const base = doc(paragraph(text('body')))
+    const state = stateWith(base, posOfText(base, 'body'))
+    expect(commandFor(state, itemById('link'), false, { href: 'https://x.com' })?.(state)).toBe(
+      false
+    )
+  })
+})
+
+// ---------------------------------------------------------------------------
 // 2. Component interaction contracts
 // ---------------------------------------------------------------------------
 
@@ -487,7 +709,53 @@ describe('MarkdownFormatToolbar', () => {
   it('marks block-type buttons as applying to the whole block in their title', () => {
     const view = fakeView(stateWith(doc(paragraph(text('body'))), 1, 5))
     render(<MarkdownFormatToolbar view={view} />)
-    const title = screen.getByTestId('md-toolbar-btn-h2').getAttribute('title') ?? ''
-    expect(title.toLowerCase()).toContain('block')
+    for (const id of ['h2', 'bullet_list', 'blockquote', 'task']) {
+      const title = screen.getByTestId(`md-toolbar-btn-${id}`).getAttribute('title') ?? ''
+      expect(title.toLowerCase()).toContain('block')
+    }
+  })
+
+  // D8: `.is-on` and `:disabled` have equal specificity, so a lit-and-greyed
+  // button ships an accent wash with contradictory aria. No button should ever
+  // be both — the highlight means "clicking un-applies this".
+  it('never renders a button both pressed and disabled', () => {
+    const view = fakeView(stateWith(doc(paragraph(text('body'))), 3))
+    render(<MarkdownFormatToolbar view={view} />)
+    for (const button of screen.getAllByRole('button')) {
+      const pressed = button.getAttribute('aria-pressed') === 'true'
+      const disabled = (button as HTMLButtonElement).disabled
+      expect(pressed && disabled).toBe(false)
+    }
+  })
+
+  // D14: insertions have no pressed state to report.
+  it('omits aria-pressed on insertion buttons', () => {
+    const view = fakeView(stateWith(doc(paragraph(text('body'))), 1, 5))
+    render(<MarkdownFormatToolbar view={view} />)
+    expect(screen.getByTestId('md-toolbar-btn-hr').hasAttribute('aria-pressed')).toBe(false)
+    expect(screen.getByTestId('md-toolbar-btn-h2').hasAttribute('aria-pressed')).toBe(true)
+  })
+
+  // D11: `active` and `command` were captured at render and only refreshed on a
+  // 50ms debounce, so a keyboard shortcut followed by a fast click dispatched
+  // the pre-flip command.
+  it('recomputes the command at click time, not at render time', () => {
+    const view = fakeView(stateWith(doc(paragraph(text('body'))), 1, 5))
+    render(<MarkdownFormatToolbar view={view} />)
+
+    // Keyboard shortcut turns it into an H2 without any repaint reaching React.
+    view.state = view.state.apply(
+      view.state.tr.setBlockType(1, 5, schema.nodes.heading, { level: 2 })
+    )
+    fireEvent.click(screen.getByTestId('md-toolbar-btn-h2'))
+
+    // Must read the fresh state and toggle back to paragraph.
+    expect(view.state.doc.firstChild?.type.name).toBe('paragraph')
+  })
+
+  it('disables the link button on a collapsed caret', () => {
+    const view = fakeView(stateWith(doc(paragraph(text('body'))), 3))
+    render(<MarkdownFormatToolbar view={view} />)
+    expect(screen.getByTestId('md-toolbar-btn-link')).toHaveProperty('disabled', true)
   })
 })
