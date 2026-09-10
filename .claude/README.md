@@ -1,6 +1,6 @@
-# .claude/ — obsclone product squad
+# .claude/ — Marvinz product squad
 
-Time de agentes IA configurado como **Agent Team nativo** do Claude Code para desenvolver e evoluir o obsclone (Electron + React + TypeScript).
+Time de agentes IA configurado como **Agent Team nativo** do Claude Code para desenvolver e evoluir o Marvinz (Electron + React + TypeScript).
 
 > **Requer Claude Code v2.1.32+** (você está em 2.1.146+). A flag `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` já está habilitada em `.claude/settings.json` — todo mundo que clonar o repo herda.
 
