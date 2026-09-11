@@ -122,6 +122,52 @@ afterEach(async () => {
 })
 
 // ---------------------------------------------------------------------------
+// file:write — watcher-cache refresh (#541)
+// ---------------------------------------------------------------------------
+
+describe('file:write watcher-cache refresh (#541)', () => {
+  it('advances the cache with the written content after a successful write', async () => {
+    const filePath = path.join(vault, 'note.md')
+    await fs.writeFile(filePath, 'old', 'utf8')
+    const ctx = makeCtx()
+    registerFsHandlers(ctx)
+
+    await getHandler('file:write')(null, filePath, 'new content')
+
+    expect(await fs.readFile(filePath, 'utf8')).toBe('new content')
+    expect(ctx.setFileCacheEntry).toHaveBeenCalledWith(filePath, 'new content')
+  })
+
+  it('does not advance the cache when the write fails', async () => {
+    const dirPath = path.join(vault, 'a-directory')
+    await fs.mkdir(dirPath)
+    const ctx = makeCtx()
+    registerFsHandlers(ctx)
+
+    await expect(getHandler('file:write')(null, dirPath, 'content')).rejects.toThrow()
+
+    expect(ctx.setFileCacheEntry).not.toHaveBeenCalled()
+  })
+
+  it('aligns the cache on a no-op write (disk already equals content)', async () => {
+    const filePath = path.join(vault, 'note.md')
+    await fs.writeFile(filePath, 'same', 'utf8')
+    // Run the real readBefore resolver so the handler's isNoop branch engages,
+    // mirroring snapshotBeforeMutation's behavior during an active AI turn.
+    const ctx = makeCtx({
+      snapshotBeforeMutation: vi.fn(async (_safe, _source, precondition, readBefore) => {
+        if (precondition()) await readBefore()
+      }),
+    })
+    registerFsHandlers(ctx)
+
+    await getHandler('file:write')(null, filePath, 'same')
+
+    expect(ctx.setFileCacheEntry).toHaveBeenCalledWith(filePath, 'same')
+  })
+})
+
+// ---------------------------------------------------------------------------
 // office:readDocx / office:writeDocx — zero prior real-handler coverage
 // ---------------------------------------------------------------------------
 

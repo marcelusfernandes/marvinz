@@ -309,8 +309,17 @@ export function registerFsHandlers(ctx: FsHandlersCtx): void {
           return before
         }
       )
-      if (isNoop) return
+      // Advance the watcher baseline only once the content is known to be on
+      // disk — after a successful write, or on a no-op (disk already equals
+      // `content`). A failed write must NOT advance the cache, so a later
+      // AI-originated watcher snapshot still anchors to the last saved
+      // content rather than to the unsaved attempt (#541).
+      if (isNoop) {
+        ctx.setFileCacheEntry(safe, content)
+        return
+      }
       await fs.writeFile(safe, content, 'utf8')
+      ctx.setFileCacheEntry(safe, content)
     } catch (e) {
       ctx.wrapFsError(e)
     }
