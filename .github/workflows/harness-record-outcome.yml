@@ -44,7 +44,11 @@ jobs:
 
           # Resolve the linked issue from the PR body (Closes/Fixes/Resolves #N).
           # PRs into develop don't populate closingIssuesReferences natively.
-          BODY=$(gh pr view "$PR" --json body --jq '.body')
+          # Errexit pitfall (#544): GitHub runs steps with `bash -e {0}` and
+          # `set -uo pipefail` does not clear the inherited -e, so an unguarded
+          # gh failure would fail the workflow — skip instead (non-fatal §1.9).
+          BODY=$(gh pr view "$PR" --json body --jq '.body') \
+            || { echo "::warning::gh pr view failed — skipping outcome (non-fatal §1.9)"; echo "have_outcome=0" >> "$GITHUB_OUTPUT"; exit 0; }
           ISSUE=$(printf '%s' "$BODY" | grep -oiE '(close[sd]?|fix(e[sd])?|resolve[sd]?) +#[0-9]+' | grep -oE '[0-9]+' | head -1 || true)
           if [ -z "${ISSUE:-}" ]; then
             echo "No linked issue in PR body — nothing to measure."
@@ -65,9 +69,11 @@ jobs:
           export HARNESS_CREATED_AT=$(gh pr view "$PR" --json createdAt --jq '.createdAt')
           export HARNESS_MERGED_AT=$(gh pr view "$PR" --json mergedAt --jq '.mergedAt')
 
-          # Without `set -e`, a failed gh call leaves the var empty; Number("")=0 is a
-          # valid int to Zod, so we'd record a syntactically-valid all-zero outcome.
-          # Bail instead — never land garbage on the ledger (§1.9: skip, don't fail).
+          # The exports above DO run under the inherited `bash -e {0}`, but survive a
+          # failed gh call only because `export VAR=$(cmd)` masks the substitution's
+          # exit status — leaving the var empty. Number("")=0 is a valid int to Zod,
+          # so we'd record a syntactically-valid all-zero outcome. Bail instead —
+          # never land garbage on the ledger (§1.9: skip, don't fail).
           for k in HARNESS_VERSION HARNESS_FILES HARNESS_ITERATIONS HARNESS_REVIEW_CYCLES \
                    HARNESS_CHANGES_REQUESTED HARNESS_CREATED_AT HARNESS_MERGED_AT; do
             if [ -z "${!k}" ]; then
@@ -82,7 +88,10 @@ jobs:
           FANOUT=0
           if [ -n "$CHANGED" ]; then
             BASES=$(printf '%s\n' "$CHANGED" | xargs -n1 basename | sed -E 's/\.(ts|tsx)$//' | sort -u)
-            FANOUT=$(for b in $BASES; do grep -rl "from '.*${b}'" src electron 2>/dev/null || true; done | grep -v __tests__ | sort -u | wc -l | tr -d ' ')
+            # Errexit pitfall (#544): with no importers the `grep -v` stage exits 1,
+            # pipefail fails the substitution and errexit kills the step — guard it
+            # with `|| true` so the empty case yields FANOUT=0.
+            FANOUT=$({ for b in $BASES; do grep -rl "from '.*${b}'" src electron 2>/dev/null || true; done; } | { grep -v __tests__ || true; } | sort -u | wc -l | tr -d ' ')
           fi
           export HARNESS_FANOUT="$FANOUT"
 

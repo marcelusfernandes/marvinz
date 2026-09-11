@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react'
 import { Icon } from './Icon'
 import { computeViewBounds, computeViewInsets } from '../lib/browserBounds'
+import { marvin } from '../lib/marvinApi'
 
 type BrowserTabState = {
   type: 'browser'
@@ -58,9 +59,9 @@ export function BrowserPane({
   // one shot, on every trigger that can move the placeholder.
   const pushGeometry = useCallback(() => {
     const bounds = computeViewBounds(hostRef.current)
-    if (bounds) void window.marvin.browser.setBounds(tab.id, bounds)
+    if (bounds) void marvin.browser.setBounds(tab.id, bounds)
     const insets = computeViewInsets(hostRef.current, window.innerWidth, window.innerHeight)
-    if (insets) void window.marvin.browser.setGeometry(tab.id, insets)
+    if (insets) void marvin.browser.setGeometry(tab.id, insets)
   }, [tab.id])
 
   // Lazy-create the WebContentsView on first mount + push subsequent bounds
@@ -72,7 +73,7 @@ export function BrowserPane({
       const bounds = computeBounds()
       if (!bounds) return
       try {
-        await window.marvin.browser.create({
+        await marvin.browser.create({
           id: tab.id,
           url: tab.url,
           bounds,
@@ -81,7 +82,7 @@ export function BrowserPane({
           // Register the geometry descriptor right after create so main can
           // recompute bounds on the very first OS window resize.
           const insets = computeViewInsets(hostRef.current, window.innerWidth, window.innerHeight)
-          if (insets) void window.marvin.browser.setGeometry(tab.id, insets)
+          if (insets) void marvin.browser.setGeometry(tab.id, insets)
           onReady(tab.id)
         }
       } catch (err) {
@@ -135,7 +136,7 @@ export function BrowserPane({
           type="button"
           className="nav-btn"
           disabled={!tab.canBack}
-          onClick={() => void window.marvin.browser.back(tab.id)}
+          onClick={() => void marvin.browser.back(tab.id)}
           title="Back"
           aria-label="Back"
         >
@@ -145,7 +146,7 @@ export function BrowserPane({
           type="button"
           className="nav-btn"
           disabled={!tab.canForward}
-          onClick={() => void window.marvin.browser.forward(tab.id)}
+          onClick={() => void marvin.browser.forward(tab.id)}
           title="Forward"
           aria-label="Forward"
         >
@@ -155,9 +156,7 @@ export function BrowserPane({
           type="button"
           className="nav-btn"
           onClick={() =>
-            tab.loading
-              ? void window.marvin.browser.stop(tab.id)
-              : void window.marvin.browser.reload(tab.id)
+            tab.loading ? void marvin.browser.stop(tab.id) : void marvin.browser.reload(tab.id)
           }
           title={tab.loading ? 'Stop' : 'Reload'}
           aria-label={tab.loading ? 'Stop' : 'Reload'}

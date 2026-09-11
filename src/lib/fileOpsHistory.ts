@@ -14,6 +14,7 @@
  */
 
 import { create } from 'zustand'
+import { marvin } from './marvinApi'
 
 export type FileOp =
   | { kind: 'rename'; from: string; to: string }
@@ -79,7 +80,7 @@ export const useFileOpsHistory = create<FileOpsHistoryState>((set, get) => ({
         // failure. Check it explicitly: otherwise a failed restore would
         // falsely report success and discard the only recovery handle
         // (snapshotId) while the file is still only in the OS Trash.
-        const res = await window.marvin.snapshot.restoreOne(op.snapshotId)
+        const res = await marvin.snapshot.restoreOne(op.snapshotId)
         if (!res.ok) throw new Error(res.error)
         toast(`Restored ${basename(op.path)}`)
         // The restored file lives at op.path; no tab remap (the path is unchanged).

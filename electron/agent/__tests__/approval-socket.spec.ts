@@ -10,6 +10,7 @@ import net from 'node:net'
 import { createApprovalServer, approvalSocketPath } from '../approval-socket'
 import { clearSessionRules, recordDecision, resolveApproval } from '../permissions'
 import type { AgentEvent } from '../protocol'
+import { IPC_CHANNELS } from '../../../src/shared/ipc-channels'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -201,7 +202,7 @@ describe('handleConnection — mode: acceptEdits', () => {
     const raw = await pending
     expect(parseResponse(raw).decision).toBe('allow')
     expect(emit).toHaveBeenCalledWith(
-      `agent:event:${SESSION}`,
+      IPC_CHANNELS.agent.event(SESSION),
       expect.objectContaining({ type: 'permission-request', toolUseId: 'tu-ae-bash' })
     )
   })
@@ -261,7 +262,7 @@ describe('handleConnection — mode: default, action: request', () => {
     resolveApproval('tu-req-1', { kind: 'allow' })
     await pending
     expect(emit).toHaveBeenCalledWith(
-      `agent:event:${SESSION}`,
+      IPC_CHANNELS.agent.event(SESSION),
       expect.objectContaining({
         type: 'permission-request',
         sessionId: SESSION,

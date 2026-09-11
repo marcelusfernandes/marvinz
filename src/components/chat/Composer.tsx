@@ -6,13 +6,12 @@ import { ModePill, MODE_OPTIONS } from './ModePill'
 import { ModesPicker } from './ModesPicker'
 import { MARVIN_PATH_MIME, MARVIN_PATHS_MIME, readDraggedPaths } from '../../lib/dropAttachments'
 import { formatPathsForAgent } from '../../lib/agent-drop-format'
+import { useAppContext } from '../../context/AppContext'
 
 type Props = {
   sessionId: SessionId
   onSend: (text: string) => void | Promise<void>
   onCancel?: () => void | Promise<void>
-  /** Vault root, used to short-circuit drops when no vault is open. */
-  vaultPath: string
   /** When true, switch the send button into stop (e.g., during a stream). */
   isStreaming?: boolean
   disabled?: boolean
@@ -28,10 +27,10 @@ export function Composer({
   sessionId,
   onSend,
   onCancel,
-  vaultPath,
   isStreaming = false,
   disabled = false,
 }: Props) {
+  const vaultPath = useAppContext().vaultPath ?? ''
   const draft = useChatStore((s) => s.sessions[sessionId]?.composer.draft ?? '')
   const permissionMode = useChatStore((s) => s.sessions[sessionId]?.permissionMode ?? 'default')
   const setDraft = useChatStore((s) => s.setComposerDraft)

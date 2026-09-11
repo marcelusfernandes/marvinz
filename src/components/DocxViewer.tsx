@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import DOMPurify from 'dompurify'
 import { OFFICE_EDIT_ENABLED } from '../lib/featureFlags'
+import { marvin } from '../lib/marvinApi'
 import { Icon } from './Icon'
 
 type Props = {
@@ -74,7 +75,7 @@ export function DocxViewer({ path, onRevealInFinder }: Props) {
     setLoading(true)
     setLoadError(null)
     setHtml(null)
-    window.marvin.office
+    marvin.office
       .readDocx(path)
       .then((res) => {
         if (cancelled) return
@@ -106,7 +107,7 @@ export function DocxViewer({ path, onRevealInFinder }: Props) {
     setSaving(true)
     setSaveError(null)
     try {
-      await window.marvin.office.writeDocx(path, editedText)
+      await marvin.office.writeDocx(path, editedText)
       setOriginalText(editedText)
       setEditing(false)
     } catch (err) {

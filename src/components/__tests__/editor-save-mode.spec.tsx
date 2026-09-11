@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, act } from '@testing-library/react'
+import { act } from '@testing-library/react'
+import { renderWithAppContext as render } from './renderWithAppContext'
 
 // ---------------------------------------------------------------------------
 // Mocks — must precede Editor import
@@ -66,38 +67,62 @@ vi.mock('@uiw/react-codemirror', () => ({
   },
 }))
 
-vi.mock('../lib/cmLanguage', () => ({
+// Lib modules resolve two levels up from __tests__/ ('../../lib/x') — the old
+// '../lib/x' specifiers pointed at nonexistent modules and never intercepted (#549).
+vi.mock('../../lib/cmLanguage', () => ({
   languageIdFor: () => null,
   loadLanguage: () => Promise.resolve(null),
 }))
 
-vi.mock('../lib/cmJustReplacedHighlight', () => ({ justReplacedField: {} }))
-vi.mock('../lib/cmJustInsertedHighlight', () => ({
+vi.mock('../../lib/cmJustReplacedHighlight', () => ({ justReplacedField: {} }))
+vi.mock('../../lib/cmJustInsertedHighlight', () => ({
   justInsertedField: {},
   flashInserted: { of: () => ({}) },
   clearInsertedFlashes: { of: () => ({}) },
 }))
 
-vi.mock('../lib/frontmatter', () => ({
+vi.mock('../../lib/frontmatter', () => ({
   replaceFrontmatter: (c: string) => c,
   serializeFrontmatter: () => '',
   splitFrontmatter: (c: string) => ({ data: null, body: c }),
 }))
 
-vi.mock('./Properties', () => ({ Properties: () => null }))
-vi.mock('./CsvEditor', () => ({ CsvEditor: () => null }))
-vi.mock('./HtmlPreview', () => ({ HtmlPreview: () => null }))
-vi.mock('./PathSuggest', () => ({ PathSuggest: () => null }))
-vi.mock('./Icon', () => ({ Icon: () => null }))
-vi.mock('./LiveMarkdown', () => ({ LiveMarkdown: () => <div /> }))
-vi.mock('./FindReplaceOverlay', () => ({ FindReplaceOverlay: () => null }))
-vi.mock('./CodeMirrorFindBar', () => ({ CodeMirrorFindBar: () => null }))
-vi.mock('../lib/visualStyle', () => ({ useVisualStyle: () => 'modern' }))
-vi.mock('../lib/wikilinks', () => ({
+// Sibling components resolve one level up from __tests__/ ('../X') — the old
+// './X' specifiers pointed at nonexistent modules and never intercepted (#549).
+vi.mock('../Properties', () => ({ Properties: () => null }))
+vi.mock('../CsvEditor', () => ({ CsvEditor: () => null }))
+vi.mock('../HtmlPreview', () => ({ HtmlPreview: () => null }))
+vi.mock('../PathSuggest', () => ({ PathSuggest: () => null }))
+vi.mock('../Icon', () => ({ Icon: () => null }))
+// Resolved relative to THIS file (in __tests__/), so the sibling component is
+// '../LiveMarkdown' — a './LiveMarkdown' specifier would point at a
+// nonexistent module and silently never intercept (#533). The testid marker
+// matches editor-livemarkdown-remount.spec.tsx and proves interception.
+vi.mock('../LiveMarkdown', () => ({
+  LiveMarkdown: () => <div data-testid="live-markdown" />,
+}))
+// Editor.tsx lazy-loads Milkdown/ProseMirror via this wrapper's default
+// export (#583) instead of importing LiveMarkdown directly — mock it too so
+// the Suspense boundary resolves to the same interception marker.
+vi.mock('../LiveMarkdownLazy', () => ({
+  default: () => <div data-testid="live-markdown" />,
+}))
+vi.mock('../FindReplaceOverlay', () => ({ FindReplaceOverlay: () => null }))
+vi.mock('../CodeMirrorFindBar', () => ({ CodeMirrorFindBar: () => null }))
+vi.mock('../../lib/visualStyle', () => ({ useVisualStyle: () => 'modern' }))
+vi.mock('../../lib/wikilinks', () => ({
   isWikilinkHref: () => null,
   resolveWikilink: () => null,
+  // Consumed by lib/mentionInsert (in Editor's graph), faithful to the real
+  // contract: strip a trailing .md/.markdown extension.
+  stripMdExt: (name: string) => name.replace(/\.(md|markdown)$/i, ''),
 }))
-vi.mock('../lib/paletteRanker', () => ({}))
+// Editor imports only the PaletteItem type, but MentionPicker (in Editor's
+// graph) needs the runtime symbols.
+vi.mock('../../lib/paletteRanker', () => ({
+  rankPaletteItems: () => [],
+  stripBasename: () => '',
+}))
 
 // ---------------------------------------------------------------------------
 // Import Editor after mocks
@@ -365,5 +390,28 @@ describe('isDirty transitions', () => {
     // dirty was set to true but never reset to false (save failed)
     expect(calls).toContain(true)
     expect(calls[calls.length - 1]).toBe(true)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// 4. Mock interception proof (#533)
+// ---------------------------------------------------------------------------
+
+describe('LiveMarkdown mock interception', () => {
+  it('renders the mocked LiveMarkdown for a markdown file, not the real Milkdown component (#533)', async () => {
+    // .md filePath puts the Editor in Page mode by default, mounting
+    // LiveMarkdown. Only the mock renders this marker: if the vi.mock path
+    // regresses, the real component mounts and this fails loudly.
+    let result!: ReturnType<typeof render>
+    act(() => {
+      result = render(<Editor {...baseProps({ filePath: '/vault/note.md' })} />)
+    })
+    // Editor.tsx now lazy-loads this behind a Suspense boundary (#583), so
+    // even a mocked module resolves on a microtask, not synchronously within
+    // the render() above — flush it. Not findByTestId: its setTimeout-based
+    // polling would hang under this file's vi.useFakeTimers() (beforeEach),
+    // but the underlying lazy() promise resolves via microtask, unaffected.
+    await act(async () => {})
+    expect(result.getByTestId('live-markdown')).toBeInTheDocument()
   })
 })

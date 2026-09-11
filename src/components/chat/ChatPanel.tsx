@@ -5,6 +5,8 @@ import { ChatHeader } from './ChatHeader'
 import { MessageList } from './MessageList'
 import { Composer } from './Composer'
 import type { Provider, SessionId } from '../../lib/chat/types'
+import { useAppContext } from '../../context/AppContext'
+import { marvin } from '../../lib/marvinApi'
 
 export type TurnSummary = {
   turnId: string
@@ -14,7 +16,6 @@ export type TurnSummary = {
 type Props = {
   sessionId: SessionId
   provider: Provider
-  vaultPath: string
   /** Open SnapshotPanel pre-selected to this turn id (from UserBubble). */
   onRewind?: (turnId: string) => void
   /** Fires when a chat turn finishes with >=1 Edit/Write (drives SnapshotToast). */
@@ -28,7 +29,8 @@ type Props = {
  * Designed to be embedded by AgentsPane as a tab body (replacing
  * AgentTerminal when the per-tab mode is "chat").
  */
-export function ChatPanel({ sessionId, provider, vaultPath, onRewind, onTurnSummary }: Props) {
+export function ChatPanel({ sessionId, provider, onRewind, onTurnSummary }: Props) {
+  const vaultPath = useAppContext().vaultPath ?? ''
   const exists = useChatStore((s) => !!s.sessions[sessionId])
   const startSession = useChatStore((s) => s.startSession)
 
@@ -44,19 +46,11 @@ export function ChatPanel({ sessionId, provider, vaultPath, onRewind, onTurnSumm
   // emits the same event to every active onEvent subscriber.
   useEffect(() => {
     if (!onTurnSummary) return
-    const w = window as unknown as {
-      marvin?: {
-        agent?: {
-          onEvent?: (
-            sid: string,
-            cb: (ev: { type: string; turnId?: string; fileNames?: string[] }) => void
-          ) => () => void
-        }
-      }
-    }
-    const api = w.marvin?.agent
-    if (!api?.onEvent) return
-    const unsub = api.onEvent(sessionId, (ev) => {
+    // Existence check preserved (not just an onEvent presence check on the
+    // typed facade) so this stays a no-op against an older preload build,
+    // same as useChatSession's and useToolApproval's getAgentApi() guards.
+    if (!window.marvin?.agent?.onEvent) return
+    const unsub = marvin.agent.onEvent(sessionId, (ev) => {
       if (
         ev.type === 'turn-snapshot-summary' &&
         typeof ev.turnId === 'string' &&
@@ -88,13 +82,7 @@ export function ChatPanel({ sessionId, provider, vaultPath, onRewind, onTurnSumm
         <MessageList sessionId={sessionId} onRewind={onRewind} />
       </div>
       <div className="chat-panel-composer">
-        <Composer
-          sessionId={sessionId}
-          onSend={send}
-          onCancel={cancel}
-          isStreaming={isStreaming}
-          vaultPath={vaultPath}
-        />
+        <Composer sessionId={sessionId} onSend={send} onCancel={cancel} isStreaming={isStreaming} />
       </div>
     </div>
   )

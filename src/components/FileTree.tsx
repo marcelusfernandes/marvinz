@@ -3,6 +3,7 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 import type { FileNode, ImportExternalResult } from '../types'
 import type { FlatTreeItem } from '../lib/flattenVisibleTree'
 import { flattenVisibleTree } from '../lib/flattenVisibleTree'
+import { marvin } from '../lib/marvinApi'
 import { Icon } from './Icon'
 import { MaterialIcon } from './MaterialIcon'
 import { fileIconFor } from '../lib/fileIcons'
@@ -616,7 +617,7 @@ function InlineCreateRow({
     submittingRef.current = true
     try {
       if (kind === 'file') {
-        await window.marvin.file.create(parentDir, finalName)
+        await marvin.file.create(parentDir, finalName)
       } else {
         await window.marvin.folder.create(parentDir, finalName)
       }

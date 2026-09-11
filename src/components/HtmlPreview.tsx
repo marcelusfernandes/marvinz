@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react'
 import { computeViewBounds, computeViewInsets } from '../lib/browserBounds'
+import { marvin } from '../lib/marvinApi'
 
 type Props = {
   filePath: string
@@ -23,9 +24,9 @@ export function HtmlPreview({ filePath, version, geometryKey }: Props) {
   // (lets main recompute during OS window resize, #259) together.
   const pushGeometry = useCallback(() => {
     const bounds = computeViewBounds(hostRef.current)
-    if (bounds) void window.marvin.browser.setBounds(id, bounds)
+    if (bounds) void marvin.browser.setBounds(id, bounds)
     const insets = computeViewInsets(hostRef.current, window.innerWidth, window.innerHeight)
-    if (insets) void window.marvin.browser.setGeometry(id, insets)
+    if (insets) void marvin.browser.setGeometry(id, insets)
   }, [id])
 
   // Create the WebContentsView on mount; close on unmount. Re-creates when
@@ -37,7 +38,7 @@ export function HtmlPreview({ filePath, version, geometryKey }: Props) {
       const bounds = computeViewBounds(hostRef.current)
       if (!bounds) return
       try {
-        await window.marvin.browser.create({
+        await marvin.browser.create({
           id,
           url: marvinFileUrl(filePath, version),
           bounds,
@@ -45,7 +46,7 @@ export function HtmlPreview({ filePath, version, geometryKey }: Props) {
         if (cancelled) return
         // Register the descriptor so main can recompute on the first OS resize.
         const insets = computeViewInsets(hostRef.current, window.innerWidth, window.innerHeight)
-        if (insets) void window.marvin.browser.setGeometry(id, insets)
+        if (insets) void marvin.browser.setGeometry(id, insets)
       } catch (err) {
         console.error('[HtmlPreview] create failed', err)
       }
@@ -63,7 +64,7 @@ export function HtmlPreview({ filePath, version, geometryKey }: Props) {
       ro.disconnect()
       window.removeEventListener('resize', sync)
       window.removeEventListener('scroll', sync, true)
-      void window.marvin.browser.close(id)
+      void marvin.browser.close(id)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
@@ -77,7 +78,7 @@ export function HtmlPreview({ filePath, version, geometryKey }: Props) {
       firstRun.current = false
       return
     }
-    void window.marvin.browser.navigate(id, marvinFileUrl(filePath, version))
+    void marvin.browser.navigate(id, marvinFileUrl(filePath, version))
   }, [id, filePath, version])
 
   // Pure-position shifts (layout-mode swap, sidebar resize) don't trigger

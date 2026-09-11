@@ -1,12 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import CodeMirror from '@uiw/react-codemirror'
 import { EditorView, keymap } from '@codemirror/view'
 import { search, searchKeymap } from '@codemirror/search'
-import {
-  clearInsertedFlashes,
-  flashInserted,
-  justInsertedField,
-} from '../lib/cmJustInsertedHighlight'
+import { justInsertedField } from '../lib/cmJustInsertedHighlight'
 import { justReplacedField } from '../lib/cmJustReplacedHighlight'
 import {
   bracketMatching,
@@ -16,18 +12,11 @@ import {
 } from '@codemirror/language'
 import { redo, redoDepth, selectAll, undo, undoDepth } from '@codemirror/commands'
 import { tags as t } from '@lezer/highlight'
-import { EditorSelection, type Extension } from '@codemirror/state'
-import type { EditorView as PMView } from 'prosemirror-view'
+import type { Extension } from '@codemirror/state'
 import { undo as pmUndo, redo as pmRedo } from 'prosemirror-history'
 import { languageIdFor, loadLanguage } from '../lib/cmLanguage'
-import {
-  replaceFrontmatter,
-  serializeFrontmatter,
-  splitFrontmatter,
-  type Frontmatter,
-} from '../lib/frontmatter'
+import { splitFrontmatter } from '../lib/frontmatter'
 import { Properties } from './Properties'
-import { LiveMarkdown } from './LiveMarkdown'
 import { CsvEditor } from './CsvEditor'
 import { HtmlPreview } from './HtmlPreview'
 import { PathSuggest } from './PathSuggest'
@@ -35,28 +24,34 @@ import { FindReplaceOverlay } from './FindReplaceOverlay'
 import { CodeMirrorFindBar } from './CodeMirrorFindBar'
 import type { ImportToastState } from './ImportToast'
 import type { PaletteItem } from '../lib/paletteRanker'
-import {
-  MARVIN_PATH_MIME,
-  MARVIN_PATHS_MIME,
-  collectFiles,
-  emitSummaryToast,
-  internalDragMarkdown,
-  persistDroppedFiles,
-  readDraggedPaths,
-} from '../lib/dropAttachments'
 import { isWikilinkHref, resolveWikilink } from '../lib/wikilinks'
-import { mentionInsertText } from '../lib/mentionInsert'
+import { marvin } from '../lib/marvinApi'
 import { Icon } from './Icon'
 import { useVisualStyle } from '../lib/visualStyle'
-import { mentionTrigger } from '../lib/cmMentionTrigger'
 import { MentionPicker } from './MentionPicker'
+import { useAppContext } from '../context/AppContext'
+import { useFindReplaceState } from '../hooks/useFindReplaceState'
+import { useSelectionChip } from '../hooks/useSelectionChip'
+import { useDropExtension } from '../hooks/useDropExtension'
+import { useMentionPicker } from '../hooks/useMentionPicker'
+import { useFrontmatterEditing } from '../hooks/useFrontmatterEditing'
 import type { AgentKind } from '../lib/agent-drop-format'
-import { formatSelectionForAgent } from '../lib/agent-selection-format'
-import { clampToViewport } from '../lib/chipViewportClamp'
 import { EditorSelectionChip } from './EditorSelectionChip'
 
-const codeHighlightStyle = HighlightStyle.define([
-  // Language tokens (TS/JS/JSON/etc.)
+// Code-split the Milkdown/ProseMirror stack (#583) — only fetched/evaluated
+// the first time a file actually needs Page mode, not on every app start.
+// Declared once at module scope (not inside the component) so React.lazy's
+// internal promise cache is stable across renders/remounts/file switches;
+// only the very first mount in the session suspends, everything after
+// resolves from the cached module. The wrapper module (LiveMarkdownLazy)
+// exists only to give lazy() a default export to import(); LiveMarkdown's
+// own remountKey-driven internal remount logic is untouched by this.
+const LiveMarkdown = lazy(() => import('./LiveMarkdownLazy'))
+
+// Shared language-token rules (TS/JS/JSON/etc.) — identical across the modern
+// and legacy markdown highlight styles; only the markdown-specific rules below
+// diverge. Edit a token color here once instead of in both tables.
+const baseTokenStyles = [
   { tag: t.keyword, color: 'var(--code-keyword)' },
   { tag: [t.controlKeyword, t.moduleKeyword, t.definitionKeyword], color: 'var(--code-keyword)' },
   { tag: [t.string, t.special(t.string)], color: 'var(--code-string)' },
@@ -70,7 +65,10 @@ const codeHighlightStyle = HighlightStyle.define([
   },
   { tag: [t.tagName, t.attributeName], color: 'var(--code-tag)' },
   { tag: t.operator, color: 'var(--code-operator)' },
+]
 
+const codeHighlightStyle = HighlightStyle.define([
+  ...baseTokenStyles,
   // Markdown-specific — heading scale mirrors a typical editor (Obsidian/Bear).
   { tag: t.heading1, fontWeight: '700', fontSize: '1.428em', color: 'var(--text-primary)' },
   { tag: t.heading2, fontWeight: '700', fontSize: '1.143em', color: 'var(--text-primary)' },
@@ -91,21 +89,7 @@ const codeHighlightStyle = HighlightStyle.define([
 ])
 
 const legacyCodeHighlightStyle = HighlightStyle.define([
-  // Language tokens (TS/JS/JSON/etc.)
-  { tag: t.keyword, color: 'var(--code-keyword)' },
-  { tag: [t.controlKeyword, t.moduleKeyword, t.definitionKeyword], color: 'var(--code-keyword)' },
-  { tag: [t.string, t.special(t.string)], color: 'var(--code-string)' },
-  { tag: [t.number, t.bool, t.null, t.atom], color: 'var(--code-number)' },
-  { tag: [t.function(t.variableName), t.function(t.propertyName)], color: 'var(--code-function)' },
-  { tag: [t.propertyName, t.definition(t.propertyName)], color: 'var(--code-property)' },
-  {
-    tag: [t.comment, t.lineComment, t.blockComment],
-    color: 'var(--code-comment)',
-    fontStyle: 'italic',
-  },
-  { tag: [t.tagName, t.attributeName], color: 'var(--code-tag)' },
-  { tag: t.operator, color: 'var(--code-operator)' },
-
+  ...baseTokenStyles,
   // Markdown-specific — single t.heading rule (legacy style, no per-level sizes).
   { tag: t.heading, fontWeight: 'bold', color: 'var(--text-primary)' },
   { tag: t.strong, fontWeight: 'bold' },
@@ -128,8 +112,10 @@ type Props = {
    * own (outside the tab stack) behaves as the active/visible one. */
   isActive?: boolean
   filePath: string
-  vaultPath: string
   initialContent: string
+  /** Seeds the buffer at mount from the live in-memory value (falls back to
+   * `initialContent`). Called only in the mount initializer, never on reset. */
+  seedContent?: (filePath: string, fallback: string) => string
   /** Cache-buster for surfaces that render the file via a URL (HtmlPreview).
    * Bumped by App.tsx whenever the file is saved or changes externally. */
   version: number
@@ -193,8 +179,8 @@ function resolveLink(href: string, currentFile: string, vaultPath: string): stri
 export function Editor({
   isActive = true,
   filePath,
-  vaultPath,
   initialContent,
+  seedContent,
   version,
   geometryKey,
   paletteItems,
@@ -215,18 +201,21 @@ export function Editor({
   onSendSelection,
   agentKind = 'codex',
 }: Props) {
+  const vaultPath = useAppContext().vaultPath ?? ''
   const visualStyle = useVisualStyle()
-  const [value, setValue] = useState(initialContent)
+  const [value, setValue] = useState(() =>
+    seedContent ? seedContent(filePath, initialContent) : initialContent
+  )
   const [mode, setMode] = useState<Mode>('preview')
   const [saving, setSaving] = useState(false)
   const [savedAt, setSavedAt] = useState<number | null>(null)
   const [langExt, setLangExt] = useState<Extension | null>(null)
   const timer = useRef<number | null>(null)
-  const latestValue = useRef(initialContent)
-  // Last content known to be on disk for this buffer. Seeded from
-  // initialContent and advanced after each successful save so dirty can be
-  // derived by comparison (undo back to this value clears dirty).
-  const savedContentRef = useRef(initialContent)
+  const latestValue = useRef(value)
+  // Last content known to be on disk for this buffer. Seeded from the mounted
+  // value and advanced after each successful save so dirty can be derived by
+  // comparison (undo back to this value clears dirty).
+  const savedContentRef = useRef(value)
   const viewRef = useRef<EditorView | null>(null)
   const isDirtyRef = useRef(false)
   const saveModeRef = useRef(saveMode)
@@ -255,97 +244,38 @@ export function Editor({
     onDirtyChangeRef.current?.(next)
   }, [])
 
-  // Find / Replace bar state. The bar itself owns the collapsed/expanded
-  // state of the Replace row (persisted to localStorage); `forceReplace`
-  // here is a one-shot signal from Cmd+Alt+F that overrides the persisted
-  // preference for the next open. `pmView` is set by LiveMarkdown via
-  // `onViewReady` so the bar can drive prosemirror-search commands; `cmView`
-  // mirrors the CodeMirror view from `viewRef` for the same purpose, kept as
-  // state so the bar re-renders when the view becomes available.
-  const [findOpen, setFindOpen] = useState(false)
-  const [forceReplace, setForceReplace] = useState(false)
-  const [pmView, setPmView] = useState<PMView | null>(null)
-  const [cmView, setCmView] = useState<EditorView | null>(null)
-  // `@`-mention picker state. `from` is the doc offset of the `@` sigil;
-  // `query` is the text typed after it; `anchor` is the viewport coord the
-  // picker pins to. `null` while inactive. The mentionTrigger extension
-  // owns the lifecycle — it calls into refs (below) to mutate this state.
-  const [mention, setMention] = useState<{
-    from: number
-    query: string
-    anchor: { x: number; y: number }
-  } | null>(null)
-  // Selection chip state. Pinned to viewport coords of `sel.to` (caret end)
-  // and cleared when the selection becomes empty. Driven from CodeMirror's
-  // `onUpdate` callback below so a single render path covers both the
-  // production view and the test surface (which mocks ViewPlugin).
-  const [selectionChip, setSelectionChip] = useState<{
-    from: number
-    to: number
-    coords: { left: number; right: number; top: number; bottom: number }
-  } | null>(null)
-  // Lightweight in-pane confirmation that floats over the editor body
-  // (top-center) after Replace / Replace All. Two-phase lifecycle:
-  //   'enter' — visible, after 2s flips to 'leave'
-  //   'leave' — fade-out class is applied; after the 200ms animation we
-  //             null out the toast so the DOM unmounts cleanly.
-  // The `nonce` key remounts the element on bursts so each successive
-  // replacement re-runs the enter animation from scratch.
-  const [replaceToast, setReplaceToast] = useState<{
-    count: number
-    nonce: number
-    phase: 'enter' | 'leave'
-  } | null>(null)
-  useEffect(() => {
-    if (!replaceToast || replaceToast.phase !== 'enter') return
-    const t = window.setTimeout(
-      () => setReplaceToast((prev) => (prev ? { ...prev, phase: 'leave' } : null)),
-      2000
-    )
-    return () => window.clearTimeout(t)
-  }, [replaceToast])
-  useEffect(() => {
-    if (!replaceToast || replaceToast.phase !== 'leave') return
-    const t = window.setTimeout(() => setReplaceToast(null), 200)
-    return () => window.clearTimeout(t)
-  }, [replaceToast])
-  const handleReplaced = useCallback((count: number) => {
-    setReplaceToast({ count, nonce: Date.now(), phase: 'enter' })
-  }, [])
-
-  // Convenience helpers wired into both editor keymaps and the LiveMarkdown
-  // `onOpenFind` callback. `openFind('replace')` mirrors the historical
-  // Cmd+Alt+F shortcut by forcing the Replace row open on the next mount.
-  const openFind = useCallback((variant: 'find' | 'replace') => {
-    setForceReplace(variant === 'replace')
-    setFindOpen(true)
-  }, [])
-  const closeFind = useCallback(() => {
-    setFindOpen(false)
-    setForceReplace(false)
-  }, [])
-
-  // Window-level Cmd+F / Cmd+Alt+F: App.tsx bumps these ticks when the
-  // shortcut fires outside the editor surface (sidebar / agents / tab bar).
-  // The local CM/PM keymaps still handle in-editor presses; the parent
-  // listener defers to them by inspecting the event target. Skip the first
-  // render (no tick change) so opening a tab doesn't auto-pop the bar.
-  // Hidden editors in the stack receive the same tick value as the active one,
-  // so gate on isActive: an inactive editor consumes the tick (advances its
-  // ref) without opening its find bar, so re-activating it later doesn't replay
-  // a tick fired while it was hidden.
-  const lastFindTickRef = useRef(openFindTick ?? 0)
-  useEffect(() => {
-    if (openFindTick === undefined || openFindTick === lastFindTickRef.current) return
-    lastFindTickRef.current = openFindTick
-    if (isActive) openFind('find')
-  }, [openFindTick, openFind, isActive])
-  const lastReplaceTickRef = useRef(openReplaceTick ?? 0)
-  useEffect(() => {
-    if (openReplaceTick === undefined || openReplaceTick === lastReplaceTickRef.current) return
-    lastReplaceTickRef.current = openReplaceTick
-    if (isActive) openFind('replace')
-  }, [openReplaceTick, openFind, isActive])
+  // Find / Replace bar state + replace-toast + window-level tick handling.
+  // Editor keeps only the rendering branch below (CodeMirrorFindBar vs
+  // FindReplaceOverlay); the state/effects live in the hook.
+  const {
+    findOpen,
+    forceReplace,
+    pmView,
+    cmView,
+    setPmView,
+    setCmView,
+    openFind,
+    closeFind,
+    replaceToast,
+    handleReplaced,
+  } = useFindReplaceState({ openFindTick, openReplaceTick, isActive })
+  const { mention, mentionExt, handleMentionSelect, handleMentionDismiss } = useMentionPicker({
+    filePath,
+    viewRef,
+  })
+  // Selection chip. Driven from CodeMirror's `onUpdate` callback below via the
+  // shared hook's `onCmSelectionChange`; the hook owns positioning, scroll/
+  // resize reposition, and click-to-send.
+  const {
+    chip: selectionChip,
+    handleChipClick,
+    onCmSelectionChange,
+  } = useSelectionChip({
+    source: { kind: 'codemirror', viewRef, isActive },
+    filePath,
+    agentKind,
+    onSendSelection,
+  })
 
   useEffect(() => {
     setLangExt(null)
@@ -387,99 +317,7 @@ export function Editor({
     [openFind]
   )
 
-  const dropExtension = useMemo(() => {
-    const insertAt = (view: EditorView, event: DragEvent, text: string): void => {
-      const pos =
-        view.posAtCoords({ x: event.clientX, y: event.clientY }) ?? view.state.selection.main.head
-      const to = pos + text.length
-      view.dispatch({
-        changes: { from: pos, insert: text },
-        selection: EditorSelection.cursor(to),
-        effects: flashInserted.of([{ from: pos, to }]),
-      })
-      // One-shot entrance animation; clear the decoration once it's done so
-      // subsequent drops re-trigger the animation cleanly.
-      setTimeout(() => {
-        view.dispatch({ effects: clearInsertedFlashes.of(null) })
-      }, 500)
-    }
-
-    const handleInternalDrop = (view: EditorView, event: DragEvent, paths: string[]): void => {
-      // Multi-drag: produce one markdown line per path and insert them all in
-      // a single dispatch so undo reverts the whole drop atomically.
-      const markdown = paths.map((p) => internalDragMarkdown(filePath, p)).join('\n')
-      insertAt(view, event, markdown)
-    }
-
-    const handleExternalDrop = async (
-      view: EditorView,
-      event: DragEvent,
-      files: File[]
-    ): Promise<void> => {
-      const outcome = await persistDroppedFiles({
-        files,
-        vaultPath,
-        notePath: filePath,
-        writeBinary: (p) => window.marvin.file.writeBinary(p),
-        onToast: onImportToast,
-      })
-      if (outcome.inserts.length > 0) insertAt(view, event, outcome.inserts.join('\n'))
-      emitSummaryToast(outcome, onImportToast)
-    }
-
-    return EditorView.domEventHandlers({
-      dragover(event) {
-        const types = event.dataTransfer?.types ?? []
-        if (
-          !types.includes('Files') &&
-          !types.includes(MARVIN_PATH_MIME) &&
-          !types.includes(MARVIN_PATHS_MIME)
-        )
-          return false
-        event.preventDefault()
-        // 'move' suppresses the macOS green-plus copy badge while staying
-        // compatible with the file tree's effectAllowed.
-        if (event.dataTransfer) event.dataTransfer.dropEffect = 'move'
-        return true
-      },
-      drop(event, view) {
-        const dt = event.dataTransfer
-        if (!dt) return false
-        const internalPaths = readDraggedPaths(dt)
-        const files = collectFiles(dt)
-        if (internalPaths.length > 0) {
-          event.preventDefault()
-          event.stopPropagation()
-          handleInternalDrop(view, event, internalPaths)
-          return true
-        }
-        if (files.length > 0) {
-          event.preventDefault()
-          event.stopPropagation()
-          void handleExternalDrop(view, event, files)
-          return true
-        }
-        return false
-      },
-    })
-  }, [vaultPath, filePath, onImportToast])
-
-  // The `@`-mention trigger extension is built once per Editor mount.
-  // Callbacks are stable setState invocations, so the extension never has
-  // to rebuild — that matters because rebuilding extensions tears the
-  // CodeMirror state down. The picker itself is rendered conditionally
-  // below from `mention` state, and a selection there dispatches the
-  // wikilink insertion back into the active view via `viewRef`.
-  const mentionExt = useMemo(
-    () =>
-      mentionTrigger({
-        onOpen: (from, anchor) => setMention({ from, query: '', anchor }),
-        onUpdate: (query, anchor) =>
-          setMention((prev) => (prev ? { ...prev, query, anchor } : prev)),
-        onClose: () => setMention(null),
-      }),
-    []
-  )
+  const dropExtension = useDropExtension({ vaultPath, filePath, onImportToast })
 
   const extensions = useMemo(() => {
     const style = visualStyle === 'legacy' ? legacyCodeHighlightStyle : codeHighlightStyle
@@ -499,13 +337,28 @@ export function Editor({
     return langExt ? [...base, langExt] : base
   }, [langExt, visualStyle, headerFindKeymap, dropExtension, mentionExt])
 
-  useEffect(() => {
+  // Only a version bump is a hard reset (disk-accept / external-refresh /
+  // snapshot restore / navigation). Save-driven content advancement and
+  // path-only renames leave version untouched, so they must not reseed.
+  // `value` is reset DURING render so the version-keyed CodeMirror below
+  // remounts straight onto the new content; a post-commit reset would let the
+  // fresh view record the doc swap into its history (cross-file undo bleed, #559).
+  const [seededVersion, setSeededVersion] = useState(version)
+  if (seededVersion !== version) {
+    setSeededVersion(version)
     setValue(initialContent)
+  }
+  // Refs / savedAt / dirty don't seed the view, so they catch up post-commit;
+  // setDirty must be here anyway — it notifies the parent (onDirtyChange).
+  const seededVersionRef = useRef(version)
+  useEffect(() => {
+    if (seededVersionRef.current === version) return
+    seededVersionRef.current = version
     latestValue.current = initialContent
     savedContentRef.current = initialContent
     setSavedAt(null)
     setDirty(false)
-  }, [filePath, initialContent, setDirty])
+  }, [version, initialContent, setDirty])
 
   useEffect(() => {
     return () => {
@@ -569,28 +422,10 @@ export function Editor({
     [scheduleSave]
   )
 
-  // Live-preview body changes: keep the current frontmatter, replace the body.
-  const handleBodyChange = useCallback(
-    (newBody: string) => {
-      const { data } = splitFrontmatter(latestValue.current)
-      if (!data) {
-        scheduleSave(newBody)
-        return
-      }
-      const yaml = serializeFrontmatter(data)
-      scheduleSave(`---\n${yaml}\n---\n\n${newBody}`)
-    },
-    [scheduleSave]
-  )
-
-  // Properties changes: replace the frontmatter, keep the body untouched.
-  const handlePropertiesChange = useCallback(
-    (nextData: Frontmatter | null) => {
-      const next = replaceFrontmatter(latestValue.current, nextData)
-      scheduleSave(next)
-    },
-    [scheduleSave]
-  )
+  const { fmCache, handleBodyChange, handlePropertiesChange } = useFrontmatterEditing({
+    latestValue,
+    scheduleSave,
+  })
 
   const handleLinkClick = useCallback(
     (href: string, modifier: 'replace' | 'newTab') => {
@@ -614,32 +449,6 @@ export function Editor({
     [filePath, vaultPath, paletteItems, onNavigate]
   )
 
-  // Mention selection: replace the `@`+query span with the type-specific
-  // insert text (wikilink, image embed, or markdown link). We use the
-  // current selection head as the upper bound because the user may have
-  // typed beyond what onUpdate last reported (CodeMirror state lags React
-  // state by one render tick). Clearing `mention` tears the picker down;
-  // the inserted text lives on as plain text in the document.
-  const handleMentionSelect = useCallback(
-    (item: PaletteItem) => {
-      const view = viewRef.current
-      if (!view || !mention) {
-        setMention(null)
-        return
-      }
-      const to = view.state.selection.main.head
-      const insert = mentionInsertText(item, filePath)
-      view.dispatch({
-        changes: { from: mention.from, to, insert },
-        selection: EditorSelection.cursor(mention.from + insert.length),
-      })
-      setMention(null)
-      view.focus()
-    },
-    [mention, filePath]
-  )
-  const handleMentionDismiss = useCallback(() => setMention(null), [])
-
   // mirrors view into viewRef each update so test mocks that skip onCreateEditor still see it
   const handleCmUpdate = useCallback(
     (update: {
@@ -648,89 +457,10 @@ export function Editor({
       view: EditorView
     }) => {
       viewRef.current = update.view
-      if (!update.selectionSet) return
-      const sel = update.state.selection.main
-      if (sel.empty) {
-        setSelectionChip(null)
-        return
-      }
-      const c = update.view.coordsAtPos(sel.to)
-      if (!c) {
-        setSelectionChip(null)
-        return
-      }
-      setSelectionChip({
-        from: sel.from,
-        to: sel.to,
-        coords: clampToViewport({ left: c.left, right: c.right, top: c.top, bottom: c.bottom }),
-      })
+      onCmSelectionChange(update)
     },
-    []
+    [onCmSelectionChange]
   )
-
-  const handleChipClick = useCallback(() => {
-    const view = viewRef.current
-    if (!view || !selectionChip || !onSendSelection) return
-    const text = view.state.sliceDoc(selectionChip.from, selectionChip.to)
-    const formatted = formatSelectionForAgent(text, agentKind)
-    if (formatted === '') return
-    const startLine = view.state.doc.lineAt(selectionChip.from).number
-    const endLine = view.state.doc.lineAt(selectionChip.to).number
-    const range = startLine === endLine ? `${startLine}` : `${startLine}-${endLine}`
-    const prefix = agentKind === 'codex' ? `@${filePath}:${range}` : `${filePath}:${range}`
-    onSendSelection(`${prefix}\n\n${formatted}`)
-  }, [selectionChip, onSendSelection, agentKind, filePath])
-
-  // Reposition the chip when the editor scrolls or the viewport resizes.
-  // The chip's coords come from `view.coordsAtPos(to)` (viewport-relative),
-  // so the doc offsets stay stable but the screen position drifts as the
-  // user scrolls. rAF-throttle so a burst of wheel events collapses into
-  // one re-measure. Effect dep is the `to` offset only: re-measures
-  // inside the setState updater don't restart the effect, so attach /
-  // detach happens once per distinct selection range.
-  const chipActiveTo = selectionChip?.to ?? null
-  useEffect(() => {
-    // Hidden editors don't repaint and must not attach window-level (resize)
-    // listeners; only the active editor tracks its chip against the viewport.
-    if (!isActive || chipActiveTo === null) return
-    const view = viewRef.current
-    if (!view) return
-    let frame = 0
-    const reposition = () => {
-      if (frame) return
-      frame = window.requestAnimationFrame(() => {
-        frame = 0
-        const liveView = viewRef.current
-        if (!liveView) return
-        const c = liveView.coordsAtPos(chipActiveTo)
-        if (!c) {
-          setSelectionChip(null)
-          return
-        }
-        setSelectionChip((prev) =>
-          prev
-            ? {
-                ...prev,
-                coords: clampToViewport({
-                  left: c.left,
-                  right: c.right,
-                  top: c.top,
-                  bottom: c.bottom,
-                }),
-              }
-            : prev
-        )
-      })
-    }
-    const scrollEl = view.scrollDOM
-    scrollEl.addEventListener('scroll', reposition, { passive: true })
-    window.addEventListener('resize', reposition)
-    return () => {
-      if (frame) window.cancelAnimationFrame(frame)
-      scrollEl.removeEventListener('scroll', reposition)
-      window.removeEventListener('resize', reposition)
-    }
-  }, [chipActiveTo, isActive])
 
   const handleContextMenu = useCallback(async (e: React.MouseEvent<HTMLDivElement>) => {
     const view = viewRef.current
@@ -812,11 +542,13 @@ export function Editor({
     ? filePath.slice(vaultPath.length + 1)
     : filePath
 
-  const { data: frontmatter, body: previewBody } = useMemo(
-    () =>
-      isMd && effectiveMode === 'preview' ? splitFrontmatter(value) : { data: null, body: value },
-    [isMd, effectiveMode, value]
-  )
+  const { data: frontmatter, body: previewBody } = useMemo(() => {
+    if (!(isMd && effectiveMode === 'preview')) return { data: null, body: value }
+    if (fmCache && value.startsWith(fmCache.prefix)) {
+      return { data: fmCache.data, body: value.slice(fmCache.prefix.length) }
+    }
+    return splitFrontmatter(value)
+  }, [isMd, effectiveMode, value, fmCache])
 
   // Imperative undo/redo handle for the global Cmd+Z fallback (#456). Routes to
   // whichever surface is actually live: CodeMirror in Source mode, ProseMirror
@@ -876,10 +608,11 @@ export function Editor({
     return () => onRegisterHandle?.(null)
   }, [isActive, onRegisterHandle, editorHandle])
 
-  // Remount Milkdown only when the file changes (not on every keystroke);
-  // typing edits are propagated through onChange and re-applied via React
-  // state without forcing a re-init of the editor.
-  const liveKey = filePath
+  // Remount Milkdown when the file changes OR when its version bumps (external
+  // reload / snapshot restore). version bumps only on those paths, never on
+  // keystrokes or manual saves, so typing edits still flow through onChange and
+  // re-apply via React state without forcing a re-init of the editor.
+  const liveKey = `${filePath}#${version}`
 
   return (
     <div className="editor">
@@ -914,7 +647,7 @@ export function Editor({
               type="button"
               className="btn btn--ghost"
               onClick={() =>
-                void window.marvin.file.exportPdf(filePath).catch((err) => {
+                void marvin.file.exportPdf(filePath).catch((err) => {
                   console.error('Export PDF failed', err)
                 })
               }
@@ -998,6 +731,7 @@ export function Editor({
         )}
         {effectiveMode === 'edit' ? (
           <CodeMirror
+            key={version}
             value={value}
             height="100%"
             theme="none"
@@ -1029,20 +763,21 @@ export function Editor({
           <div className="md-preview">
             <div className="md-preview-inner">
               {frontmatter && <Properties data={frontmatter} onChange={handlePropertiesChange} />}
-              <LiveMarkdown
-                body={previewBody}
-                onChange={handleBodyChange}
-                onLinkClick={handleLinkClick}
-                filePath={filePath}
-                vaultPath={vaultPath}
-                paletteItems={paletteItems}
-                remountKey={liveKey}
-                onOpenFind={openFind}
-                onViewReady={setPmView}
-                onImportToast={onImportToast}
-                onSendSelection={onSendSelection}
-                agentKind={agentKind}
-              />
+              <Suspense fallback={<div className="md-preview-loading">Loading editor…</div>}>
+                <LiveMarkdown
+                  body={previewBody}
+                  onChange={handleBodyChange}
+                  onLinkClick={handleLinkClick}
+                  filePath={filePath}
+                  paletteItems={paletteItems}
+                  remountKey={liveKey}
+                  onOpenFind={openFind}
+                  onViewReady={setPmView}
+                  onImportToast={onImportToast}
+                  onSendSelection={onSendSelection}
+                  agentKind={agentKind}
+                />
+              </Suspense>
             </div>
           </div>
         )}

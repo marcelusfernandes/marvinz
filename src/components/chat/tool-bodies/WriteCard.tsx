@@ -1,6 +1,6 @@
 import { memo } from 'react'
 import type { ToolBodyProps } from './types'
-import { basename, readPath, readString } from './types'
+import { basename, readPath, readString, toolStatusLabel } from './types'
 
 /**
  * Write/Edit tool card. Renders the destination filename pill with a small
@@ -34,9 +34,14 @@ function buildSubline(
   oldContent: string | null,
   result: unknown
 ): string | null {
-  if (status === 'error') return 'Failed'
-  if (status === 'denied') return 'Denied'
-  if (status === 'cancelled') return 'Cancelled'
+  if (
+    status === 'error' ||
+    status === 'denied' ||
+    status === 'cancelled' ||
+    status === 'pending_approval'
+  ) {
+    return toolStatusLabel(status)
+  }
 
   const added = newContent ? newContent.split('\n').length : 0
   const removed = oldContent ? oldContent.split('\n').length : 0

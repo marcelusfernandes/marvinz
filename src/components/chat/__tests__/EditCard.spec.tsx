@@ -247,7 +247,7 @@ describe('EditCard — change-summary subline', () => {
     expect(container.querySelector('.chat-tool-subline')?.textContent).toBe('Patched successfully')
   })
 
-  it('shows "Pending approval" for pending_approval status', () => {
+  it('shows "Awaiting approval" for pending_approval status', () => {
     const { container } = render(
       <EditCard
         toolUseId="tu1"
@@ -256,7 +256,7 @@ describe('EditCard — change-summary subline', () => {
         status="pending_approval"
       />
     )
-    expect(container.querySelector('.chat-tool-subline')?.textContent).toBe('Pending approval')
+    expect(container.querySelector('.chat-tool-subline')?.textContent).toBe('Awaiting approval')
   })
 })
 

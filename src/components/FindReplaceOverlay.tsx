@@ -10,8 +10,7 @@ import {
   replaceNext,
   setSearchState,
 } from 'prosemirror-search'
-import { Icon } from './Icon'
-import { readReplaceExpanded, writeReplaceExpanded } from '../lib/findBarPrefs'
+import { FindBarShell } from './FindBarShell'
 import { justReplacedPluginKey } from '../lib/pmJustReplacedHighlight'
 
 /** Ensures the post-navigation selection is anchored in view with 80px
@@ -97,11 +96,6 @@ type Props = {
 export function FindReplaceOverlay({ view, onClose, initialReplaceExpanded, onReplaced }: Props) {
   const [query, setQuery] = useState('')
   const [replace, setReplace] = useState('')
-  // Replace row visibility. Initial value: the prop (when Cmd+Alt+F forced
-  // it open) or the persisted preference, falling back to collapsed.
-  const [replaceExpanded, setReplaceExpanded] = useState<boolean>(
-    () => initialReplaceExpanded ?? readReplaceExpanded()
-  )
   // Bumped after every navigation command so the match-count readout
   // recomputes once the new selection has been applied.
   const [navTick, setNavTick] = useState(0)
@@ -109,21 +103,6 @@ export function FindReplaceOverlay({ view, onClose, initialReplaceExpanded, onRe
     total: 0,
     current: null,
   })
-  const findInputRef = useRef<HTMLInputElement>(null)
-
-  // Auto-focus the find input on mount.
-  useEffect(() => {
-    findInputRef.current?.focus()
-    findInputRef.current?.select()
-  }, [])
-
-  const toggleReplace = () => {
-    setReplaceExpanded((prev) => {
-      const next = !prev
-      writeReplaceExpanded(next)
-      return next
-    })
-  }
 
   // Push query/replace changes into the plugin state so highlights track
   // typing. The auto-navigation to the first match only fires when the
@@ -226,121 +205,21 @@ export function FindReplaceOverlay({ view, onClose, initialReplaceExpanded, onRe
     setNavTick((n) => n + 1)
   }
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-    if (e.key === 'Escape') {
-      e.preventDefault()
-      onClose()
-      view.focus()
-      return
-    }
-    if (e.key === 'Enter') {
-      e.preventDefault()
-      if (e.shiftKey) runFindPrev()
-      else runFindNext()
-    }
-  }
-
   return (
-    <div className="md-find" role="search" data-testid="pm-search-panel" onKeyDown={handleKeyDown}>
-      <div className="md-find-row">
-        <button
-          type="button"
-          className={`icon-btn md-find-toggle${replaceExpanded ? ' md-find-toggle--active' : ''}`}
-          onClick={toggleReplace}
-          title={replaceExpanded ? 'Hide replace' : 'Show replace'}
-          aria-label={replaceExpanded ? 'Hide replace row' : 'Show replace row'}
-          aria-expanded={replaceExpanded}
-          data-testid="pm-replace-toggle"
-        >
-          <Icon name="replace" size={16} />
-        </button>
-        <input
-          ref={findInputRef}
-          type="text"
-          className="md-find-input"
-          placeholder="Find"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          aria-label="Find"
-          data-testid="pm-search-input"
-        />
-        <span
-          className={`md-find-count${
-            !query || matchInfo.total === 0 ? ' md-find-count--empty' : ''
-          }`}
-          aria-live="polite"
-          data-testid="pm-search-count"
-        >
-          {!query || matchInfo.total === 0
-            ? 'No results'
-            : matchInfo.current !== null
-              ? `${matchInfo.current} of ${matchInfo.total}`
-              : `${matchInfo.total} ${matchInfo.total === 1 ? 'match' : 'matches'}`}
-        </span>
-        <button
-          type="button"
-          className="icon-btn"
-          onClick={runFindPrev}
-          title="Previous match (Shift+Enter)"
-          aria-label="Previous match"
-          data-testid="pm-search-prev"
-        >
-          <Icon name="chevron-up" size={16} />
-        </button>
-        <button
-          type="button"
-          className="icon-btn"
-          onClick={runFindNext}
-          title="Next match (Enter)"
-          aria-label="Next match"
-          data-testid="pm-search-next"
-        >
-          <Icon name="chevron-down" size={16} />
-        </button>
-        <button
-          type="button"
-          className="icon-btn md-find-close"
-          onClick={onClose}
-          title="Close (Esc)"
-          aria-label="Close find panel"
-          data-testid="pm-search-close"
-        >
-          <Icon name="close" size={16} />
-        </button>
-      </div>
-      {replaceExpanded && (
-        <div className="md-find-row md-find-row--replace">
-          <input
-            type="text"
-            className="md-find-input md-find-input--bare"
-            placeholder="Replace with..."
-            value={replace}
-            onChange={(e) => setReplace(e.target.value)}
-            aria-label="Replace"
-            data-testid="pm-replace-input"
-          />
-          <button
-            type="button"
-            className="icon-btn"
-            onClick={runReplaceAll}
-            title="Replace all"
-            aria-label="Replace all"
-            data-testid="pm-replace-all"
-          >
-            <Icon name="replace-all" size={16} />
-          </button>
-          <button
-            type="button"
-            className="icon-btn"
-            onClick={runReplaceNext}
-            title="Replace (Enter)"
-            aria-label="Replace"
-            data-testid="pm-replace-next"
-          >
-            <Icon name="replace" size={16} />
-          </button>
-        </div>
-      )}
-    </div>
+    <FindBarShell
+      testIdPrefix="pm"
+      query={query}
+      onQueryChange={setQuery}
+      replace={replace}
+      onReplaceChange={setReplace}
+      matchInfo={matchInfo}
+      onFindNext={runFindNext}
+      onFindPrev={runFindPrev}
+      onReplaceNext={runReplaceNext}
+      onReplaceAll={runReplaceAll}
+      onClose={onClose}
+      focusEditor={() => view.focus()}
+      initialReplaceExpanded={initialReplaceExpanded}
+    />
   )
 }

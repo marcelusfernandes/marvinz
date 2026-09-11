@@ -11,10 +11,15 @@ import { NdjsonStream } from './ndjson.js'
 import { adaptClaudeObj, makeAdapterState, type AdapterState } from './adapter-claude.js'
 import { adaptCodexObj, makeCodexAdapterState, type CodexAdapterState } from './adapter-codex.js'
 import { clearSessionRules, resolveApproval, cancelPendingApprovals } from './permissions.js'
-import { createApprovalServer, type ApprovalServer } from './approval-socket.js'
+import { createApprovalServer, type ApprovalServer, type PreEditState } from './approval-socket.js'
+import { diffTouchedFiles } from './turn-content-gate.js'
 import { collectProcessTree, signalPids } from '../proc-group.js'
 import { newTurnId } from '../snapshot.js'
 import type { AgentEvent, AgentRequest, Provider, PermissionMode } from './protocol.js'
+import type { AgentAdapter, AgentBinaries } from './adapter.js'
+import { IPC_CHANNELS } from '../../src/shared/ipc-channels.js'
+
+export type { AgentBinaries } from './adapter.js'
 
 export type AgentChild = {
   sessionId: string
@@ -35,10 +40,12 @@ export type AgentChild = {
   flushTimer: ReturnType<typeof setTimeout> | null
   // Mutable ref to the current agent turn ID, shared with approval-socket for snapshot tagging.
   agentTurnId: { current: string }
-  // Files touched (by file-edit tools) in the current turn, for turn-snapshot-summary.
+  // Files touched (by approved file-edit tool calls) in the current turn, for turn-snapshot-summary.
   touchedFiles: Set<string>
   // Snapshot result promises keyed by toolUseId — populated by approval-socket, consumed by dispatchEvent.
   snapshotResults: Map<string, Promise<{ saved: boolean; turnId: string }>>
+  // Pre-edit content state per touched file, for the post-turn content-change gate (#537).
+  preEditStates: Map<string, PreEditState>
 }
 
 // Emitter callback: main.ts passes win.webContents.send bound to the window.
@@ -192,7 +199,7 @@ function flushDeltaBuffers(child: AgentChild, emit: EventEmitter): void {
       delta: coalesced,
       seq,
     }
-    emit(`agent:event:${child.sessionId}`, event)
+    emit(IPC_CHANNELS.agent.event(child.sessionId), event)
   }
 }
 
@@ -237,7 +244,7 @@ function dispatchEvent(child: AgentChild, event: AgentEvent, emit: EventEmitter)
     if (snapPromise) {
       child.snapshotResults.delete(event.toolUseId)
       void snapPromise.then((snap) => {
-        emit(`agent:event:${child.sessionId}`, {
+        emit(IPC_CHANNELS.agent.event(child.sessionId), {
           ...event,
           snapshotSaved: snap.saved,
           snapshotTurnId: snap.turnId,
@@ -247,26 +254,105 @@ function dispatchEvent(child: AgentChild, event: AgentEvent, emit: EventEmitter)
     }
   }
 
-  emit(`agent:event:${child.sessionId}`, event)
+  emit(IPC_CHANNELS.agent.event(child.sessionId), event)
 
-  // After turn-result: emit turn-snapshot-summary then reset per-turn state.
+  // After turn-result: snapshot touchedFiles/preEditStates and reset them
+  // synchronously so this turn's diff can't race the next turn's edits, then
+  // diff the just-finished turn's touched files against their pre-edit state
+  // and emit turn-snapshot-summary only for the files that really changed on
+  // disk (#537). The disk reads are async, so this happens without delaying
+  // turn-result or any other event above.
+  // Note: touchedFiles is populated synchronously (on approval), so this
+  // reset cleanly separates turn N from turn N+1 for it. preEditStates is
+  // filled by a fire-and-forget promise in approval-socket.ts that can in
+  // principle still be resolving when this reset runs, so in rare races a
+  // turn-N baseline could land in turn N+1's map (or first-write-wins could
+  // reflect promise-resolution order rather than edit order) — no worse than
+  // today's behavior, and not hardened here.
   if (event.type === 'turn-result' && child.touchedFiles.size > 0) {
-    const fileNames = [...child.touchedFiles]
-    emit(`agent:event:${child.sessionId}`, {
-      type: 'turn-snapshot-summary',
-      sessionId: child.sessionId,
-      turnId: child.agentTurnId.current,
-      fileCount: fileNames.length,
-      fileNames,
-    })
+    const turnId = child.agentTurnId.current
+    const turnFiles = [...child.touchedFiles]
+    const turnPreEditStates = new Map(child.preEditStates)
+    const vaultRoot = child.vaultRoot
+
     child.touchedFiles.clear()
+    child.preEditStates.clear()
     child.agentTurnId.current = newTurnId()
+
+    void diffTouchedFiles(vaultRoot, turnFiles, turnPreEditStates).then((fileNames) => {
+      if (fileNames.length === 0) return
+      emit(IPC_CHANNELS.agent.event(child.sessionId), {
+        type: 'turn-snapshot-summary',
+        sessionId: child.sessionId,
+        turnId,
+        fileCount: fileNames.length,
+        fileNames,
+      })
+    })
   }
 }
 
-export type AgentBinaries = {
-  claude: string
-  codex?: string
+// Concrete per-provider adapters — wrap the existing buildClaudeArgs/
+// buildCodexArgs and adaptClaudeObj/adaptCodexObj unchanged; the interface
+// just groups them with the other per-provider concerns spawnAgent used to
+// branch on inline (#582). Live here rather than in adapter.ts to avoid a
+// circular import (they call the arg-builders defined above).
+const claudeAdapter: AgentAdapter = {
+  makeState(sessionId, req) {
+    const state = makeAdapterState(sessionId)
+    state.cwd = req.vaultRoot
+    return state
+  },
+  resolveBinary(bins) {
+    return bins.claude
+  },
+  buildArgs(req) {
+    return buildClaudeArgs(req)
+  },
+  usesApprovalSocket: true,
+  handleStdin(proc, req) {
+    // Prompt is sent as a stream-json input event on stdin.
+    if (!proc.stdin) return
+    const inputEvent =
+      JSON.stringify({
+        type: 'user',
+        message: { role: 'user', content: req.prompt },
+      }) + '\n'
+    proc.stdin.write(inputEvent)
+    proc.stdin.end()
+  },
+  adaptObj(obj, state) {
+    return adaptClaudeObj(obj, state as AdapterState)
+  },
+}
+
+const codexAdapter: AgentAdapter = {
+  makeState(sessionId) {
+    return makeCodexAdapterState(sessionId)
+  },
+  resolveBinary(bins) {
+    return bins.codex ?? 'codex'
+  },
+  buildArgs(req) {
+    return buildCodexArgs(req)
+  },
+  usesApprovalSocket: false,
+  handleStdin(proc) {
+    // Prompt is passed as argv to `codex exec --json` — no stdin writes needed.
+    if (!proc.stdin) return
+    proc.stdin.end()
+  },
+  adaptObj(obj, state) {
+    return adaptCodexObj(obj, state as CodexAdapterState)
+  },
+}
+
+// Record (not a plain object) so adding a Provider union member without a
+// matching entry here fails the TypeScript build — the compiler-enforced
+// checklist the AC asks for.
+export const adapters: Record<Provider, AgentAdapter> = {
+  claude: claudeAdapter,
+  codex: codexAdapter,
 }
 
 export async function spawnAgent(
@@ -283,17 +369,11 @@ export async function spawnAgent(
     agentChildren.delete(req.sessionId)
   }
 
-  const isCodex = req.provider === 'codex'
-  const adapterState = isCodex
-    ? makeCodexAdapterState(req.sessionId)
-    : makeAdapterState(req.sessionId)
+  const adapter = adapters[req.provider]
+  const adapterState = adapter.makeState(req.sessionId, req)
 
-  if (!isCodex) {
-    ;(adapterState as ReturnType<typeof makeAdapterState>).cwd = req.vaultRoot
-  }
-
-  const binary = isCodex ? (bins.codex ?? 'codex') : bins.claude
-  const args = isCodex ? buildCodexArgs(req) : buildClaudeArgs(req)
+  const binary = adapter.resolveBinary(bins)
+  const args = adapter.buildArgs(req)
 
   // Create approval socket server before spawning so the env var is ready.
   // Codex does not use the hook bridge — skip for Codex sessions.
@@ -302,9 +382,10 @@ export async function spawnAgent(
   const agentTurnId = { current: newTurnId() }
   const touchedFiles = new Set<string>()
   const snapshotResults = new Map<string, Promise<{ saved: boolean; turnId: string }>>()
+  const preEditStates = new Map<string, PreEditState>()
 
   let approvalServer: ApprovalServer | null = null
-  if (!isCodex) {
+  if (adapter.usesApprovalSocket) {
     approvalServer = await createApprovalServer(
       req.sessionId,
       { sessionId: req.sessionId, permissionMode: req.permissionMode, vaultRoot: req.vaultRoot },
@@ -313,7 +394,8 @@ export async function spawnAgent(
       emit,
       agentTurnId,
       touchedFiles,
-      snapshotResults
+      snapshotResults,
+      preEditStates
     )
   }
 
@@ -332,11 +414,11 @@ export async function spawnAgent(
     await approvalServer?.close()
     const message = err instanceof Error ? err.message : String(err)
     if (message.includes('ENOENT')) {
-      emit(`agent:event:${req.sessionId}`, {
+      emit(IPC_CHANNELS.agent.event(req.sessionId), {
         type: 'error',
         sessionId: req.sessionId,
         code: 'AGENT_NOT_FOUND',
-        message: `${isCodex ? 'codex' : 'claude'} binary not found`,
+        message: `${req.provider} binary not found`,
         recoverable: false,
       })
       return
@@ -360,14 +442,9 @@ export async function spawnAgent(
     agentTurnId,
     touchedFiles,
     snapshotResults,
+    preEditStates,
   }
   agentChildren.set(req.sessionId, child)
-
-  // For Codex: prompt is passed as argv to `codex exec --json`.
-  // No stdin writes needed — leave stdin closed.
-  if (isCodex && proc.stdin) {
-    proc.stdin.end()
-  }
 
   let malformedCount = 0
 
@@ -375,9 +452,7 @@ export async function spawnAgent(
     (obj) => {
       malformedCount = 0
 
-      const events = isCodex
-        ? adaptCodexObj(obj, adapterState as ReturnType<typeof makeCodexAdapterState>)
-        : adaptClaudeObj(obj, adapterState as ReturnType<typeof makeAdapterState>)
+      const events = adapter.adaptObj(obj, adapterState)
       for (const event of events) {
         // tool-use events are forwarded as-is; the approval socket server is the
         // real gate. The hook bridge blocks the CLI until a decision is sent back.
@@ -388,7 +463,7 @@ export async function spawnAgent(
       malformedCount++
       await writeAgentLog(req.sessionId, `[MALFORMED] ${err.message}: ${line.slice(0, 200)}`)
       if (malformedCount < 3) {
-        emit(`agent:event:${req.sessionId}`, {
+        emit(IPC_CHANNELS.agent.event(req.sessionId), {
           type: 'error',
           sessionId: req.sessionId,
           code: 'AGENT_INVALID_STREAM',
@@ -403,7 +478,7 @@ export async function spawnAgent(
         clearTimeout(child.flushTimer)
         flushDeltaBuffers(child, emit)
       }
-      emit(`agent:event:${req.sessionId}`, {
+      emit(IPC_CHANNELS.agent.event(req.sessionId), {
         type: 'crashed',
         sessionId: req.sessionId,
         exitCode: null,
@@ -413,16 +488,9 @@ export async function spawnAgent(
     }
   )
 
-  // For Claude: send the initial prompt as a stream-json input event on stdin.
-  if (!isCodex && proc.stdin) {
-    const inputEvent =
-      JSON.stringify({
-        type: 'user',
-        message: { role: 'user', content: req.prompt },
-      }) + '\n'
-    proc.stdin.write(inputEvent)
-    proc.stdin.end()
-  }
+  // Hand stdin off to the provider adapter — Codex passes the prompt as argv
+  // and just closes stdin; Claude writes the stream-json prompt event first.
+  adapter.handleStdin(proc, req)
 
   const stderrChunks: Buffer[] = []
 
@@ -450,7 +518,7 @@ export async function spawnAgent(
     void child.approvalServer?.close()
 
     if (code !== 0 && code !== null) {
-      emit(`agent:event:${req.sessionId}`, {
+      emit(IPC_CHANNELS.agent.event(req.sessionId), {
         type: 'crashed',
         sessionId: req.sessionId,
         exitCode: code,

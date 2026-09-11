@@ -13,7 +13,6 @@ import type { MenuItemSpec } from '../types'
 
 type Props = {
   agents: AgentDef[]
-  vaultPath: string
   /** Increments to request opening a new tab (Cmd+Shift+T from App). */
   newTabTick: number
   /** Open the SnapshotPanel pre-selected to this turn id (from UserBubble). */
@@ -59,7 +58,6 @@ function readStoredDefault(agents: AgentDef[]): string | null {
 
 export function AgentsPane({
   agents,
-  vaultPath,
   newTabTick,
   onRewind,
   onTurnSummary,
@@ -449,7 +447,6 @@ export function AgentsPane({
                   <ChatPanel
                     sessionId={t.id}
                     provider={t.agentId}
-                    vaultPath={vaultPath}
                     onRewind={onRewind}
                     onTurnSummary={onTurnSummary}
                   />
@@ -461,7 +458,6 @@ export function AgentsPane({
                 key={t.id}
                 agent={a}
                 ptyId={t.id}
-                vaultPath={vaultPath}
                 isActive={isActive}
                 onStatusChange={handleStatusChange}
                 onOpenFile={onOpenFile}

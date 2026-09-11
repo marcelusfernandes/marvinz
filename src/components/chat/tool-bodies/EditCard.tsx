@@ -1,7 +1,8 @@
 import { memo, useEffect, useState } from 'react'
 import { DiffCard } from '../DiffCard'
 import type { ToolBodyProps } from './types'
-import { basename, readPath, readString } from './types'
+import { basename, readPath, readString, toolStatusLabel } from './types'
+import { marvin } from '../../../lib/marvinApi'
 
 /**
  * Edit tool card (PRD §6.2, AC1). Compact by default: filename pill +
@@ -39,7 +40,7 @@ function EditCardImpl({
         if (cancelled) return
         const relPath = toRelPath(path, vaultRoot)
         if (!relPath) return
-        const res = await window.marvin.snapshot.read(snapshotTurnId, relPath)
+        const res = await marvin.snapshot.read(snapshotTurnId, relPath)
         if (cancelled) return
         if (res.ok) setSnapshotOldText(res.data)
       } catch {
@@ -128,10 +129,14 @@ function buildChangeSummary(
   oldContent: string | null,
   result: unknown
 ): string | null {
-  if (status === 'error') return 'Failed'
-  if (status === 'denied') return 'Denied'
-  if (status === 'cancelled') return 'Cancelled'
-  if (status === 'pending_approval') return 'Pending approval'
+  if (
+    status === 'error' ||
+    status === 'denied' ||
+    status === 'cancelled' ||
+    status === 'pending_approval'
+  ) {
+    return toolStatusLabel(status)
+  }
 
   const newLines = countLines(newContent)
   const oldLines = countLines(oldContent)

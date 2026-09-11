@@ -30,7 +30,6 @@ const GRANDFATHERED_COMPLEXITY = [
 ]
 
 const GRANDFATHERED_MAX_LINES = [
-  'electron/main.ts',
   'src/App.tsx',
   'src/components/Editor.tsx',
   'src/components/FileTree.tsx',
@@ -42,6 +41,14 @@ const GRANDFATHERED_MAX_LINES = [
   'electron/agent/adapter-claude.ts',
   'electron/agent/index.ts',
   'src/components/SettingsModal.tsx',
+]
+
+// Legacy no-param-reassign offenders: CodeMirror StateField reducers that
+// reassign their `value` accumulator (idiomatic CM, but flagged). Grandfathered
+// so the rule is a hard error for new/touched code; remove as refactored (#594).
+const GRANDFATHERED_NO_PARAM_REASSIGN = [
+  'src/lib/cmJustInsertedHighlight.ts',
+  'src/lib/cmJustReplacedHighlight.ts',
 ]
 
 export default defineConfig([
@@ -60,6 +67,10 @@ export default defineConfig([
     rules: {
       complexity: ['error', 15],
       'max-lines': ['error', { max: 500, skipBlankLines: true, skipComments: true }],
+      // Enforce the CRITICAL immutability rule (coding-style.md) as a hard
+      // failure for new/touched code. Legacy offenders are grandfathered in
+      // GRANDFATHERED_NO_PARAM_REASSIGN below; remove as refactored (#594).
+      'no-param-reassign': 'error',
       '@typescript-eslint/naming-convention': [
         'error',
         { selector: 'typeLike', format: ['PascalCase'] },
@@ -108,6 +119,25 @@ export default defineConfig([
     files: GRANDFATHERED_MAX_LINES,
     rules: {
       'max-lines': 'off',
+    },
+  },
+  // Grandfather legacy no-param-reassign offenders — remove as refactored (#594)
+  {
+    files: GRANDFATHERED_NO_PARAM_REASSIGN,
+    rules: {
+      'no-param-reassign': 'off',
+    },
+  },
+  // electron/main.ts (#573/#580/#613): reduced from 2116 to 679 raw lines (501
+  // counted by this rule's skipBlankLines/skipComments) after extracting
+  // every ipcMain.handle/on call into electron/ipc/*. 1 line over the 500
+  // default (prettier wraps one import list across multiple lines) — a small
+  // numeric cap replaces the #580 grandfather entry rather than force an
+  // unrelated code change just to dodge the threshold.
+  {
+    files: ['electron/main.ts'],
+    rules: {
+      'max-lines': ['error', { max: 520, skipBlankLines: true, skipComments: true }],
     },
   },
 ])

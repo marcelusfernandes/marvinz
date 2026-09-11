@@ -17,6 +17,12 @@ import type { SessionId, ToolCallId } from './types'
 
 type ApprovalRemember = 'session' | 'always'
 
+// Not migrated to lib/marvinApi.ts's facade (#597): this reads window.marvin.agent
+// directly, not marvin.agent, so `if (api.approve) ... else if (api.request)` below
+// can genuinely fall through when a build's preload lacks one of those methods.
+// The facade's `agent` object always exposes both as functions, which would make
+// that existence check vacuous and turn a missing-method case into a thrown error
+// instead of the older-preload fallback.
 function getAgentApi() {
   if (typeof window === 'undefined') return null
   return window.marvin?.agent ?? null

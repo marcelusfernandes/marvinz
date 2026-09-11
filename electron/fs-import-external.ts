@@ -91,7 +91,10 @@ export async function importExternal(
   const safeDestDir = await assertCwdInsideVaultAsync(activeVaultPath, destDir)
 
   const entries = await readdir(safeDestDir)
-  const namesSet = new Set(entries.map((n) => n.normalize('NFC')))
+  // Lowercased to match case-insensitive filesystem semantics (APFS/NTFS
+  // default); resolveImportName also compares case-insensitively, so this
+  // keeps the set's own invariant consistent as entries are added below.
+  const namesSet = new Set(entries.map((n) => n.normalize('NFC').toLowerCase()))
 
   const imported: string[] = []
   const skipped: ImportResult['skipped'] = []
@@ -131,13 +134,16 @@ export async function importExternal(
 
     const basename = path.basename(source).normalize('NFC')
     const finalName = resolveImportName(basename, namesSet)
-    namesSet.add(finalName)
+    namesSet.add(finalName.toLowerCase())
 
     try {
       await cp(source, path.join(safeDestDir, finalName), {
         recursive: true,
         dereference: false,
-        errorOnExist: false,
+        // Defense in depth: even if collision detection above were bypassed,
+        // fail fast instead of silently overwriting an existing vault file.
+        errorOnExist: true,
+        force: false,
       })
       imported.push(path.join(safeDestDir, finalName))
     } catch {

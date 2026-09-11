@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, act } from '@testing-library/react'
+import { screen, act } from '@testing-library/react'
+import { renderWithAppContext as render } from './renderWithAppContext'
 import { AgentTerminal } from '../AgentTerminal'
 
 // ---------------------------------------------------------------------------
@@ -85,7 +86,9 @@ function setupMarvinMock() {
 const VAULT = '/vault'
 const PTY_ID = 'test-pty-1'
 
-function defaultProps(overrides: Partial<Parameters<typeof AgentTerminal>[0]> = {}) {
+function defaultProps(
+  overrides: Partial<Parameters<typeof AgentTerminal>[0] & { vaultPath: string }> = {}
+) {
   return {
     agent: { id: 'codex', name: 'Codex', binaryPath: '/usr/bin/codex' },
     ptyId: PTY_ID,
@@ -256,7 +259,11 @@ describe('AgentTerminal — drop target (issue #365)', () => {
   })
 
   it('drop with no vault (vaultPath empty): no PTY write', async () => {
-    render(<AgentTerminal {...defaultProps({ vaultPath: '' })} />)
+    // vaultPath: '' is this file's "no vault open" sentinel today; once the
+    // component reads useAppContext() instead, "no vault" is context's null,
+    // hence the explicit override here (every other call site here relies on
+    // the helper's '/vault' default, matching this file's own VAULT prop).
+    render(<AgentTerminal {...defaultProps({ vaultPath: '' })} />, { vaultPath: null })
     await act(async () => {})
 
     const container = getTerminalContainer()
