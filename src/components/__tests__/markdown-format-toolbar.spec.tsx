@@ -83,11 +83,7 @@ const { doc, paragraph, heading, text } = {
 function stateWith(node: PMNode, from?: number, to?: number): EditorState {
   const state = EditorState.create({ schema, doc: node })
   if (from === undefined) return state
-  return state.apply(
-    state.tr.setSelection(
-      TextSelection.create(state.doc, from, to ?? from)
-    )
-  )
+  return state.apply(state.tr.setSelection(TextSelection.create(state.doc, from, to ?? from)))
 }
 
 /** Fake EditorView that applies transactions to itself, like the real one. */
