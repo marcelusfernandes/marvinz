@@ -68,10 +68,16 @@ function useRepaint(view: EditorView | null): () => void {
       }, SELECTION_DEBOUNCE_MS)
     }
     const editorDom = view.dom
-    document.addEventListener('selectionchange', schedule)
+    // `selectionchange` is document-wide: a selection made in the chat panel
+    // or sidebar says nothing about the editor, so skip the repaint unless the
+    // editor owns the focus.
+    const onSelectionChange = () => {
+      if (view.hasFocus()) schedule()
+    }
+    document.addEventListener('selectionchange', onSelectionChange)
     editorDom.addEventListener('keydown', schedule)
     return () => {
-      document.removeEventListener('selectionchange', schedule)
+      document.removeEventListener('selectionchange', onSelectionChange)
       editorDom.removeEventListener('keydown', schedule)
       if (timer !== null) window.clearTimeout(timer)
     }
@@ -94,7 +100,10 @@ export function MarkdownFormatToolbar({ view }: Props) {
 
   const run = useCallback(
     (command: Command | null) => {
-      if (!view || !command) return
+      // After an external-change accept, LiveMarkdown remounts and briefly
+      // republishes the OLD, destroyed view before the new one exists;
+      // dispatching into it throws from a null docView.
+      if (!view || view.isDestroyed || !command) return
       command(view.state, view.dispatch, view)
       // Put the caret back in the document so typing continues where the user
       // left off instead of staying on the button.

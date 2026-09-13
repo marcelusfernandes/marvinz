@@ -683,10 +683,8 @@ export function Editor({
       </div>
       {/* Formatting bar — markdown in Rendered mode only. Driven by `pmView`,
           which LiveMarkdown already publishes through `onViewReady` for the
-          find bar; `key` remounts it per file so no stale view is read. */}
-      {isMd && effectiveMode === 'preview' && (
-        <MarkdownFormatToolbar key={filePath} view={pmView} />
-      )}
+          find bar. */}
+      {isMd && effectiveMode === 'preview' && <MarkdownFormatToolbar view={pmView} />}
       <div className="editor-body">
         {/* Floating Find / Replace bar sits as an overlay just below the
             header. Driven by the active surface (CodeMirror in raw edit

@@ -1,6 +1,8 @@
-import { lift, setBlockType, toggleMark, wrapIn } from '@milkdown/prose/commands'
+import { setBlockType, toggleMark, wrapIn } from '@milkdown/prose/commands'
 import { liftListItem, wrapInList } from '@milkdown/prose/schema-list'
-import { Selection, type Command, type EditorState } from '@milkdown/prose/state'
+import { Selection, type Command, type EditorState, type Transaction } from '@milkdown/prose/state'
+import { liftTarget } from '@milkdown/prose/transform'
+import type { MarkType, NodeType, ResolvedPos } from '@milkdown/prose/model'
 
 /**
  * Command layer for the Rendered-mode formatting toolbar (#636).
@@ -113,6 +115,13 @@ function nearestList(state: EditorState) {
   return null
 }
 
+function nearestListItemDepth($from: ResolvedPos, listItemType: NodeType): number | null {
+  for (let depth = $from.depth; depth > 0; depth--) {
+    if ($from.node(depth).type === listItemType) return depth
+  }
+  return null
+}
+
 /**
  * Whether the button should render as pressed.
  *
@@ -152,6 +161,47 @@ export function isItemActive(state: EditorState, item: ToolbarItem): boolean {
 
 type Schema = EditorState['schema']
 
+/**
+ * Range of the mark instance under a collapsed caret, extended over every
+ * adjacent sibling carrying an equal mark — the same sibling walk
+ * `deleteReferenceBackward` does for links in LiveMarkdown. Null when the caret
+ * is not inside `type`.
+ */
+function markRangeAt($pos: ResolvedPos, type: MarkType): { from: number; to: number } | null {
+  const mark = type.isInSet($pos.marks())
+  if (!mark) return null
+  const parent = $pos.parent
+  let index = $pos.index()
+  // At a boundary, $pos.marks() reported nodeBefore's marks: start there.
+  if ($pos.textOffset === 0 && index > 0 && mark.isInSet(parent.child(index - 1).marks)) {
+    index -= 1
+  }
+  if (index >= parent.childCount || !mark.isInSet(parent.child(index).marks)) return null
+  let first = index
+  let last = index
+  while (first > 0 && mark.isInSet(parent.child(first - 1).marks)) first -= 1
+  while (last + 1 < parent.childCount && mark.isInSet(parent.child(last + 1).marks)) last += 1
+  const from = $pos.posAtIndex(first)
+  const to = $pos.posAtIndex(last) + parent.child(last).nodeSize
+  return { from, to }
+}
+
+/**
+ * Remove `type` from a collapsed caret sitting inside it. Without this, a
+ * caret inside a link or code span rendered the button active-but-disabled —
+ * the bar showed the mark and offered no way to take it off.
+ */
+function removeMarkAtCaret(
+  state: EditorState,
+  type: MarkType,
+  dispatch?: (tr: Transaction) => void
+) {
+  const range = markRangeAt(state.selection.$from, type)
+  if (!range) return false
+  dispatch?.(state.tr.removeMark(range.from, range.to, type))
+  return true
+}
+
 function linkCommand(schema: Schema, active: boolean, href: string | undefined): Command | null {
   const type = schema.marks.link
   if (!type) return null
@@ -159,27 +209,29 @@ function linkCommand(schema: Schema, active: boolean, href: string | undefined):
   // supply — callers without one still get a valid command so the applicability
   // check works; the component intercepts the add path.
   const toggle = active ? toggleMark(type) : toggleMark(type, { href: href ?? '' })
-  // A collapsed caret would only write storedMarks: the user completes a modal
-  // dialog and nothing appears in the document. Require real text to mark.
   return (state, dispatch, view) => {
-    if (state.selection.empty) return false
+    // A collapsed caret would only write storedMarks on the ADD path: the user
+    // completes a modal dialog and nothing appears in the document. Inside an
+    // existing link, though, the caret is enough to remove it.
+    if (state.selection.empty) return active && removeMarkAtCaret(state, type, dispatch)
     return toggle(state, dispatch, view)
   }
 }
 
 /**
  * Mirrors `toggleInlineCodeCommand` from preset-commonmark rather than using a
- * bare `toggleMark`: it refuses an empty selection and strips every other mark
- * over the range before adding `inlineCode`. A plain `toggleMark` left
- * `['strong','inlineCode']` where Mod-e leaves `['inlineCode']`, so the button
- * and the shortcut produced different documents.
+ * bare `toggleMark`: it strips every other mark over the range before adding
+ * `inlineCode`. A plain `toggleMark` left `['strong','inlineCode']` where Mod-e
+ * leaves `['inlineCode']`, so the button and the shortcut produced different
+ * documents. Unlike the preset it also removes the span from a collapsed caret
+ * inside it, so an active button is always a clickable one.
  */
 function inlineCodeCommand(schema: Schema): Command | null {
   const type = schema.marks.inlineCode
   if (!type) return null
   return (state, dispatch) => {
     const { selection, tr } = state
-    if (selection.empty) return false
+    if (selection.empty) return removeMarkAtCaret(state, type, dispatch)
     const { from, to } = selection
     if (state.doc.rangeHasMark(from, to, type)) {
       dispatch?.(tr.removeMark(from, to, type))
@@ -210,26 +262,76 @@ function blockCommand(
  * Insert a leaf block (horizontal rule) and leave the caret in a real textblock
  * AFTER it.
  *
- * `replaceSelectionWith` alone leaves a NodeSelection over the rule, so the
- * user's next keystroke replaces the rule they just inserted — and inserting
- * into an empty paragraph consumed the document's last textblock entirely.
+ * Hand-rolled rather than `replaceSelectionWith`: that helper's fallback
+ * "fits" the leaf wherever it can, which (a) reported the button applicable
+ * inside a table cell or code block and then cut the structure around the
+ * caret, and (b) split a paragraph into THREE pieces, leaving empty paragraphs
+ * that survive as `<br />` in the saved file. Here the insertion point is
+ * decided up front — before or after the block, or between the two halves of a
+ * mid-text split — and checked against the container's content rules, so the
+ * dry-run and the dispatch agree.
  *
- * preset-commonmark's own `insertHrCommand` fixes the same problem by doing
- * `.insert(from, paragraph)` at the ORIGINAL from, which lands the paragraph
- * *before* the rule. We deliberately deviate and append after instead: you
- * insert a divider in order to keep writing below it. `hr` has no keyboard
- * shortcut, so there is no shortcut parity to preserve here.
+ * The caret lands in the first textblock after the rule. A paragraph is added
+ * only when there is none — an empty paragraph the user never types into is
+ * serialised as `<br />`, so one is never inserted ahead of existing content.
+ * (preset-commonmark's `insertHrCommand` puts the paragraph BEFORE the rule
+ * instead; `hr` has no shortcut, so there is no parity to keep.)
  */
+type HrPlan = { hrPos: number; apply: (tr: Transaction) => void }
+
+/**
+ * Where the rule goes relative to the textblock under `$pos`, or null when the
+ * container's content rules refuse a leaf block there (table cells, list-item
+ * heads) or the block is code. Decided BEFORE any dispatch so the dry-run and
+ * the click agree.
+ */
+function planHrInsertion($pos: ResolvedPos, type: NodeType): HrPlan | null {
+  const block = $pos.parent
+  if (!block.isTextblock || block.type.spec.code) return null
+  const container = $pos.node(-1)
+  const index = $pos.index(-1)
+  const canInsertAt = (i: number) => container.canReplaceWith(i, i, type)
+
+  if (block.content.size === 0) {
+    // An empty block is replaced by the rule, not kept above it.
+    if (!container.canReplaceWith(index, index + 1, type)) return null
+    return {
+      hrPos: $pos.before(),
+      apply: (tr) => tr.replaceWith($pos.before(), $pos.after(), type.create()),
+    }
+  }
+  if ($pos.parentOffset === 0) {
+    if (!canInsertAt(index)) return null
+    return { hrPos: $pos.before(), apply: (tr) => tr.insert($pos.before(), type.create()) }
+  }
+  if (!canInsertAt(index + 1)) return null
+  if ($pos.parentOffset === block.content.size) {
+    return { hrPos: $pos.after(), apply: (tr) => tr.insert($pos.after(), type.create()) }
+  }
+  return {
+    hrPos: $pos.pos + 1,
+    apply: (tr) => tr.split($pos.pos).insert($pos.pos + 1, type.create()),
+  }
+}
+
 function insertCommand(schema: Schema, nodeName: string): Command | null {
   const type = schema.nodes[nodeName]
   const paragraph = schema.nodes.paragraph
   if (!type || !paragraph) return null
   return (state, dispatch) => {
+    const tr = state.tr
+    if (!state.selection.empty) tr.deleteSelection()
+    const plan = planHrInsertion(tr.selection.$from, type)
+    if (!plan) return false
     if (!dispatch) return true
-    const tr = state.tr.replaceSelectionWith(type.create())
-    const after = tr.selection.to
-    tr.insert(after, paragraph.create())
-    const selection = Selection.findFrom(tr.doc.resolve(after), 1, true)
+    plan.apply(tr)
+
+    const afterHr = plan.hrPos + type.create().nodeSize
+    let selection = Selection.findFrom(tr.doc.resolve(afterHr), 1, true)
+    if (!selection) {
+      tr.insert(afterHr, paragraph.create())
+      selection = Selection.findFrom(tr.doc.resolve(afterHr), 1, true)
+    }
     if (selection) tr.setSelection(selection)
     dispatch(tr.scrollIntoView())
     return true
@@ -253,18 +355,20 @@ function taskCommand(schema: Schema, active: boolean): Command | null {
   return (state, dispatch, view) => {
     const { $from } = state.selection
 
-    // Already a list item — flip its `checked` in place. This is the branch
+    // Already inside a list item — flip `checked` on every item the selection
+    // touches at that same depth. The depth filter keeps a selection inside a
+    // nested list from also flipping the parent item. This is the branch
     // `findWrapping` could never satisfy, and the one the input rule also takes.
-    for (let depth = $from.depth; depth > 0; depth--) {
-      if ($from.node(depth).type !== listItemType) continue
-      const item = $from.node(depth)
+    const itemDepth = nearestListItemDepth($from, listItemType)
+    if (itemDepth !== null) {
       if (dispatch) {
-        dispatch(
-          state.tr.setNodeMarkup($from.before(depth), undefined, {
-            ...item.attrs,
-            checked: active ? null : false,
-          })
-        )
+        const { from, to } = state.selection
+        const tr = state.tr
+        state.doc.nodesBetween(from, to, (node, pos) => {
+          if (node.type !== listItemType || state.doc.resolve(pos).depth + 1 !== itemDepth) return
+          tr.setNodeMarkup(pos, undefined, { ...node.attrs, checked: active ? null : false })
+        })
+        dispatch(tr)
       }
       return true
     }
@@ -313,11 +417,46 @@ function listCommand(
     if (!enclosing) return wrapInList(target)(state, dispatch, view)
     // Same type → the click means "un-list this".
     if (active) return liftListItem(listItemType)(state, dispatch, view)
-    // Different type → retype the list in place. commonmark's
-    // syncListOrderPlugin then normalises each item's label and listType.
+    // Different type → retype the list in place. Every direct item's
+    // `listType`/`label` must change in the same transaction: commonmark's
+    // syncListOrderPlugin reads them on every transaction and turns a
+    // bullet_list whose first item still says 'ordered' straight back into an
+    // ordered_list — which is exactly what made ordered→bullet a silent no-op.
     if (dispatch) {
-      dispatch(state.tr.setNodeMarkup(state.selection.$from.before(enclosing.depth), target))
+      const listPos = state.selection.$from.before(enclosing.depth)
+      const tr = state.tr.setNodeMarkup(listPos, target)
+      enclosing.node.forEach((child, offset, index) => {
+        tr.setNodeMarkup(listPos + 1 + offset, undefined, {
+          ...child.attrs,
+          ...listItemAttrsFor(item.node, index),
+        })
+      })
+      dispatch(tr)
     }
+    return true
+  }
+}
+
+/** The `listType`/`label` pair commonmark's parser writes for each list kind. */
+function listItemAttrsFor(listName: string, index: number) {
+  return listName === 'ordered_list'
+    ? { listType: 'ordered', label: `${index + 1}.` }
+    : { listType: 'bullet', label: '•' }
+}
+
+/**
+ * Lift the selection out of the nearest `type` ancestor specifically. The bare
+ * `lift` command lifts out of the nearest liftable ancestor of any kind, so
+ * inside `> - item` it pulled the paragraph out of the LIST and left the quote —
+ * the opposite of what a lit Quote button promises.
+ */
+function unwrapCommand(type: NodeType): Command {
+  return (state, dispatch) => {
+    const { $from, $to } = state.selection
+    const range = $from.blockRange($to, (node) => node.type === type)
+    const target = range ? liftTarget(range) : null
+    if (!range || target === null) return false
+    dispatch?.(state.tr.lift(range, target).scrollIntoView())
     return true
   }
 }
@@ -345,7 +484,7 @@ export function commandFor(
       if (!type) return null
       // Clicking a lit quote button must unwrap, not add a second level —
       // "> quoted" was becoming "> > quoted".
-      return active ? lift : wrapIn(type)
+      return active ? unwrapCommand(type) : wrapIn(type)
     }
     case 'list':
       return listCommand(schema, item, active)

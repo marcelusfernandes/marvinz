@@ -87,7 +87,10 @@ function stateWith(node: PMNode, from?: number, to?: number): EditorState {
 }
 
 /** Fake EditorView that applies transactions to itself, like the real one. */
-function fakeView(initial: EditorState) {
+function fakeView(
+  initial: EditorState,
+  overrides: { hasFocus?: () => boolean; isDestroyed?: boolean } = {}
+) {
   const focus = vi.fn()
   const view = {
     state: initial,
@@ -95,6 +98,8 @@ function fakeView(initial: EditorState) {
     // for keyboard-driven changes that emit no selectionchange.
     dom: document.createElement('div'),
     focus,
+    hasFocus: overrides.hasFocus ?? (() => true),
+    isDestroyed: overrides.isDestroyed ?? false,
     dispatch: vi.fn((tr) => {
       view.state = view.state.apply(tr)
     }),
@@ -697,6 +702,45 @@ describe('MarkdownFormatToolbar', () => {
       })
 
       expect(screen.getByTestId('md-toolbar-btn-h2').getAttribute('aria-pressed')).toBe('false')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  // After an external-change accept, LiveMarkdown remounts and briefly
+  // republishes the OLD, destroyed view; dispatching into it throws.
+  it('ignores clicks while the view it holds is destroyed', () => {
+    const base = doc(paragraph(text('body')))
+    const view = fakeView(stateWith(base, 1, 5), { isDestroyed: true })
+    render(<MarkdownFormatToolbar view={view} />)
+    const button = screen.getByTestId('md-toolbar-btn-strong')
+    expect(() => fireEvent.click(button)).not.toThrow()
+    expect(view.dispatch).not.toHaveBeenCalled()
+    expect(view.focus).not.toHaveBeenCalled()
+  })
+
+  // selectionchange is document-wide; a selection in the sidebar or chat panel
+  // must not cost a repaint. Keyboard input on the editor itself still does.
+  it('skips selectionchange repaints while the editor is unfocused', () => {
+    vi.useFakeTimers()
+    try {
+      const view = fakeView(stateWith(doc(paragraph(text('body'))), 3), {
+        hasFocus: () => false,
+      })
+      render(<MarkdownFormatToolbar view={view} />)
+      view.state = view.state.apply(view.state.tr.addStoredMark(schema.mark('strong')))
+
+      document.dispatchEvent(new Event('selectionchange'))
+      act(() => {
+        vi.advanceTimersByTime(60)
+      })
+      expect(screen.getByTestId('md-toolbar-btn-strong').getAttribute('aria-pressed')).toBe('false')
+
+      view.dom.dispatchEvent(new KeyboardEvent('keydown', { key: 'b', metaKey: true }))
+      act(() => {
+        vi.advanceTimersByTime(60)
+      })
+      expect(screen.getByTestId('md-toolbar-btn-strong').getAttribute('aria-pressed')).toBe('true')
     } finally {
       vi.useRealTimers()
     }
