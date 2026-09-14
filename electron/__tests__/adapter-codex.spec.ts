@@ -306,6 +306,23 @@ describe('adapter-codex — failure while a command is mid-flight (#652)', () =>
     const result = eventsOfType(events, 'tool-result')[0]
     expect(result.toolUseId).toBe('cmd1')
     expect(result.isError).toBe(true)
+    // A failed turn is not a normal completion.
+    expect(eventsOfType(events, 'message-end')[0].stopReason).toBe('cancelled')
+  })
+
+  it("a reentrant turn.started also fails the previous turn's open command", () => {
+    const state = makeCodexAdapterState('s')
+    adaptCodexObj({ type: 'turn.started' }, state)
+    adaptCodexObj(
+      {
+        type: 'item.started',
+        item: { id: 'cmd1', type: 'command_execution', command: 'sleep 99' },
+      },
+      state
+    )
+    const events = adaptCodexObj({ type: 'turn.started' }, state)
+    expect(events.map((e) => e.type)).toEqual(['tool-result', 'message-end', 'message-start'])
+    expect(eventsOfType(events, 'tool-result')[0].isError).toBe(true)
   })
 
   it('emits no synthetic tool-result when the command already completed', () => {

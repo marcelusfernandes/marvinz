@@ -112,18 +112,24 @@ export function makeCodexAdapterState(sessionId: string): CodexAdapterState {
  * Unrecoverable failure: never leave the assistant message open, then surface
  * the error. Shared by turn.failed and the generic error event.
  */
-function failTurn(state: CodexAdapterState, message: string): AgentEvent[] {
-  // A command still running when the turn dies never gets its item.completed;
-  // fail its block explicitly or it stays "running" in the transcript forever.
-  const abandoned: AgentEvent[] = Array.from(state.openToolIds).map((toolUseId) => ({
+/**
+ * A command still running when its turn ends abnormally never gets an
+ * item.completed; fail its block explicitly or it stays "running" forever.
+ */
+function abandonOpenTools(state: CodexAdapterState, reason: string): AgentEvent[] {
+  const events: AgentEvent[] = Array.from(state.openToolIds).map((toolUseId) => ({
     type: 'tool-result',
     sessionId: state.sessionId,
     toolUseId,
-    output: message,
+    output: reason,
     isError: true,
     durationMs: 0,
   }))
   state.openToolIds.clear()
+  return events
+}
+
+function failTurn(state: CodexAdapterState, message: string): AgentEvent[] {
   const error: AgentEvent = {
     type: 'error',
     sessionId: state.sessionId,
@@ -131,11 +137,14 @@ function failTurn(state: CodexAdapterState, message: string): AgentEvent[] {
     message,
     recoverable: false,
   }
-  return [...abandoned, ...closeTurn(state), error]
+  return [...abandonOpenTools(state, message), ...closeTurn(state, 'cancelled'), error]
 }
 
 /** message-end for the open turn, or nothing when no turn was started. */
-function closeTurn(state: CodexAdapterState): AgentEvent[] {
+function closeTurn(
+  state: CodexAdapterState,
+  stopReason: 'end_turn' | 'cancelled' = 'end_turn'
+): AgentEvent[] {
   if (!state.turnOpen) return []
   state.turnOpen = false
   return [
@@ -143,7 +152,7 @@ function closeTurn(state: CodexAdapterState): AgentEvent[] {
       type: 'message-end',
       sessionId: state.sessionId,
       messageId: state.currentMessageId,
-      stopReason: 'end_turn',
+      stopReason,
     },
   ]
 }
@@ -185,8 +194,12 @@ export function adaptCodexObj(obj: unknown, state: CodexAdapterState): AgentEven
 
     case 'turn.started': {
       // A second turn.started without a turn.completed/turn.failed in between
-      // would orphan the previous message (renderer stuck streaming); close it.
-      const closing = closeTurn(state)
+      // would orphan the previous message (renderer stuck streaming) and any
+      // command still running in it; fail those and close it.
+      const closing = [
+        ...abandonOpenTools(state, 'Turn restarted before the command completed'),
+        ...closeTurn(state),
+      ]
       // Generate a fresh messageId for this turn's agent reply.
       state.currentMessageId = nextMessageId(state)
       state.turnOpen = true
