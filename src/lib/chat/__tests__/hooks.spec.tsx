@@ -213,6 +213,32 @@ function sessionInit(sessionId: string, cliSessionId: string) {
 }
 
 describe('useChatSession — multi-turn continuity', () => {
+  it('releases the turn instead of wedging it in streaming when the dispatch rejects', async () => {
+    ipc.request.mockRejectedValueOnce(new Error('IPC down'))
+    useChatStore.getState().startSession('s1', 'claude', '/vault')
+    const { result } = renderHook(() => useChatSession('s1'))
+    await act(async () => {
+      await expect(result.current.send('go')).rejects.toThrow('IPC down')
+    })
+    expect(useChatStore.getState().sessions['s1'].turnState).toBe('idle')
+    expect(useChatStore.getState().sessions['s1'].live).toBe(false)
+  })
+
+  it('does not spawn a fresh start for a session closed while the input round trip was in flight', async () => {
+    useChatStore.getState().startSession('s1', 'claude', '/vault')
+    useChatStore.getState().setSessionLive('s1', true)
+    const { result } = renderHook(() => useChatSession('s1'))
+    ipc.request.mockImplementationOnce(async () => {
+      // Tab closed while main was handling the `input` request.
+      useChatStore.getState().closeSession('s1')
+      return { ok: false, error: 'NO_LIVE_SESSION' }
+    })
+    await act(async () => {
+      await result.current.send('late')
+    })
+    expect(ipc.request).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'start' }))
+  })
+
   it('sends the first turn as a fresh start', async () => {
     ipc.request.mockResolvedValue({ ok: true })
     useChatStore.getState().startSession('s1', 'claude', '/vault')
@@ -486,6 +512,29 @@ describe('useChatSession — cancel', () => {
       await result.current.cancel()
     })
     expect(useChatStore.getState().sessions['s1'].cancelling).toBe(true)
+  })
+
+  it('arms the cancel fallback even when the cancel IPC call rejects', async () => {
+    vi.useFakeTimers()
+    try {
+      useChatStore.getState().startSession('s1', 'claude', '/vault')
+      const { result } = renderHook(() => useChatSession('s1'))
+      await act(async () => {
+        await result.current.send('go')
+      })
+      ipc.request.mockRejectedValueOnce(new Error('IPC down'))
+      await act(async () => {
+        await result.current.cancel().catch(() => {})
+      })
+      expect(useChatStore.getState().sessions['s1'].cancelling).toBe(true)
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(4000)
+      })
+      expect(useChatStore.getState().sessions['s1'].cancelling).toBe(false)
+      expect(useChatStore.getState().sessions['s1'].turnState).toBe('idle')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('a stale fallback from an earlier cancel does not force-idle a later in-flight cancel', async () => {

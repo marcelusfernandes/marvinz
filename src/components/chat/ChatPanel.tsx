@@ -74,7 +74,9 @@ export function ChatPanel({ sessionId, provider, onRewind, onTurnSummary }: Prop
 
   if (!session) return null
 
-  const isStreaming = session.turnState === 'streaming'
+  // A tool call awaiting approval is still an in-flight turn: sends must queue
+  // (a second `input` on the live stdin would interleave) and Stop must work.
+  const isStreaming = session.turnState === 'streaming' || session.turnState === 'awaiting_approval'
   const error = session.turnState === 'error' ? session.lastError : undefined
 
   return (

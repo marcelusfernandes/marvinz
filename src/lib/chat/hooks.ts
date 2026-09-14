@@ -53,23 +53,36 @@ async function dispatchTurn(
   if (!api?.request) return
   const store = useChatStore.getState()
 
-  if (current.live && current.agentId !== 'codex') {
-    const res = await api.request({ type: 'input', sessionId, content: trimmed })
-    if (res && res.ok) return
-    store.setSessionLive(sessionId, false)
-  }
+  try {
+    if (current.live && current.agentId !== 'codex') {
+      const res = await api.request({ type: 'input', sessionId, content: trimmed })
+      if (res && res.ok) return
+      store.setSessionLive(sessionId, false)
+    }
 
-  store.setSessionLive(sessionId, true)
-  const startRes = await api.request({
-    type: 'start',
-    sessionId,
-    provider: current.agentId,
-    prompt: trimmed,
-    vaultRoot: current.vaultPath,
-    permissionMode: opts?.permissionMode ?? current.permissionMode,
-    resumeFromSessionId: current.cliSessionId,
-  })
-  if (startRes && !startRes.ok) store.setSessionLive(sessionId, false)
+    // The tab may have been closed while the round trip above was in flight;
+    // a fresh start now would spawn a child nobody listens to.
+    if (!useChatStore.getState().sessions[sessionId]) return
+
+    store.setSessionLive(sessionId, true)
+    const startRes = await api.request({
+      type: 'start',
+      sessionId,
+      provider: current.agentId,
+      prompt: trimmed,
+      vaultRoot: current.vaultPath,
+      permissionMode: opts?.permissionMode ?? current.permissionMode,
+      resumeFromSessionId: current.cliSessionId,
+    })
+    if (startRes && !startRes.ok) store.setSessionLive(sessionId, false)
+  } catch (err) {
+    // appendUserMessage already flipped the turn to 'streaming'; a rejected
+    // dispatch means no child will ever end it, so release it here and let
+    // the caller restore the draft.
+    store.setSessionLive(sessionId, false)
+    store.forceIdle(sessionId)
+    throw err
+  }
 }
 
 function lastUserText(session: Session): string | undefined {
@@ -133,13 +146,18 @@ export function useChatSession(sessionId: SessionId): UseChatSessionResult {
     // request immediately, and schedule a fallback that forces the turn idle if
     // the terminating event is dropped by main (C1-5).
     useChatStore.getState().setCancelling(sessionId, true)
-    await api.request({ type: 'cancel', sessionId })
-    setTimeout(() => {
-      if (cancelToken.current !== token) return
-      if (useChatStore.getState().sessions[sessionId]?.cancelling) {
-        useChatStore.getState().forceIdle(sessionId)
-      }
-    }, CANCEL_FALLBACK_MS)
+    try {
+      await api.request({ type: 'cancel', sessionId })
+    } finally {
+      // Armed even when the IPC call rejects: "Stopping…" must never be a
+      // state the UI cannot leave.
+      setTimeout(() => {
+        if (cancelToken.current !== token) return
+        if (useChatStore.getState().sessions[sessionId]?.cancelling) {
+          useChatStore.getState().forceIdle(sessionId)
+        }
+      }, CANCEL_FALLBACK_MS)
+    }
   }, [sessionId])
 
   const retry = useCallback<UseChatSessionResult['retry']>(async () => {

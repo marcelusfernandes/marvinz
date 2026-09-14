@@ -119,6 +119,20 @@ describe('sendAgentInput', () => {
     expect(sendAgentInput(sessionId, 'x')).toBe(false)
   })
 
+  it('reports a signal-killed child (exit code null) as crashed so the chat never hangs', async () => {
+    const sessionId = `send-signal-${++counter}`
+    await spawnAgent(startRequest(sessionId, vaultRoot), bins, emit)
+    emit.mockClear()
+
+    fakeChild.emit('close', null, 'SIGKILL')
+    await new Promise((resolve) => setTimeout(resolve, 20))
+
+    expect(emit).toHaveBeenCalledWith(
+      expect.stringContaining(sessionId),
+      expect.objectContaining({ type: 'crashed', sessionId, exitCode: null, signal: 'SIGKILL' })
+    )
+  })
+
   it('attaches an error listener to stdin so an async EPIPE cannot crash the main process', async () => {
     const sessionId = `send-epipe-${++counter}`
     await spawnAgent(startRequest(sessionId, vaultRoot), bins, emit)

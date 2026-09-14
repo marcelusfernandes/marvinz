@@ -294,11 +294,7 @@ describe('applyStreamEvent: error', () => {
     // The child is still streaming after a recoverable error; only an
     // unrecoverable one (or a crash) moves the turn to 'error'.
     expect(getSession(SID).turnState).toBe(before)
-    expect(getSession(SID).lastError).toEqual({
-      message: 'Rate limited',
-      recoverable: true,
-      code: 'RATE_LIMIT',
-    })
+    expect(getSession(SID).lastError).toBeUndefined()
   })
 })
 

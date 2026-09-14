@@ -136,7 +136,9 @@ describe('session live flag (C1-2)', () => {
     // here would race a second `input` onto the live turn.
     expect(getSession('s1').turnState).toBe(before)
     expect(getSession('s1').turnState).not.toBe('error')
-    expect(getSession('s1').lastError?.recoverable).toBe(true)
+    // Nothing in the UI can show an error that did not end the turn, so no
+    // dead lastError is recorded either; main logs the malformed line.
+    expect(getSession('s1').lastError).toBeUndefined()
   })
 })
 

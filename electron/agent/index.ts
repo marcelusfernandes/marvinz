@@ -24,6 +24,8 @@ export type { AgentBinaries } from './adapter.js'
 export type AgentChild = {
   sessionId: string
   provider: Provider
+  /** Set by cancelAgent/killAgentSession so an exit we caused is not reported as a crash. */
+  killedByUs?: boolean
   permissionMode: PermissionMode
   vaultRoot: string
   proc: ChildProcess
@@ -529,7 +531,10 @@ export async function spawnAgent(
     clearSessionRules(req.sessionId)
     void child.approvalServer?.close()
 
-    if (code !== 0 && code !== null) {
+    // A signal death (code null: OOM, external kill) used to be silent; under
+    // the multi-turn model nothing else would ever end the turn in the UI.
+    // Only an exit we asked for is not a crash — the cancel fallback covers it.
+    if (code !== 0 && !child.killedByUs) {
       emit(IPC_CHANNELS.agent.event(req.sessionId), {
         type: 'crashed',
         sessionId: req.sessionId,
@@ -566,6 +571,7 @@ export function sendAgentInput(sessionId: string, content: string): boolean {
 export async function cancelAgent(sessionId: string): Promise<void> {
   const child = agentChildren.get(sessionId)
   if (!child) return
+  child.killedByUs = true
   cancelPendingApprovals([...child.pendingApprovalIds])
   const tree = child.proc.pid != null ? collectProcessTree(child.proc.pid) : []
   signalPids(tree, 'SIGINT')
@@ -576,6 +582,7 @@ export async function cancelAgent(sessionId: string): Promise<void> {
 export async function killAgentSession(sessionId: string): Promise<void> {
   const child = agentChildren.get(sessionId)
   if (!child) return
+  child.killedByUs = true
   agentChildren.delete(sessionId)
   clearSessionRules(sessionId)
   cancelPendingApprovals([...child.pendingApprovalIds])
