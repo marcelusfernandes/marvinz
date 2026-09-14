@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { memo, useRef } from 'react'
 import { useChatStore } from '../../lib/chat/store'
 import { useStickToBottom } from '../../lib/chat/hooks'
 import { UserBubble } from './UserBubble'
@@ -15,7 +15,10 @@ type Props = {
  * `ordering` (stable across streaming) so this component does NOT rerender
  * on every token — child cards subscribe per-message.
  *
- * Virtualization deferred to Sprint 9 (per design doc §8.4).
+ * Rows are memoized so an unrelated store update does not re-render every
+ * message. Virtualization stays deferred (design doc §8.4): JS windowing
+ * fights the streaming stick-to-bottom, and CSS content-visibility clips the
+ * rewind button that floats above the user bubble.
  */
 export function MessageList({ sessionId, onRewind }: Props) {
   const scrollRef = useRef<HTMLElement | null>(null)
@@ -54,7 +57,7 @@ export function MessageList({ sessionId, onRewind }: Props) {
   )
 }
 
-function MessageRow({
+const MessageRow = memo(function MessageRow({
   sessionId,
   messageId,
   onRewind,
@@ -90,7 +93,7 @@ function MessageRow({
       <div className="chat-system-text">{message.text}</div>
     </li>
   )
-}
+})
 
 function EmptyState() {
   return (
