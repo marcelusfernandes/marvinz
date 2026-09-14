@@ -83,6 +83,10 @@ export type CodexAdapterState = {
   emittedToolUseIds: Set<string>
   // set of item ids for which text-delta was emitted (idempotency guard)
   emittedTextIds: Set<string>
+  // a turn.started has been seen and no turn.completed/turn.failed yet (#652)
+  turnOpen: boolean
+  // at least one agent_message was emitted in the open turn (#652)
+  turnHasText: boolean
   startedAt: number
 }
 
@@ -98,8 +102,24 @@ export function makeCodexAdapterState(sessionId: string): CodexAdapterState {
     cacheReadTokens: 0,
     emittedToolUseIds: new Set(),
     emittedTextIds: new Set(),
+    turnOpen: false,
+    turnHasText: false,
     startedAt: Date.now(),
   }
+}
+
+/** message-end for the open turn, or nothing when no turn was started. */
+function closeTurn(state: CodexAdapterState): AgentEvent[] {
+  if (!state.turnOpen) return []
+  state.turnOpen = false
+  return [
+    {
+      type: 'message-end',
+      sessionId: state.sessionId,
+      messageId: state.currentMessageId,
+      stopReason: 'end_turn',
+    },
+  ]
 }
 
 function nextMessageId(state: CodexAdapterState): string {
@@ -140,6 +160,8 @@ export function adaptCodexObj(obj: unknown, state: CodexAdapterState): AgentEven
     case 'turn.started': {
       // Generate a fresh messageId for this turn's agent reply.
       state.currentMessageId = nextMessageId(state)
+      state.turnOpen = true
+      state.turnHasText = false
       const event: AgentEvent = {
         type: 'message-start',
         sessionId: state.sessionId,
@@ -183,30 +205,22 @@ export function adaptCodexObj(obj: unknown, state: CodexAdapterState): AgentEven
         if (state.emittedTextIds.has(item.id)) return []
         state.emittedTextIds.add(item.id)
 
-        const text = item.text ?? ''
-        const messageId = state.currentMessageId
-
-        const events: AgentEvent[] = []
-
-        // Emit text-delta only when there is text content.
-        if (text.length > 0) {
-          events.push({
-            type: 'text-delta',
-            sessionId: state.sessionId,
-            messageId,
-            delta: text,
-            seq: state.seq++,
-          })
-        }
-
-        events.push({
-          type: 'message-end',
+        // A turn can carry several agent_messages (an intermediate sentence,
+        // then a tool call, then the answer). Each is a delta on the same
+        // message; the message only ends at turn.completed — ending it here
+        // let the UI go idle mid-turn and a new send kill the live child (#652).
+        const text = (item.text ?? '').trimEnd()
+        if (text.length === 0) return []
+        const delta = state.turnHasText ? `\n\n${text}` : text
+        state.turnHasText = true
+        const event: AgentEvent = {
+          type: 'text-delta',
           sessionId: state.sessionId,
-          messageId,
-          stopReason: 'end_turn',
-        })
-
-        return events
+          messageId: state.currentMessageId,
+          delta,
+          seq: state.seq++,
+        }
+        return [event]
       }
 
       if (item.type === 'command_execution') {
@@ -227,8 +241,9 @@ export function adaptCodexObj(obj: unknown, state: CodexAdapterState): AgentEven
 
     case 'turn.completed': {
       const ev = raw as TurnCompletedEvent
+      const closing = closeTurn(state)
       const usage = ev.usage
-      if (!usage) return []
+      if (!usage) return closing
 
       state.inputTokens = usage.input_tokens ?? 0
       state.outputTokens = usage.output_tokens ?? 0
@@ -248,7 +263,24 @@ export function adaptCodexObj(obj: unknown, state: CodexAdapterState): AgentEven
         costUSD: 0,
         durationMs: 0,
       }
-      return [event]
+      return [...closing, event]
+    }
+
+    case 'turn.failed': {
+      // Without this the message never ends and the chat hangs in streaming.
+      const rawUnknown = raw as unknown as { error?: { message?: unknown } }
+      const message =
+        typeof rawUnknown.error?.message === 'string'
+          ? rawUnknown.error.message
+          : 'Codex turn failed'
+      const error: AgentEvent = {
+        type: 'error',
+        sessionId: state.sessionId,
+        code: 'AGENT_INTERNAL',
+        message,
+        recoverable: false,
+      }
+      return [...closeTurn(state), error]
     }
 
     // turn.started is handled above; these are informational only.

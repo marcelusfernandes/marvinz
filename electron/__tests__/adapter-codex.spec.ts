@@ -241,6 +241,69 @@ describe('adapter-codex — tool-use fixture', () => {
 // Unit tests for adaptCodexObj — edge cases and direct calls
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Fixture: tool-multi-message.jsonl — real codex-cli 0.153 output for a turn
+// that answers in steps: intermediate sentence → command_execution → final
+// answer. The assistant message must stay open until turn.completed (#652).
+// ---------------------------------------------------------------------------
+
+describe('adapter-codex — tool-multi-message fixture (#652)', () => {
+  it('emits exactly one message-start and one message-end', () => {
+    const events = runFixture('tool-multi-message.jsonl')
+    expect(eventsOfType(events, 'message-start')).toHaveLength(1)
+    expect(eventsOfType(events, 'message-end')).toHaveLength(1)
+  })
+
+  it('ends the message only after the last agent_message, right before turn-result', () => {
+    const events = runFixture('tool-multi-message.jsonl')
+    const types = events.map((e) => e.type)
+    const lastDelta = types.lastIndexOf('text-delta')
+    const end = types.indexOf('message-end')
+    const toolResult = types.indexOf('tool-result')
+    expect(end).toBeGreaterThan(lastDelta)
+    expect(end).toBeGreaterThan(toolResult)
+    expect(types[end + 1]).toBe('turn-result')
+  })
+
+  it('emits both agent_message texts as deltas on the same message, separated by a blank line', () => {
+    const events = runFixture('tool-multi-message.jsonl')
+    const deltas = eventsOfType(events, 'text-delta')
+    expect(deltas).toHaveLength(2)
+    expect(new Set(deltas.map((d) => d.messageId)).size).toBe(1)
+    expect(deltas[0].delta).toBe('Vou ler o arquivo.')
+    expect(deltas[1].delta.startsWith('\n\n')).toBe(true)
+    expect(deltas[1].delta).toContain('/tmp/teste.md')
+  })
+
+  it('ignores the hooks-config error item that precedes turn.started', () => {
+    const events = runFixture('tool-multi-message.jsonl')
+    expect(eventsOfType(events, 'error')).toHaveLength(0)
+  })
+})
+
+describe('adapter-codex — turn.failed (#652)', () => {
+  it('ends the open message and surfaces an unrecoverable error', () => {
+    const state = makeCodexAdapterState('s')
+    adaptCodexObj({ type: 'thread.started', thread_id: 't1' }, state)
+    adaptCodexObj({ type: 'turn.started' }, state)
+    const events = adaptCodexObj(
+      { type: 'turn.failed', error: { message: 'model exploded' } },
+      state
+    )
+    expect(events.map((e) => e.type)).toEqual(['message-end', 'error'])
+    const err = eventsOfType(events, 'error')[0]
+    expect(err.recoverable).toBe(false)
+    expect(err.message).toBe('model exploded')
+    expect(eventsOfType(events, 'message-end')[0].messageId).toBe(state.currentMessageId)
+  })
+
+  it('does not emit a message-end when no turn was started', () => {
+    const state = makeCodexAdapterState('s')
+    const events = adaptCodexObj({ type: 'turn.failed', error: { message: 'x' } }, state)
+    expect(events.map((e) => e.type)).toEqual(['error'])
+  })
+})
+
 describe('adaptCodexObj — edge cases', () => {
   it('returns [] for null input', () => {
     const state = makeCodexAdapterState('s')
@@ -351,7 +414,7 @@ describe('adaptCodexObj — edge cases', () => {
     expect(result).toEqual([])
   })
 
-  it('item.completed for agent_message emits text-delta and message-end', () => {
+  it('item.completed for agent_message emits a text-delta; the message ends at turn.completed (#652)', () => {
     const state = makeCodexAdapterState('s')
     // Set up currentMessageId via turn.started
     adaptCodexObj({ type: 'turn.started' }, state)
@@ -363,13 +426,13 @@ describe('adaptCodexObj — edge cases', () => {
       state
     )
     const types = result.map((e) => e.type)
-    expect(types).toEqual(['text-delta', 'message-end'])
+    expect(types).toEqual(['text-delta'])
     if (result[0].type === 'text-delta') {
       expect(result[0].delta).toBe('hello there')
     }
   })
 
-  it('item.completed for agent_message with empty text emits only message-end', () => {
+  it('item.completed for agent_message with empty text emits nothing', () => {
     const state = makeCodexAdapterState('s')
     adaptCodexObj({ type: 'turn.started' }, state)
     const result = adaptCodexObj(
@@ -379,7 +442,7 @@ describe('adaptCodexObj — edge cases', () => {
       },
       state
     )
-    expect(result.map((e) => e.type)).toEqual(['message-end'])
+    expect(result).toEqual([])
   })
 
   it('item.completed for agent_message is idempotent (no double text-delta)', () => {
