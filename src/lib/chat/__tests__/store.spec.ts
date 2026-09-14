@@ -524,6 +524,50 @@ describe('applyStreamEvent: text-delta via ref buffer', () => {
     if (textBlock?.kind === 'text') expect(textBlock.text).toBe('Hello world')
   })
 
+  it('closeSession purges the streaming buffers keyed by that session (#563)', () => {
+    getStore().applyStreamEvent('s1', {
+      type: 'text-delta',
+      sessionId: 's1',
+      messageId: 'm1',
+      delta: 'old',
+      seq: 5,
+    })
+    flushPendingDeltas()
+    getStore().applyStreamEvent('s1', {
+      type: 'text-delta',
+      sessionId: 's1',
+      messageId: 'm1',
+      delta: 'still pending',
+      seq: 6,
+    })
+
+    getStore().closeSession('s1')
+
+    // A fresh session under the same id must start from a clean slate: the
+    // dead session's pending delta must not land, and seq 0 must be accepted
+    // again rather than dropped as stale by a leftover appliedSeq.
+    getStore().startSession('s1', 'claude', '/vault')
+    getStore().applyStreamEvent('s1', {
+      type: 'message-start',
+      sessionId: 's1',
+      messageId: 'm1',
+      role: 'assistant',
+    })
+    flushPendingDeltas()
+    expect(getBlocks('s1', 'm1')).toEqual([])
+
+    getStore().applyStreamEvent('s1', {
+      type: 'text-delta',
+      sessionId: 's1',
+      messageId: 'm1',
+      delta: 'fresh',
+      seq: 0,
+    })
+    flushPendingDeltas()
+    const textBlock = getBlocks('s1', 'm1').find((b) => b.kind === 'text')
+    expect(textBlock?.kind === 'text' && textBlock.text).toBe('fresh')
+  })
+
   it('flushPendingDeltas commits buffer to store immediately', () => {
     getStore().applyStreamEvent('s1', {
       type: 'text-delta',

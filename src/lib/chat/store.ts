@@ -139,7 +139,11 @@ export const useChatStore = create<ChatStore>((set) => ({
       }
     }),
 
-  closeSession: (id) =>
+  closeSession: (id) => {
+    // The ref buffers are keyed by session id and outlive the store entry;
+    // without this purge every closed tab leaves its delta keys behind and a
+    // reused id inherits stale seqs (#563).
+    purgeSessionBuffers(id)
     set((state) => {
       if (!state.sessions[id]) return {}
       const rest = { ...state.sessions }
@@ -147,7 +151,8 @@ export const useChatStore = create<ChatStore>((set) => ({
       const nextActive =
         state.activeSessionId === id ? (Object.keys(rest)[0] ?? null) : state.activeSessionId
       return { sessions: rest, activeSessionId: nextActive }
-    }),
+    })
+  },
 
   setActiveSession: (id) => set({ activeSessionId: id }),
 
@@ -532,6 +537,16 @@ export function resetStreamingBuffers() {
 
 function keyOf(sid: SessionId, mid: MessageId, kind: DeltaKind): DeltaKey {
   return `${sid}:${mid}:${kind}` as DeltaKey
+}
+
+/** Drop every buffered delta and seq/block record belonging to one session. */
+function purgeSessionBuffers(sid: SessionId) {
+  const prefix = `${sid}:`
+  for (const map of [pendingDeltas, blockIdByKey, appliedSeq]) {
+    for (const key of Array.from(map.keys())) {
+      if (key.startsWith(prefix)) map.delete(key)
+    }
+  }
 }
 
 function pushStreamDelta(
