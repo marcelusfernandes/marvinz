@@ -649,6 +649,9 @@ export function Editor({
               onClick={() =>
                 void marvin.file.exportPdf(filePath).catch((err) => {
                   console.error('Export PDF failed', err)
+                  // Surface it: a silent failure looked like a no-op button.
+                  const detail = err instanceof Error ? err.message : String(err)
+                  onImportToast?.({ state: 'error', message: `Export PDF failed: ${detail}` })
                 })
               }
               title="Export as PDF"
