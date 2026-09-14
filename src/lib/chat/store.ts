@@ -450,6 +450,17 @@ export function setStreamingScheduler(opts: {
   cancelRaf = opts.cancel
 }
 
+/**
+ * A tool block is about to land in `mid`: commit buffered text so it stays
+ * above the tool, then retire the sticky text/thinking block ids so the next
+ * delta opens a new block below it (#652).
+ */
+function splitTextBlockAfterTool(sid: SessionId, mid: MessageId) {
+  flushPendingDeltas()
+  blockIdByKey.delete(keyOf(sid, mid, 'text'))
+  blockIdByKey.delete(keyOf(sid, mid, 'thinking'))
+}
+
 /** Drop buffered deltas without flushing (test/cleanup). */
 export function resetStreamingBuffers() {
   pendingDeltas.clear()
@@ -463,12 +474,6 @@ export function resetStreamingBuffers() {
 
 function keyOf(sid: SessionId, mid: MessageId, kind: DeltaKind): DeltaKey {
   return `${sid}:${mid}:${kind}` as DeltaKey
-}
-
-function splitTextBlockAfterTool(sid: SessionId, mid: MessageId) {
-  flushPendingDeltas()
-  blockIdByKey.delete(keyOf(sid, mid, 'text'))
-  blockIdByKey.delete(keyOf(sid, mid, 'thinking'))
 }
 
 function pushStreamDelta(
