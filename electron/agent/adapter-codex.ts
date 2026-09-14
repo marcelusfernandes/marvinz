@@ -158,6 +158,9 @@ export function adaptCodexObj(obj: unknown, state: CodexAdapterState): AgentEven
     }
 
     case 'turn.started': {
+      // A second turn.started without a turn.completed/turn.failed in between
+      // would orphan the previous message (renderer stuck streaming); close it.
+      const closing = closeTurn(state)
       // Generate a fresh messageId for this turn's agent reply.
       state.currentMessageId = nextMessageId(state)
       state.turnOpen = true
@@ -168,7 +171,7 @@ export function adaptCodexObj(obj: unknown, state: CodexAdapterState): AgentEven
         messageId: state.currentMessageId,
         role: 'assistant',
       }
-      return [event]
+      return [...closing, event]
     }
 
     case 'item.started': {
@@ -209,7 +212,8 @@ export function adaptCodexObj(obj: unknown, state: CodexAdapterState): AgentEven
         // then a tool call, then the answer). Each is a delta on the same
         // message; the message only ends at turn.completed — ending it here
         // let the UI go idle mid-turn and a new send kill the live child (#652).
-        const text = (item.text ?? '').trimEnd()
+        // codex-cli appends a single trailing newline; drop only that.
+        const text = (item.text ?? '').replace(/\n$/, '')
         if (text.length === 0) return []
         const delta = state.turnHasText ? `\n\n${text}` : text
         state.turnHasText = true

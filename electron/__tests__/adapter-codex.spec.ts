@@ -281,6 +281,28 @@ describe('adapter-codex — tool-multi-message fixture (#652)', () => {
   })
 })
 
+describe('adapter-codex — turn.started re-entrancy (#652)', () => {
+  it('closes the previous message when turn.started repeats without a turn end', () => {
+    const state = makeCodexAdapterState('s')
+    adaptCodexObj({ type: 'turn.started' }, state)
+    const first = state.currentMessageId
+    const events = adaptCodexObj({ type: 'turn.started' }, state)
+    expect(events.map((e) => e.type)).toEqual(['message-end', 'message-start'])
+    expect(eventsOfType(events, 'message-end')[0].messageId).toBe(first)
+    expect(eventsOfType(events, 'message-start')[0].messageId).not.toBe(first)
+  })
+
+  it('keeps intentional trailing spaces and drops only the trailing newline', () => {
+    const state = makeCodexAdapterState('s')
+    adaptCodexObj({ type: 'turn.started' }, state)
+    const events = adaptCodexObj(
+      { type: 'item.completed', item: { id: 'i', type: 'agent_message', text: 'line  \n' } },
+      state
+    )
+    expect(eventsOfType(events, 'text-delta')[0].delta).toBe('line  ')
+  })
+})
+
 describe('adapter-codex — turn.failed (#652)', () => {
   it('ends the open message and surfaces an unrecoverable error', () => {
     const state = makeCodexAdapterState('s')
