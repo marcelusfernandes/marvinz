@@ -85,8 +85,6 @@ export type CodexAdapterState = {
   emittedTextIds: Set<string>
   // a turn.started has been seen and no turn.completed/turn.failed yet (#652)
   turnOpen: boolean
-  // at least one agent_message was emitted in the open turn (#652)
-  turnHasText: boolean
   startedAt: number
 }
 
@@ -103,7 +101,6 @@ export function makeCodexAdapterState(sessionId: string): CodexAdapterState {
     emittedToolUseIds: new Set(),
     emittedTextIds: new Set(),
     turnOpen: false,
-    turnHasText: false,
     startedAt: Date.now(),
   }
 }
@@ -164,7 +161,6 @@ export function adaptCodexObj(obj: unknown, state: CodexAdapterState): AgentEven
       // Generate a fresh messageId for this turn's agent reply.
       state.currentMessageId = nextMessageId(state)
       state.turnOpen = true
-      state.turnHasText = false
       const event: AgentEvent = {
         type: 'message-start',
         sessionId: state.sessionId,
@@ -212,16 +208,15 @@ export function adaptCodexObj(obj: unknown, state: CodexAdapterState): AgentEven
         // then a tool call, then the answer). Each is a delta on the same
         // message; the message only ends at turn.completed — ending it here
         // let the UI go idle mid-turn and a new send kill the live child (#652).
-        // codex-cli appends a single trailing newline; drop only that.
+        // The store opens a new text block after each tool call, so the deltas
+        // need no separator. codex-cli appends one trailing newline; drop it.
         const text = (item.text ?? '').replace(/\n$/, '')
         if (text.length === 0) return []
-        const delta = state.turnHasText ? `\n\n${text}` : text
-        state.turnHasText = true
         const event: AgentEvent = {
           type: 'text-delta',
           sessionId: state.sessionId,
           messageId: state.currentMessageId,
-          delta,
+          delta: text,
           seq: state.seq++,
         }
         return [event]
@@ -299,7 +294,8 @@ export function adaptCodexObj(obj: unknown, state: CodexAdapterState): AgentEven
         message,
         recoverable: false,
       }
-      return [event]
+      // Same as turn.failed: never leave the assistant message open.
+      return [...closeTurn(state), event]
     }
 
     default:

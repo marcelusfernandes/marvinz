@@ -175,6 +175,15 @@ export const useChatStore = create<ChatStore>((set) => ({
     if (ev.type === 'message-end' && pendingDeltas.size > 0) {
       flushPendingDeltas()
     }
+    if (ev.type === 'tool-use') {
+      // Commit buffered text so it lands BEFORE the tool block, then retire the
+      // sticky text/thinking block ids: text that arrives after the tool call
+      // starts a new block below it instead of merging into the one above,
+      // which put a whole multi-step reply on one side of the tool call (#652).
+      flushPendingDeltas()
+      blockIdByKey.delete(keyOf(sid, ev.messageId, 'text'))
+      blockIdByKey.delete(keyOf(sid, ev.messageId, 'thinking'))
+    }
     set((state) => withSession(state, sid, (s) => applyEvent(s, ev)))
   },
 

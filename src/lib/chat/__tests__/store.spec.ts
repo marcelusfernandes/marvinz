@@ -316,6 +316,36 @@ describe('applyStreamEvent: text-delta via ref buffer', () => {
     if (textBlock?.kind === 'text') expect(textBlock.text).toBe('Hello world')
   })
 
+  it('text after a tool call starts a new block after it instead of merging into the text above (#652)', () => {
+    getStore().applyStreamEvent('s1', {
+      type: 'text-delta',
+      sessionId: 's1',
+      messageId: 'm1',
+      delta: 'Vou ler o arquivo.',
+      seq: 0,
+    })
+    getStore().applyStreamEvent('s1', {
+      type: 'tool-use',
+      sessionId: 's1',
+      messageId: 'm1',
+      toolUseId: 'tu1',
+      name: 'Bash',
+      input: { command: 'cat teste.md' },
+    })
+    getStore().applyStreamEvent('s1', {
+      type: 'text-delta',
+      sessionId: 's1',
+      messageId: 'm1',
+      delta: 'O arquivo é um Markdown.',
+      seq: 1,
+    })
+    flushPendingDeltas()
+    const blocks = getBlocks('s1', 'm1')
+    expect(blocks.map((b) => b.kind)).toEqual(['text', 'tool_use', 'text'])
+    expect(blocks[0].kind === 'text' && blocks[0].text).toBe('Vou ler o arquivo.')
+    expect(blocks[2].kind === 'text' && blocks[2].text).toBe('O arquivo é um Markdown.')
+  })
+
   it('flushPendingDeltas commits buffer to store immediately', () => {
     getStore().applyStreamEvent('s1', {
       type: 'text-delta',

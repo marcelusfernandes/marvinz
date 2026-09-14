@@ -61,15 +61,16 @@ describe('codex multi-step turn through adapter + store (#652)', () => {
     expect(seen.slice(-2)).toEqual(['message-end:idle', 'turn-result:idle'])
   })
 
-  it('renders the intermediate sentence, the tool call and the final answer in one message', () => {
+  it('renders the intermediate sentence, the tool call and the final answer in one message, in order', () => {
     replay()
     const s = useChatStore.getState().sessions[SID]
     const assistant = s.messages[s.ordering[s.ordering.length - 1]]
     if (assistant.role !== 'assistant') throw new Error('expected an assistant message')
     expect(assistant.done).toBe(true)
-    const text = assistant.blocks.find((b) => b.kind === 'text')
-    expect(text?.kind === 'text' && text.text).toContain('Vou ler o arquivo.')
-    expect(text?.kind === 'text' && text.text).toContain('/tmp/teste.md')
-    expect(assistant.blocks.some((b) => b.kind === 'tool_use')).toBe(true)
+    // Chronological: intermediate sentence, then the command, then the answer.
+    expect(assistant.blocks.map((b) => b.kind)).toEqual(['text', 'tool_use', 'text'])
+    const [first, , last] = assistant.blocks
+    expect(first.kind === 'text' && first.text).toBe('Vou ler o arquivo.')
+    expect(last.kind === 'text' && last.text).toContain('/tmp/teste.md')
   })
 })

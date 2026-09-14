@@ -265,19 +265,28 @@ describe('adapter-codex — tool-multi-message fixture (#652)', () => {
     expect(types[end + 1]).toBe('turn-result')
   })
 
-  it('emits both agent_message texts as deltas on the same message, separated by a blank line', () => {
+  it('emits both agent_message texts as plain deltas on the same message', () => {
     const events = runFixture('tool-multi-message.jsonl')
     const deltas = eventsOfType(events, 'text-delta')
     expect(deltas).toHaveLength(2)
     expect(new Set(deltas.map((d) => d.messageId)).size).toBe(1)
     expect(deltas[0].delta).toBe('Vou ler o arquivo.')
-    expect(deltas[1].delta.startsWith('\n\n')).toBe(true)
-    expect(deltas[1].delta).toContain('/tmp/teste.md')
+    // The store starts a new block after the tool call, so no separator here.
+    expect(deltas[1].delta.startsWith('O arquivo')).toBe(true)
   })
 
   it('ignores the hooks-config error item that precedes turn.started', () => {
     const events = runFixture('tool-multi-message.jsonl')
     expect(eventsOfType(events, 'error')).toHaveLength(0)
+  })
+})
+
+describe('adapter-codex — generic error mid-turn (#652)', () => {
+  it('ends the open message before surfacing the error, like turn.failed', () => {
+    const state = makeCodexAdapterState('s')
+    adaptCodexObj({ type: 'turn.started' }, state)
+    const events = adaptCodexObj({ type: 'error', message: 'boom' }, state)
+    expect(events.map((e) => e.type)).toEqual(['message-end', 'error'])
   })
 })
 
