@@ -287,6 +287,18 @@ export const useChatStore = create<ChatStore>((set) => ({
     ),
 }))
 
+/**
+ * When a turn dies, queued follow-ups (C1-3) must not sit frozen: auto-flush
+ * only runs on idle, and a manual send from the error banner would jump ahead
+ * of them. Hand them back to the composer, behind whatever is being typed.
+ */
+function returnQueueToDraft(s: Session): Session {
+  const queue = s.queue ?? []
+  if (queue.length === 0) return s
+  const draft = [s.composer.draft, ...queue].filter((t) => t.length > 0).join('\n')
+  return { ...s, queue: [], composer: { ...s.composer, draft } }
+}
+
 // ---------- event reducer ----------
 
 function applyEvent(s: Session, ev: ChatStreamEvent): Session {
@@ -458,7 +470,7 @@ function applyEvent(s: Session, ev: ChatStreamEvent): Session {
     case 'crashed':
       // The child is gone — the next send must spawn a fresh session.
       return {
-        ...s,
+        ...returnQueueToDraft(s),
         turnState: 'error',
         live: false,
         cancelling: false,
@@ -484,7 +496,7 @@ function applyEvent(s: Session, ev: ChatStreamEvent): Session {
       }
       // Unrecoverable errors kill the child. Surface as a banner.
       return {
-        ...s,
+        ...returnQueueToDraft(s),
         turnState: 'error',
         live: false,
         lastError: { message: ev.message, recoverable: false, code: ev.code },

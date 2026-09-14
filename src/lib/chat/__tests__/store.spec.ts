@@ -214,6 +214,48 @@ describe('message queue (C1-3)', () => {
     expect(getSession('s1').queue).toEqual(['two'])
   })
 
+  it('a crash hands the queued follow-ups back to the composer instead of leaving them stale', () => {
+    getStore().startSession('s1', 'claude', '/vault')
+    getStore().appendUserMessage('s1', 'go')
+    getStore().enqueueMessage('s1', 'two')
+    getStore().enqueueMessage('s1', 'three')
+    dispatchStreamEvent({ type: 'crashed', sessionId: 's1', exitCode: 1, signal: null })
+    // Auto-flush only runs on idle, and a manual send from the error banner
+    // would otherwise jump ahead of what was queued earlier.
+    expect(getSession('s1').queue ?? []).toEqual([])
+    expect(getSession('s1').composer.draft).toBe('two\nthree')
+  })
+
+  it('an unrecoverable error keeps an existing draft ahead of the returned queue', () => {
+    getStore().startSession('s1', 'claude', '/vault')
+    getStore().appendUserMessage('s1', 'go')
+    getStore().enqueueMessage('s1', 'two')
+    getStore().setComposerDraft('s1', 'typing')
+    dispatchStreamEvent({
+      type: 'error',
+      sessionId: 's1',
+      code: 'AGENT_INTERNAL',
+      message: 'boom',
+      recoverable: false,
+    })
+    expect(getSession('s1').queue ?? []).toEqual([])
+    expect(getSession('s1').composer.draft).toBe('typing\ntwo')
+  })
+
+  it('a recoverable error leaves the queue alone', () => {
+    getStore().startSession('s1', 'claude', '/vault')
+    getStore().appendUserMessage('s1', 'go')
+    getStore().enqueueMessage('s1', 'two')
+    dispatchStreamEvent({
+      type: 'error',
+      sessionId: 's1',
+      code: 'AGENT_INVALID_STREAM',
+      message: 'malformed',
+      recoverable: true,
+    })
+    expect(getSession('s1').queue).toEqual(['two'])
+  })
+
   it('dequeue on an empty queue is a no-op', () => {
     getStore().startSession('s1', 'claude', '/vault')
     getStore().dequeueMessage('s1')
