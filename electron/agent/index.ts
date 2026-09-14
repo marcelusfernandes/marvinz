@@ -492,6 +492,14 @@ export async function spawnAgent(
     }
   )
 
+  // A follow-up turn can race the child's exit: the write then fails with
+  // EPIPE as an async 'error' event on the pipe, and an unlistened 'error'
+  // event would throw and take down the main process. Log and move on — the
+  // 'close' handler below already reports the dead session.
+  proc.stdin?.on('error', (err) => {
+    console.warn(`[agent] stdin error for ${req.sessionId}: ${err.message}`)
+  })
+
   // Hand stdin off to the provider adapter — Codex passes the prompt as argv
   // and just closes stdin; Claude writes the stream-json prompt event first.
   adapter.handleStdin(proc, req)
@@ -545,8 +553,13 @@ export function sendAgentInput(sessionId: string, content: string): boolean {
   if (!stdin || stdin.destroyed || !stdin.writable) return false
   // write() returns a backpressure boolean (false = buffer full but still
   // queued), not a success flag — the turn is queued either way, so report
-  // success once the write is accepted.
-  stdin.write(claudeUserInputLine(content))
+  // success once the write is accepted. A synchronous throw (pipe already
+  // torn down) degrades to false so the renderer respawns instead.
+  try {
+    stdin.write(claudeUserInputLine(content))
+  } catch {
+    return false
+  }
   return true
 }
 

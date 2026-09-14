@@ -166,6 +166,12 @@ describe('electron/ipc/agent.ts wiring into main.ts (#580)', () => {
     ).resolves.toEqual({ ok: true })
   })
 
+  it('agent:request input reports NO_LIVE_SESSION for an unknown sessionId so the renderer respawns (C1-1)', async () => {
+    await expect(
+      agentRequest(fakeEvent([]), { type: 'input', sessionId: 'no-such-session', content: 'hi' })
+    ).resolves.toEqual({ ok: false, error: 'NO_LIVE_SESSION' })
+  })
+
   it('agent:request start spawns the real mock CLI against the real allowlisted vault and streams events back to the real sender', async () => {
     process.env.MOCK_CLAUDE_BIN = MOCK_CLI
     process.env.MOCK_FIXTURE = SIMPLE_TEXT_FIXTURE
