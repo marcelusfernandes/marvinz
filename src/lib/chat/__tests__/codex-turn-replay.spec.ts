@@ -2,8 +2,9 @@
  * Replays real codex-cli output through the Codex adapter AND the renderer
  * store, the way the app wires them (#652). The adapter spec pins the event
  * sequence; this pins what the user sees: the turn stays in flight until
- * Codex is actually done, so a send in that window queues instead of
- * spawning a new child over the live one.
+ * Codex is actually done, so the composer treats that window as busy (Stop,
+ * or the send queue once #650 lands) instead of spawning a new child over the
+ * live one.
  */
 
 import { describe, it, expect, beforeEach } from 'vitest'
