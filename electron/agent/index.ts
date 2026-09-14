@@ -24,6 +24,8 @@ export type { AgentBinaries } from './adapter.js'
 export type AgentChild = {
   sessionId: string
   provider: Provider
+  /** Set by cancelAgent/killAgentSession so an exit we caused is not reported as a crash. */
+  killedByUs?: boolean
   permissionMode: PermissionMode
   vaultRoot: string
   proc: ChildProcess
@@ -177,6 +179,14 @@ function buildClaudeArgs(req: Extract<AgentRequest, { type: 'start' }>): string[
   return args
 }
 
+// Serialize one user turn as a stream-json input line for `claude
+// --input-format stream-json`. The CLI reads one JSON object per line from
+// stdin and processes each as a turn, preserving context across turns — so
+// stdin is kept OPEN after the first prompt (unlike Codex's one-shot exec).
+function claudeUserInputLine(content: string): string {
+  return JSON.stringify({ type: 'user', message: { role: 'user', content } }) + '\n'
+}
+
 function buildCodexArgs(req: Extract<AgentRequest, { type: 'start' }>): string[] {
   // codex exec is non-interactive, one-shot per turn.
   // Prompt is passed as a positional argument; no stdin writes needed.
@@ -311,15 +321,11 @@ const claudeAdapter: AgentAdapter = {
   },
   usesApprovalSocket: true,
   handleStdin(proc, req) {
-    // Prompt is sent as a stream-json input event on stdin.
+    // Prompt is sent as a stream-json input event on stdin, and stdin is kept
+    // OPEN so follow-up turns can be written via sendAgentInput — closing it
+    // here would end the session after a single turn (C1-1).
     if (!proc.stdin) return
-    const inputEvent =
-      JSON.stringify({
-        type: 'user',
-        message: { role: 'user', content: req.prompt },
-      }) + '\n'
-    proc.stdin.write(inputEvent)
-    proc.stdin.end()
+    proc.stdin.write(claudeUserInputLine(req.prompt))
   },
   adaptObj(obj, state) {
     return adaptClaudeObj(obj, state as AdapterState)
@@ -488,6 +494,14 @@ export async function spawnAgent(
     }
   )
 
+  // A follow-up turn can race the child's exit: the write then fails with
+  // EPIPE as an async 'error' event on the pipe, and an unlistened 'error'
+  // event would throw and take down the main process. Log and move on — the
+  // 'close' handler below already reports the dead session.
+  proc.stdin?.on('error', (err) => {
+    console.warn(`[agent] stdin error for ${req.sessionId}: ${err.message}`)
+  })
+
   // Hand stdin off to the provider adapter — Codex passes the prompt as argv
   // and just closes stdin; Claude writes the stream-json prompt event first.
   adapter.handleStdin(proc, req)
@@ -517,7 +531,10 @@ export async function spawnAgent(
     clearSessionRules(req.sessionId)
     void child.approvalServer?.close()
 
-    if (code !== 0 && code !== null) {
+    // A signal death (code null: OOM, external kill) used to be silent; under
+    // the multi-turn model nothing else would ever end the turn in the UI.
+    // Only an exit we asked for is not a crash — the cancel fallback covers it.
+    if (code !== 0 && !child.killedByUs) {
       emit(IPC_CHANNELS.agent.event(req.sessionId), {
         type: 'crashed',
         sessionId: req.sessionId,
@@ -528,9 +545,33 @@ export async function spawnAgent(
   })
 }
 
+/**
+ * Send a follow-up user turn to a live Claude session over its open stdin.
+ * Returns false when there is no live child, the child is Codex (one-shot, no
+ * persistent stdin), or stdin is not writable — the caller then falls back to
+ * spawning a fresh session. This is what makes the chat multi-turn (C1-2).
+ */
+export function sendAgentInput(sessionId: string, content: string): boolean {
+  const child = agentChildren.get(sessionId)
+  if (!child || child.provider === 'codex') return false
+  const stdin = child.proc.stdin
+  if (!stdin || stdin.destroyed || !stdin.writable) return false
+  // write() returns a backpressure boolean (false = buffer full but still
+  // queued), not a success flag — the turn is queued either way, so report
+  // success once the write is accepted. A synchronous throw (pipe already
+  // torn down) degrades to false so the renderer respawns instead.
+  try {
+    stdin.write(claudeUserInputLine(content))
+  } catch {
+    return false
+  }
+  return true
+}
+
 export async function cancelAgent(sessionId: string): Promise<void> {
   const child = agentChildren.get(sessionId)
   if (!child) return
+  child.killedByUs = true
   cancelPendingApprovals([...child.pendingApprovalIds])
   const tree = child.proc.pid != null ? collectProcessTree(child.proc.pid) : []
   signalPids(tree, 'SIGINT')
@@ -541,6 +582,7 @@ export async function cancelAgent(sessionId: string): Promise<void> {
 export async function killAgentSession(sessionId: string): Promise<void> {
   const child = agentChildren.get(sessionId)
   if (!child) return
+  child.killedByUs = true
   agentChildren.delete(sessionId)
   clearSessionRules(sessionId)
   cancelPendingApprovals([...child.pendingApprovalIds])

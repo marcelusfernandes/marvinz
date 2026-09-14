@@ -41,6 +41,18 @@ type ChatStore = {
   setComposerDraft: (sid: SessionId, draft: string) => void
   setComposerMentions: (sid: SessionId, mentions: Mention[]) => void
   setPermissionMode: (sid: SessionId, mode: PermissionMode) => void
+  /** Mark whether a live CLI child is running for this session (C1-2). */
+  setSessionLive: (sid: SessionId, live: boolean) => void
+  /** Clear the error banner and, if errored, re-enter streaming (C1-4 retry). */
+  clearError: (sid: SessionId) => void
+  /** Queue a follow-up message to send when the current turn ends (C1-3). */
+  enqueueMessage: (sid: SessionId, text: string) => void
+  /** Remove and ignore the head of the queue (after it has been dispatched). */
+  dequeueMessage: (sid: SessionId) => void
+  /** Mark the turn as cancelling (drives the "Stopping…" state) (C1-5). */
+  setCancelling: (sid: SessionId, cancelling: boolean) => void
+  /** Force a hung turn back to idle if the terminating event never arrived (C1-5). */
+  forceIdle: (sid: SessionId) => void
 }
 
 function emptySession(id: SessionId, agentId: Provider, vaultPath: string): Session {
@@ -127,7 +139,11 @@ export const useChatStore = create<ChatStore>((set) => ({
       }
     }),
 
-  closeSession: (id) =>
+  closeSession: (id) => {
+    // The ref buffers are keyed by session id and outlive the store entry;
+    // without this purge every closed tab leaves its delta keys behind and a
+    // reused id inherits stale seqs (#563).
+    purgeSessionBuffers(id)
     set((state) => {
       if (!state.sessions[id]) return {}
       const rest = { ...state.sessions }
@@ -135,7 +151,8 @@ export const useChatStore = create<ChatStore>((set) => ({
       const nextActive =
         state.activeSessionId === id ? (Object.keys(rest)[0] ?? null) : state.activeSessionId
       return { sessions: rest, activeSessionId: nextActive }
-    }),
+    })
+  },
 
   setActiveSession: (id) => set({ activeSessionId: id }),
 
@@ -155,6 +172,8 @@ export const useChatStore = create<ChatStore>((set) => ({
         },
         ordering: [...s.ordering, messageId],
         turnState: 'streaming',
+        // A new turn clears any prior error banner (C1-4).
+        lastError: undefined,
       }))
     )
     return messageId
@@ -227,14 +246,69 @@ export const useChatStore = create<ChatStore>((set) => ({
         s.permissionMode === mode ? s : { ...s, permissionMode: mode }
       )
     ),
+
+  setSessionLive: (sid, live) =>
+    set((state) => withSession(state, sid, (s) => (s.live === live ? s : { ...s, live }))),
+
+  clearError: (sid) =>
+    set((state) =>
+      withSession(state, sid, (s) =>
+        s.lastError === undefined && s.turnState !== 'error'
+          ? s
+          : {
+              ...s,
+              lastError: undefined,
+              // A retry re-enters streaming; leave non-error states untouched.
+              turnState: s.turnState === 'error' ? 'streaming' : s.turnState,
+            }
+      )
+    ),
+
+  enqueueMessage: (sid, text) =>
+    set((state) => withSession(state, sid, (s) => ({ ...s, queue: [...(s.queue ?? []), text] }))),
+
+  dequeueMessage: (sid) =>
+    set((state) =>
+      withSession(state, sid, (s) =>
+        s.queue && s.queue.length > 0 ? { ...s, queue: s.queue.slice(1) } : s
+      )
+    ),
+
+  setCancelling: (sid, cancelling) =>
+    set((state) =>
+      withSession(state, sid, (s) => (s.cancelling === cancelling ? s : { ...s, cancelling }))
+    ),
+
+  forceIdle: (sid) =>
+    set((state) =>
+      withSession(state, sid, (s) =>
+        s.turnState === 'idle' && !s.cancelling ? s : { ...s, turnState: 'idle', cancelling: false }
+      )
+    ),
 }))
+
+/**
+ * When a turn dies, queued follow-ups (C1-3) must not sit frozen: auto-flush
+ * only runs on idle, and a manual send from the error banner would jump ahead
+ * of them. Hand them back to the composer, behind whatever is being typed.
+ */
+function returnQueueToDraft(s: Session): Session {
+  const queue = s.queue ?? []
+  if (queue.length === 0) return s
+  const draft = [s.composer.draft, ...queue].filter((t) => t.length > 0).join('\n')
+  return { ...s, queue: [], composer: { ...s.composer, draft } }
+}
 
 // ---------- event reducer ----------
 
 function applyEvent(s: Session, ev: ChatStreamEvent): Session {
   switch (ev.type) {
     case 'session-init':
-      return s.cliSessionId === ev.cliSessionId ? s : { ...s, cliSessionId: ev.cliSessionId }
+      // The CLI confirmed a live child. Record its id and mark the session live
+      // so follow-up sends continue it via `input` rather than respawning.
+      return s.cliSessionId === ev.cliSessionId && s.live
+        ? s
+        : { ...s, cliSessionId: ev.cliSessionId, live: true }
 
     case 'message-start': {
       if (ev.role !== 'assistant') return s
@@ -364,6 +438,7 @@ function applyEvent(s: Session, ev: ChatStreamEvent): Session {
         ...s,
         messages: { ...s.messages, [ev.messageId]: { ...target, done: true } },
         turnState,
+        cancelling: false,
       }
     }
 
@@ -389,11 +464,40 @@ function applyEvent(s: Session, ev: ChatStreamEvent): Session {
           cacheWriteTokens: (s.tokenUsage.cacheWriteTokens ?? 0) + (ev.usage.cacheWriteTokens ?? 0),
         },
         turnState: s.pendingApprovals.length > 0 ? 'awaiting_approval' : 'idle',
+        cancelling: false,
+      }
+
+    case 'crashed':
+      // The child is gone — the next send must spawn a fresh session.
+      return {
+        ...returnQueueToDraft(s),
+        turnState: 'error',
+        live: false,
+        cancelling: false,
+        lastError: {
+          message:
+            ev.exitCode != null
+              ? `The agent stopped unexpectedly (exit ${ev.exitCode}).`
+              : 'The agent stopped unexpectedly.',
+          recoverable: false,
+        },
       }
 
     case 'error':
-    case 'crashed':
-      return { ...s, turnState: 'error' }
+      // A recoverable error (e.g. a single malformed stream line) means the
+      // turn is STILL streaming: leave the session alone. Flipping turnState to
+      // 'error' would raise the Retry banner over a live turn, and Retry would
+      // write a second `input` onto the same stdin. Main already logs the line;
+      // nothing in the UI can show an error that did not end the turn.
+      if (ev.recoverable) return s
+      // Unrecoverable errors kill the child. Surface as a banner.
+      return {
+        ...returnQueueToDraft(s),
+        turnState: 'error',
+        live: false,
+        lastError: { message: ev.message, recoverable: false, code: ev.code },
+        cancelling: false,
+      }
   }
 }
 
@@ -450,6 +554,16 @@ export function resetStreamingBuffers() {
 
 function keyOf(sid: SessionId, mid: MessageId, kind: DeltaKind): DeltaKey {
   return `${sid}:${mid}:${kind}` as DeltaKey
+}
+
+/** Drop every buffered delta and seq/block record belonging to one session. */
+function purgeSessionBuffers(sid: SessionId) {
+  const prefix = `${sid}:`
+  for (const map of [pendingDeltas, blockIdByKey, appliedSeq]) {
+    for (const key of Array.from(map.keys())) {
+      if (key.startsWith(prefix)) map.delete(key)
+    }
+  }
 }
 
 function pushStreamDelta(
