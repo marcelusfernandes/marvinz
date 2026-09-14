@@ -383,6 +383,30 @@ describe('useChatSession — retry', () => {
 // ---------------------------------------------------------------------------
 
 describe('useChatSession — message queue', () => {
+  it('restores a queued message to the draft when its auto-send fails, like a manual submit', async () => {
+    ipc.request.mockResolvedValue({ ok: true })
+    useChatStore.getState().startSession('s1', 'claude', '/vault')
+    const { result } = renderHook(() => useChatSession('s1'))
+    await act(async () => {
+      await result.current.send('first')
+    })
+    act(() => {
+      useChatStore.getState().enqueueMessage('s1', 'second')
+    })
+    ipc.request.mockRejectedValue(new Error('IPC down'))
+    await act(async () => {
+      ipc._emit('s1', {
+        type: 'turn-result',
+        sessionId: 's1',
+        usage: { inputTokens: 1, outputTokens: 1 },
+        costUSD: 0,
+        durationMs: 5,
+      })
+    })
+    expect(useChatStore.getState().sessions['s1'].queue ?? []).toHaveLength(0)
+    expect(useChatStore.getState().sessions['s1'].composer.draft).toBe('second')
+  })
+
   it('auto-sends the queued message once the turn goes idle', async () => {
     ipc.request.mockResolvedValue({ ok: true })
     useChatStore.getState().startSession('s1', 'claude', '/vault')

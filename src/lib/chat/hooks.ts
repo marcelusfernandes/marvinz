@@ -161,7 +161,11 @@ export function useChatSession(sessionId: SessionId): UseChatSessionResult {
   useEffect(() => {
     if (turnState !== 'idle' || nextQueued === undefined) return
     useChatStore.getState().dequeueMessage(sessionId)
-    void send(nextQueued)
+    // Same failure handling as a manual submit: the message was already
+    // dequeued, so a failed dispatch must not drop it silently.
+    void send(nextQueued).catch(() => {
+      useChatStore.getState().setComposerDraft(sessionId, nextQueued)
+    })
   }, [turnState, nextQueued, sessionId, send])
 
   return useMemo(() => ({ session, send, cancel, retry }), [session, send, cancel, retry])
