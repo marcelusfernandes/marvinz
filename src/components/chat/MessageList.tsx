@@ -15,9 +15,10 @@ type Props = {
  * `ordering` (stable across streaming) so this component does NOT rerender
  * on every token — child cards subscribe per-message.
  *
- * Rows are memoized and use CSS `content-visibility` (see App.css) so the
- * browser skips paint/layout for off-screen messages — cheap at scale without
- * JS windowing, which would conflict with the streaming stick-to-bottom.
+ * Rows are memoized so an unrelated store update does not re-render every
+ * message. Virtualization stays deferred (design doc §8.4): JS windowing
+ * fights the streaming stick-to-bottom, and CSS content-visibility clips the
+ * rewind button that floats above the user bubble.
  */
 export function MessageList({ sessionId, onRewind }: Props) {
   const scrollRef = useRef<HTMLElement | null>(null)

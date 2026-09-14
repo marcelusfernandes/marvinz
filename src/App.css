@@ -5138,13 +5138,8 @@ button.prop-bool {
 
 .chat-message-row {
   list-style: none;
-  /* Native paint-virtualization: the browser skips layout/paint for rows
-     scrolled off-screen, keeping long conversations cheap without JS windowing
-     (which would fight the streaming stick-to-bottom). contain-intrinsic-size
-     reserves an estimated height so scrollHeight — and thus stick-to-bottom —
-     stays accurate for offscreen rows. */
-  content-visibility: auto;
-  contain-intrinsic-size: auto 120px;
+  /* No content-visibility here: it implies paint containment, which clips the
+     user bubble's rewind button (.chat-bubble-rewind floats at top: -10px). */
 }
 
 .chat-message-row.system .chat-system-text {
