@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { act, render, screen } from '@testing-library/react'
 // Count UserBubble renders through a thin wrapper around the real component,
 // so the memoization test below sees exactly when a row re-renders.
 const bubbleRenders = vi.hoisted(() => ({ count: 0 }))
@@ -80,7 +80,9 @@ describe('MessageList', () => {
 
     // Ordering changes, so MessageList itself re-renders; the two existing
     // rows must not, or React.memo on MessageRow is doing nothing.
-    useChatStore.getState().appendUserMessage(SID, 'three')
+    act(() => {
+      useChatStore.getState().appendUserMessage(SID, 'three')
+    })
 
     expect(screen.getByText('three')).toBeInTheDocument()
     expect(bubbleRenders.count).toBe(3)
