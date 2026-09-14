@@ -472,13 +472,22 @@ function applyEvent(s: Session, ev: ChatStreamEvent): Session {
       }
 
     case 'error':
-      // Unrecoverable errors kill the child; recoverable ones (e.g. a single
-      // malformed stream line) leave the session live. Surface both as a banner.
+      // A recoverable error (e.g. a single malformed stream line) means the
+      // turn is STILL streaming: record it, but leave turnState alone — flipping
+      // it to 'error' would raise the Retry banner over a live turn, and Retry
+      // would write a second `input` onto the same stdin.
+      if (ev.recoverable) {
+        return {
+          ...s,
+          lastError: { message: ev.message, recoverable: true, code: ev.code },
+        }
+      }
+      // Unrecoverable errors kill the child. Surface as a banner.
       return {
         ...s,
         turnState: 'error',
-        live: ev.recoverable ? s.live : false,
-        lastError: { message: ev.message, recoverable: ev.recoverable, code: ev.code },
+        live: false,
+        lastError: { message: ev.message, recoverable: false, code: ev.code },
         cancelling: false,
       }
   }

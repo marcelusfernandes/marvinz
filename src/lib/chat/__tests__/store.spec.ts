@@ -119,9 +119,11 @@ describe('session live flag (C1-2)', () => {
     expect(getSession('s1').live).toBe(false)
   })
 
-  it('a recoverable error keeps live intact', () => {
+  it('a recoverable error keeps live intact and does not interrupt the turn', () => {
     getStore().startSession('s1', 'claude', '/vault')
     initEvent('s1', 'cli-1')
+    getStore().appendUserMessage('s1', 'go')
+    const before = getSession('s1').turnState
     dispatchStreamEvent({
       type: 'error',
       sessionId: 's1',
@@ -130,6 +132,11 @@ describe('session live flag (C1-2)', () => {
       recoverable: true,
     })
     expect(getSession('s1').live).toBe(true)
+    // The stream keeps going after a malformed line; raising the Retry banner
+    // here would race a second `input` onto the live turn.
+    expect(getSession('s1').turnState).toBe(before)
+    expect(getSession('s1').turnState).not.toBe('error')
+    expect(getSession('s1').lastError?.recoverable).toBe(true)
   })
 })
 

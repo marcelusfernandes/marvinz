@@ -464,6 +464,51 @@ describe('useChatSession — cancel', () => {
     expect(useChatStore.getState().sessions['s1'].cancelling).toBe(true)
   })
 
+  it('a stale fallback from an earlier cancel does not force-idle a later in-flight cancel', async () => {
+    vi.useFakeTimers()
+    try {
+      useChatStore.getState().startSession('s1', 'claude', '/vault')
+      const { result } = renderHook(() => useChatSession('s1'))
+      const turnResolved = () =>
+        useChatStore.getState().applyStreamEvent('s1', {
+          type: 'turn-result',
+          sessionId: 's1',
+          usage: { inputTokens: 1, outputTokens: 1 },
+          costUSD: 0,
+          durationMs: 1,
+        })
+
+      // Cancel A at t=0, and it resolves quickly through the real event.
+      await act(async () => {
+        await result.current.send('a')
+        await result.current.cancel()
+      })
+      act(turnResolved)
+      expect(useChatStore.getState().sessions['s1'].cancelling).toBe(false)
+
+      // Cancel B at t=3s, still in flight when A's 4s fallback fires.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(3000)
+        await result.current.send('b')
+        await result.current.cancel()
+      })
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1500)
+      })
+      expect(useChatStore.getState().sessions['s1'].cancelling).toBe(true)
+      expect(useChatStore.getState().sessions['s1'].turnState).not.toBe('idle')
+
+      // B's own fallback still protects against a dropped terminating event.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(3000)
+      })
+      expect(useChatStore.getState().sessions['s1'].cancelling).toBe(false)
+      expect(useChatStore.getState().sessions['s1'].turnState).toBe('idle')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('forces the turn idle if the terminating event is dropped', async () => {
     vi.useFakeTimers()
     try {

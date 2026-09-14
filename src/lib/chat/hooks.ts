@@ -121,15 +121,21 @@ export function useChatSession(sessionId: SessionId): UseChatSessionResult {
     [sessionId]
   )
 
+  // Each cancel() gets its own token so the fallback only acts for the cancel
+  // that scheduled it: a timer left over from an earlier, already-resolved
+  // cancel must not force-idle a later cancel that is still in flight.
+  const cancelToken = useRef(0)
   const cancel = useCallback<UseChatSessionResult['cancel']>(async () => {
     const api = getAgentApi()
     if (!api?.request) return
+    const token = ++cancelToken.current
     // Optimistically enter the "Stopping…" state so the composer reflects the
     // request immediately, and schedule a fallback that forces the turn idle if
     // the terminating event is dropped by main (C1-5).
     useChatStore.getState().setCancelling(sessionId, true)
     await api.request({ type: 'cancel', sessionId })
     setTimeout(() => {
+      if (cancelToken.current !== token) return
       if (useChatStore.getState().sessions[sessionId]?.cancelling) {
         useChatStore.getState().forceIdle(sessionId)
       }
