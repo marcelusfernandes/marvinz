@@ -415,6 +415,38 @@ describe('applyStreamEvent: text-delta via ref buffer', () => {
     expect(blocks[2].kind === 'text' && blocks[2].text).toBe('O arquivo é um Markdown.')
   })
 
+  it('text after an approval-gated tool call (permission-request before tool-use) also starts a new block (#652)', () => {
+    getStore().applyStreamEvent('s1', {
+      type: 'text-delta',
+      sessionId: 's1',
+      messageId: 'm1',
+      delta: 'Vou editar o arquivo.',
+      seq: 0,
+    })
+    // Main defers tool-use for file edits until the snapshot resolves, so the
+    // approval request can create the tool block first.
+    getStore().applyStreamEvent('s1', {
+      type: 'permission-request',
+      sessionId: 's1',
+      toolUseId: 'tu1',
+      toolName: 'Write',
+      input: { file_path: 'a.md' },
+      risk: 'safe',
+      suggestion: 'allow',
+    })
+    getStore().applyStreamEvent('s1', {
+      type: 'text-delta',
+      sessionId: 's1',
+      messageId: 'm1',
+      delta: 'Pronto.',
+      seq: 1,
+    })
+    flushPendingDeltas()
+    const blocks = getBlocks('s1', 'm1')
+    expect(blocks.map((b) => b.kind)).toEqual(['text', 'tool_use', 'text'])
+    expect(blocks[2].kind === 'text' && blocks[2].text).toBe('Pronto.')
+  })
+
   it('deduplicates repeated seq — does not double-add text', () => {
     getStore().applyStreamEvent('s1', {
       type: 'text-delta',

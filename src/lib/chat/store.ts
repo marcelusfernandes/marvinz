@@ -175,14 +175,18 @@ export const useChatStore = create<ChatStore>((set) => ({
     if (ev.type === 'message-end' && pendingDeltas.size > 0) {
       flushPendingDeltas()
     }
+    // A tool block is about to be appended: commit buffered text so it lands
+    // BEFORE the tool block, then retire the sticky text/thinking block ids so
+    // text arriving after the tool call starts a new block below it instead of
+    // merging into the one above (#652). permission-request can create the
+    // tool block before tool-use arrives (main defers tool-use for file edits
+    // until the snapshot resolves), so it gets the same treatment.
     if (ev.type === 'tool-use') {
-      // Commit buffered text so it lands BEFORE the tool block, then retire the
-      // sticky text/thinking block ids: text that arrives after the tool call
-      // starts a new block below it instead of merging into the one above,
-      // which put a whole multi-step reply on one side of the tool call (#652).
-      flushPendingDeltas()
-      blockIdByKey.delete(keyOf(sid, ev.messageId, 'text'))
-      blockIdByKey.delete(keyOf(sid, ev.messageId, 'thinking'))
+      splitTextBlockAfterTool(sid, ev.messageId)
+    } else if (ev.type === 'permission-request') {
+      const session = useChatStore.getState().sessions[sid]
+      const lastId = session?.ordering[session.ordering.length - 1]
+      if (lastId) splitTextBlockAfterTool(sid, lastId)
     }
     set((state) => withSession(state, sid, (s) => applyEvent(s, ev)))
   },
@@ -459,6 +463,12 @@ export function resetStreamingBuffers() {
 
 function keyOf(sid: SessionId, mid: MessageId, kind: DeltaKind): DeltaKey {
   return `${sid}:${mid}:${kind}` as DeltaKey
+}
+
+function splitTextBlockAfterTool(sid: SessionId, mid: MessageId) {
+  flushPendingDeltas()
+  blockIdByKey.delete(keyOf(sid, mid, 'text'))
+  blockIdByKey.delete(keyOf(sid, mid, 'thinking'))
 }
 
 function pushStreamDelta(

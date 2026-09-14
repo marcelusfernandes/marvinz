@@ -105,6 +105,21 @@ export function makeCodexAdapterState(sessionId: string): CodexAdapterState {
   }
 }
 
+/**
+ * Unrecoverable failure: never leave the assistant message open, then surface
+ * the error. Shared by turn.failed and the generic error event.
+ */
+function failTurn(state: CodexAdapterState, message: string): AgentEvent[] {
+  const error: AgentEvent = {
+    type: 'error',
+    sessionId: state.sessionId,
+    code: 'AGENT_INTERNAL',
+    message,
+    recoverable: false,
+  }
+  return [...closeTurn(state), error]
+}
+
 /** message-end for the open turn, or nothing when no turn was started. */
 function closeTurn(state: CodexAdapterState): AgentEvent[] {
   if (!state.turnOpen) return []
@@ -272,14 +287,7 @@ export function adaptCodexObj(obj: unknown, state: CodexAdapterState): AgentEven
         typeof rawUnknown.error?.message === 'string'
           ? rawUnknown.error.message
           : 'Codex turn failed'
-      const error: AgentEvent = {
-        type: 'error',
-        sessionId: state.sessionId,
-        code: 'AGENT_INTERNAL',
-        message,
-        recoverable: false,
-      }
-      return [...closeTurn(state), error]
+      return failTurn(state, message)
     }
 
     // turn.started is handled above; these are informational only.
@@ -287,15 +295,7 @@ export function adaptCodexObj(obj: unknown, state: CodexAdapterState): AgentEven
       const rawUnknown = raw as unknown as Record<string, unknown>
       const message =
         typeof rawUnknown.message === 'string' ? rawUnknown.message : 'Unknown codex error'
-      const event: AgentEvent = {
-        type: 'error',
-        sessionId: state.sessionId,
-        code: 'AGENT_INTERNAL',
-        message,
-        recoverable: false,
-      }
-      // Same as turn.failed: never leave the assistant message open.
-      return [...closeTurn(state), event]
+      return failTurn(state, message)
     }
 
     default:
