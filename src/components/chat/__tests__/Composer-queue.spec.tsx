@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { screen, fireEvent } from '@testing-library/react'
+import { renderWithAppContext as render } from '../../__tests__/renderWithAppContext'
 import { Composer } from '../Composer'
 import { useChatStore } from '../../../lib/chat/store'
 import type { SessionId } from '../../../lib/chat/types'
@@ -24,7 +25,7 @@ describe('Composer — send-while-streaming queue (C1-3)', () => {
 
   it('queues the message instead of sending while streaming', () => {
     const onSend = vi.fn()
-    render(<Composer sessionId={SID} onSend={onSend} vaultPath="/vault" isStreaming />)
+    render(<Composer sessionId={SID} onSend={onSend} isStreaming />)
     const textarea = typeInComposer('follow up')
     fireEvent.keyDown(textarea, { key: 'Enter' })
 
@@ -34,7 +35,7 @@ describe('Composer — send-while-streaming queue (C1-3)', () => {
 
   it('sends immediately when not streaming', () => {
     const onSend = vi.fn()
-    render(<Composer sessionId={SID} onSend={onSend} vaultPath="/vault" isStreaming={false} />)
+    render(<Composer sessionId={SID} onSend={onSend} isStreaming={false} />)
     const textarea = typeInComposer('go now')
     fireEvent.keyDown(textarea, { key: 'Enter' })
 
@@ -45,22 +46,14 @@ describe('Composer — send-while-streaming queue (C1-3)', () => {
   it('shows a queued-count indicator', () => {
     useChatStore.getState().enqueueMessage(SID, 'a')
     useChatStore.getState().enqueueMessage(SID, 'b')
-    render(<Composer sessionId={SID} onSend={vi.fn()} vaultPath="/vault" isStreaming />)
+    render(<Composer sessionId={SID} onSend={vi.fn()} isStreaming />)
     expect(screen.getByText('2 queued')).toBeInTheDocument()
   })
 
   it('disables the stop button and labels it Stopping while cancelling (C1-5)', () => {
     useChatStore.getState().appendUserMessage(SID, 'go')
     useChatStore.getState().setCancelling(SID, true)
-    render(
-      <Composer
-        sessionId={SID}
-        onSend={vi.fn()}
-        onCancel={vi.fn()}
-        vaultPath="/vault"
-        isStreaming
-      />
-    )
+    render(<Composer sessionId={SID} onSend={vi.fn()} onCancel={vi.fn()} isStreaming />)
     const btn = screen.getByRole('button', { name: /stopping/i })
     expect(btn).toBeDisabled()
   })

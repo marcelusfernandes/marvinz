@@ -72,7 +72,7 @@ describe('claudeAdapter', () => {
     )
   })
 
-  it('handleStdin writes the prompt as a stream-json input event, then closes stdin', () => {
+  it('handleStdin writes the prompt as a stream-json input event and keeps stdin open (C1-1)', () => {
     const write = vi.fn()
     const end = vi.fn()
     const proc = { stdin: { write, end } } as unknown as ChildProcess
@@ -81,7 +81,9 @@ describe('claudeAdapter', () => {
     expect(write).toHaveBeenCalledTimes(1)
     const written = JSON.parse((write.mock.calls[0][0] as string).trim())
     expect(written).toEqual({ type: 'user', message: { role: 'user', content: 'hello there' } })
-    expect(end).toHaveBeenCalledTimes(1)
+    // Closing stdin would end the session after one turn; follow-up turns are
+    // written to the same pipe by sendAgentInput.
+    expect(end).not.toHaveBeenCalled()
   })
 
   it('handleStdin is a no-op when proc.stdin is null (preserves the original guard)', () => {
