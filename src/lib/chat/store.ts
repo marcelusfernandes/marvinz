@@ -175,6 +175,19 @@ export const useChatStore = create<ChatStore>((set) => ({
     if (ev.type === 'message-end' && pendingDeltas.size > 0) {
       flushPendingDeltas()
     }
+    // A tool block is about to be appended: commit buffered text so it lands
+    // BEFORE the tool block, then retire the sticky text/thinking block ids so
+    // text arriving after the tool call starts a new block below it instead of
+    // merging into the one above (#652). permission-request can create the
+    // tool block before tool-use arrives (main defers tool-use for file edits
+    // until the snapshot resolves), so it gets the same treatment.
+    if (ev.type === 'tool-use') {
+      splitTextBlockAfterTool(sid, ev.messageId)
+    } else if (ev.type === 'permission-request') {
+      const session = useChatStore.getState().sessions[sid]
+      const lastId = session?.ordering[session.ordering.length - 1]
+      if (lastId) splitTextBlockAfterTool(sid, lastId)
+    }
     set((state) => withSession(state, sid, (s) => applyEvent(s, ev)))
   },
 
@@ -435,6 +448,17 @@ export function setStreamingScheduler(opts: {
 }) {
   scheduleRaf = opts.schedule
   cancelRaf = opts.cancel
+}
+
+/**
+ * A tool block is about to land in `mid`: commit buffered text so it stays
+ * above the tool, then retire the sticky text/thinking block ids so the next
+ * delta opens a new block below it (#652).
+ */
+function splitTextBlockAfterTool(sid: SessionId, mid: MessageId) {
+  flushPendingDeltas()
+  blockIdByKey.delete(keyOf(sid, mid, 'text'))
+  blockIdByKey.delete(keyOf(sid, mid, 'thinking'))
 }
 
 /** Drop buffered deltas without flushing (test/cleanup). */
