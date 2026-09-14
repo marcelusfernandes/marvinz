@@ -193,6 +193,26 @@ describe('horizontal rule', () => {
     expect(view.state.selection.$from.parent.textContent).toBe('x')
   })
 
+  it('replaces a text range with the rule, splitting around what remains', async () => {
+    const view = await mount('abXYcd\n')
+    const start = posOfText(view.state.doc, 'XY')
+    select(view, start, start + 2)
+    expect(dryRun(view, 'hr')).toBe(true)
+    expect(click(view, 'hr')).toBe(true)
+    expect(blockNames(view.state.doc)).toEqual(['paragraph', 'hr', 'paragraph'])
+    expect(markdown()).toBe('ab\n\n***\n\ncd')
+    expect(view.state.selection.$from.parent.textContent).toBe('cd')
+  })
+
+  it('refuses a range that starts inside a table cell', async () => {
+    const view = await mount('| h |\n| - |\n| cell |\n')
+    const start = posOfText(view.state.doc, 'cell')
+    select(view, start, start + 2)
+    expect(dryRun(view, 'hr')).toBe(false)
+    expect(click(view, 'hr')).toBe(false)
+    expect(blockNames(view.state.doc)).toEqual(['table'])
+  })
+
   it('replaces an empty paragraph rather than leaving it above the rule', async () => {
     const view = await mount('foo\n\n\n')
     // Append an empty paragraph explicitly: markdown collapses blank lines.

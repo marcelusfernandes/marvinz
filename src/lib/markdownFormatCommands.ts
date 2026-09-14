@@ -417,7 +417,10 @@ function listCommand(
     if (!enclosing) return wrapInList(target)(state, dispatch, view)
     // Same type → the click means "un-list this".
     if (active) return liftListItem(listItemType)(state, dispatch, view)
-    // Different type → retype the list in place. Every direct item's
+    // Different type → retype the list in place — the ONE list holding $from.
+    // A selection that crosses into a sibling list leaves that second list
+    // alone; "one list at a time" is the deliberate constraint here.
+    // Every direct item's
     // `listType`/`label` must change in the same transaction: commonmark's
     // syncListOrderPlugin reads them on every transaction and turns a
     // bullet_list whose first item still says 'ordered' straight back into an
