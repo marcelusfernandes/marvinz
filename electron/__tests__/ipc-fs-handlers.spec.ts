@@ -50,6 +50,7 @@ vi.mock('electron', () => ({
     return fakeExportWin
   }),
   dialog: { showSaveDialog: vi.fn(async () => ({ canceled: true, filePath: undefined })) },
+  app: { getPath: vi.fn(() => os.tmpdir()) },
   shell: { trashItem: vi.fn(async () => {}) },
 }))
 
@@ -183,13 +184,10 @@ describe('file:copy', () => {
 // ---------------------------------------------------------------------------
 
 describe('file:exportPdf', () => {
-  it('does NOT call assertInVault — pre-existing gap preserved, not fixed', async () => {
+  it('rejects a path outside the vault before opening any window (#464)', async () => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'marvin-fs-ipc-outside-'))
     const filePath = path.join(dir, 'outside-vault.md')
     await fs.writeFile(filePath, '# Outside the vault', 'utf8')
-    // A vault-boundary check would throw on a path outside `vault` — if this
-    // handler ever gains an assertInVault call, this mock throws and the
-    // test fails, proving the check ran.
     const ctx = makeCtx({
       assertInVault: vi.fn(async () => {
         throw new Error('MARVIN_OUTSIDE_VAULT')
@@ -197,13 +195,31 @@ describe('file:exportPdf', () => {
     })
     registerFsHandlers(ctx)
 
-    await expect(getHandler('file:exportPdf')(null, filePath)).resolves.toBeUndefined()
+    await expect(getHandler('file:exportPdf')(null, filePath)).rejects.toThrow(
+      'MARVIN_OUTSIDE_VAULT'
+    )
 
-    expect(ctx.assertInVault).not.toHaveBeenCalled()
-    expect(dialog.showSaveDialog).toHaveBeenCalledTimes(1)
-    expect(fakeExportWin.destroy).toHaveBeenCalledTimes(1)
+    expect(ctx.assertInVault).toHaveBeenCalledWith(filePath)
+    expect(dialog.showSaveDialog).not.toHaveBeenCalled()
+    expect(BrowserWindow).not.toHaveBeenCalled()
 
     await fs.rm(dir, { recursive: true, force: true })
+  })
+
+  it('exports an in-vault file through the realpath assertInVault returns', async () => {
+    const filePath = path.join(vault, 'note.md')
+    await fs.writeFile(filePath, '# Inside', 'utf8')
+    const ctx = makeCtx({ assertInVault: vi.fn(async () => filePath) })
+    registerFsHandlers(ctx)
+
+    await expect(getHandler('file:exportPdf')(null, filePath)).resolves.toBeUndefined()
+
+    expect(ctx.assertInVault).toHaveBeenCalledWith(filePath)
+    expect(dialog.showSaveDialog).toHaveBeenCalledTimes(1)
+    expect(fakeExportWin.destroy).toHaveBeenCalledTimes(1)
+    // The staged HTML lands in the OS temp dir, never next to the source.
+    expect(fakeExportWin.loadFile).toHaveBeenCalledWith(expect.stringContaining(os.tmpdir()))
+    expect(fakeExportWin.loadFile).not.toHaveBeenCalledWith(expect.stringContaining(vault))
   })
 })
 

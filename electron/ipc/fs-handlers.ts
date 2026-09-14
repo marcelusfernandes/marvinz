@@ -9,7 +9,7 @@
 // main.ts-owned (assertInVault closes over activeVaultPath; folder:create in
 // vault-handlers.ts and shell:reveal in shell-menu-handlers.ts also call
 // them) and are threaded the same way.
-import { ipcMain, BrowserWindow, dialog, shell } from 'electron'
+import { ipcMain, shell } from 'electron'
 import fs from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import path from 'node:path'
@@ -17,6 +17,7 @@ import { assertRenameTargetAvailable } from '../fs-rename-guard.js'
 import { resolveConflict } from '../conflictResolver.js'
 import { writeSnapshot, newTurnId, type SnapshotTrigger } from '../snapshot.js'
 import { isNoisy } from '../noisyPaths.js'
+import { exportMarkdownToPdf } from '../export-pdf.js'
 import type { MoveResult } from '../../src/types.js'
 import { IPC_CHANNELS } from '../../src/shared/ipc-channels.js'
 
@@ -473,53 +474,9 @@ export function registerFsHandlers(ctx: FsHandlersCtx): void {
 
   ipcMain.handle(IPC_CHANNELS.file.exportPdf, async (_e, filePath: string) => {
     try {
-      // No assertInVault here — pre-existing gap (out of scope for this pure
-      // move, tracked separately if ever fixed; see the issue's "Out of scope").
-      const content = await fs.readFile(filePath, 'utf-8')
-      const dir = path.dirname(filePath)
-
-      const { marked } = await import('marked')
-      const bodyHtml = await marked(content)
-
-      const html = `<!DOCTYPE html>
-<html><head>
-<meta charset="utf-8">
-<style>
-  body { font-family: system-ui, -apple-system, sans-serif; max-width: 800px; margin: 0 auto; padding: 2rem; line-height: 1.6; color: #1a1a1a; }
-  h1, h2, h3, h4, h5, h6 { margin-top: 1.5em; }
-  img { max-width: 100%; height: auto; }
-  pre { background: #f5f5f5; padding: 1rem; border-radius: 4px; overflow-x: auto; }
-  code { font-family: monospace; font-size: 0.9em; }
-  table { border-collapse: collapse; width: 100%; }
-  th, td { border: 1px solid #ddd; padding: 0.5rem; }
-  blockquote { border-left: 4px solid #ddd; margin: 0; padding-left: 1rem; color: #555; }
-</style>
-</head><body>${bodyHtml}</body></html>`
-
-      const tmpPath = path.join(dir, `._marvinz_export_${Date.now()}.html`)
-      await fs.writeFile(tmpPath, html, 'utf-8')
-
-      const exportWin = new BrowserWindow({
-        show: false,
-        webPreferences: { nodeIntegration: false, contextIsolation: true },
-      })
-
-      try {
-        await exportWin.loadFile(tmpPath)
-
-        const { canceled, filePath: savePath } = await dialog.showSaveDialog({
-          defaultPath: filePath.replace(/\.md$/, '.pdf'),
-          filters: [{ name: 'PDF', extensions: ['pdf'] }],
-        })
-
-        if (!canceled && savePath) {
-          const pdfBuffer = await exportWin.webContents.printToPDF({ printBackground: true })
-          await fs.writeFile(savePath, Buffer.from(pdfBuffer))
-        }
-      } finally {
-        exportWin.destroy()
-        await fs.unlink(tmpPath).catch(() => {})
-      }
+      // Boundary check, temp-dir staging and render-window hardening live in
+      // export-pdf.ts so the unit test can drive the real code path (#464).
+      await exportMarkdownToPdf(filePath, { assertInVault: ctx.assertInVault })
     } catch (e) {
       ctx.wrapFsError(e)
     }
