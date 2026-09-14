@@ -366,6 +366,16 @@ describe('adapter-codex — turn.started re-entrancy (#652)', () => {
   })
 })
 
+describe('adapter-codex — turn.completed without usage (#652)', () => {
+  it('still ends the open message even when usage is missing', () => {
+    const state = makeCodexAdapterState('s')
+    adaptCodexObj({ type: 'turn.started' }, state)
+    const events = adaptCodexObj({ type: 'turn.completed' }, state)
+    expect(events.map((e) => e.type)).toEqual(['message-end'])
+    expect(state.turnOpen).toBe(false)
+  })
+})
+
 describe('adapter-codex — turn.failed (#652)', () => {
   it('ends the open message and surfaces an unrecoverable error', () => {
     const state = makeCodexAdapterState('s')

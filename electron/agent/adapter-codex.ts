@@ -109,10 +109,6 @@ export function makeCodexAdapterState(sessionId: string): CodexAdapterState {
 }
 
 /**
- * Unrecoverable failure: never leave the assistant message open, then surface
- * the error. Shared by turn.failed and the generic error event.
- */
-/**
  * A command still running when its turn ends abnormally never gets an
  * item.completed; fail its block explicitly or it stays "running" forever.
  */
@@ -129,6 +125,10 @@ function abandonOpenTools(state: CodexAdapterState, reason: string): AgentEvent[
   return events
 }
 
+/**
+ * Unrecoverable failure: fail open commands, close the message as cancelled,
+ * then surface the error. Shared by turn.failed and the generic error event.
+ */
 function failTurn(state: CodexAdapterState, message: string): AgentEvent[] {
   const error: AgentEvent = {
     type: 'error',
