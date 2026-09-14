@@ -85,6 +85,8 @@ export type CodexAdapterState = {
   emittedTextIds: Set<string>
   // a turn.started has been seen and no turn.completed/turn.failed yet (#652)
   turnOpen: boolean
+  // command_execution items started but not yet completed (#652)
+  openToolIds: Set<string>
   startedAt: number
 }
 
@@ -101,6 +103,7 @@ export function makeCodexAdapterState(sessionId: string): CodexAdapterState {
     emittedToolUseIds: new Set(),
     emittedTextIds: new Set(),
     turnOpen: false,
+    openToolIds: new Set(),
     startedAt: Date.now(),
   }
 }
@@ -110,6 +113,17 @@ export function makeCodexAdapterState(sessionId: string): CodexAdapterState {
  * the error. Shared by turn.failed and the generic error event.
  */
 function failTurn(state: CodexAdapterState, message: string): AgentEvent[] {
+  // A command still running when the turn dies never gets its item.completed;
+  // fail its block explicitly or it stays "running" in the transcript forever.
+  const abandoned: AgentEvent[] = Array.from(state.openToolIds).map((toolUseId) => ({
+    type: 'tool-result',
+    sessionId: state.sessionId,
+    toolUseId,
+    output: message,
+    isError: true,
+    durationMs: 0,
+  }))
+  state.openToolIds.clear()
   const error: AgentEvent = {
     type: 'error',
     sessionId: state.sessionId,
@@ -117,7 +131,7 @@ function failTurn(state: CodexAdapterState, message: string): AgentEvent[] {
     message,
     recoverable: false,
   }
-  return [...closeTurn(state), error]
+  return [...abandoned, ...closeTurn(state), error]
 }
 
 /** message-end for the open turn, or nothing when no turn was started. */
@@ -194,6 +208,7 @@ export function adaptCodexObj(obj: unknown, state: CodexAdapterState): AgentEven
       if (item.type === 'command_execution') {
         if (state.emittedToolUseIds.has(item.id)) return []
         state.emittedToolUseIds.add(item.id)
+        state.openToolIds.add(item.id)
 
         const event: AgentEvent = {
           type: 'tool-use',
@@ -238,6 +253,7 @@ export function adaptCodexObj(obj: unknown, state: CodexAdapterState): AgentEven
       }
 
       if (item.type === 'command_execution') {
+        state.openToolIds.delete(item.id)
         const isError = item.status === 'failed' || (item.exit_code !== 0 && item.exit_code != null)
         const event: AgentEvent = {
           type: 'tool-result',
@@ -290,7 +306,7 @@ export function adaptCodexObj(obj: unknown, state: CodexAdapterState): AgentEven
       return failTurn(state, message)
     }
 
-    // turn.started is handled above; these are informational only.
+    // Failure paths: both end the open turn and surface an unrecoverable error.
     case 'error': {
       const rawUnknown = raw as unknown as Record<string, unknown>
       const message =

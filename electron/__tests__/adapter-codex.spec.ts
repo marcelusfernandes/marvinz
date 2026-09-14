@@ -290,6 +290,43 @@ describe('adapter-codex — generic error mid-turn (#652)', () => {
   })
 })
 
+describe('adapter-codex — failure while a command is mid-flight (#652)', () => {
+  it('fails the in-flight tool block before ending the message so it never stays running', () => {
+    const state = makeCodexAdapterState('s')
+    adaptCodexObj({ type: 'turn.started' }, state)
+    adaptCodexObj(
+      {
+        type: 'item.started',
+        item: { id: 'cmd1', type: 'command_execution', command: 'sleep 99' },
+      },
+      state
+    )
+    const events = adaptCodexObj({ type: 'turn.failed', error: { message: 'killed' } }, state)
+    expect(events.map((e) => e.type)).toEqual(['tool-result', 'message-end', 'error'])
+    const result = eventsOfType(events, 'tool-result')[0]
+    expect(result.toolUseId).toBe('cmd1')
+    expect(result.isError).toBe(true)
+  })
+
+  it('emits no synthetic tool-result when the command already completed', () => {
+    const state = makeCodexAdapterState('s')
+    adaptCodexObj({ type: 'turn.started' }, state)
+    adaptCodexObj(
+      { type: 'item.started', item: { id: 'cmd1', type: 'command_execution', command: 'true' } },
+      state
+    )
+    adaptCodexObj(
+      {
+        type: 'item.completed',
+        item: { id: 'cmd1', type: 'command_execution', status: 'completed', exit_code: 0 },
+      },
+      state
+    )
+    const events = adaptCodexObj({ type: 'error', message: 'boom' }, state)
+    expect(events.map((e) => e.type)).toEqual(['message-end', 'error'])
+  })
+})
+
 describe('adapter-codex — turn.started re-entrancy (#652)', () => {
   it('closes the previous message when turn.started repeats without a turn end', () => {
     const state = makeCodexAdapterState('s')
