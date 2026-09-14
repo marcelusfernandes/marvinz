@@ -28,6 +28,8 @@ describe('MessageList', () => {
   beforeEach(() => {
     resetStore()
     bubbleRenders.count = 0
+    // jsdom has no scrollTo; useStickToBottom calls it when the list grows.
+    Element.prototype.scrollTo = vi.fn()
   })
 
   it('renders the empty state when the session has no messages', () => {
