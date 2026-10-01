@@ -45,7 +45,7 @@
 // fidelity assertions stay meaningful while call counts are observable.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { act } from '@testing-library/react'
+import { act, fireEvent, waitFor } from '@testing-library/react'
 import { renderWithAppContext as render } from './renderWithAppContext'
 
 // ---------------------------------------------------------------------------
@@ -364,5 +364,29 @@ describe('Frontmatter re-split/re-serialize must be cached, not recomputed per k
       vi.runAllTimers()
       vi.useRealTimers()
     }
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Export PDF button — the same .md/Page-mode render, reused because the
+// button only exists for markdown files (#464).
+// ---------------------------------------------------------------------------
+
+describe('Export PDF button (#464)', () => {
+  it('surfaces a rejected export as an error toast instead of a silent console log', async () => {
+    const exportPdf = vi.fn().mockRejectedValue(new Error('MARVIN_OUTSIDE_VAULT'))
+    Object.assign(window.marvin.file, { exportPdf })
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const onImportToast = vi.fn()
+
+    const result = render(<Editor {...baseProps({ onImportToast })} />)
+    fireEvent.click(result.getByLabelText('Export as PDF'))
+
+    await waitFor(() => expect(onImportToast).toHaveBeenCalledTimes(1))
+    expect(exportPdf).toHaveBeenCalledWith('/vault/note.md')
+    const toast = onImportToast.mock.calls[0][0] as { state: string; message: string }
+    expect(toast.state).toBe('error')
+    expect(toast.message).toMatch(/^Export PDF failed: /)
+    consoleError.mockRestore()
   })
 })
