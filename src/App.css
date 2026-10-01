@@ -5138,6 +5138,8 @@ button.prop-bool {
 
 .chat-message-row {
   list-style: none;
+  /* No content-visibility here: it implies paint containment, which clips the
+     user bubble's rewind button (.chat-bubble-rewind floats at top: -10px). */
 }
 
 .chat-message-row.system .chat-system-text {
