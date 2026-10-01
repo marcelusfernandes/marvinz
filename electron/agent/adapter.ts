@@ -39,7 +39,7 @@ export type AgentAdapter = {
   // Whatever this provider needs to do with the spawned process's stdin
   // right after spawn — Codex passes the prompt as argv and closes stdin
   // immediately; Claude writes the initial prompt as a stream-json input
-  // event, then closes stdin.
+  // event and keeps stdin open for follow-up turns (sendAgentInput, C1-1).
   handleStdin(proc: ChildProcess, req: StartRequest): void
   // Translates one parsed NDJSON object into zero or more AgentEvents.
   adaptObj(obj: unknown, state: AdapterState | CodexAdapterState): AgentEvent[]

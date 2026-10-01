@@ -13,7 +13,13 @@ import { statSync } from 'node:fs'
 import { assertAllowedVault } from '../vault-allowlist.js'
 import { registerDynamicShell } from '../pty-spawn-guard.js'
 import { assertAgentDetectAllowed, registerDetectedAgent } from '../agent-detect-guard.js'
-import { spawnAgent, cancelAgent, killAgentSession, handleApproval } from '../agent/index.js'
+import {
+  spawnAgent,
+  sendAgentInput,
+  cancelAgent,
+  killAgentSession,
+  handleApproval,
+} from '../agent/index.js'
 import type { AgentRequest, AgentEvent } from '../agent/protocol.js'
 import { IPC_CHANNELS } from '../../src/shared/ipc-channels.js'
 
@@ -128,6 +134,13 @@ export function registerAgentHandlers(ctx: AgentHandlersCtx): void {
         registerDynamicShell(binary)
         await spawnAgent({ ...req, vaultRoot: resolvedVault }, binary, senderSend)
         return { ok: true }
+      }
+
+      if (req.type === 'input') {
+        // Follow-up turn on a live session (C1-1). false means no live child
+        // exists (e.g. it crashed) so the renderer falls back to a fresh start.
+        const delivered = sendAgentInput(req.sessionId, req.content)
+        return delivered ? { ok: true } : { ok: false, error: 'NO_LIVE_SESSION' }
       }
 
       if (req.type === 'cancel') {

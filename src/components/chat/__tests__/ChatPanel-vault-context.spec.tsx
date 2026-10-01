@@ -36,6 +36,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act } from '@testing-library/react'
 import { forwardRef } from 'react'
+import { fireEvent } from '@testing-library/react'
 import { renderWithAppContext } from '../../__tests__/renderWithAppContext'
 import { useChatStore, resetStreamingBuffers } from '../../../lib/chat/store'
 
@@ -205,5 +206,31 @@ describe("ChatPanel -> Composer's drop handler — live vaultPath, no stale clos
     })
 
     expect(useChatStore.getState().sessions['s1']?.composer.draft).toBe('')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Send while a tool call awaits approval must queue, not write a second
+// `input` onto the live child (C1-3).
+// ---------------------------------------------------------------------------
+
+describe('ChatPanel — send while awaiting approval', () => {
+  it('queues the message instead of dispatching a second turn', () => {
+    useChatStore.getState().startSession('s1', 'claude', '/vault')
+    useChatStore.setState((st) => ({
+      sessions: { ...st.sessions, s1: { ...st.sessions.s1, turnState: 'awaiting_approval' } },
+    }))
+    renderWithAppContext(<ChatPanel sessionId="s1" provider="claude" />, { vaultPath: '/vault' })
+    const textarea = getComposer().querySelector('textarea') as HTMLTextAreaElement
+    fireEvent.change(textarea, { target: { value: 'while approving' } })
+    fireEvent.keyDown(textarea, { key: 'Enter' })
+
+    expect(useChatStore.getState().sessions['s1'].queue).toEqual(['while approving'])
+    expect(window.marvin.agent.request).not.toHaveBeenCalledWith(
+      expect.objectContaining({ content: 'while approving' })
+    )
+    expect(window.marvin.agent.request).not.toHaveBeenCalledWith(
+      expect.objectContaining({ prompt: 'while approving' })
+    )
   })
 })

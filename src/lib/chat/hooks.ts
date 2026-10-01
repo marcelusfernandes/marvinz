@@ -16,6 +16,10 @@ function getAgentApi() {
   return window.marvin?.agent ?? null
 }
 
+// How long to wait after a cancel request before force-clearing a turn whose
+// terminating event never arrived (C1-5).
+const CANCEL_FALLBACK_MS = 4000
+
 // ---------------------------------------------------------------------------
 // useChatSession
 // ---------------------------------------------------------------------------
@@ -29,6 +33,64 @@ export type UseChatSessionResult = {
   session: Session | undefined
   send: (text: string, opts?: SendOptions) => Promise<void>
   cancel: () => Promise<void>
+  /** Re-run the last user turn after an error, without duplicating the bubble (C1-4). */
+  retry: () => Promise<void>
+}
+
+/**
+ * Issue one turn to the agent: continue a live Claude session via `input`, or
+ * spawn a fresh `start` on the first turn / after the child died (resuming the
+ * prior cli session for context). Shared by send (which appends the user bubble
+ * first) and retry (which reuses the existing last user message). See C1-2.
+ */
+async function dispatchTurn(
+  sessionId: SessionId,
+  current: Session,
+  trimmed: string,
+  opts?: SendOptions
+): Promise<void> {
+  const api = getAgentApi()
+  if (!api?.request) return
+  const store = useChatStore.getState()
+
+  try {
+    if (current.live && current.agentId !== 'codex') {
+      const res = await api.request({ type: 'input', sessionId, content: trimmed })
+      if (res && res.ok) return
+      store.setSessionLive(sessionId, false)
+    }
+
+    // The tab may have been closed while the round trip above was in flight;
+    // a fresh start now would spawn a child nobody listens to.
+    if (!useChatStore.getState().sessions[sessionId]) return
+
+    store.setSessionLive(sessionId, true)
+    const startRes = await api.request({
+      type: 'start',
+      sessionId,
+      provider: current.agentId,
+      prompt: trimmed,
+      vaultRoot: current.vaultPath,
+      permissionMode: opts?.permissionMode ?? current.permissionMode,
+      resumeFromSessionId: current.cliSessionId,
+    })
+    if (startRes && !startRes.ok) store.setSessionLive(sessionId, false)
+  } catch (err) {
+    // appendUserMessage already flipped the turn to 'streaming'; a rejected
+    // dispatch means no child will ever end it, so release it here and let
+    // the caller restore the draft.
+    store.setSessionLive(sessionId, false)
+    store.forceIdle(sessionId)
+    throw err
+  }
+}
+
+function lastUserText(session: Session): string | undefined {
+  for (let i = session.ordering.length - 1; i >= 0; i--) {
+    const m = session.messages[session.ordering[i]]
+    if (m?.role === 'user') return m.text
+  }
+  return undefined
 }
 
 /**
@@ -66,30 +128,65 @@ export function useChatSession(sessionId: SessionId): UseChatSessionResult {
       const current = store.sessions[sessionId]
       if (!current) return
       store.appendUserMessage(sessionId, trimmed)
-      const api = getAgentApi()
-      if (!api?.request) return
-      // PRD AC6: each turn uses the mode that was active at send time. The
-      // session.permissionMode is the source of truth; opts.permissionMode
-      // exists as an override for explicit per-call control.
-      await api.request({
-        type: 'start',
-        sessionId,
-        provider: current.agentId,
-        prompt: trimmed,
-        vaultRoot: current.vaultPath,
-        permissionMode: opts?.permissionMode ?? current.permissionMode,
-      })
+      // PRD AC6: each turn uses the mode that was active at send time.
+      await dispatchTurn(sessionId, current, trimmed, opts)
     },
     [sessionId]
   )
 
+  // Each cancel() gets its own token so the fallback only acts for the cancel
+  // that scheduled it: a timer left over from an earlier, already-resolved
+  // cancel must not force-idle a later cancel that is still in flight.
+  const cancelToken = useRef(0)
   const cancel = useCallback<UseChatSessionResult['cancel']>(async () => {
     const api = getAgentApi()
     if (!api?.request) return
-    await api.request({ type: 'cancel', sessionId })
+    const token = ++cancelToken.current
+    // Optimistically enter the "Stopping…" state so the composer reflects the
+    // request immediately, and schedule a fallback that forces the turn idle if
+    // the terminating event is dropped by main (C1-5).
+    useChatStore.getState().setCancelling(sessionId, true)
+    try {
+      await api.request({ type: 'cancel', sessionId })
+    } finally {
+      // Armed even when the IPC call rejects: "Stopping…" must never be a
+      // state the UI cannot leave.
+      setTimeout(() => {
+        if (cancelToken.current !== token) return
+        if (useChatStore.getState().sessions[sessionId]?.cancelling) {
+          useChatStore.getState().forceIdle(sessionId)
+        }
+      }, CANCEL_FALLBACK_MS)
+    }
   }, [sessionId])
 
-  return useMemo(() => ({ session, send, cancel }), [session, send, cancel])
+  const retry = useCallback<UseChatSessionResult['retry']>(async () => {
+    const store = useChatStore.getState()
+    const current = store.sessions[sessionId]
+    if (!current) return
+    const text = lastUserText(current)
+    if (!text) return
+    // Clear the error banner and re-run the last turn without re-appending the
+    // user bubble (it is already in the transcript).
+    store.clearError(sessionId)
+    await dispatchTurn(sessionId, current, text)
+  }, [sessionId])
+
+  // Auto-send the next queued message once the turn is idle (C1-3). Sending
+  // flips turnState back to 'streaming', so the guard prevents a double flush.
+  const turnState = session?.turnState
+  const nextQueued = session?.queue?.[0]
+  useEffect(() => {
+    if (turnState !== 'idle' || nextQueued === undefined) return
+    useChatStore.getState().dequeueMessage(sessionId)
+    // Same failure handling as a manual submit: the message was already
+    // dequeued, so a failed dispatch must not drop it silently.
+    void send(nextQueued).catch(() => {
+      useChatStore.getState().setComposerDraft(sessionId, nextQueued)
+    })
+  }, [turnState, nextQueued, sessionId, send])
+
+  return useMemo(() => ({ session, send, cancel, retry }), [session, send, cancel, retry])
 }
 
 // ---------------------------------------------------------------------------

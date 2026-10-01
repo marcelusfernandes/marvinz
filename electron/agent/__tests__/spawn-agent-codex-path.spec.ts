@@ -40,7 +40,7 @@ const CODEX_FIXTURE = path.join(__dirname, 'fixtures', 'codex', 'simple-text.jso
 class FakeChildProcess extends EventEmitter {
   stdout = new PassThrough()
   stderr = new PassThrough()
-  stdin = { write: vi.fn(), end: vi.fn() }
+  stdin = { write: vi.fn(), end: vi.fn(), on: vi.fn() }
   pid = 4242
 }
 

@@ -282,7 +282,8 @@ describe('applyStreamEvent: error', () => {
     expect(getSession(SID).turnState).toBe('error')
   })
 
-  it('sets turnState to error on recoverable error', () => {
+  it('records a recoverable error without ending the turn', () => {
+    const before = getSession(SID).turnState
     getStore().applyStreamEvent(SID, {
       type: 'error',
       sessionId: SID,
@@ -290,7 +291,10 @@ describe('applyStreamEvent: error', () => {
       message: 'Rate limited',
       recoverable: true,
     })
-    expect(getSession(SID).turnState).toBe('error')
+    // The child is still streaming after a recoverable error; only an
+    // unrecoverable one (or a crash) moves the turn to 'error'.
+    expect(getSession(SID).turnState).toBe(before)
+    expect(getSession(SID).lastError).toBeUndefined()
   })
 })
 

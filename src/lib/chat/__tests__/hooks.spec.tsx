@@ -43,7 +43,9 @@ function makeIpcStub() {
         )
       }
     }),
-    request: vi.fn(() => Promise.resolve()),
+    request: vi.fn(
+      (_req?: unknown): Promise<{ ok: boolean; error?: string }> => Promise.resolve({ ok: true })
+    ),
     _emit(sessionId: string, ev: unknown) {
       ;(listeners.get(sessionId) ?? []).forEach((l) => l(ev))
     },
@@ -195,6 +197,286 @@ describe('useChatSession — send', () => {
 })
 
 // ---------------------------------------------------------------------------
+// useChatSession — multi-turn continuity (C1-2)
+// ---------------------------------------------------------------------------
+
+function sessionInit(sessionId: string, cliSessionId: string) {
+  return {
+    type: 'session-init' as const,
+    sessionId,
+    provider: 'claude' as const,
+    cliSessionId,
+    model: 'claude-sonnet-5',
+    cwd: '/vault',
+    startedAt: 0,
+  }
+}
+
+describe('useChatSession — multi-turn continuity', () => {
+  it('releases the turn instead of wedging it in streaming when the dispatch rejects', async () => {
+    ipc.request.mockRejectedValueOnce(new Error('IPC down'))
+    useChatStore.getState().startSession('s1', 'claude', '/vault')
+    const { result } = renderHook(() => useChatSession('s1'))
+    await act(async () => {
+      await expect(result.current.send('go')).rejects.toThrow('IPC down')
+    })
+    expect(useChatStore.getState().sessions['s1'].turnState).toBe('idle')
+    expect(useChatStore.getState().sessions['s1'].live).toBe(false)
+  })
+
+  it('does not spawn a fresh start for a session closed while the input round trip was in flight', async () => {
+    useChatStore.getState().startSession('s1', 'claude', '/vault')
+    useChatStore.getState().setSessionLive('s1', true)
+    const { result } = renderHook(() => useChatSession('s1'))
+    ipc.request.mockImplementationOnce(async () => {
+      // Tab closed while main was handling the `input` request.
+      useChatStore.getState().closeSession('s1')
+      return { ok: false, error: 'NO_LIVE_SESSION' }
+    })
+    await act(async () => {
+      await result.current.send('late')
+    })
+    expect(ipc.request).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'start' }))
+  })
+
+  it('sends the first turn as a fresh start', async () => {
+    ipc.request.mockResolvedValue({ ok: true })
+    useChatStore.getState().startSession('s1', 'claude', '/vault')
+    const { result } = renderHook(() => useChatSession('s1'))
+    await act(async () => {
+      await result.current.send('first')
+    })
+    expect(ipc.request).toHaveBeenCalledTimes(1)
+    expect(ipc.request).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'start', prompt: 'first' })
+    )
+  })
+
+  it('continues a live session with an input turn, not a new start', async () => {
+    ipc.request.mockResolvedValue({ ok: true })
+    useChatStore.getState().startSession('s1', 'claude', '/vault')
+    const { result } = renderHook(() => useChatSession('s1'))
+    await act(async () => {
+      await result.current.send('first')
+    })
+    // CLI confirms a live child.
+    act(() => {
+      ipc._emit('s1', sessionInit('s1', 'cli-abc'))
+    })
+    ipc.request.mockClear()
+    await act(async () => {
+      await result.current.send('second')
+    })
+    expect(ipc.request).toHaveBeenCalledTimes(1)
+    expect(ipc.request).toHaveBeenCalledWith({ type: 'input', sessionId: 's1', content: 'second' })
+  })
+
+  it('marks the session live optimistically so a rapid second send uses input', async () => {
+    ipc.request.mockResolvedValue({ ok: true })
+    useChatStore.getState().startSession('s1', 'claude', '/vault')
+    const { result } = renderHook(() => useChatSession('s1'))
+    await act(async () => {
+      await result.current.send('first')
+    })
+    // No session-init yet — but the first send set live optimistically.
+    ipc.request.mockClear()
+    await act(async () => {
+      await result.current.send('second')
+    })
+    expect(ipc.request).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'input', content: 'second' })
+    )
+  })
+
+  it('falls back to a resuming start when the live child is gone', async () => {
+    useChatStore.getState().startSession('s1', 'claude', '/vault')
+    const { result } = renderHook(() => useChatSession('s1'))
+    ipc.request.mockResolvedValue({ ok: true })
+    await act(async () => {
+      await result.current.send('first')
+    })
+    act(() => {
+      ipc._emit('s1', sessionInit('s1', 'cli-xyz'))
+    })
+    // Next input is rejected because the child died; send must retry as start.
+    ipc.request.mockReset()
+    ipc.request
+      .mockResolvedValueOnce({ ok: false, error: 'NO_LIVE_SESSION' })
+      .mockResolvedValueOnce({ ok: true })
+    await act(async () => {
+      await result.current.send('second')
+    })
+    expect(ipc.request).toHaveBeenNthCalledWith(1, {
+      type: 'input',
+      sessionId: 's1',
+      content: 'second',
+    })
+    expect(ipc.request).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ type: 'start', prompt: 'second', resumeFromSessionId: 'cli-xyz' })
+    )
+  })
+
+  it('always spawns a fresh start for Codex (one-shot per turn)', async () => {
+    ipc.request.mockResolvedValue({ ok: true })
+    useChatStore.getState().startSession('s1', 'codex', '/vault')
+    // Even with live set, Codex must not take the input path.
+    useChatStore.getState().setSessionLive('s1', true)
+    const { result } = renderHook(() => useChatSession('s1'))
+    await act(async () => {
+      await result.current.send('hello')
+    })
+    expect(ipc.request).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'start', prompt: 'hello' })
+    )
+    expect(ipc.request).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'input' }))
+  })
+
+  it('clears live on an unrecoverable error so the next send starts fresh', async () => {
+    ipc.request.mockResolvedValue({ ok: true })
+    useChatStore.getState().startSession('s1', 'claude', '/vault')
+    const { result } = renderHook(() => useChatSession('s1'))
+    await act(async () => {
+      await result.current.send('first')
+    })
+    act(() => {
+      ipc._emit('s1', sessionInit('s1', 'cli-1'))
+      ipc._emit('s1', {
+        type: 'error',
+        sessionId: 's1',
+        code: 'AGENT_INTERNAL',
+        message: 'boom',
+        recoverable: false,
+      })
+    })
+    expect(useChatStore.getState().sessions['s1'].live).toBe(false)
+    ipc.request.mockClear()
+    await act(async () => {
+      await result.current.send('second')
+    })
+    expect(ipc.request).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'start', prompt: 'second' })
+    )
+  })
+})
+
+// ---------------------------------------------------------------------------
+// useChatSession — retry (C1-4)
+// ---------------------------------------------------------------------------
+
+describe('useChatSession — retry', () => {
+  it('re-sends the last user turn without appending a new bubble', async () => {
+    ipc.request.mockResolvedValue({ ok: true })
+    useChatStore.getState().startSession('s1', 'claude', '/vault')
+    const { result } = renderHook(() => useChatSession('s1'))
+    await act(async () => {
+      await result.current.send('do the thing')
+    })
+    // Simulate a crash.
+    act(() => {
+      ipc._emit('s1', { type: 'crashed', sessionId: 's1', exitCode: 1, signal: null })
+    })
+    const bubblesBefore = Object.values(useChatStore.getState().sessions['s1'].messages).filter(
+      (m) => m.role === 'user'
+    ).length
+    ipc.request.mockClear()
+    await act(async () => {
+      await result.current.retry()
+    })
+    const bubblesAfter = Object.values(useChatStore.getState().sessions['s1'].messages).filter(
+      (m) => m.role === 'user'
+    ).length
+    expect(bubblesAfter).toBe(bubblesBefore) // no duplicate user bubble
+    expect(ipc.request).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'start', prompt: 'do the thing' })
+    )
+    expect(useChatStore.getState().sessions['s1'].lastError).toBeUndefined()
+  })
+
+  it('is a no-op when there is no prior user message', async () => {
+    ipc.request.mockResolvedValue({ ok: true })
+    useChatStore.getState().startSession('s1', 'claude', '/vault')
+    const { result } = renderHook(() => useChatSession('s1'))
+    await act(async () => {
+      await result.current.retry()
+    })
+    expect(ipc.request).not.toHaveBeenCalled()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// useChatSession — message queue (C1-3)
+// ---------------------------------------------------------------------------
+
+describe('useChatSession — message queue', () => {
+  it('restores a queued message to the draft when its auto-send fails, like a manual submit', async () => {
+    ipc.request.mockResolvedValue({ ok: true })
+    useChatStore.getState().startSession('s1', 'claude', '/vault')
+    const { result } = renderHook(() => useChatSession('s1'))
+    await act(async () => {
+      await result.current.send('first')
+    })
+    act(() => {
+      useChatStore.getState().enqueueMessage('s1', 'second')
+    })
+    ipc.request.mockRejectedValue(new Error('IPC down'))
+    await act(async () => {
+      ipc._emit('s1', {
+        type: 'turn-result',
+        sessionId: 's1',
+        usage: { inputTokens: 1, outputTokens: 1 },
+        costUSD: 0,
+        durationMs: 5,
+      })
+    })
+    expect(useChatStore.getState().sessions['s1'].queue ?? []).toHaveLength(0)
+    expect(useChatStore.getState().sessions['s1'].composer.draft).toBe('second')
+  })
+
+  it('auto-sends the queued message once the turn goes idle', async () => {
+    ipc.request.mockResolvedValue({ ok: true })
+    useChatStore.getState().startSession('s1', 'claude', '/vault')
+    const { result } = renderHook(() => useChatSession('s1'))
+    await act(async () => {
+      await result.current.send('first')
+    })
+    // User queues a follow-up while streaming.
+    act(() => {
+      useChatStore.getState().enqueueMessage('s1', 'second')
+    })
+    ipc.request.mockClear()
+    // The turn finishes.
+    await act(async () => {
+      ipc._emit('s1', {
+        type: 'turn-result',
+        sessionId: 's1',
+        usage: { inputTokens: 1, outputTokens: 1 },
+        costUSD: 0,
+        durationMs: 5,
+      })
+    })
+    expect(ipc.request).toHaveBeenCalledWith(expect.objectContaining({ content: 'second' }))
+    expect(useChatStore.getState().sessions['s1'].queue ?? []).toHaveLength(0)
+  })
+
+  it('does not flush the queue while the turn is still streaming', async () => {
+    ipc.request.mockResolvedValue({ ok: true })
+    useChatStore.getState().startSession('s1', 'claude', '/vault')
+    const { result } = renderHook(() => useChatSession('s1'))
+    await act(async () => {
+      await result.current.send('first')
+    })
+    ipc.request.mockClear()
+    act(() => {
+      useChatStore.getState().enqueueMessage('s1', 'second')
+    })
+    // Still streaming — nothing sent yet.
+    expect(ipc.request).not.toHaveBeenCalled()
+    expect(useChatStore.getState().sessions['s1'].queue).toEqual(['second'])
+  })
+})
+
+// ---------------------------------------------------------------------------
 // useChatSession — cancel
 // ---------------------------------------------------------------------------
 
@@ -221,6 +503,106 @@ describe('useChatSession — cancel', () => {
         await result.current.cancel()
       })
     ).resolves.not.toThrow()
+  })
+
+  it('optimistically enters the cancelling state (C1-5)', async () => {
+    useChatStore.getState().startSession('s1', 'claude', '/vault')
+    const { result } = renderHook(() => useChatSession('s1'))
+    await act(async () => {
+      await result.current.cancel()
+    })
+    expect(useChatStore.getState().sessions['s1'].cancelling).toBe(true)
+  })
+
+  it('arms the cancel fallback even when the cancel IPC call rejects', async () => {
+    vi.useFakeTimers()
+    try {
+      useChatStore.getState().startSession('s1', 'claude', '/vault')
+      const { result } = renderHook(() => useChatSession('s1'))
+      await act(async () => {
+        await result.current.send('go')
+      })
+      ipc.request.mockRejectedValueOnce(new Error('IPC down'))
+      await act(async () => {
+        await result.current.cancel().catch(() => {})
+      })
+      expect(useChatStore.getState().sessions['s1'].cancelling).toBe(true)
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(4000)
+      })
+      expect(useChatStore.getState().sessions['s1'].cancelling).toBe(false)
+      expect(useChatStore.getState().sessions['s1'].turnState).toBe('idle')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('a stale fallback from an earlier cancel does not force-idle a later in-flight cancel', async () => {
+    vi.useFakeTimers()
+    try {
+      useChatStore.getState().startSession('s1', 'claude', '/vault')
+      const { result } = renderHook(() => useChatSession('s1'))
+      const turnResolved = () =>
+        useChatStore.getState().applyStreamEvent('s1', {
+          type: 'turn-result',
+          sessionId: 's1',
+          usage: { inputTokens: 1, outputTokens: 1 },
+          costUSD: 0,
+          durationMs: 1,
+        })
+
+      // Cancel A at t=0, and it resolves quickly through the real event.
+      await act(async () => {
+        await result.current.send('a')
+        await result.current.cancel()
+      })
+      act(turnResolved)
+      expect(useChatStore.getState().sessions['s1'].cancelling).toBe(false)
+
+      // Cancel B at t=3s, still in flight when A's 4s fallback fires.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(3000)
+        await result.current.send('b')
+        await result.current.cancel()
+      })
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1500)
+      })
+      expect(useChatStore.getState().sessions['s1'].cancelling).toBe(true)
+      expect(useChatStore.getState().sessions['s1'].turnState).not.toBe('idle')
+
+      // B's own fallback still protects against a dropped terminating event.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(3000)
+      })
+      expect(useChatStore.getState().sessions['s1'].cancelling).toBe(false)
+      expect(useChatStore.getState().sessions['s1'].turnState).toBe('idle')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('forces the turn idle if the terminating event is dropped', async () => {
+    vi.useFakeTimers()
+    try {
+      useChatStore.getState().startSession('s1', 'claude', '/vault')
+      const { result } = renderHook(() => useChatSession('s1'))
+      await act(async () => {
+        await result.current.send('go')
+      })
+      await act(async () => {
+        await result.current.cancel()
+      })
+      expect(useChatStore.getState().sessions['s1'].cancelling).toBe(true)
+      // No message-end/cancelled arrives; the fallback clears the hung turn.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(4000)
+      })
+      expect(useChatStore.getState().sessions['s1'].cancelling).toBe(false)
+      expect(useChatStore.getState().sessions['s1'].turnState).toBe('idle')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
 

@@ -40,7 +40,7 @@ import { spawnAgent } from '../index'
 class FakeChildProcess extends EventEmitter {
   stdout = new PassThrough()
   stderr = new PassThrough()
-  stdin = { write: vi.fn(), end: vi.fn() }
+  stdin = { write: vi.fn(), end: vi.fn(), on: vi.fn() }
   pid = 4242
 }
 
