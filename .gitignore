@@ -33,6 +33,10 @@ release
 # Claude Code agent worktrees (runtime artifacts)
 .claude/worktrees/
 
+# Local agent-tooling mirrors/artifacts (skill mirrors, lavish plans)
+.agents/
+.lavish/
+
 # Marvin snapshot storage (runtime artifacts, not for repo)
 **/.marvin/
 
